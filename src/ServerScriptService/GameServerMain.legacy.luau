@@ -8,6 +8,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local Services = ServerScriptService:WaitForChild("Services")
 
 require(Services:WaitForChild("Net"))
+require(Services:WaitForChild("PlayerData")) -- perfil único de cada jugador (nivel, clase, inventario): debe cargar antes que los servicios que lo usan
 require(Services:WaitForChild("PlayerDefaults"))
 require(Services:WaitForChild("ClassSelectService")) -- pantalla de selección de facción/rol
 require(Services:WaitForChild("PlayerOutfits")) -- trajes de los 18 personajes

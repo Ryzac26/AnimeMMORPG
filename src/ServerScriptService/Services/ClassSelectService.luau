@@ -2,7 +2,7 @@
 --[[
     ClassSelectService (ModuleScript) -> ServerScriptService.Services.ClassSelectService
     SELECCIÓN DE FACCIÓN + ROL.
-      - Al entrar: carga la elección guardada (DataStore). Si existe -> pone Faction/Role y ClassChosen=true.
+      - Al entrar: carga la elección guardada (PlayerData, sección "Class"). Si existe -> pone Faction/Role y ClassChosen=true.
         Si no existe (jugador nuevo) -> ClassChosen=false y el cliente muestra la pantalla de selección.
       - Remote "ChooseClass"(faction, role): el servidor valida contra FactionClassesModule, guarda,
         pone los atributos y reaparece al jugador en la ciudad de su facción (RespawnLocation lo fija ProjectBootstrapper).
@@ -12,24 +12,13 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
-local DataStoreService = game:GetService("DataStoreService")
 local Workspace = game:GetService("Workspace")
 
 local Net = require(ServerScriptService.Services.Net)
+local PlayerData = require(ServerScriptService.Services.PlayerData)
 local FactionClasses = require(ReplicatedStorage.Modules.FactionClassesModule)
 
-local STORE_NAME = "ClassChoice_v1"
 local choose = Net.Get("ChooseClass")
-
-local store: DataStore? = nil
-do
-	local ok, s = pcall(function()
-		return DataStoreService:GetDataStore(STORE_NAME)
-	end)
-	if ok then
-		store = s
-	end
-end
 
 local loaded: { [Player]: boolean } = {}
 local busy: { [Player]: boolean } = {}
@@ -41,18 +30,11 @@ local function applyChoice(player: Player, faction: string, role: string)
 end
 
 local function load(player: Player)
-	local saved: any = nil
-	if store then
-		local ok, res = pcall(function()
-			return (store :: DataStore):GetAsync("P_" .. player.UserId)
-		end)
-		if ok then
-			saved = res
-		end
+	local data = PlayerData.WaitForData(player)
+	if not data or player.Parent == nil then
+		return -- la carga falló (el jugador es expulsado) o ya salió
 	end
-	if player.Parent == nil then
-		return
-	end
+	local saved: any = data.Class
 	if typeof(saved) == "table" and typeof(saved.Faction) == "string" and typeof(saved.Role) == "string"
 		and FactionClasses.FindClass(saved.Faction, saved.Role) then
 		applyChoice(player, saved.Faction, saved.Role)
@@ -62,15 +44,15 @@ local function load(player: Player)
 	loaded[player] = true
 end
 
-local function save(player: Player)
+-- Qué guarda PlayerData de este servicio (nil = todavía no hay elección: no se toca la sección)
+PlayerData.RegisterSerializer("Class", function(player: Player): any?
 	local faction = player:GetAttribute("Faction")
 	local role = player:GetAttribute("Role")
-	if store and player:GetAttribute("ClassChosen") == true and typeof(faction) == "string" and typeof(role) == "string" then
-		pcall(function()
-			(store :: DataStore):SetAsync("P_" .. player.UserId, { Faction = faction, Role = role })
-		end)
+	if player:GetAttribute("ClassChosen") == true and typeof(faction) == "string" and typeof(role) == "string" then
+		return { Faction = faction, Role = role }
 	end
-end
+	return nil
+end)
 
 choose.OnServerEvent:Connect(function(player: Player, faction: any, role: any)
 	if not loaded[player] or busy[player] then
@@ -87,7 +69,7 @@ choose.OnServerEvent:Connect(function(player: Player, faction: any, role: any)
 	end
 	busy[player] = true
 	applyChoice(player, faction, role)
-	save(player)
+	PlayerData.Save(player) -- la elección se guarda al instante
 	task.wait(0.25) -- deja que ProjectBootstrapper actualice RespawnLocation de la nueva facción
 	if player.Parent then
 		player:LoadCharacter() -- reaparece en la ciudad de su facción con su clase nueva
@@ -101,15 +83,10 @@ end)
 for _, pl in ipairs(Players:GetPlayers()) do
 	task.spawn(load, pl)
 end
-Players.PlayerRemoving:Connect(function(pl)
-	save(pl)
+-- PlayerData avisa DESPUÉS de tomar la foto final de datos: ahora sí se puede limpiar
+PlayerData.Releasing:Connect(function(pl: Player)
 	loaded[pl] = nil
 	busy[pl] = nil
-end)
-game:BindToClose(function()
-	for _, pl in ipairs(Players:GetPlayers()) do
-		save(pl)
-	end
 end)
 
 return {}

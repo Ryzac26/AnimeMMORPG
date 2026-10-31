@@ -7,7 +7,11 @@
       - Equipo: una casilla por ranura de ItemCatalog.EquipSlots (Casco, Arma, Capa, Alas, Montura, Traje...).
       - API: Add(player, itemId, count) -> bool · Get(player) -> estado
       - Acciones del cliente por el remote InventoryAction: ("Equip", bagIndex) · ("Unequip", slotName) · ("Move", a, b) · ("Drop", bagIndex)
-    Persistencia (DataStore) y loot: pendientes por diseño; Add() es el punto de entrada para el loot futuro.
+    Persistencia: sección "Inventory" de PlayerData (se guarda sola cada 120 s, al salir y al cerrar el servidor).
+      - Al cargar se valida contra ItemCatalog. Un objeto que ya no existe (borrado o renombrado en el catálogo) NO se pierde:
+        pasa a "Orphans" y se vuelve a guardar tal cual, por si más adelante se restaura el objeto.
+      - Mientras el perfil carga, Get() devuelve nil y Add() devuelve false (el loot no debe llegar antes de cargar).
+    Loot: Add() es el punto de entrada para el loot futuro.
 ]]
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,15 +19,17 @@ local ServerScriptService = game:GetService("ServerScriptService")
 
 local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
 local Net = require(ServerScriptService.Services.Net)
+local PlayerData = require(ServerScriptService.Services.PlayerData)
 
 local UpdateRemote = Net.Get("InventoryUpdate")
 local ActionRemote = Net.Get("InventoryAction")
 
 local MIN_SLOTS = 20
 local ROW = 5
+local MAX_SLOT = 1000 -- tope de seguridad al cargar datos (evita una mochila gigante por datos corruptos)
 
 type Stack = { Id: string, Count: number }
-type State = { Bag: { [number]: Stack }, Equip: { [string]: string } }
+type State = { Bag: { [number]: Stack }, Equip: { [string]: string }, Orphans: { Stack } }
 
 local Inventory = {}
 local states: { [Player]: State } = {}
@@ -60,6 +66,82 @@ local function firstFree(st: State): number
 		i += 1
 	end
 	return i
+end
+
+---------------------------------------------------------------------
+-- Guardado / carga (formato plano: el DataStore no admite índices con huecos)
+---------------------------------------------------------------------
+local function serialize(st: State): any
+	local bag: { { Slot: number, Id: string, Count: number } } = {}
+	for slot, stack in pairs(st.Bag) do
+		table.insert(bag, { Slot = slot, Id = stack.Id, Count = stack.Count })
+	end
+	table.sort(bag, function(a: { Slot: number }, b: { Slot: number }): boolean
+		return a.Slot < b.Slot
+	end)
+	local equip = {}
+	for slotName, id in pairs(st.Equip) do
+		equip[slotName] = id
+	end
+	local orphans = {}
+	for _, o in ipairs(st.Orphans) do
+		table.insert(orphans, { Id = o.Id, Count = o.Count })
+	end
+	return { Bag = bag, Equip = equip, Orphans = orphans }
+end
+
+local function deserialize(saved: any): State
+	local st: State = { Bag = {}, Equip = {}, Orphans = {} }
+	if typeof(saved) ~= "table" then
+		return st
+	end
+	local orphans: any = saved.Orphans
+	if typeof(orphans) == "table" then
+		for _, entry in ipairs(orphans) do
+			local o: any = entry
+			local id, count = o.Id, o.Count
+			if typeof(o) == "table" and typeof(id) == "string" and typeof(count) == "number" then
+				table.insert(st.Orphans, { Id = id, Count = math.floor(count) })
+			end
+		end
+	end
+	local bag: any = saved.Bag
+	if typeof(bag) == "table" then
+		for _, entry in ipairs(bag) do
+			local e: any = entry
+			local id, slotNumber, countNumber = e.Id, e.Slot, e.Count
+			if typeof(e) == "table" and typeof(id) == "string" and typeof(slotNumber) == "number" and typeof(countNumber) == "number" then
+				local count = math.floor(countNumber)
+				if count >= 1 then
+					if not (ItemCatalog.Items :: any)[id] then
+						table.insert(st.Orphans, { Id = id, Count = count }) -- el objeto ya no existe en el catálogo
+					else
+						local slot = math.floor(slotNumber)
+						if slot < 1 or slot > MAX_SLOT or st.Bag[slot] ~= nil then
+							slot = firstFree(st) -- casilla inválida o repetida: no se pierde, va a la primera libre
+						end
+						st.Bag[slot] = { Id = id, Count = count }
+					end
+				end
+			end
+		end
+	end
+	local equip: any = saved.Equip
+	if typeof(equip) == "table" then
+		for slotName, id in pairs(equip) do
+			if typeof(slotName) == "string" and typeof(id) == "string" then
+				local item = (ItemCatalog.Items :: any)[id]
+				if not item then
+					table.insert(st.Orphans, { Id = id, Count = 1 })
+				elseif item.Slot == slotName then
+					st.Equip[slotName] = id
+				else
+					st.Bag[firstFree(st)] = { Id = id, Count = 1 } -- cambió la ranura del objeto en el catálogo: vuelve a la mochila
+				end
+			end
+		end
+	end
+	return st
 end
 
 function Inventory.Get(player: Player): State?
@@ -176,16 +258,39 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 	push(player)
 end)
 
-Players.PlayerAdded:Connect(function(pl)
-	states[pl] = { Bag = {}, Equip = {} }
-	task.defer(push, pl)
-end)
-for _, pl in ipairs(Players:GetPlayers()) do
-	states[pl] = states[pl] or { Bag = {}, Equip = {} }
+local function init(pl: Player)
+	local saved = PlayerData.WaitForData(pl)
+	if not saved or pl.Parent == nil then
+		return -- la carga falló (el jugador es expulsado) o ya salió
+	end
+	local st = deserialize(saved.Inventory)
+	states[pl] = st
+	-- AttackAnimator y compañía leen el equipo por atributos Equip_<ranura>: se restauran al cargar
+	for slotName, id in pairs(st.Equip) do
+		pl:SetAttribute("Equip_" .. slotName, id)
+	end
 	push(pl)
 end
-Players.PlayerRemoving:Connect(function(pl)
+
+-- Qué guarda PlayerData de este servicio (nil = todavía no cargó: no se toca la sección)
+PlayerData.RegisterSerializer("Inventory", function(player: Player): any?
+	local st = states[player]
+	if st then
+		return serialize(st)
+	end
+	return nil
+end)
+
+-- PlayerData avisa DESPUÉS de tomar la foto final de datos: ahora sí se puede limpiar
+PlayerData.Releasing:Connect(function(pl: Player)
 	states[pl] = nil
 end)
+
+Players.PlayerAdded:Connect(function(pl)
+	task.spawn(init, pl)
+end)
+for _, pl in ipairs(Players:GetPlayers()) do
+	task.spawn(init, pl)
+end
 
 return Inventory
