@@ -651,9 +651,16 @@ local function styleCity(biome: Instance, faction: string)
 end
 
 local function run()
+	-- espera a que ProjectBootstrapper termine el mapa NUEVO (no el viejo que pudiera venir guardado en el lugar)
+	local waited = 0
+	while Workspace:GetAttribute("MapBuilt") ~= true and waited < 90 do
+		task.wait(0.25)
+		waited += 0.25
+	end
 	local map = Workspace:WaitForChild(MAP_NAME, 60)
 	if not map then
 		warn("[CityStyler] No existe " .. MAP_NAME)
+		Workspace:SetAttribute("CityStyleDone", true) -- no bloquear WorldReady
 		return
 	end
 	local done = 0
@@ -672,6 +679,7 @@ local function run()
 	end
 	-- el cliente lee este atributo (CityStyleCheck) para confirmar en la consola F9 que el estilo llegó
 	Workspace:SetAttribute("CityStyleStatus", string.format("%d ciudades con estilo, %d con error", done, failed))
+	Workspace:SetAttribute("CityStyleDone", true)
 	print("[CityStyler] Estilo anime aplicado a las 4 ciudades.")
 end
 

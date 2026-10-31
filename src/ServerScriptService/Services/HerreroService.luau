@@ -61,17 +61,71 @@ local function groundPosition(point: BasePart): Vector3
 	return if hit then hit.Position else point.Position
 end
 
-local function buildRig(info: { Name: string, Skin: Color3, Shirt: Color3, Pants: Color3 }): Model?
-	local desc = Instance.new("HumanoidDescription")
-	desc.HeadColor, desc.LeftArmColor, desc.RightArmColor = info.Skin, info.Skin, info.Skin
-	desc.TorsoColor, desc.LeftLegColor, desc.RightLegColor = info.Shirt, info.Pants, info.Pants
-	local ok, rig = pcall(function()
-		return Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
-	end)
-	if ok and rig then
-		return rig
-	end
-	return nil
+-- Cuerpo del NPC armado con piezas simples (así se ve siempre, sin depender de avatares ni de la nube de Roblox)
+local function part(model: Model, name: string, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?): Part
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = material or Enum.Material.SmoothPlastic
+	p.Anchored = true
+	p.CanCollide = name == "HumanoidRootPart" or name == "Yunque"
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Parent = model
+	return p
+end
+
+local function buildSmith(info: { Name: string, Title: string, Skin: Color3, Shirt: Color3, Pants: Color3 }, cf: CFrame): Model
+	local model = Instance.new("Model")
+	local root = part(model, "HumanoidRootPart", Vector3.new(2, 2, 1), cf, info.Shirt)
+	root.Transparency = 1
+	model.PrimaryPart = root
+	part(model, "Torso", Vector3.new(2, 2, 1), cf, info.Shirt)
+	local head = part(model, "Head", Vector3.new(1.3, 1.3, 1.3), cf * CFrame.new(0, 1.65, 0), info.Skin)
+	local face = Instance.new("Decal")
+	face.Texture = "rbxasset://textures/face.png"
+	face.Face = Enum.NormalId.Front
+	face.Parent = head
+	part(model, "Cabello", Vector3.new(1.4, 0.5, 1.4), cf * CFrame.new(0, 2.45, 0.05), Color3.fromRGB(45, 35, 30))
+	part(model, "BrazoIzq", Vector3.new(1, 2, 1), cf * CFrame.new(-1.5, 0, 0), info.Skin)
+	part(model, "BrazoDer", Vector3.new(1, 2, 1), cf * CFrame.new(1.5, 0, 0), info.Skin)
+	part(model, "PiernaIzq", Vector3.new(1, 2, 1), cf * CFrame.new(-0.5, -2, 0), info.Pants)
+	part(model, "PiernaDer", Vector3.new(1, 2, 1), cf * CFrame.new(0.5, -2, 0), info.Pants)
+	part(model, "Delantal", Vector3.new(1.8, 1.7, 0.2), cf * CFrame.new(0, -0.15, -0.6), Color3.fromRGB(70, 50, 40), Enum.Material.Leather)
+	-- yunque al lado
+	local anvilCF = cf * CFrame.new(4, -2.6, -1)
+	part(model, "Yunque", Vector3.new(2.6, 1.6, 2), anvilCF, Color3.fromRGB(60, 60, 68), Enum.Material.Metal)
+	part(model, "YunqueBase", Vector3.new(1.6, 1.2, 1.4), anvilCF * CFrame.new(0, -1.3, 0), Color3.fromRGB(45, 45, 52), Enum.Material.Metal)
+
+	-- cartel con el nombre
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(220, 46)
+	gui.StudsOffset = Vector3.new(0, 3.6, 0)
+	gui.MaxDistance = 60
+	gui.AlwaysOnTop = false
+	gui.Parent = head
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Size = UDim2.new(1, 0, 0.55, 0)
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextScaled = true
+	nameLabel.TextColor3 = Color3.fromRGB(255, 214, 90)
+	nameLabel.TextStrokeTransparency = 0.4
+	nameLabel.Text = info.Name
+	nameLabel.Parent = gui
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Position = UDim2.fromScale(0, 0.55)
+	titleLabel.Size = UDim2.new(1, 0, 0.45, 0)
+	titleLabel.Font = Enum.Font.Gotham
+	titleLabel.TextScaled = true
+	titleLabel.TextColor3 = Color3.new(1, 1, 1)
+	titleLabel.TextStrokeTransparency = 0.5
+	titleLabel.Text = "Herrero"
+	titleLabel.Parent = gui
+	return model
 end
 
 local function spawnSmith(point: BasePart)
@@ -79,6 +133,7 @@ local function spawnSmith(point: BasePart)
 	local faction = if typeof(biome) == "string" then BIOME_FACTION[biome] else nil
 	local info = if faction then SMITHS[faction] else nil
 	if not info or not faction then
+		warn("[HerreroService] Punto de herrero con Biome desconocido: " .. tostring(biome))
 		return
 	end
 	if point:GetAttribute("SmithSpawned") then
@@ -86,36 +141,17 @@ local function spawnSmith(point: BasePart)
 	end
 	point:SetAttribute("SmithSpawned", true)
 
-	local rig = buildRig(info)
-	if not rig then
-		warn("[HerreroService] No se pudo crear el modelo del herrero de " .. faction)
-		return
-	end
-	rig.Name = "Herrero_" .. faction
-	local hum = rig:FindFirstChildOfClass("Humanoid")
-	if hum then
-		hum.DisplayName = info.Name
-		hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
-		hum.NameDisplayDistance = 40
-		hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
-	end
 	local ground = groundPosition(point)
-	rig.Parent = Workspace
-	local _, size = rig:GetBoundingBox()
 	local look = point.CFrame.LookVector
-	rig:PivotTo(CFrame.lookAt(ground + Vector3.new(0, size.Y / 2 + 0.05, 0), ground + Vector3.new(0, size.Y / 2 + 0.05, 0) + Vector3.new(look.X, 0, look.Z)))
-	for _, d in ipairs(rig:GetDescendants()) do
-		if d:IsA("BasePart") then
-			d.Anchored = true
-		end
-	end
+	local pos = ground + Vector3.new(0, 5.1, 0) -- el centro del torso queda 5 studs sobre el piso (piernas de 2 + mitad del torso... + margen)
+	local cf = CFrame.lookAt(pos, pos + Vector3.new(look.X, 0, look.Z))
+	local rig = buildSmith(info, cf)
+	rig.Name = "Herrero_" .. faction
 	rig:SetAttribute("Smith", true)
 	rig:SetAttribute("Faction", faction)
+	rig.Parent = Workspace
 
-	local root = rig:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not root then
-		return
-	end
+	local root = rig.PrimaryPart :: BasePart
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.ActionText = "Hablar"
 	prompt.ObjectText = info.Name
@@ -124,10 +160,12 @@ local function spawnSmith(point: BasePart)
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = root
 	prompt.Triggered:Connect(function(player: Player)
+		print(string.format("[HerreroService] %s habla con %s: se abre la ventana", player.Name, info.Name))
 		OpenRemote:FireClient(player, info.Name, info.Title, faction)
 	end)
 
 	table.insert(smithModels, rig)
+	print(string.format("[HerreroService] Herrero de %s (%s) en %s", faction, info.Name, tostring(ground)))
 end
 
 local function scan()
@@ -254,9 +292,14 @@ CollectionService:GetInstanceAddedSignal("NPCSlot"):Connect(function(inst)
 	end
 end)
 task.spawn(function()
+	local waited = 0
+	while Workspace:GetAttribute("MapBuilt") ~= true and waited < 90 do
+		task.wait(0.25)
+		waited += 0.25
+	end
 	scan()
 	task.wait(5)
-	scan() -- por si el mapa terminó de crearse un poco después
+	scan() -- por si algo apareció un poco después
 end)
 
 -- solo para pruebas automáticas

@@ -490,7 +490,7 @@ end)
 
 task.spawn(function()
 	local t = 0
-	while not Workspace:FindFirstChild(MAP_NAME) and t < 60 do
+	while (not Workspace:FindFirstChild(MAP_NAME) or Workspace:GetAttribute("MapBuilt") ~= true) and t < 60 do
 		task.wait(1)
 		t += 1
 	end

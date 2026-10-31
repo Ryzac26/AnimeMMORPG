@@ -918,13 +918,21 @@ end
 -- Arranque
 ---------------------------------------------------------------------
 local ArenaStyler = {}
+local started = false -- las conexiones (tick, jugadores) se crean una sola vez aunque run() se repita para reparar
 
 local function run()
 	Workspace:SetAttribute("StyleVersion", "6.55") -- lo lee CityStyleCheck para saber si el servidor tiene los scripts nuevos
+	-- espera a que ProjectBootstrapper termine el mapa NUEVO (no el viejo que pudiera venir guardado en el lugar)
+	local waited = 0
+	while Workspace:GetAttribute("MapBuilt") ~= true and waited < 90 do
+		task.wait(0.25)
+		waited += 0.25
+	end
 	local map = Workspace:WaitForChild(MAP_NAME, 60)
 	local arena = map and map:WaitForChild("Arena_Central", 30)
 	if not map or not arena then
 		warn("[ArenaStyler] No existe la Arena Central")
+		Workspace:SetAttribute("ArenaStyleDone", true) -- no bloquear WorldReady
 		return
 	end
 	arenaFolder = arena
@@ -953,8 +961,17 @@ local function run()
 		warn("[ArenaStyler] Error en lo fijo: " .. tostring(err))
 	end
 
-	applyDesign(root)
+	local okDesign, errDesign = pcall(applyDesign, root)
+	if not okDesign then
+		warn("[ArenaStyler] Error en el diseño: " .. tostring(errDesign))
+	end
+	Workspace:SetAttribute("ArenaStyleDone", true)
 
+	if started then
+		print("[ArenaStyler] Arena rehecha (reparación).")
+		return
+	end
+	started = true
 	local acc = 0
 	RunService.Heartbeat:Connect(function(dt)
 		acc += dt
@@ -973,6 +990,8 @@ local function run()
 	end)
 	print("[ArenaStyler] Arena lista: 4 campamentos, 8 altares, 4 santuarios y Coliseo con gradas.")
 end
+
+ArenaStyler.Run = run
 
 if ENABLED then
 	task.spawn(run)
