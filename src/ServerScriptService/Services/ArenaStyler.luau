@@ -34,6 +34,8 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local GB = require(ReplicatedStorage.Modules.GameBalance)
 
 local ENABLED = true
 local MAP_NAME = "Map_WC3_Style"
@@ -55,6 +57,14 @@ local BUFF_DMG = 1.08
 local BUFF_HP = 1.10
 local BUFF_ENERGY = 1.40
 local BUFF_XP = 1.15
+
+-- CAMPO PROTECTOR: al capturar, el santuario crea una cúpula con vida que solo otra facción puede romper.
+-- Vida = vida de un mob de nivel máximo (GB.MobHp) × el multiplicador del santuario (más valioso = más vida).
+-- Un grupo de ~6 debería tardar 30-40 s; uno solo, más de 2 min. Ajusta estos números tras probar.
+local FIELD_HP_MULT: { [string]: number } = { Aliento = 10, Fortuna = 14, Vigor = 18, Fuerza = 20 }
+local FIELD_DIAMETER = 46
+local FIELD_REGEN_DELAY = 10 -- s sin recibir golpes para empezar a recuperar
+local FIELD_REGEN_PCT = 0.03 -- de la vida máxima por segundo
 
 local function C(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
@@ -79,7 +89,7 @@ type ShrineDef = { Id: string, Name: string, Color: Color3, Text: string, X: num
 local SHRINES: { ShrineDef } = {
 	{ Id = "Fuerza", Name = "Santuario de Fuerza", Color = C(255, 90, 60), Text = "+8% daño", X = -SHRINE_POS, Z = -SHRINE_POS },
 	{ Id = "Vigor", Name = "Santuario de Vigor", Color = C(90, 230, 120), Text = "+10% vida máx.", X = SHRINE_POS, Z = -SHRINE_POS },
-	{ Id = "Aliento", Name = "Santuario de Aliento", Color = C(90, 180, 255), Text = "+40% energía", X = -SHRINE_POS, Z = SHRINE_POS },
+	{ Id = "Aliento", Name = "Santuario de Aliento", Color = C(90, 180, 255), Text = "+40% regen. de energía", X = -SHRINE_POS, Z = SHRINE_POS },
 	{ Id = "Fortuna", Name = "Santuario de Fortuna", Color = C(255, 215, 90), Text = "+15% XP", X = SHRINE_POS, Z = SHRINE_POS },
 }
 
@@ -280,6 +290,7 @@ type Camp = { Faction: string, Pos: Vector3 }
 type Shrine = {
 	Def: ShrineDef, Pos: Vector3, Owner: string?, Challenger: string?, Progress: number,
 	Ring: Part, Crystal: Part, Label: TextLabel, Shown: string,
+	Field: Model?, FieldHum: Humanoid?, FieldHitAt: number, FieldLastHp: number,
 }
 local camps: { Camp } = {}
 local shrines: { Shrine } = {}
@@ -434,6 +445,7 @@ local function buildShrine(parent: Instance, def: ShrineDef)
 	table.insert(shrines, {
 		Def = def, Pos = base, Owner = nil, Challenger = nil, Progress = 0,
 		Ring = ring, Crystal = crystal, Label = label, Shown = "",
+		Field = nil, FieldHum = nil, FieldHitAt = 0, FieldLastHp = 0,
 	})
 end
 
@@ -632,21 +644,140 @@ local function clearBuffs(pl: Player)
 	end
 end
 
+---------------------------------------------------------------------
+-- Campo protector (cúpula con vida, apuntable)
+---------------------------------------------------------------------
+local RewardMod: any = nil
+local function forgetDamage(model: Model)
+	if RewardMod == nil then
+		local ok, m = pcall(require, Services:WaitForChild("RewardService"))
+		RewardMod = if ok then m else false
+	end
+	if RewardMod and RewardMod.Forget then
+		RewardMod.Forget(model)
+	end
+end
+
+local function fieldHpFor(id: string): number
+	return math.floor(GB.MobHp(GB.MAX_LEVEL) * (FIELD_HP_MULT[id] or 12))
+end
+
+local function removeField(s: Shrine, burst: boolean)
+	local m = s.Field
+	if m then
+		local root = m.PrimaryPart
+		if burst and root then
+			local fx = Instance.new("Part")
+			fx.Anchored, fx.CanCollide, fx.CanQuery, fx.CanTouch, fx.Shape = true, false, false, false, Enum.PartType.Ball
+			fx.Material, fx.Color, fx.Transparency = Enum.Material.Neon, root.Color, 0.3
+			fx.Size, fx.Position = Vector3.new(FIELD_DIAMETER, FIELD_DIAMETER, FIELD_DIAMETER), root.Position
+			fx.Parent = Workspace
+			TweenService:Create(fx, TweenInfo.new(0.7), { Size = Vector3.new(FIELD_DIAMETER * 1.6, FIELD_DIAMETER * 1.6, FIELD_DIAMETER * 1.6), Transparency = 1 }):Play()
+			task.delay(0.8, function()
+				fx:Destroy()
+			end)
+		end
+		forgetDamage(m)
+		m:Destroy()
+	end
+	s.Field, s.FieldHum, s.FieldHitAt, s.FieldLastHp = nil, nil, 0, 0
+end
+
+local function createField(s: Shrine, faction: string)
+	removeField(s, false)
+	local hp = fieldHpFor(s.Def.Id)
+	local col = FACTION_COLOR[faction] or s.Def.Color
+	local model = Instance.new("Model")
+	model.Name = "Campo de " .. s.Def.Name
+	local root = Instance.new("Part")
+	root.Name = "HumanoidRootPart"
+	root.Shape = Enum.PartType.Ball
+	root.Size = Vector3.new(FIELD_DIAMETER, FIELD_DIAMETER, FIELD_DIAMETER)
+	root.Anchored = true
+	root.CanCollide = false
+	root.CanTouch = false
+	root.CanQuery = true
+	root.CastShadow = false
+	root.Material = Enum.Material.Neon
+	root.Color = col
+	root.Transparency = 0.85
+	root.CFrame = CFrame.new(s.Pos + Vector3.new(0, 10, 0))
+	root.Parent = model
+	model.PrimaryPart = root
+	local hum = Instance.new("Humanoid")
+	hum.MaxHealth = hp
+	hum.Health = hp
+	hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+	hum.BreakJointsOnDeath = false
+	hum.RequiresNeck = false
+	hum.Parent = model
+	-- cartel con nombre y % de vida (misma idea que la piedra Metin)
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "Cartel"
+	bb.Adornee = root
+	bb.Size = UDim2.fromOffset(240, 54)
+	bb.StudsOffsetWorldSpace = Vector3.new(0, FIELD_DIAMETER / 2 + 6, 0)
+	bb.AlwaysOnTop = true
+	bb.MaxDistance = 400
+	bb.Parent = model
+	local title = Instance.new("TextLabel")
+	title.Name = "Titulo"
+	title.BackgroundTransparency = 1
+	title.Size = UDim2.new(1, 0, 0.55, 0)
+	title.Font = Enum.Font.GothamBlack
+	title.TextScaled = true
+	title.TextColor3 = col
+	title.TextStrokeTransparency = 0.2
+	title.Text = string.format("CAMPO %s · %s", string.upper(s.Def.Id), string.upper(faction))
+	title.Parent = bb
+	local bar = Instance.new("Frame")
+	bar.Name = "Barra"
+	bar.Position = UDim2.fromScale(0.05, 0.62)
+	bar.Size = UDim2.fromScale(0.9, 0.28)
+	bar.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+	bar.BorderSizePixel = 0
+	bar.Parent = bb
+	local fill = Instance.new("Frame")
+	fill.Name = "Vida"
+	fill.Size = UDim2.fromScale(1, 1)
+	fill.BackgroundColor3 = col
+	fill.BorderSizePixel = 0
+	fill.Parent = bar
+	model:SetAttribute("IsMob", true)
+	model:SetAttribute("ShrineField", true)
+	model:SetAttribute("ShrineOwner", faction)
+	model:SetAttribute("Level", GB.MAX_LEVEL)
+	model:SetAttribute("MaxHp", hp)
+	model:SetAttribute("Boss", false)
+	CollectionService:AddTag(model, "Targetable")
+	model.Parent = styleRoot
+	s.Field, s.FieldHum, s.FieldHitAt, s.FieldLastHp = model, hum, 0, hp
+end
+
+local function fieldPct(s: Shrine): number
+	local h = s.FieldHum
+	if s.Field and h and h.MaxHealth > 0 then
+		return math.clamp(math.ceil(h.Health / h.MaxHealth * 100), 0, 100)
+	end
+	return 0
+end
+
 local function updateShrineVisual(s: Shrine)
-	local state = (s.Owner or "-") .. "|" .. (s.Challenger or "-") .. "|" .. tostring(math.floor(s.Progress * 10))
+	local state = (s.Owner or "-") .. "|" .. (s.Challenger or "-") .. "|" .. tostring(math.floor(s.Progress * 10)) .. "|" .. tostring(fieldPct(s))
 	if state == s.Shown then
 		return
 	end
 	s.Shown = state
 	-- dato para el panel del cliente: "dueño|retador|progreso%"
-	Workspace:SetAttribute("Shrine_" .. s.Def.Id, (s.Owner or "-") .. "|" .. (s.Challenger or "-") .. "|" .. tostring(math.floor(s.Progress * 100)))
+	Workspace:SetAttribute("Shrine_" .. s.Def.Id, (s.Owner or "-") .. "|" .. (s.Challenger or "-") .. "|" .. tostring(math.floor(s.Progress * 100)) .. "|" .. tostring(fieldPct(s)))
 	local col = if s.Owner then FACTION_COLOR[s.Owner] or C(255, 255, 255) else C(150, 150, 160)
 	s.Ring.Color = if s.Challenger then FACTION_COLOR[s.Challenger] or col else col
 	local txt = s.Def.Name .. "\n" .. s.Def.Text .. " · "
 	if s.Challenger and s.Progress > 0 then
 		txt ..= "Capturando " .. s.Challenger .. " " .. math.floor(s.Progress * 100) .. "%"
 	elseif s.Owner then
-		txt ..= s.Owner
+		txt ..= s.Owner .. " · campo " .. fieldPct(s) .. "%"
 	else
 		txt ..= "Libre"
 	end
@@ -682,10 +813,35 @@ local function tick(dt: number)
 	local owned: { [string]: { [string]: boolean } } = {}
 	for _, s in ipairs(shrines) do
 		if not open then
-			if s.Owner or s.Challenger or s.Progress > 0 then
+			if s.Owner or s.Challenger or s.Progress > 0 or s.Field then
 				s.Owner, s.Challenger, s.Progress = nil, nil, 0
+				removeField(s, false)
 			end
 		else
+			-- campo protector: vida, regeneración y rotura
+			local fh = s.FieldHum
+			if s.Field and fh then
+				if fh.Health < s.FieldLastHp then
+					s.FieldHitAt = os.clock()
+				elseif fh.Health < fh.MaxHealth and os.clock() - s.FieldHitAt > FIELD_REGEN_DELAY and fh.Health > 0 then
+					fh.Health = math.min(fh.MaxHealth, fh.Health + fh.MaxHealth * FIELD_REGEN_PCT * dt)
+				end
+				s.FieldLastHp = fh.Health
+				local gui = s.Field:FindFirstChild("Cartel")
+				local vida = gui and gui:FindFirstChild("Vida", true)
+				if vida and vida:IsA("Frame") then
+					vida.Size = UDim2.fromScale(math.clamp(fh.Health / fh.MaxHealth, 0, 1), 1)
+				end
+				if fh.Health <= 0 then
+					local by = s.Field:GetAttribute("LastHitFaction")
+					local old = s.Owner
+					notifyAll("¡" .. (if typeof(by) == "string" then by else "Una facción") .. " rompió el campo de " .. (old or "?") .. " en el " .. s.Def.Name .. "! Queda libre para capturar.")
+					removeField(s, true)
+					s.Owner, s.Challenger, s.Progress = nil, nil, 0
+				end
+			elseif s.Field then
+				removeField(s, false) -- el modelo desapareció
+			end
 			local present: { [string]: number } = {}
 			for _, pl in ipairs(list) do
 				local f = pl:GetAttribute("Faction")
@@ -699,7 +855,10 @@ local function tick(dt: number)
 				count += 1
 				only = f
 			end
-			if count == 1 and only then
+			if s.Field then
+				-- mientras exista el campo nadie captura: hay que romperlo primero
+				s.Challenger, s.Progress = nil, 0
+			elseif count == 1 and only then
 				if only == s.Owner then
 					s.Progress = math.max(0, s.Progress - dt / CAPTURE_SECONDS * 2)
 					s.Challenger = nil
@@ -711,6 +870,7 @@ local function tick(dt: number)
 					s.Progress += dt / CAPTURE_SECONDS
 					if s.Progress >= 1 then
 						s.Owner, s.Challenger, s.Progress = only, nil, 0
+						createField(s, only)
 						notifyAll("¡" .. only .. " capturó el " .. s.Def.Name .. "! (" .. s.Def.Text .. ")")
 					end
 				end

@@ -252,6 +252,14 @@ function DamageService.Deal(attacker: Model, victim: Model, base: number, opts: 
 	if aPlayer and victim:GetAttribute("Metin") == true then
 		victim:SetAttribute("Hit_" .. tostring(aPlayer:GetAttribute("Faction")), os.clock())
 	end
+	-- Campo protector de un santuario (ArenaStyler): solo lo daña una facción distinta a la dueña
+	if aPlayer and victim:GetAttribute("ShrineField") == true then
+		local fa = aPlayer:GetAttribute("Faction")
+		if fa == victim:GetAttribute("ShrineOwner") then
+			return 0
+		end
+		victim:SetAttribute("LastHitFaction", fa)
+	end
 
 	if aPlayer and vMob then
 		damage = base * GB.PlayerDamageMult(StatService.GetLevel(aPlayer))
