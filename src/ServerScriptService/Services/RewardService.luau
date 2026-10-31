@@ -6,8 +6,9 @@
       Jefe       : cada jugador con >= 1% del daño recibe XP completa del jefe (= 30 kills de su nivel).
                    El botín del jefe se sortea entre los participantes elegibles (1 ganador).
     Señales para conectar tu inventario / sistema de botín (BindableEvents):
-      RewardService.MobKilled:Connect(function(mobId, level, participants: {Player}) end)
-      RewardService.BossLoot:Connect(function(winner: Player, mobId, level) end)
+      RewardService.MobKilled:Connect(function(mobId, level, participants: {Player}, shares: {[Player]: number}) end)
+        (también se dispara con jefes y Metin; LootService reparte el botín con ella)
+      RewardService.BossLoot: ya no se dispara (el sorteo del jefe lo hace LootService)
 ]]
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -32,6 +33,17 @@ local function boostMult(pl: Player): number
 		mult *= shrine
 	end
 	return mult
+end
+
+-- Mascota Búho (XP): GearService se carga al usarlo, igual que BoostService
+local function petXpMult(pl: Player): number
+	local ok, gs = pcall(function()
+		return require(Services.GearService)
+	end)
+	if ok and type(gs) == "table" and gs.XpMult then
+		return gs.XpMult(pl)
+	end
+	return 1
 end
 
 local RewardService = {}
@@ -77,25 +89,26 @@ function RewardService.OnMobKilled(mob: Model, mobId: string, level: number, isB
 		end
 		local xp = math.floor(GB.BossXp(level) * (xpMult or 1))
 		for _, pl in ipairs(participants) do
-			LevelService.AddXp(pl, math.floor(xp * boostMult(pl)))
+			LevelService.AddXp(pl, math.floor(xp * boostMult(pl) * petXpMult(pl)))
 			Net.Get("Notify"):FireClient(pl, string.format("Jefe derrotado: +%d XP", xp))
 		end
-		if #participants > 0 then
-			local winner = participants[math.random(1, #participants)]
-			Net.Get("Notify"):FireClient(winner, "¡Ganaste el botín del jefe!")
-			lootEvent:Fire(winner, mobId, level)
-		end
+		-- El botín del jefe (reparto garantizado + sorteo) lo hace LootService con MobKilled; ya no se elige un único ganador aquí.
 	else
 		local xp = GB.MobXp(level) * (xpMult or 1)
 		for pl, dmg in pairs(log.ByPlayer) do
 			if pl.Parent then
 				table.insert(participants, pl)
-				LevelService.AddXp(pl, math.max(1, math.floor(xp * dmg / log.Total * boostMult(pl))))
+				LevelService.AddXp(pl, math.max(1, math.floor(xp * dmg / log.Total * boostMult(pl) * petXpMult(pl))))
 			end
 		end
 	end
 	if #participants > 0 then
-		killedEvent:Fire(mobId, level, participants)
+		-- partes: % del daño total de cada participante (LootService lo usa para el mínimo de botín y los boletos del sorteo)
+		local shares: { [Player]: number } = {}
+		for _, pl in ipairs(participants) do
+			shares[pl] = (log.ByPlayer[pl] or 0) / log.Total
+		end
+		killedEvent:Fire(mobId, level, participants, shares)
 	end
 end
 

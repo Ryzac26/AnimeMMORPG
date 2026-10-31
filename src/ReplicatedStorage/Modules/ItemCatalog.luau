@@ -15,6 +15,15 @@ export type Item = {
 	Desc: string?,
 	Use: { HealPct: number?, EnergyPct: number?, Cooldown: number? }?, -- consumibles: curan % de vida / energía al usarse
 	Style: string?, -- armas: Sword | Dagger | Bow | Staff | Gun | Axe | Fist (decide la animación y el modelo en la mano)
+	-- Campos del equipo generado (GearCatalog) y mascotas (PetCatalog)
+	Gear: { [string]: number }?, -- bonos en fracción (0.05 = 5%): Ataque, Defensa, Vida, Critico, Curacion
+	ReqLevel: number?,
+	Role: string?, -- solo ese rol puede equiparlo
+	Faction: string?, -- solo esa facción puede equiparlo
+	Set: string?,
+	Tier: number?,
+	Kind: string?, -- "Set" | "Jewel" | "Emblem" | "Pet"
+	Pet: { Family: string, Effects: { [string]: number } }?,
 }
 
 local ItemCatalog = {}
@@ -36,7 +45,7 @@ ItemCatalog.EquipSlots = {
 ItemCatalog.SlotDisplay = {
 	Casco = "Casco", Armadura = "Armadura", Arma = "Arma", Escudo = "Escudo", Zapatos = "Zapatos", Brazalete = "Brazalete",
 	Collar = "Collar", Pendientes = "Pendientes", Anillo = "Anillo", Cinturon = "Cinturón", Capa = "Capa", Alas = "Alas",
-	Montura = "Montura", Traje = "Traje (skin)", Accesorio1 = "Accesorio", Accesorio2 = "Accesorio",
+	Montura = "Montura", Traje = "Traje (skin)", Accesorio1 = "Emblema", Accesorio2 = "Mascota",
 }
 
 ItemCatalog.Items = {
@@ -62,5 +71,22 @@ ItemCatalog.Items = {
 	Pocion_Energia = { Name = "Poción de Energía", Rarity = "Comun", Stack = 20, Desc = "Restaura 30% de la energía (Ki, Chakra, Haki o Reiatsu).", Use = { EnergyPct = 0.30, Cooldown = 8 } },
 	Fragmento_Metin = { Name = "Fragmento de Metin", Rarity = "Epico", Stack = 99, Desc = "Material de mejora." },
 } :: { [string]: Item }
+
+-- Botín nuevo: equipo por sets de clase, joyas, emblemas de facción, mascotas y materiales (se generan por fórmulas)
+do
+	local GearCatalog = require(script.Parent.GearCatalog)
+	local PetCatalog = require(script.Parent.PetCatalog)
+	local LootTables = require(script.Parent.LootTables)
+	local items = ItemCatalog.Items :: { [string]: any }
+	for id, item in pairs(GearCatalog.Items) do
+		items[id] = item
+	end
+	for id, item in pairs(PetCatalog.Items) do
+		items[id] = item
+	end
+	for id, item in pairs(LootTables.Materials) do
+		items[id] = item
+	end
+end
 
 return ItemCatalog

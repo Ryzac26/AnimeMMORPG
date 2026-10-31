@@ -14,6 +14,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local GB = require(ReplicatedStorage.Modules.GameBalance)
 local PlayerClass = require(ReplicatedStorage.Modules.PlayerClass)
 local LevelService = require(ServerScriptService.Services.LevelService)
+local GearService = require(ServerScriptService.Services.GearService)
 
 local StatService = {}
 
@@ -33,7 +34,7 @@ local function applyToCharacter(player: Player, char: Model)
 	end
 	local level = LevelService.GetLevel(player)
 	local class = PlayerClass.Get(player)
-	local maxHp = math.floor(class.BaseHP * GB.PlayerHpMult(level))
+	local maxHp = math.floor(class.BaseHP * GB.PlayerHpMult(level) * (1 + GearService.Get(player).Vida)) -- Vida del equipo y la mascota
 	local ratio = if hum.MaxHealth > 0 then hum.Health / hum.MaxHealth else 1
 	hum.MaxHealth = maxHp
 	hum.Health = math.max(1, maxHp * math.clamp(ratio, 0, 1))
@@ -72,6 +73,11 @@ end
 
 -- al subir de nivel (o cargar datos) se recalcula la vida
 LevelService.LevelChanged:Connect(function(player: Player)
+	StatService.Refresh(player)
+end)
+
+-- al cambiar el equipo o la mascota se recalcula la vida máxima
+GearService.Changed:Connect(function(player: Player)
 	StatService.Refresh(player)
 end)
 

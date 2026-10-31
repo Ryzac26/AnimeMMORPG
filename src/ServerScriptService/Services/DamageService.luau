@@ -22,6 +22,7 @@ local Net = require(Services.Net)
 local StatService = require(Services.StatService)
 local ArenaService = require(Services.ArenaService)
 local PassiveService = require(Services.PassiveService)
+local GearService = require(Services.GearService)
 
 local FragilityRemote = Net.Get("Fragility")
 local FloatingRemote = Net.Get("Floating")
@@ -254,6 +255,7 @@ function DamageService.Deal(attacker: Model, victim: Model, base: number, opts: 
 
 	if aPlayer and vMob then
 		damage = base * GB.PlayerDamageMult(StatService.GetLevel(aPlayer))
+		damage = GearService.Outgoing(aPlayer, damage, false) -- Ataque y Crítico del equipo
 		local red = victim:GetAttribute("DamageReduction")
 		if typeof(red) == "number" then
 			damage *= (1 - red)
@@ -261,11 +263,13 @@ function DamageService.Deal(attacker: Model, victim: Model, base: number, opts: 
 	elseif aMob and vPlayer then
 		local buff = attacker:GetAttribute("DmgBuff")
 		damage = base * GB.MobHit(StatService.GetLevel(attacker)) * (if typeof(buff) == "number" then buff else 1)
+		damage = GearService.Incoming(vPlayer, damage, false) -- Defensa del equipo
 	elseif aPlayer and vPlayer then
 		if not ArenaService.PvpAllowed(aPlayer, vPlayer) then
 			return 0
 		end
 		damage = base * GB.PvpDamageMult(StatService.GetLevel(aPlayer), StatService.GetLevel(vPlayer))
+		damage = GearService.Incoming(vPlayer, GearService.Outgoing(aPlayer, damage, true), true) -- equipo en PvP (cuenta la mitad)
 		local frag = victim:GetAttribute("Fragility")
 		if typeof(frag) == "number" and frag > 0 then
 			damage *= 1 + GB.FRAGILITY_PER_HIT * frag
@@ -389,7 +393,8 @@ function DamageService.Heal(caster: Model, target: Model, base: number): number
 	if not hum then
 		return 0
 	end
-	local amount = math.floor(PassiveService.HealAmount(caster, target, base * GB.PlayerHpMult(StatService.GetLevel(caster))))
+	local healMult = GearService.HealMult(Players:GetPlayerFromCharacter(caster)) -- Curación del equipo
+	local amount = math.floor(PassiveService.HealAmount(caster, target, base * GB.PlayerHpMult(StatService.GetLevel(caster)) * healMult))
 	local overflow = hum.Health + amount - hum.MaxHealth
 	hum.Health = math.min(hum.MaxHealth, hum.Health + amount)
 	if overflow > 0 then

@@ -20,6 +20,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
 local Net = require(ServerScriptService.Services.Net)
 local PlayerData = require(ServerScriptService.Services.PlayerData)
+local GearService = require(ServerScriptService.Services.GearService)
 
 local UpdateRemote = Net.Get("InventoryUpdate")
 local ActionRemote = Net.Get("InventoryAction")
@@ -217,6 +218,12 @@ local function equip(player: Player, st: State, bagIndex: number)
 	local stack = st.Bag[bagIndex]
 	local item = stack and ItemCatalog.Items[stack.Id]
 	if not stack or not item or not item.Slot then
+		return
+	end
+	-- nivel, rol, facción y arma propia de la clase (sets de clase, Emblema de facción)
+	local allowed, reason = GearService.CanEquip(player, stack.Id)
+	if not allowed then
+		Net.Get("Notify"):FireClient(player, reason or "No puedes equipar esto")
 		return
 	end
 	local slot = item.Slot :: string
