@@ -656,15 +656,22 @@ local function run()
 		warn("[CityStyler] No existe " .. MAP_NAME)
 		return
 	end
+	local done = 0
+	local failed = 0
 	for _, biome in ipairs(map:GetChildren()) do
 		local faction = BIOME_FACTION[biome.Name]
 		if faction then
 			local ok, err = pcall(styleCity, biome, faction)
-			if not ok then
+			if ok then
+				done += 1
+			else
+				failed += 1
 				warn("[CityStyler] Error en " .. biome.Name .. ": " .. tostring(err))
 			end
 		end
 	end
+	-- el cliente lee este atributo (CityStyleCheck) para confirmar en la consola F9 que el estilo llegó
+	Workspace:SetAttribute("CityStyleStatus", string.format("%d ciudades con estilo, %d con error", done, failed))
 	print("[CityStyler] Estilo anime aplicado a las 4 ciudades.")
 end
 

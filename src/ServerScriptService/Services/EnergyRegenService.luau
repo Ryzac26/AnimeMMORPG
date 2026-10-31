@@ -119,7 +119,8 @@ RunService.Heartbeat:Connect(function(dt)
 		local m = maxOf[p] or 0
 		if c < m then
 			local mult = p:GetAttribute("EnergyRegenMult")
-			current[p] = math.min(m, c + m * REGEN_PCT_PER_SEC * (if typeof(mult) == "number" then mult else 1) * step)
+			local shrine = p:GetAttribute("ShrineEnergy") -- santuario de Aliento (ArenaStyler)
+			current[p] = math.min(m, c + m * REGEN_PCT_PER_SEC * (if typeof(mult) == "number" then mult else 1) * (if typeof(shrine) == "number" then shrine else 1) * step)
 			publish(p)
 		end
 	end

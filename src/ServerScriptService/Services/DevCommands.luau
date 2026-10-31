@@ -71,6 +71,9 @@ local function handle(player: Player, msg: string)
 		else
 			BossService.Spawn()
 		end
+	elseif cmd == "/tema" then
+		-- /tema 1|2|3 -> cambia el tema de la Arena (1 Coliseo, 2 Ruinas, 3 Isla flotante)
+		Workspace:SetAttribute("ArenaThemeForce", tonumber(args[2]) or 1)
 	elseif cmd == "/limpiar" then
 		MobService.ClearAll()
 	elseif cmd == "/arena" then

@@ -23,10 +23,15 @@ local function boostMult(pl: Player): number
 	local ok, bs = pcall(function()
 		return require(Services.BoostService)
 	end)
+	local mult = 1
 	if ok and type(bs) == "table" and bs.XpMult then
-		return bs.XpMult(pl)
+		mult = bs.XpMult(pl)
 	end
-	return 1
+	local shrine = pl:GetAttribute("ShrineXp") -- santuario de Fortuna (ArenaStyler)
+	if typeof(shrine) == "number" then
+		mult *= shrine
+	end
+	return mult
 end
 
 local RewardService = {}

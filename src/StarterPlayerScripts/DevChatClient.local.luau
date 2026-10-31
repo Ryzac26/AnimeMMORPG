@@ -12,7 +12,7 @@ if not remote or TextChatService.ChatVersion ~= Enum.ChatVersion.TextChatService
 	return -- con el chat antiguo el servidor ya escucha Player.Chatted
 end
 
-for _, name in ipairs({ "clase", "nivel", "xp", "mob", "mobs", "limpiar", "arena", "cerrar", "item", "items", "vida", "dano", "metin", "boss" }) do
+for _, name in ipairs({ "clase", "nivel", "xp", "mob", "mobs", "limpiar", "arena", "cerrar", "item", "items", "vida", "dano", "metin", "boss", "tema" }) do
 	local cmd = Instance.new("TextChatCommand")
 	cmd.Name = "Dev_" .. name
 	cmd.PrimaryAlias = "/" .. name

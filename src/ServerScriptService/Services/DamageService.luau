@@ -275,6 +275,14 @@ function DamageService.Deal(attacker: Model, victim: Model, base: number, opts: 
 		return 0
 	end
 
+	-- Santuarios de la arena (ArenaStyler): bonus de daño de la facción dueña, solo dentro de la arena
+	if aPlayer then
+		local shrine = aPlayer:GetAttribute("ShrineDmg")
+		if typeof(shrine) == "number" then
+			damage *= shrine
+		end
+	end
+
 	-- Habilidades 3/4: modificadores por atributos (los pone AbilityService y caducan solos)
 	local function num(m: Model, name: string): number
 		local v = m:GetAttribute(name)

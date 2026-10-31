@@ -8,6 +8,7 @@
       <Faccion>_gate   cartel grande sobre cada portón (se ve de los dos lados)      512 x 128 px
       <Faccion>_sign   fondo de los letreros de los 6 comercios (el nombre se escribe encima)   512 x 128 px
       <Faccion>_plaza  dibujo del suelo de la plaza central (visto desde arriba)       1024 x 1024 px
+      Arena_floor      dibujo del suelo de la Arena Central (lo usa ArenaStyler)        1024 x 1024 px
 ]]
 local IDS: { [string]: string } = {
 	Saiyan_gate = "115796696831590",
@@ -25,6 +26,8 @@ local IDS: { [string]: string } = {
 	Shinigami_gate = "84300767587978",
 	Shinigami_sign = "127171329336536",
 	Shinigami_plaza = "77987107719747",
+
+	Arena_floor = "90865822662108", -- dibujo del suelo de la Arena (1024 x 1024, ver Arena_floor.png)
 }
 
 local CityAssets = {}
