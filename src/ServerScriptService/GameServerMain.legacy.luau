@@ -28,6 +28,7 @@ require(Services:WaitForChild("AutoAttackService"))
 require(Services:WaitForChild("InventoryService"))
 require(Services:WaitForChild("WalletService")) -- oro y puntos de facción
 require(Services:WaitForChild("LootService")) -- botín de mobs, Metin y jefes (necesita RewardService, Inventory, Wallet)
+require(Services:WaitForChild("HerreroService")) -- herrero de cada ciudad: mejora +1..+9 del equipo
 require(Services:WaitForChild("Mobs"):WaitForChild("MobService"))
 require(Services:WaitForChild("DevCommands"))
 require(Services:WaitForChild("AbilityService")) -- habilidades 3 y 4

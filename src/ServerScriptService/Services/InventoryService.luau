@@ -5,7 +5,10 @@
       - Mochila AUTO-EXPANDIBLE: capacidad = max(20, siguiente múltiplo de 5 sobre las casillas usadas + 1).
         Si llenas todas las casillas aparece una fila nueva sola. Nunca hay un tope fijo.
       - Equipo: una casilla por ranura de ItemCatalog.EquipSlots (Casco, Arma, Capa, Alas, Montura, Traje...).
-      - API: Add(player, itemId, count) -> bool · Get(player) -> estado
+      - API: Add(player, itemId, count, plus?) -> bool · Get(player) -> estado
+      - Mejora +0..+9 (la hace el Herrero): cada pieza de equipo lleva su propio "Plus" (en la mochila: stack.Plus; puesta: st.EquipPlus[ranura],
+        que también se publica como atributo EquipPlus_<ranura> para GearService). GetPlus / SetPlus trabajan con una referencia:
+        ("Equip", "Arma") o ("Bag", 7).
       - Acciones del cliente por el remote InventoryAction: ("Equip", bagIndex) · ("Unequip", slotName) · ("Move", a, b) · ("Drop", bagIndex)
     Persistencia: sección "Inventory" de PlayerData (se guarda sola cada 120 s, al salir y al cerrar el servidor).
       - Al cargar se valida contra ItemCatalog. Un objeto que ya no existe (borrado o renombrado en el catálogo) NO se pierde:
@@ -29,8 +32,16 @@ local MIN_SLOTS = 20
 local ROW = 5
 local MAX_SLOT = 1000 -- tope de seguridad al cargar datos (evita una mochila gigante por datos corruptos)
 
-type Stack = { Id: string, Count: number }
-type State = { Bag: { [number]: Stack }, Equip: { [string]: string }, Orphans: { Stack } }
+type Stack = { Id: string, Count: number, Plus: number? }
+type State = { Bag: { [number]: Stack }, Equip: { [string]: string }, EquipPlus: { [string]: number }, Orphans: { Stack } }
+local MAX_PLUS = 9
+
+local function cleanPlus(item: any, plus: any): number
+	if item and item.Gear and typeof(plus) == "number" then
+		return math.clamp(math.floor(plus), 0, MAX_PLUS)
+	end
+	return 0
+end
 
 local Inventory = {}
 local states: { [Player]: State } = {}
@@ -55,9 +66,9 @@ local function push(player: Player)
 		-- lista plana (los remotes no conservan bien tablas con índices salteados)
 		local list = {}
 		for i, stack in pairs(st.Bag) do
-			table.insert(list, { Slot = i, Id = stack.Id, Count = stack.Count })
+			table.insert(list, { Slot = i, Id = stack.Id, Count = stack.Count, Plus = stack.Plus or 0 })
 		end
-		UpdateRemote:FireClient(player, list, st.Equip, capacity(st))
+		UpdateRemote:FireClient(player, list, st.Equip, capacity(st), st.EquipPlus)
 	end
 end
 
@@ -73,9 +84,9 @@ end
 -- Guardado / carga (formato plano: el DataStore no admite índices con huecos)
 ---------------------------------------------------------------------
 local function serialize(st: State): any
-	local bag: { { Slot: number, Id: string, Count: number } } = {}
+	local bag: { { Slot: number, Id: string, Count: number, Plus: number? } } = {}
 	for slot, stack in pairs(st.Bag) do
-		table.insert(bag, { Slot = slot, Id = stack.Id, Count = stack.Count })
+		table.insert(bag, { Slot = slot, Id = stack.Id, Count = stack.Count, Plus = stack.Plus })
 	end
 	table.sort(bag, function(a: { Slot: number }, b: { Slot: number }): boolean
 		return a.Slot < b.Slot
@@ -88,11 +99,17 @@ local function serialize(st: State): any
 	for _, o in ipairs(st.Orphans) do
 		table.insert(orphans, { Id = o.Id, Count = o.Count })
 	end
-	return { Bag = bag, Equip = equip, Orphans = orphans }
+	local equipPlus = {}
+	for slotName, plus in pairs(st.EquipPlus) do
+		if plus > 0 then
+			equipPlus[slotName] = plus
+		end
+	end
+	return { Bag = bag, Equip = equip, EquipPlus = equipPlus, Orphans = orphans }
 end
 
 local function deserialize(saved: any): State
-	local st: State = { Bag = {}, Equip = {}, Orphans = {} }
+	local st: State = { Bag = {}, Equip = {}, EquipPlus = {}, Orphans = {} }
 	if typeof(saved) ~= "table" then
 		return st
 	end
@@ -121,7 +138,8 @@ local function deserialize(saved: any): State
 						if slot < 1 or slot > MAX_SLOT or st.Bag[slot] ~= nil then
 							slot = firstFree(st) -- casilla inválida o repetida: no se pierde, va a la primera libre
 						end
-						st.Bag[slot] = { Id = id, Count = count }
+						local plus = cleanPlus((ItemCatalog.Items :: any)[id], e.Plus)
+						st.Bag[slot] = { Id = id, Count = count, Plus = if plus > 0 then plus else nil }
 					end
 				end
 			end
@@ -136,6 +154,11 @@ local function deserialize(saved: any): State
 					table.insert(st.Orphans, { Id = id, Count = 1 })
 				elseif item.Slot == slotName then
 					st.Equip[slotName] = id
+					local savedPlus: any = if typeof(saved.EquipPlus) == "table" then saved.EquipPlus[slotName] else nil
+					local plus = cleanPlus(item, savedPlus)
+					if plus > 0 then
+						st.EquipPlus[slotName] = plus
+					end
 				else
 					st.Bag[firstFree(st)] = { Id = id, Count = 1 } -- cambió la ranura del objeto en el catálogo: vuelve a la mochila
 				end
@@ -149,19 +172,20 @@ function Inventory.Get(player: Player): State?
 	return states[player]
 end
 
-function Inventory.Add(player: Player, itemId: string, count: number): boolean
+function Inventory.Add(player: Player, itemId: string, count: number, plus: number?): boolean
 	local st = states[player]
 	local item = ItemCatalog.Items[itemId]
 	if not st or not item or count <= 0 then
 		return false
 	end
 	local maxStack = item.Stack or 1
-	-- completar pilas existentes
+	local plusValue = cleanPlus(item, plus)
+	-- completar pilas existentes (solo con el mismo nivel de mejora)
 	for _, stack in pairs(st.Bag) do
 		if count <= 0 then
 			break
 		end
-		if stack.Id == itemId and stack.Count < maxStack then
+		if stack.Id == itemId and (stack.Plus or 0) == plusValue and stack.Count < maxStack then
 			local add = math.min(maxStack - stack.Count, count)
 			stack.Count += add
 			count -= add
@@ -169,7 +193,7 @@ function Inventory.Add(player: Player, itemId: string, count: number): boolean
 	end
 	while count > 0 do
 		local add = math.min(maxStack, count)
-		st.Bag[firstFree(st)] = { Id = itemId, Count = add }
+		st.Bag[firstFree(st)] = { Id = itemId, Count = add, Plus = if plusValue > 0 then plusValue else nil }
 		count -= add
 	end
 	push(player)
@@ -214,6 +238,44 @@ function Inventory.Consume(player: Player, itemId: string, count: number?): bool
 	return true
 end
 
+-- Mejora +n de una pieza. ref: ("Equip", "Arma") o ("Bag", 7). Devuelve itemId, plus (o nil si no hay nada ahí).
+function Inventory.GetPlus(player: Player, kind: string, key: any): (string?, number)
+	local st = states[player]
+	if not st then
+		return nil, 0
+	end
+	if kind == "Equip" and typeof(key) == "string" then
+		local id = st.Equip[key]
+		return id, if id then (st.EquipPlus[key] or 0) else 0
+	elseif kind == "Bag" and typeof(key) == "number" then
+		local stack = st.Bag[math.floor(key)]
+		return if stack then stack.Id else nil, if stack then (stack.Plus or 0) else 0
+	end
+	return nil, 0
+end
+
+function Inventory.SetPlus(player: Player, kind: string, key: any, plus: number): boolean
+	local st = states[player]
+	if not st then
+		return false
+	end
+	local value = math.clamp(math.floor(plus), 0, MAX_PLUS)
+	if kind == "Equip" and typeof(key) == "string" and st.Equip[key] then
+		st.EquipPlus[key] = if value > 0 then value else nil
+		player:SetAttribute("EquipPlus_" .. key, if value > 0 then value else nil)
+	elseif kind == "Bag" and typeof(key) == "number" and st.Bag[math.floor(key)] then
+		local stack = st.Bag[math.floor(key)]
+		if stack.Count ~= 1 then
+			return false
+		end
+		stack.Plus = if value > 0 then value else nil
+	else
+		return false
+	end
+	push(player)
+	return true
+end
+
 local function equip(player: Player, st: State, bagIndex: number)
 	local stack = st.Bag[bagIndex]
 	local item = stack and ItemCatalog.Items[stack.Id]
@@ -229,16 +291,21 @@ local function equip(player: Player, st: State, bagIndex: number)
 	local slot = item.Slot :: string
 	-- Accesorio: usa Accesorio1 y, si está ocupado, Accesorio2
 	local previous = st.Equip[slot]
+	local previousPlus = st.EquipPlus[slot]
+	local newPlus = stack.Plus or 0
 	st.Equip[slot] = stack.Id
+	st.EquipPlus[slot] = if newPlus > 0 then newPlus else nil
+	local previousStack: Stack? = if previous then { Id = previous, Count = 1, Plus = previousPlus } else nil
 	if stack.Count > 1 then
 		stack.Count -= 1
-		if previous then
-			st.Bag[firstFree(st)] = { Id = previous, Count = 1 }
+		if previousStack then
+			st.Bag[firstFree(st)] = previousStack
 		end
 	else
-		st.Bag[bagIndex] = if previous then { Id = previous, Count = 1 } else nil
+		st.Bag[bagIndex] = previousStack
 	end
 	player:SetAttribute("Equip_" .. slot, st.Equip[slot])
+	player:SetAttribute("EquipPlus_" .. slot, if newPlus > 0 then newPlus else nil)
 end
 
 ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any, b: any)
@@ -250,9 +317,12 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 		equip(player, st, math.floor(a))
 	elseif action == "Unequip" and typeof(a) == "string" and st.Equip[a] then
 		local id = st.Equip[a]
+		local plus = st.EquipPlus[a]
 		st.Equip[a] = nil
+		st.EquipPlus[a] = nil
 		player:SetAttribute("Equip_" .. a, nil)
-		Inventory.Add(player, id, 1)
+		player:SetAttribute("EquipPlus_" .. a, nil)
+		Inventory.Add(player, id, 1, plus)
 		return
 	elseif action == "Move" and typeof(a) == "number" and typeof(b) == "number" then
 		a, b = math.floor(a), math.floor(b)
@@ -275,6 +345,7 @@ local function init(pl: Player)
 	-- AttackAnimator y compañía leen el equipo por atributos Equip_<ranura>: se restauran al cargar
 	for slotName, id in pairs(st.Equip) do
 		pl:SetAttribute("Equip_" .. slotName, id)
+		pl:SetAttribute("EquipPlus_" .. slotName, st.EquipPlus[slotName])
 	end
 	push(pl)
 end

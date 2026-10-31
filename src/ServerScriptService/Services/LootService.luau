@@ -79,9 +79,9 @@ local function notify(player: Player, text: string)
 end
 
 -- Entrega el botín y avisa. alwaysNotify = jefes y Metin (siempre); mob normal = solo si cayó un objeto.
-local function deliver(player: Player, h: Haul, header: string, alwaysNotify: boolean)
+local function deliver(player: Player, h: Haul, header: string, alwaysNotify: boolean, goldReason: string)
 	local parts: { string } = {}
-	local gold = Wallet.AddGold(player, h.Gold)
+	local gold = Wallet.AddGold(player, h.Gold, goldReason)
 	if gold > 0 then
 		table.insert(parts, string.format("+%d oro", gold))
 	end
@@ -177,7 +177,7 @@ local function onMob(level: number, strip: number, participants: { Player }, sha
 			if rng:NextNumber() < chance(M.PetChance, luck) then
 				addItem(h, LootTables.RollPet(M.PetRarity, rng), 1, true)
 			end
-			deliver(pl, h, "Botín", false)
+			deliver(pl, h, "Botín", false, "Monstruos")
 		end
 	end
 end
@@ -198,7 +198,7 @@ local function onBoss(cfg: any, level: number, strip: number?, participants: { P
 			if rng:NextNumber() < chance(cfg.PetChance, luck) then
 				addItem(h, LootTables.RollPet(cfg.PetRarity, rng), 1, true)
 			end
-			deliver(pl, h, "Jefe derrotado", true)
+			deliver(pl, h, "Jefe derrotado", true, "Jefes")
 		end
 	end
 	local prize = if strip then cfg.PrizeRarity[strip] else cfg.PrizeRarity
@@ -230,7 +230,7 @@ local function onMetin(rarityId: string, level: number, participants: { Player }
 			if rng:NextNumber() < chance(X.PetChance, luck) then
 				addItem(h, LootTables.RollPet(R.PetRarity, rng), 1, true)
 			end
-			deliver(pl, h, "Metin destruido", true)
+			deliver(pl, h, "Metin destruido", true, "Metin")
 		end
 	end
 end

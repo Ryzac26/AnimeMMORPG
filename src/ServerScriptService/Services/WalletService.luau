@@ -4,8 +4,10 @@
     Billetera de cada jugador: ORO y PUNTOS DE FACCIÓN. Se guarda en PlayerData (sección "Wallet").
     También guarda el contador de mala suerte ("Pity") del sorteo de jefes.
       Get(player) -> { Gold, FactionPoints, Pity } o nil si aún no cargó
-      AddGold(player, n) / AddFactionPoints(player, n) -> cantidad sumada (0 si aún no cargó)
-      TrySpendGold(player, n) -> bool      (para tiendas futuras; nunca deja saldo negativo)
+      AddGold(player, n, motivo?) / AddFactionPoints(player, n) -> cantidad sumada (0 si aún no cargó)
+      TrySpendGold(player, n, motivo?) -> bool      (herrero, tiendas...; nunca deja saldo negativo)
+      HISTORIAL: cada ingreso/gasto de oro se anota por motivo ("Monstruos", "Jefes", "Metin", "Venta", "Intercambio",
+        "Misiones", "Herrero"...). Se guarda y se publica como atributos GoldIn_<motivo> / GoldOut_<motivo> (los lee el perfil, tecla C).
       GetPity(player, clave) / SetPity(player, clave, valor)
     Cada cambio se refleja en atributos del jugador (Gold, FactionPoints): el cliente los lee sin remotes (WalletClient).
 ]]
@@ -14,7 +16,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 
 local PlayerData = require(ServerScriptService.Services.PlayerData)
 
-export type Wallet = { Gold: number, FactionPoints: number, Pity: { [string]: number } }
+export type Wallet = { Gold: number, FactionPoints: number, Pity: { [string]: number }, In: { [string]: number }, Out: { [string]: number } }
 
 local WalletService = {}
 local wallets: { [Player]: Wallet } = {}
@@ -27,17 +29,29 @@ local function push(player: Player)
 	end
 end
 
+local function pushLedger(player: Player, w: Wallet)
+	for reason, v in pairs(w.In) do
+		player:SetAttribute("GoldIn_" .. reason, v)
+	end
+	for reason, v in pairs(w.Out) do
+		player:SetAttribute("GoldOut_" .. reason, v)
+	end
+end
+
 function WalletService.Get(player: Player): Wallet?
 	return wallets[player]
 end
 
-function WalletService.AddGold(player: Player, amount: number): number
+function WalletService.AddGold(player: Player, amount: number, reason: string?): number
 	local w = wallets[player]
 	local n = math.floor(amount)
 	if not w or n <= 0 then
 		return 0
 	end
 	w.Gold += n
+	local key = reason or "Otros"
+	w.In[key] = (w.In[key] or 0) + n
+	player:SetAttribute("GoldIn_" .. key, w.In[key])
 	push(player)
 	return n
 end
@@ -53,13 +67,16 @@ function WalletService.AddFactionPoints(player: Player, amount: number): number
 	return n
 end
 
-function WalletService.TrySpendGold(player: Player, amount: number): boolean
+function WalletService.TrySpendGold(player: Player, amount: number, reason: string?): boolean
 	local w = wallets[player]
 	local n = math.floor(amount)
 	if not w or n <= 0 or w.Gold < n then
 		return false
 	end
 	w.Gold -= n
+	local key = reason or "Otros"
+	w.Out[key] = (w.Out[key] or 0) + n
+	player:SetAttribute("GoldOut_" .. key, w.Out[key])
 	push(player)
 	return true
 end
@@ -81,7 +98,7 @@ local function load(player: Player)
 	if not saved or player.Parent == nil then
 		return -- la carga falló (el jugador es expulsado) o ya salió
 	end
-	local w: Wallet = { Gold = 0, FactionPoints = 0, Pity = {} }
+	local w: Wallet = { Gold = 0, FactionPoints = 0, Pity = {}, In = {}, Out = {} }
 	local section: any = saved.Wallet
 	if typeof(section) == "table" then
 		w.Gold = math.max(0, math.floor(tonumber(section.Gold) or 0))
@@ -95,8 +112,19 @@ local function load(player: Player)
 			end
 		end
 	end
+	for field, target in pairs({ In = w.In, Out = w.Out }) do
+		local saved2: any = if typeof(section) == "table" then section[field] else nil
+		if typeof(saved2) == "table" then
+			for key, value in pairs(saved2) do
+				if typeof(key) == "string" and typeof(value) == "number" then
+					target[key] = math.max(0, math.floor(value))
+				end
+			end
+		end
+	end
 	wallets[player] = w
 	push(player)
+	pushLedger(player, w)
 end
 
 -- Qué guarda PlayerData de este servicio (nil = todavía no cargó: no se toca la sección)
@@ -109,7 +137,7 @@ PlayerData.RegisterSerializer("Wallet", function(player: Player): any?
 	for key, value in pairs(w.Pity) do
 		pity[key] = value
 	end
-	return { Gold = w.Gold, FactionPoints = w.FactionPoints, Pity = pity }
+	return { Gold = w.Gold, FactionPoints = w.FactionPoints, Pity = pity, In = table.clone(w.In), Out = table.clone(w.Out) }
 end)
 
 -- PlayerData avisa DESPUÉS de tomar la foto final de datos: ahora sí se puede limpiar
