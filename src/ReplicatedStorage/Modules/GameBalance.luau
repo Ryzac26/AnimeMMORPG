@@ -48,7 +48,7 @@ GB.FRAGILITY_PER_HIT = 0.05 -- +5% daño recibido por golpe
 GB.FRAGILITY_MAX_STACKS = 10
 GB.FRAGILITY_DURATION = 8 -- s desde el último golpe
 GB.CC_DR_WINDOW = 10 -- s: un 2º aturdimiento dentro de la ventana dura la mitad, el 3º la cuarta parte, el 4º nada
-GB.ARENA_LIVES = 3
+GB.ARENA_LIVES = 5
 
 -- Skills 3 y 4 (cooldown PvP = PvE × factor)
 GB.PVP_COOLDOWN_UTILITY = 1.5

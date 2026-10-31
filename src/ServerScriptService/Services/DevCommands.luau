@@ -9,7 +9,7 @@
       /mob Saiyan_Nappa 30   crea un enemigo delante de ti (nivel opcional)
       /mobs              lista los Id disponibles en la Output
       /limpiar           borra los enemigos activos
-      /arena             abre el evento: puentes + compuertas + vidas de arena (vía ProjectBootstrapper)
+      /arena             abre el evento 1 HORA: puentes + compuertas + vidas de arena (vía ProjectBootstrapper)
       /cerrar            cierra el evento
       /clase Shinobi Asesino   cambia de facción/rol y reaparece
       /item Espada_Hierro 1    te da un objeto de prueba (/items lista los Id)
@@ -71,13 +71,16 @@ local function handle(player: Player, msg: string)
 		else
 			BossService.Spawn()
 		end
-	elseif cmd == "/tema" then
-		-- /tema 1|2|3 -> cambia el tema de la Arena (1 Coliseo, 2 Ruinas, 3 Isla flotante)
-		Workspace:SetAttribute("ArenaThemeForce", tonumber(args[2]) or 1)
 	elseif cmd == "/limpiar" then
 		MobService.ClearAll()
 	elseif cmd == "/arena" then
 		Workspace:SetAttribute("EventForce", "Open") -- ProjectBootstrapper abre puentes y compuertas
+		-- el evento de prueba dura 1 hora (el Bootstrapper pone 10 min; lo corregimos tras abrir)
+		task.delay(1.5, function()
+			if Workspace:GetAttribute("EventState") == "Open" then
+				Workspace:SetAttribute("EventCountdown", 3600)
+			end
+		end)
 	elseif cmd == "/cerrar" then
 		Workspace:SetAttribute("EventForce", "Closed")
 	elseif cmd == "/clase" then

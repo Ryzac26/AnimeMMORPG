@@ -3,8 +3,10 @@
     ArenaService (ModuleScript) -> ServerScriptService.Services.ArenaService
     Reglas de la ARENA CENTRAL (único lugar con PvP entre naciones):
       - IsInArena(pos): ¿está esa posición dentro de una parte con tag "ZonePvP"? (Coliseo_Central)
-      - Vidas: 3 por evento. Se recargan al pasar Workspace.EventState a "Open".
-      - Con 0 vidas, o con el evento cerrado, el jugador es sacado de la arena hacia su ciudad.
+      - Vidas: 5 por evento (GameBalance.ARENA_LIVES). Se recargan al pasar Workspace.EventState a "Open".
+      - Con 0 vidas el jugador va a la GRADA de su facción (solo ahí puede estar hasta el próximo evento);
+        con el evento cerrado, todos salen de la arena y de las gradas hacia su ciudad.
+      - Gradas: partes con tag "ZoneGrada" (atributo Faction) y puntos de aparición con tag "GradaSpawn" (los crea ArenaStyler).
       - PvpAllowed(a, b): ambos dentro, evento abierto, naciones distintas y con vidas.
     Dueño del atributo de jugador "ArenaLives" y del remote ArenaLives (para el HUD).
 ]]
@@ -38,6 +40,21 @@ function ArenaService.IsInArena(pos: Vector3): boolean
 		end
 	end
 	return false
+end
+
+-- ¿está en una grada? devuelve (true, facción de esa grada)
+function ArenaService.GradaAt(pos: Vector3): (boolean, string?)
+	for _, part in ipairs(CollectionService:GetTagged("ZoneGrada")) do
+		if part:IsA("BasePart") then
+			local l = part.CFrame:PointToObjectSpace(pos)
+			local s = part.Size
+			if math.abs(l.X) <= s.X / 2 and math.abs(l.Z) <= s.Z / 2 and l.Y >= -s.Y / 2 - 5 and l.Y <= s.Y / 2 + 60 then
+				local f = part:GetAttribute("Faction")
+				return true, if typeof(f) == "string" then f else nil
+			end
+		end
+	end
+	return false, nil
 end
 
 function ArenaService.IsOpen(): boolean
@@ -88,14 +105,51 @@ function ArenaService.PvpAllowed(a: Player, b: Player): boolean
 	return ArenaService.GetLives(a) > 0 and ArenaService.GetLives(b) > 0
 end
 
-local function expel(player: Player)
-	local char = player.Character
-	local root = char and char:FindFirstChild("HumanoidRootPart")
+local function teleport(player: Player, pos: Vector3)
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.CFrame = CFrame.new(pos)
+	end
+end
+
+function ArenaService.SendToCity(player: Player)
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 	local spawn = player.RespawnLocation
 	if root and root:IsA("BasePart") and spawn then
+		root.AssemblyLinearVelocity = Vector3.zero
 		root.CFrame = spawn.CFrame + Vector3.new(0, 6, 0)
-		Net.Get("Notify"):FireClient(player, "La arena está cerrada para ti (evento terminado o sin vidas).")
 	end
+end
+
+-- Lleva al jugador a la grada de SU facción (si el evento está abierto); si no, a su ciudad.
+function ArenaService.SendToGrada(player: Player): boolean
+	local f = player:GetAttribute("Faction")
+	if ArenaService.IsOpen() and typeof(f) == "string" then
+		local options: { BasePart } = {}
+		for _, p in ipairs(CollectionService:GetTagged("GradaSpawn")) do
+			if p:IsA("BasePart") and p:GetAttribute("Faction") == f then
+				table.insert(options, p)
+			end
+		end
+		if #options > 0 then
+			teleport(player, options[math.random(1, #options)].Position)
+			return true
+		end
+	end
+	ArenaService.SendToCity(player)
+	return false
+end
+
+local function expel(player: Player)
+	if ArenaService.IsOpen() and ArenaService.GetLives(player) <= 0 then
+		if ArenaService.SendToGrada(player) then
+			Net.Get("Notify"):FireClient(player, "Sin vidas de arena: te llevamos a tu grada hasta el próximo evento.")
+			return
+		end
+	end
+	ArenaService.SendToCity(player)
+	Net.Get("Notify"):FireClient(player, "La arena está cerrada para ti (evento terminado o sin vidas).")
 end
 
 Net.Get("RequestSync").OnServerEvent:Connect(function(pl: Player)
@@ -122,6 +176,12 @@ task.spawn(function()
 			local pos = ArenaService.PosOf(pl)
 			if pos and ArenaService.IsInArena(pos) and not ArenaService.CanEnter(pl) then
 				expel(pl)
+			elseif pos then
+				local inG, gf = ArenaService.GradaAt(pos)
+				if inG and (not ArenaService.IsOpen() or (gf ~= nil and gf ~= pl:GetAttribute("Faction"))) then
+					ArenaService.SendToCity(pl)
+					Net.Get("Notify"):FireClient(pl, "La grada está cerrada (evento terminado).")
+				end
 			end
 		end
 	end

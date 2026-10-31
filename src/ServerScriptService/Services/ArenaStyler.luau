@@ -16,9 +16,17 @@
         Al cerrarse el evento o salir de la arena, los bonus se quitan solos.
       - Dibujo del suelo opcional (CityAssets: Arena_floor).
 
-    TEMAS (rotan uno por cada jefe mundial que aparece; el primero depende de la hora, igual en todos los servidores):
-      1 Coliseo de las Cuatro Naciones · 2 Ruinas del Torneo · 3 Isla Flotante (cascadas, roca y nubes bajo la arena)
-    Prueba: /boss cambia al siguiente tema · /tema 1|2|3 lo fuerza.
+    DISEÑO ÚNICO: Coliseo de las Cuatro Naciones (sin rotación de temas, sin rocas ni cascadas).
+      - GRADAS: 5 niveles de 5 studs por cada lado de la arena, divididas en dos alas (a cada lado del puente).
+        Cada ala tiene muros separadores a los extremos y hacia el puente, así que NO se puede pasar a la grada de otra facción.
+      - ENTRADAS: portales con ProximityPrompt (solo para la facción dueña de la grada):
+          · en el puente, justo antes de la compuerta  -> "Ir a la grada"
+          · en cada campamento (dentro de la arena)     -> "Subir a la grada"
+          · en la grada                                  -> "Bajar a la arena" (si te quedan vidas y el evento está abierto)
+                                                           "Volver a la ciudad" (siempre)
+      - Quien pierde las 5 vidas va directo a su grada (ArenaService/DeathService) y no puede entrar a la arena hasta el próximo evento.
+      - Con el evento cerrado todos salen de las gradas hacia su ciudad (lo hace ArenaService).
+      - Datos para la interfaz: Workspace attr "Shrine_<Id>" = "dueño|retador|progreso%" y atributo de jugador "ShrineBuffs".
     ENABLED = false lo apaga y deja la arena como estaba (los temas quitan lo que pusieron).
 ]]
 local Workspace = game:GetService("Workspace")
@@ -42,7 +50,6 @@ local CAMP_RADIUS = 26
 local SHRINE_RADIUS = 18
 local CAPTURE_SECONDS = 8
 local SHRINE_POS = 396 -- las 4 diagonales: (±396, ±396)
-local THEME_SECONDS = 6 * 3600
 
 local BUFF_DMG = 1.08
 local BUFF_HP = 1.10
@@ -76,7 +83,16 @@ local SHRINES: { ShrineDef } = {
 	{ Id = "Fortuna", Name = "Santuario de Fortuna", Color = C(255, 215, 90), Text = "+15% XP", X = SHRINE_POS, Z = SHRINE_POS },
 }
 
-local THEME_NAMES = { "Coliseo de las Cuatro Naciones", "Ruinas del Torneo", "Isla Flotante" }
+local ARENA_NAME = "Coliseo de las Cuatro Naciones"
+
+-- Gradas
+local STAND_TIERS = 5
+local STAND_RISE = 5
+local STAND_DEPTH = 12
+local STAND_START = ARENA_HALF + 2
+local WING_IN = 86 -- el ala empieza a esta distancia del eje del puente
+local WING_OUT = 745
+local STAND_TOP = FLOOR_TOP + STAND_TIERS * STAND_RISE
 
 ---------------------------------------------------------------------
 -- Helpers de partes
@@ -196,6 +212,67 @@ local function notifyAll(text: string)
 	NotifyRemote:FireAllClients(text)
 end
 
+-- carga perezosa de ArenaService (evita ciclos al arrancar)
+local ArenaServiceMod: any = nil
+local function arenaService(): any
+	if ArenaServiceMod == nil then
+		local ok, m = pcall(require, Services:WaitForChild("ArenaService"))
+		ArenaServiceMod = if ok then m else false
+	end
+	return ArenaServiceMod
+end
+
+local function tellPlayer(pl: Player, text: string)
+	NotifyRemote:FireClient(pl, text)
+end
+
+local function teleportTo(pl: Player, pos: Vector3)
+	local root = pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.CFrame = CFrame.new(pos)
+	end
+end
+
+-- Portal: aro de luz + cartel + ProximityPrompt. onUse solo se llama si el jugador es de la facción indicada.
+local function makePad(parent: Instance, name: string, pos: Vector3, color: Color3, title: string, action: string, key: Enum.KeyCode, faction: string, onUse: (Player) -> ())
+	local p = cylV(parent, name, pos, 0.4, 7, color, Enum.Material.Neon, false)
+	p.Transparency = 0.35
+	local label = billboard(p, title, color:Lerp(C(255, 255, 255), 0.4), 4, 200)
+	label.TextSize = 15
+	local att = Instance.new("Attachment")
+	att.Position = Vector3.new(0, 1, 0)
+	att.Parent = p
+	local pp = Instance.new("ProximityPrompt")
+	pp.ActionText = action
+	pp.ObjectText = title
+	pp.KeyboardKeyCode = key
+	pp.HoldDuration = 0.6
+	pp.MaxActivationDistance = 9
+	pp.RequiresLineOfSight = false
+	pp.Parent = att
+	pp.Triggered:Connect(function(pl: Player)
+		if pl:GetAttribute("Faction") ~= faction then
+			tellPlayer(pl, "Este acceso es de la facción " .. faction .. ".")
+			return
+		end
+		local hum = pl.Character and pl.Character:FindFirstChildOfClass("Humanoid")
+		if not hum or hum.Health <= 0 then
+			return
+		end
+		onUse(pl)
+	end)
+end
+
+local function goToGrada(pl: Player)
+	local a = arenaService()
+	if a and a.IsOpen and a.IsOpen() and a.SendToGrada then
+		a.SendToGrada(pl)
+	else
+		tellPlayer(pl, "Las gradas solo abren con el evento.")
+	end
+end
+
 ---------------------------------------------------------------------
 -- Estado
 ---------------------------------------------------------------------
@@ -208,8 +285,6 @@ local camps: { Camp } = {}
 local shrines: { Shrine } = {}
 local arenaFolder: Instance? = nil
 local styleRoot: Folder? = nil
-local themeFolder: Folder? = nil
-local themeCleanup: (() -> ())? = nil
 
 ---------------------------------------------------------------------
 -- FIJO 1: campamentos
@@ -249,6 +324,8 @@ local function buildCamp(parent: Instance, lane: LaneDef)
 		kanjiSign(cloth, Enum.NormalId.Left, lane.Kanji, C(255, 255, 255))
 		ball(f, "Remate", at(sx * 52, 27.2, -6).Position, 2, lane.Glow, Enum.Material.Neon)
 	end
+	-- portal a la grada de la facción (detrás del cristal, hacia el muro)
+	makePad(f, "Portal_Grada", at(0, 0.5, 38).Position, lane.Glow, "GRADA " .. lane.Name, "Subir a la grada", Enum.KeyCode.E, lane.Faction, goToGrada)
 	-- toldo al fondo (lado del puente)
 	for _, sx in ipairs({ -1, 1 }) do
 		for _, sz in ipairs({ -1, 1 }) do
@@ -363,47 +440,85 @@ end
 ---------------------------------------------------------------------
 -- TEMAS
 ---------------------------------------------------------------------
-local function standsGeometry(parent: Instance, rng: Random, broken: boolean)
-	local sides: { { Out: Vector3, Along: Vector3, Lane: LaneDef } } = {}
+local function buildStands(parent: Instance)
+	local gradaFolder = Instance.new("Folder")
+	gradaFolder.Name = "Gradas"
+	gradaFolder.Parent = parent
+	local totalDepth = STAND_TIERS * STAND_DEPTH
 	for _, l in ipairs(LANES) do
-		table.insert(sides, { Out = l.Out, Along = Vector3.new(-l.Out.Z, 0, l.Out.X), Lane = l })
-	end
-	local ranges = { { -ARENA_HALF - 40, -84 }, { 84, ARENA_HALF + 40 } }
-	for _, s in ipairs(sides) do
-		for tier = 1, 3 do
-			local dist0 = ARENA_HALF + 16 + (tier - 1) * 18
-			local topY = FLOOR_TOP + tier * 8
-			for _, r in ipairs(ranges) do
-				local chunk = if broken then 70 else (r[2] - r[1])
-				local n = math.max(1, math.floor((r[2] - r[1]) / chunk + 0.5))
-				local seg = (r[2] - r[1]) / n
-				for i = 0, n - 1 do
-					local skip = broken and rng:NextNumber() < (if tier == 1 then 0.1 else 0.3)
-					if not skip then
-						local mid = r[1] + seg * (i + 0.5)
-						local drop = if broken then rng:NextNumber(0, 5) else 0
-						local h = topY - drop + 6
-						local center = s.Out * (dist0 + 9) + s.Along * mid
-						local color = if broken then C(150, 148, 138):Lerp(C(96, 120, 90), rng:NextNumber(0, 0.5)) else C(196, 192, 182)
-						part(parent, "Grada", Vector3.new(seg, h, 18), CFrame.lookAt(Vector3.new(center.X, (topY - drop - 6) / 2, center.Z), Vector3.new(center.X, (topY - drop - 6) / 2, center.Z) + s.Out), color, if broken then Enum.Material.Cobblestone else Enum.Material.Marble, true)
-						if tier == 3 and not broken then
-							part(parent, "Grada_Franja", Vector3.new(seg, 0.8, 18.4), CFrame.lookAt(Vector3.new(center.X, topY + 0.4, center.Z), Vector3.new(center.X, topY + 0.4, center.Z) + s.Out), s.Lane.Cloth, Enum.Material.SmoothPlastic, false)
-						end
-					end
-				end
-				-- banderas sobre la grada alta
-				if not broken then
-					local x = r[1] + 60
-					while x <= r[2] - 40 do
-						local base = s.Out * (dist0 + 9 + 36) + s.Along * x
-						local py = FLOOR_TOP + 24 + 11
-						part(parent, "Asta", Vector3.new(1.2, 22, 1.2), CFrame.new(base.X, py - 2, base.Z), C(70, 70, 80), Enum.Material.Metal, false)
-						part(parent, "Bandera", Vector3.new(10, 8, 0.4), CFrame.lookAt(Vector3.new(base.X, py + 4, base.Z) + s.Along * 5.6, Vector3.new(base.X, py + 4, base.Z) + s.Along * 5.6 + s.Out), s.Lane.Cloth, Enum.Material.Fabric, false)
-						x += 140
-					end
-				end
+		local out = l.Out
+		local along = Vector3.new(-out.Z, 0, out.X)
+		local lf = Instance.new("Folder")
+		lf.Name = "Grada_" .. l.Faction
+		lf.Parent = gradaFolder
+		for _, sign in ipairs({ -1, 1 }) do
+			local len = WING_OUT - WING_IN
+			local mid = sign * (WING_IN + WING_OUT) / 2
+			for tier = 1, STAND_TIERS do
+				local d0 = STAND_START + (tier - 1) * STAND_DEPTH
+				local topY = FLOOR_TOP + tier * STAND_RISE
+				local c = out * (d0 + STAND_DEPTH / 2) + along * mid
+				local h = topY + 6
+				local cf = CFrame.lookAt(Vector3.new(c.X, (topY - 6) / 2, c.Z), Vector3.new(c.X, (topY - 6) / 2, c.Z) + out)
+				part(lf, "Grada", Vector3.new(len, h, STAND_DEPTH), cf, C(204, 200, 190), Enum.Material.Marble, true)
+				-- franja de color de la facción en el borde de cada nivel
+				local sc = out * (d0 + 0.5) + along * mid
+				local sp = part(lf, "Franja", Vector3.new(len, 0.25, 1), CFrame.lookAt(Vector3.new(sc.X, topY + 0.13, sc.Z), Vector3.new(sc.X, topY + 0.13, sc.Z) + out), l.Cloth, Enum.Material.SmoothPlastic, false)
+				sp.Name = "Franja"
 			end
+			-- baranda trasera (cristal tintado, sólida)
+			local bc = out * (STAND_START + totalDepth + 1) + along * mid
+			local back = part(lf, "Baranda", Vector3.new(len, 12, 2), CFrame.lookAt(Vector3.new(bc.X, STAND_TOP + 6, bc.Z), Vector3.new(bc.X, STAND_TOP + 6, bc.Z) + out), l.Cloth, Enum.Material.Glass, true)
+			back.Transparency = 0.6
+			-- muros separadores: extremo (hacia la grada de la facción vecina) e interior (hacia el puente)
+			for _, edge in ipairs({ sign * (WING_OUT + 2), sign * (WING_IN - 2) }) do
+				local wc = out * (STAND_START + totalDepth / 2 + 1) + along * edge
+				-- lookAt hacia 'along': el eje Z local (grosor 3) queda sobre 'along', el X local (largo) sobre 'out'
+				local wall = part(lf, "Muro_Separador", Vector3.new(totalDepth + 4, STAND_TOP + 6 + 30, 3), CFrame.lookAt(Vector3.new(wc.X, (STAND_TOP + 30 - 6) / 2, wc.Z), Vector3.new(wc.X, (STAND_TOP + 30 - 6) / 2, wc.Z) + along), C(90, 90, 104), Enum.Material.Concrete, true)
+				local trim = part(lf, "Muro_Franja", Vector3.new(totalDepth + 4.2, 1.2, 3.2), wall.CFrame * CFrame.new(0, (STAND_TOP + 36) / 2 - 0.6, 0), l.Cloth, Enum.Material.Neon, false)
+				trim.Transparency = 0.2
+			end
+			-- zona de la grada (invisible; la usa ArenaService)
+			local zc = out * (STAND_START + totalDepth / 2) + along * mid
+			local zone = part(lf, "Zona_Grada", Vector3.new(len, 70, totalDepth + 4), CFrame.lookAt(Vector3.new(zc.X, 35, zc.Z), Vector3.new(zc.X, 35, zc.Z) + out), l.Cloth, Enum.Material.SmoothPlastic, false)
+			zone.Transparency = 1
+			zone.CanQuery = false
+			zone:SetAttribute("Faction", l.Faction)
+			CollectionService:AddTag(zone, "ZoneGrada")
+			-- punto de aparición en la grada (nivel 3, centro del ala)
+			local spawnPos = out * (STAND_START + 2.5 * STAND_DEPTH) + along * (sign * 330) + Vector3.new(0, FLOOR_TOP + 3 * STAND_RISE + 3.2, 0)
+			local sp = part(lf, "Aparicion_Grada", Vector3.new(4, 1, 4), CFrame.new(spawnPos), l.Cloth, Enum.Material.SmoothPlastic, false)
+			sp.Transparency = 1
+			sp:SetAttribute("Faction", l.Faction)
+			CollectionService:AddTag(sp, "GradaSpawn")
+			-- portales dentro de la grada (nivel 3, junto al muro interior)
+			local px = out * (STAND_START + 2.5 * STAND_DEPTH)
+			local py = FLOOR_TOP + 3 * STAND_RISE + 0.3
+			makePad(lf, "Portal_Ciudad", px + along * (sign * (WING_IN + 22)) + Vector3.new(0, py, 0), C(255, 255, 255), "VOLVER A LA CIUDAD", "Volver a la ciudad", Enum.KeyCode.E, l.Faction, function(pl: Player)
+				local a = arenaService()
+				if a and a.SendToCity then
+					a.SendToCity(pl)
+				end
+			end)
+			makePad(lf, "Portal_Arena", px + along * (sign * (WING_IN + 40)) + Vector3.new(0, py, 0), l.Glow, "BAJAR A LA ARENA", "Bajar a la arena", Enum.KeyCode.F, l.Faction, function(pl: Player)
+				local a = arenaService()
+				if a and a.CanEnter and a.CanEnter(pl) then
+					teleportTo(pl, out * (CAMP_DIST - 34) + Vector3.new(0, FLOOR_TOP + 3.5, 0))
+				else
+					tellPlayer(pl, "No puedes bajar: sin vidas de arena o el evento está cerrado.")
+				end
+			end)
+			-- banderas sobre el muro del extremo
+			local fx = out * (STAND_START + totalDepth - 8) + along * (sign * (WING_OUT - 20))
+			local fy = STAND_TOP + 11
+			part(lf, "Asta", Vector3.new(1.2, 22, 1.2), CFrame.new(fx.X, fy, fx.Z), C(70, 70, 80), Enum.Material.Metal, false)
+			local cloth = part(lf, "Bandera", Vector3.new(10, 8, 0.4), CFrame.lookAt(Vector3.new(fx.X, fy + 6, fx.Z) + along * (sign * -5.6), Vector3.new(fx.X, fy + 6, fx.Z) + along * (sign * -5.6) + out), l.Cloth, Enum.Material.Fabric, false)
+			kanjiSign(cloth, Enum.NormalId.Front, l.Kanji, C(255, 255, 255))
+			kanjiSign(cloth, Enum.NormalId.Back, l.Kanji, C(255, 255, 255))
 		end
+		-- portal de entrada en el puente, antes de la compuerta
+		local bp = out * 800 + along * 36 + Vector3.new(0, FLOOR_TOP + 0.3, 0)
+		makePad(lf, "Portal_Puente", bp, l.Glow, "GRADA " .. l.Name, "Ir a la grada", Enum.KeyCode.E, l.Faction, goToGrada)
 	end
 end
 
@@ -420,7 +535,7 @@ end
 
 local function themeColiseo(parent: Folder)
 	local rng = Random.new(1001)
-	standsGeometry(parent, rng, false)
+	buildStands(parent)
 	for _, sx in ipairs({ -1, 1 }) do
 		for _, sz in ipairs({ -1, 1 }) do
 			local p = Vector3.new(sx * 800, 0, sz * 800)
@@ -440,253 +555,22 @@ local function themeColiseo(parent: Folder)
 	lanterns(parent, rng, 26, 700, 40, 80)
 end
 
-local function ruinPiece(parent: Instance, rng: Random, x: number, z: number)
-	local kind = rng:NextInteger(1, 4)
-	local stone = C(150, 148, 138):Lerp(C(100, 124, 94), rng:NextNumber(0, 0.5))
-	local yaw = rng:NextNumber(0, math.pi * 2)
-	if kind == 1 then
-		local h = rng:NextNumber(10, 24)
-		cylV(parent, "Pilar", Vector3.new(x, FLOOR_TOP + h / 2, z), h, rng:NextNumber(3.6, 5), stone, Enum.Material.Cobblestone, true)
-		if rng:NextNumber() < 0.6 then
-			ball(parent, "Enredadera", Vector3.new(x, FLOOR_TOP + 1.5, z), rng:NextNumber(5, 8), C(70, 130, 70), Enum.Material.Grass)
-		end
-	elseif kind == 2 then
-		local len = rng:NextNumber(16, 28)
-		local p = cylV(parent, "Pilar_Caido", Vector3.new(x, FLOOR_TOP + 2, z), len, 4, stone, Enum.Material.Cobblestone, true)
-		p.CFrame = CFrame.new(x, FLOOR_TOP + 2, z) * CFrame.Angles(0, yaw, 0)
-	elseif kind == 3 then
-		local mono = part(parent, "Monolito", Vector3.new(6, rng:NextNumber(14, 22), 3), CFrame.new(x, FLOOR_TOP + 9, z) * CFrame.Angles(0, yaw, 0), C(60, 64, 82), Enum.Material.Basalt, true)
-		part(parent, "Monolito_Runa", Vector3.new(0.5, 8, 1.4), mono.CFrame * CFrame.new(0, 1, -1.6), C(79, 209, 255), Enum.Material.Neon, false)
-	else
-		local cfA = CFrame.new(x, FLOOR_TOP, z) * CFrame.Angles(0, yaw, 0)
-		for _, sx in ipairs({ -1, 1 }) do
-			cylV(parent, "Arco_Pilar", (cfA * CFrame.new(sx * 8, 9, 0)).Position, 18, 3.6, stone, Enum.Material.Cobblestone, true)
-		end
-		part(parent, "Arco_Dintel", Vector3.new(11, 3, 4), cfA * CFrame.new(-4.5, 19, 0), stone, Enum.Material.Cobblestone, true)
-		ball(parent, "Enredadera", (cfA * CFrame.new(8, 2, 0)).Position, 6, C(70, 130, 70), Enum.Material.Grass)
-	end
-end
-
-local function themeRuinas(parent: Folder)
-	local rng = Random.new(2002)
-	standsGeometry(parent, rng, true)
-	local metin: { Vector3 } = {}
-	for _, m in ipairs(CollectionService:GetTagged("MetinStoneSpawn")) do
-		if m:IsA("BasePart") then
-			table.insert(metin, m.Position)
-		end
-	end
-	local placed = 0
-	local tries = 0
-	while placed < 40 and tries < 600 do
-		tries += 1
-		local a = rng:NextNumber(0, math.pi * 2)
-		local r = rng:NextNumber(200, 650)
-		local x, z = math.cos(a) * r, math.sin(a) * r
-		local ok = math.abs(x) > 60 and math.abs(z) > 60
-		for _, mp in ipairs(metin) do
-			if (Vector3.new(x, 0, z) - Vector3.new(mp.X, 0, mp.Z)).Magnitude < 48 then
-				ok = false
-			end
-		end
-		for _, s in ipairs(SHRINES) do
-			if (Vector3.new(x, 0, z) - Vector3.new(s.X, 0, s.Z)).Magnitude < 56 then
-				ok = false
-			end
-		end
-		for _, l in ipairs(LANES) do
-			if (Vector3.new(x, 0, z) - l.Out * CAMP_DIST).Magnitude < 90 then
-				ok = false
-			end
-		end
-		if ok then
-			placed += 1
-			ruinPiece(parent, rng, x, z)
-		end
-	end
-	-- niebla baja
-	for i = 1, 8 do
-		local a = i / 8 * math.pi * 2
-		local anchor = part(parent, "Niebla", Vector3.new(2, 2, 2), CFrame.new(math.cos(a) * 420, FLOOR_TOP + 3, math.sin(a) * 420), C(255, 255, 255), Enum.Material.SmoothPlastic, false)
-		anchor.Transparency = 1
-		local e = Instance.new("ParticleEmitter")
-		e.Texture = "rbxasset://textures/particles/smoke_main.dds"
-		e.Color = ColorSequence.new(C(200, 210, 220))
-		e.Rate = 3
-		e.Lifetime = NumberRange.new(7, 10)
-		e.Speed = NumberRange.new(1, 3)
-		e.Size = NumberSequence.new(26)
-		e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.3, 0.82), NumberSequenceKeypoint.new(1, 1) })
-		e.SpreadAngle = Vector2.new(180, 20)
-		e.Parent = anchor
-	end
-	lanterns(parent, rng, 14, 600, 25, 55)
-end
-
-local function themeIsla(parent: Folder)
-	local rng = Random.new(3003)
-	local map = Workspace:FindFirstChild(MAP_NAME)
-	local removed: { BasePart } = {}
-	local oceanFolder = if map then map:FindFirstChild("Oceano") else nil
-	if oceanFolder then
-		for _, t in ipairs(oceanFolder:GetChildren()) do
-			if t:IsA("BasePart") and math.abs(t.Position.X) <= t.Size.X / 2 and math.abs(t.Position.Z) <= t.Size.Z / 2 then
-				t.Parent = nil
-				table.insert(removed, t)
-			end
-		end
-	end
-	themeCleanup = function()
-		if oceanFolder then
-			for _, t in ipairs(removed) do
-				t.Parent = oceanFolder
-			end
-		end
-	end
-
-	-- roca bajo la arena
-	local layers = {
-		{ 1420, 8, 44 }, { 1250, -36, 56 }, { 1000, -92, 70 }, { 720, -162, 80 }, { 440, -242, 90 }, { 200, -332, 90 },
-	}
-	for i, l in ipairs(layers) do
-		local w, y0, h = l[1], l[2], l[3]
-		local col = C(96, 90, 104):Lerp(C(38, 34, 46), (i - 1) / #layers)
-		part(parent, "Roca_" .. i, Vector3.new(w, h, w), CFrame.new(0, y0 - h / 2, 0), col, Enum.Material.Slate, false)
-		for _ = 1, 6 do
-			local side = rng:NextInteger(1, 4)
-			local off = rng:NextNumber(-w / 2, w / 2)
-			local px = if side == 1 then w / 2 elseif side == 2 then -w / 2 else off
-			local pz = if side == 3 then w / 2 elseif side == 4 then -w / 2 else off
-			local s = rng:NextNumber(50, 130)
-			part(parent, "Roca_Bulto", Vector3.new(s, s * 0.8, s), CFrame.new(px, y0 - h / 2, pz) * CFrame.Angles(rng:NextNumber(0, 1), rng:NextNumber(0, 3), rng:NextNumber(0, 1)), col:Lerp(C(130, 120, 140), rng:NextNumber(0, 0.3)), Enum.Material.Slate, false)
-		end
-	end
-	-- borde de hierba bajo el piso
-	part(parent, "Borde_Hierba", Vector3.new(1500, 3, 1500), CFrame.new(0, 7.2, 0), C(88, 150, 90), Enum.Material.Grass, false)
-
-	-- nubes
-	for _ = 1, 46 do
-		local a = rng:NextNumber(0, math.pi * 2)
-		local r = rng:NextNumber(300, 1500)
-		local cx, cy, cz = math.cos(a) * r, rng:NextNumber(-210, -110), math.sin(a) * r
-		for _ = 1, 3 do
-			local b = ball(parent, "Nube", Vector3.new(cx + rng:NextNumber(-50, 50), cy + rng:NextNumber(-8, 8), cz + rng:NextNumber(-50, 50)), rng:NextNumber(70, 170), C(244, 236, 250), Enum.Material.SmoothPlastic)
-			b.Transparency = 0.12
-		end
-	end
-
-	-- cascadas en los bordes (2 por lado, entre el puente y la esquina)
-	local sheets: { Part } = {}
-	for _, l in ipairs(LANES) do
-		local o = l.Out
-		local along = Vector3.new(-o.Z, 0, o.X)
-		for _, t in ipairs({ -400, 400 }) do
-			local top = o * 782 + along * t
-			part(parent, "Canal", Vector3.new(34, 5, 36), CFrame.lookAt(Vector3.new(top.X, 9.5, top.Z), Vector3.new(top.X, 9.5, top.Z) + o), C(120, 118, 130), Enum.Material.Slate, true)
-			part(parent, "Canal_Labio", Vector3.new(38, 3, 4), CFrame.lookAt(Vector3.new(top.X, 11.5, top.Z) + o * 15, Vector3.new(top.X, 11.5, top.Z) + o * 15 + o), C(150, 146, 160), Enum.Material.Slate, true)
-			local fall = o * 800 + along * t
-			local sheet = part(parent, "Cascada", Vector3.new(26, 160, 3), CFrame.lookAt(Vector3.new(fall.X, -72, fall.Z), Vector3.new(fall.X, -72, fall.Z) + o), C(150, 215, 255), Enum.Material.Neon, false)
-			sheet.Transparency = 0.5
-			table.insert(sheets, sheet)
-			local spray = part(parent, "Cascada_Espuma", Vector3.new(24, 1, 1), CFrame.new(fall.X, 8, fall.Z) + o * 2, C(255, 255, 255), Enum.Material.SmoothPlastic, false)
-			spray.Transparency = 1
-			local e = Instance.new("ParticleEmitter")
-			e.Color = ColorSequence.new(C(235, 250, 255))
-			e.Rate = 70
-			e.Lifetime = NumberRange.new(3, 3.6)
-			e.Speed = NumberRange.new(30, 42)
-			e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 3), NumberSequenceKeypoint.new(1, 1.5) })
-			e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 1) })
-			e.LightEmission = 0.6
-			e.Acceleration = Vector3.new(0, -40, 0)
-			e.EmissionDirection = Enum.NormalId.Bottom
-			e.SpreadAngle = Vector2.new(5, 5)
-			e.Parent = spray
-			local mist = part(parent, "Cascada_Niebla", Vector3.new(30, 2, 30), CFrame.new(fall.X, -150, fall.Z) + o * 6, C(255, 255, 255), Enum.Material.SmoothPlastic, false)
-			mist.Transparency = 1
-			local m = Instance.new("ParticleEmitter")
-			m.Texture = "rbxasset://textures/particles/smoke_main.dds"
-			m.Color = ColorSequence.new(C(245, 235, 255))
-			m.Rate = 6
-			m.Lifetime = NumberRange.new(5, 7)
-			m.Speed = NumberRange.new(2, 6)
-			m.Size = NumberSequence.new(34)
-			m.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.3, 0.6), NumberSequenceKeypoint.new(1, 1) })
-			m.SpreadAngle = Vector2.new(180, 40)
-			m.Parent = mist
-		end
-	end
-	for _, s in ipairs(sheets) do
-		TweenService:Create(s, TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Transparency = 0.68 }):Play()
-	end
-
-	-- rocas flotantes pequeñas y farolillos
-	for _ = 1, 8 do
-		local a = rng:NextNumber(0, math.pi * 2)
-		local r = rng:NextNumber(950, 1350)
-		local p = Vector3.new(math.cos(a) * r, rng:NextNumber(40, 120), math.sin(a) * r)
-		local d = rng:NextNumber(24, 50)
-		local rock = ball(parent, "Roca_Flotante", p, d, C(90, 86, 100), Enum.Material.Slate)
-		ball(parent, "Roca_Hierba", p + Vector3.new(0, d * 0.32, 0), d * 0.7, C(88, 150, 90), Enum.Material.Grass)
-		rock.Name = "Roca_Flotante"
-	end
-	lanterns(parent, rng, 30, 700, 30, 90)
-end
-
-local themeBuilders: { (Folder) -> () } = { themeColiseo, themeRuinas, themeIsla }
-
 ---------------------------------------------------------------------
--- Aplicar tema (uno a la vez)
+-- Aplicar el diseño (una sola vez)
 ---------------------------------------------------------------------
-local currentTheme = 0
-local applying = false
-local pendingTheme: number? = nil
-
-local function applyTheme(idx: number, announce: boolean)
-	if applying then
-		pendingTheme = idx
-		return
+local function applyDesign(root: Folder)
+	local tf = folder("Coliseo", root)
+	local ok, err = pcall(themeColiseo, tf)
+	if not ok then
+		warn("[ArenaStyler] Error en el Coliseo: " .. tostring(err))
 	end
-	applying = true
-	local root = styleRoot
-	if root then
-		if themeCleanup then
-			themeCleanup()
-			themeCleanup = nil
-		end
-		local tf = folder("Tema", root)
-		themeFolder = tf
-		local ok, err = pcall(themeBuilders[idx], tf)
-		if not ok then
-			warn("[ArenaStyler] Error en el tema " .. idx .. ": " .. tostring(err))
-		end
-		currentTheme = idx
-		Workspace:SetAttribute("ArenaTheme", THEME_NAMES[idx])
-		if announce then
-			notifyAll("La Arena cambió: " .. THEME_NAMES[idx])
-		end
-		print("[ArenaStyler] Tema " .. idx .. ": " .. THEME_NAMES[idx])
-	end
-	applying = false
-	local nxt = pendingTheme
-	pendingTheme = nil
-	if nxt and nxt ~= currentTheme then
-		applyTheme(nxt, announce)
-	end
+	Workspace:SetAttribute("ArenaTheme", ARENA_NAME)
 end
 
 ---------------------------------------------------------------------
 -- Santuarios, bonus y campamentos (bucle cada 0,5 s)
 ---------------------------------------------------------------------
-local ArenaServiceMod: any = nil
 local EnergyMod: any = nil
-local function arenaService(): any
-	if ArenaServiceMod == nil then
-		local ok, m = pcall(require, Services:WaitForChild("ArenaService"))
-		ArenaServiceMod = if ok then m else false
-	end
-	return ArenaServiceMod
-end
 local function energyService(): any
 	if EnergyMod == nil then
 		local ok, m = pcall(require, Services:WaitForChild("EnergyRegenService"))
@@ -741,6 +625,7 @@ local function clearBuffs(pl: Player)
 	pl:SetAttribute("ShrineDmg", nil)
 	pl:SetAttribute("ShrineEnergy", nil)
 	pl:SetAttribute("ShrineXp", nil)
+	pl:SetAttribute("ShrineBuffs", nil)
 	local _, hum = rootOf(pl)
 	if hum then
 		setHpBuff(pl, hum, 1)
@@ -753,6 +638,8 @@ local function updateShrineVisual(s: Shrine)
 		return
 	end
 	s.Shown = state
+	-- dato para el panel del cliente: "dueño|retador|progreso%"
+	Workspace:SetAttribute("Shrine_" .. s.Def.Id, (s.Owner or "-") .. "|" .. (s.Challenger or "-") .. "|" .. tostring(math.floor(s.Progress * 100)))
 	local col = if s.Owner then FACTION_COLOR[s.Owner] or C(255, 255, 255) else C(150, 150, 160)
 	s.Ring.Color = if s.Challenger then FACTION_COLOR[s.Challenger] or col else col
 	local txt = s.Def.Name .. "\n" .. s.Def.Text .. " · "
@@ -853,7 +740,14 @@ local function tick(dt: number)
 			pl:SetAttribute("ShrineEnergy", if mine.Aliento then BUFF_ENERGY else nil)
 			pl:SetAttribute("ShrineXp", if mine.Fortuna then BUFF_XP else nil)
 			setHpBuff(pl, hum, if mine.Vigor then BUFF_HP else 1)
-		elseif pl:GetAttribute("ShrineDmg") ~= nil or pl:GetAttribute("ShrineEnergy") ~= nil or pl:GetAttribute("ShrineXp") ~= nil
+			local names: { string } = {}
+			for _, def in ipairs(SHRINES) do
+				if mine[def.Id] then
+					table.insert(names, def.Id)
+				end
+			end
+			pl:SetAttribute("ShrineBuffs", if #names > 0 then table.concat(names, ",") else nil)
+		elseif pl:GetAttribute("ShrineDmg") ~= nil or pl:GetAttribute("ShrineEnergy") ~= nil or pl:GetAttribute("ShrineXp") ~= nil or pl:GetAttribute("ShrineBuffs") ~= nil
 			or (pl.Character and pl.Character:GetAttribute("ShrineHpBase") ~= nil) then
 			clearBuffs(pl)
 		end
@@ -865,13 +759,8 @@ end
 ---------------------------------------------------------------------
 local ArenaStyler = {}
 
-function ArenaStyler.SetTheme(idx: number)
-	if idx >= 1 and idx <= #themeBuilders then
-		task.spawn(applyTheme, idx, true)
-	end
-end
-
 local function run()
+	Workspace:SetAttribute("StyleVersion", "6.55") -- lo lee CityStyleCheck para saber si el servidor tiene los scripts nuevos
 	local map = Workspace:WaitForChild(MAP_NAME, 60)
 	local arena = map and map:WaitForChild("Arena_Central", 30)
 	if not map or not arena then
@@ -904,23 +793,7 @@ local function run()
 		warn("[ArenaStyler] Error en lo fijo: " .. tostring(err))
 	end
 
-	currentTheme = 0
-	local idx = (math.floor(os.time() / THEME_SECONDS) % #themeBuilders) + 1
-	applyTheme(idx, false)
-
-	Workspace:GetAttributeChangedSignal("BossActive"):Connect(function()
-		if Workspace:GetAttribute("BossActive") == true then
-			local nxt = currentTheme % #themeBuilders + 1
-			task.spawn(applyTheme, nxt, true)
-		end
-	end)
-	Workspace:GetAttributeChangedSignal("ArenaThemeForce"):Connect(function()
-		local v = Workspace:GetAttribute("ArenaThemeForce")
-		if typeof(v) == "number" then
-			Workspace:SetAttribute("ArenaThemeForce", nil)
-			ArenaStyler.SetTheme(math.floor(v))
-		end
-	end)
+	applyDesign(root)
 
 	local acc = 0
 	RunService.Heartbeat:Connect(function(dt)
@@ -938,7 +811,7 @@ local function run()
 	Players.PlayerRemoving:Connect(function(pl)
 		pl:SetAttribute("ShrineDmg", nil)
 	end)
-	print("[ArenaStyler] Arena lista: 4 campamentos, 8 altares, 4 santuarios y tema rotativo.")
+	print("[ArenaStyler] Arena lista: 4 campamentos, 8 altares, 4 santuarios y Coliseo con gradas.")
 end
 
 if ENABLED then

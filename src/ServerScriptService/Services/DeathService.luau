@@ -3,7 +3,8 @@
     DeathService (ModuleScript) -> ServerScriptService.Services.DeathService
     Qué pasa cuando muere un JUGADOR:
       - Pierde XP del nivel actual: 3% si murió por mob (PvE), 2% si por otro jugador (PvP). Nunca baja de nivel; nada bajo nivel 10.
-      - Si murió dentro de la Arena: pierde 1 vida de arena (ArenaService).
+      - Si murió dentro de la Arena: pierde 1 vida de arena (ArenaService). Al perder la última (5ª), al reaparecer
+        va directo a la GRADA de su facción y no puede volver a la arena hasta el próximo evento.
       - Reaparece en el punto de su ciudad (player.RespawnLocation lo fija ProjectBootstrapper).
       - Protección de reaparición: ForceField de 5 s.
 ]]
@@ -39,12 +40,27 @@ local function onDied(player: Player, char: Model)
 	if inArena and (byPlayer or ArenaService.CountEnemyDeaths) then
 		ArenaService.LoseLife(player)
 		local left = ArenaService.GetLives(player)
-		Net.Get("Notify"):FireClient(player, if left > 0 then string.format("Vidas de arena restantes: %d", left) else "Sin vidas de arena hasta el próximo evento.")
+		if left > 0 then
+			Net.Get("Notify"):FireClient(player, string.format("Vidas de arena restantes: %d", left))
+		else
+			player:SetAttribute("PendingGrada", true)
+			Net.Get("Notify"):FireClient(player, "Sin vidas de arena: irás a tu grada hasta el próximo evento.")
+		end
 	end
 end
 
 local function onCharacter(player: Player, char: Model)
 	protect(char)
+	if player:GetAttribute("PendingGrada") == true then
+		player:SetAttribute("PendingGrada", nil)
+		task.spawn(function()
+			char:WaitForChild("HumanoidRootPart", 10)
+			task.wait(0.4) -- deja que termine el spawn normal antes de moverlo
+			if player.Character == char then
+				ArenaService.SendToGrada(player) -- evento cerrado: lo deja en su ciudad
+			end
+		end)
+	end
 	local hum = char:WaitForChild("Humanoid", 10)
 	if hum and hum:IsA("Humanoid") then
 		hum.Died:Once(function()
