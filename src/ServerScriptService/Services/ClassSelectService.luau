@@ -38,6 +38,26 @@ local function load(player: Player)
 	if typeof(saved) == "table" and typeof(saved.Faction) == "string" and typeof(saved.Role) == "string"
 		and FactionClasses.FindClass(saved.Faction, saved.Role) then
 		applyChoice(player, saved.Faction, saved.Role)
+		loaded[player] = true
+		-- Si el personaje ya había aparecido ANTES de cargar tu perfil (con la facción por defecto: Goku, ciudad Saiyan),
+		-- se hace reaparecer ya con tu clase guardada (traje y ciudad correctos). Si aún no aparecía, nace bien solo.
+		local classData = FactionClasses.FindClass(saved.Faction, saved.Role)
+		local wanted = if classData then classData.CharacterName else nil
+		for _ = 1, 16 do
+			local ch = player.Character
+			local outfit = if ch then ch:GetAttribute("Outfit") else nil
+			if outfit ~= nil then
+				if outfit ~= wanted and player.Parent then
+					task.wait(0.25) -- deja que ProjectBootstrapper actualice RespawnLocation de la facción guardada
+					if player.Parent then
+						player:LoadCharacter()
+					end
+				end
+				break
+			end
+			task.wait(0.25)
+		end
+		return
 	else
 		player:SetAttribute("ClassChosen", false)
 	end
