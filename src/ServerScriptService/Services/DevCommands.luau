@@ -9,6 +9,7 @@
       /mob Saiyan_Nappa 30   crea un enemigo delante de ti (nivel opcional)
       /mobs              lista los Id disponibles en la Output
       /limpiar           borra los enemigos activos
+      /quien             lista la facción y el rol que ve el servidor de cada jugador
       /arena             abre el evento 1 HORA: puentes + compuertas + vidas de arena (vía ProjectBootstrapper)
       /cerrar            cierra el evento
       /clase Shinobi Asesino   cambia de facción/rol y reaparece
@@ -86,11 +87,26 @@ local function handle(player: Player, msg: string)
 	elseif cmd == "/clase" then
 		-- /clase Shinobi Asesino   (Facción: Saiyan|Shinobi|Pirate|Shinigami · Rol: Tanque|Guerrero|Asesino|Tirador|Mago|Curador)
 		if args[2] and args[3] then
-			player:SetAttribute("Faction", args[2])
-			player:SetAttribute("Role", args[3])
+			-- normaliza mayúsculas y alias (pirata -> Pirate): un "pirata" mal escrito dejaba a dos amigos en facciones distintas
+			local aliases: { [string]: string } = { saiyan = "Saiyan", shinobi = "Shinobi", pirate = "Pirate", pirata = "Pirate", shinigami = "Shinigami" }
+			local fac = aliases[string.lower(args[2])]
+			if not fac then
+				print("Facción no válida: " .. args[2] .. " (usa Saiyan, Shinobi, Pirate o Shinigami)")
+				return
+			end
+			local role = string.upper(string.sub(args[3], 1, 1)) .. string.lower(string.sub(args[3], 2))
+			player:SetAttribute("Faction", fac)
+			player:SetAttribute("Role", role)
 			player:LoadCharacter()
 		else
 			print("Uso: /clase <Saiyan|Shinobi|Pirate|Shinigami> <Tanque|Guerrero|Asesino|Tirador|Mago|Curador>")
+		end
+	elseif cmd == "/quien" then
+		-- lista la facción y el rol que el SERVIDOR ve en cada jugador (para revisar grupos y fuego amigo)
+		for _, p in ipairs(Players:GetPlayers()) do
+			local msg = string.format("%s · facción=%s · rol=%s", p.Name, tostring(p:GetAttribute("Faction")), tostring(p:GetAttribute("Role")))
+			print("[/quien] " .. msg)
+			require(Services.Net).Get("Notify"):FireClient(player, msg)
 		end
 	elseif cmd == "/item" and args[2] then
 		Inventory.Add(player, args[2], tonumber(args[3]) or 1)
