@@ -32,6 +32,7 @@ require(Services:WaitForChild("AbilityService")) -- habilidades 3 y 4
 require(Services:WaitForChild("MetinService")) -- piedras Metin del evento de la Arena
 require(Services:WaitForChild("BossService")) -- jefe mundial (cada 6 h)
 require(Services:WaitForChild("AutoFarmService")) -- Auto-farm PvE (Semi / Metin / Jefe)
+require(Services:WaitForChild("CityStyler")) -- estilo anime de las 4 ciudades (usa CityAssets)
 -- CombatService: se carga aquí por si nadie más lo requiere (require repetido devuelve el mismo módulo, no se duplica)
 local combat = Services:FindFirstChild("CombatService")
 if combat and combat:IsA("ModuleScript") then
