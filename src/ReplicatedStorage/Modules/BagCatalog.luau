@@ -14,7 +14,7 @@ local BagCatalog = {}
 
 BagCatalog.PageSizes = { 35, 35, 40, 40, 40 } :: { number }
 BagCatalog.FreePages = 2
-BagCatalog.GamePassIds = { 0, 0, 0 } :: { number } -- IDs de los pases de las páginas 3, 4 y 5 (en ese orden)
+BagCatalog.GamePassIds = { 2064191421, 2063893837, 2063730138 } :: { number } -- Mochila Ampliada I, II y III (páginas 3, 4 y 5)
 BagCatalog.PriceText = { "99 R$", "149 R$", "199 R$" } :: { string } -- texto informativo del precio (opcional, p. ej. "99 R$")
 
 function BagCatalog.MaxPaid(): number
