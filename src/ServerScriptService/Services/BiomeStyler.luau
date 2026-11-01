@@ -1064,6 +1064,189 @@ local function styleGates(biome: Instance, lane: Lane, faction: string)
 end
 
 ---------------------------------------------------------------------
+-- MURALLA DEL FONDO (borde de la franja 4) + SUELO EXTERIOR + HORIZONTE
+---------------------------------------------------------------------
+local MONUMENTS: { [string]: string } = {
+	Saiyan = "TRONO DE BUU", Shinobi = "CASCADA DEL FIN", Pirate = "MURALLA DE MARINEFORD", Shinigami = "TRONO DEL SEIREITEI",
+}
+
+local function buildBackWall(lane: Lane, faction: string)
+	local th = THEMES[faction .. "_4"]
+	local gth = GATES[faction .. "_4"]
+	if not th or not gth then
+		return
+	end
+	local solid: Ctx = { Barrier = lane.Barrier, Deco = lane.Deco, Far = false }
+	local deco: Ctx = { Barrier = lane.Barrier, Deco = lane.Deco, Far = true }
+	local rng = Random.new(4242 + #faction)
+	local uEnd = CITY_SIZE + STRIP_DEPTH * STRIP_COUNT
+	local u = uEnd - 9 -- justo delante del muro invisible del borde (u = 3294..3300)
+	local half = hw(lane, uEnd) + 8
+	local H = th.WallH + 24
+	local inward = -lane.Dir
+	local dark = th.WallCol:Lerp(Color3.new(0, 0, 0), 0.15)
+
+	-- muro continuo por tramos
+	local segs = math.ceil(2 * half / 380)
+	local segLen = 2 * half / segs
+	local wallId = BiomeAssets.Get(faction .. "_4_wall")
+	for i = 1, segs do
+		local v = -half + (i - 0.5) * segLen
+		local w = blk(solid, Vector3.new(segLen, H, 6), gateCF(lane, u, v, FLOOR_TOP + H / 2), th.WallCol, th.WallMat, true)
+		w.Name = "MuroFondo_" .. i
+		if wallId then
+			local tex = Instance.new("Texture")
+			tex.Texture = wallId
+			tex.Face = Enum.NormalId.Back -- la cara que mira hacia adentro de la franja
+			tex.StudsPerTileU = 40
+			tex.StudsPerTileV = 40
+			tex.Parent = w
+		end
+	end
+	capLine(deco, lane, u, -half, half, H, gth)
+
+	-- contrafuertes con luz, banderas y adornos propios de cada anime
+	local v = -half + 95
+	local k = 0
+	while v < half - 60 do
+		k += 1
+		if math.abs(v) > 110 then
+			blk(solid, Vector3.new(12, H + 12, 14), gateCF(lane, u - 5, v, FLOOR_TOP + (H + 12) / 2), dark, th.WallMat, true)
+			for _, dv in ipairs({ -5.2, 5.2 }) do
+				blk(deco, Vector3.new(1.1, H - 6, 1.1), gateCF(lane, u - 12.3, v + dv, FLOOR_TOP + H / 2), gth.Accent, M.Neon, false)
+			end
+			if k % 3 == 0 then
+				makeBanner(solid, faction, lp(lane, u - 14, v, FLOOR_TOP), inward)
+			end
+			if faction == "Shinobi" and k % 2 == 0 then
+				blk(deco, Vector3.new(14, H, 1.6), gateCF(lane, u - 3.6, v + 40, FLOOR_TOP + H / 2), C(235, 245, 255), M.Neon, false, 0.45)
+				ellipsoid(deco, gateCF(lane, u - 9, v + 40, FLOOR_TOP + 2), Vector3.new(30, 6, 22), C(225, 238, 250), M.Neon)
+			end
+		end
+		v += 190
+	end
+	if faction == "Pirate" then
+		blk(deco, Vector3.new(2 * half, 0.8, 3), gateCF(lane, u - 4.5, 0, FLOOR_TOP + 0.5), C(255, 110, 30), M.Neon, false)
+	end
+	for _, sgn in ipairs({ -1, 1 }) do
+		cornerTower(lane, uEnd - 17, sgn, gth)
+	end
+
+	-- MONUMENTO central: dos pilares, tablero con el nombre, anillo con la insignia
+	local P = H + 70
+	for _, sgn in ipairs({ -1, 1 }) do
+		blk(solid, Vector3.new(26, P, 20), gateCF(lane, u - 7, sgn * 75, FLOOR_TOP + P / 2), dark, th.WallMat, true)
+		blk(deco, Vector3.new(1.4, P - 12, 1.4), gateCF(lane, u - 17.5, sgn * 75 - sgn * 10, FLOOR_TOP + P / 2), gth.Accent, M.Neon, false)
+		blk(deco, Vector3.new(30, 4, 24), gateCF(lane, u - 7, sgn * 75, FLOOR_TOP + P + 2), gth.Accent:Lerp(th.WallCol, 0.5), th.WallMat, false)
+		ball(deco, lp(lane, u - 7, sgn * 75, FLOOR_TOP + P + 9), 9, gth.Accent, M.Neon, false)
+	end
+	local board = Instance.new("Part")
+	board.Name = "TableroMonumento"
+	board.Anchored = true
+	board.CanCollide = false
+	board.CanQuery = false
+	board.CanTouch = false
+	board.CastShadow = false
+	board.Transparency = 1
+	board.Size = Vector3.new(120, 56, 1)
+	local bpos = lp(lane, u - 16, 0, FLOOR_TOP + P - 34)
+	board.CFrame = CFrame.lookAt(bpos, bpos + inward)
+	board.Parent = lane.Deco
+	local named: GateTheme = { Name = MONUMENTS[faction] or "", Wall = gth.Wall, WallCol = gth.WallCol, Accent = gth.Accent, Cap = gth.Cap, Orn = "none" }
+	gateGui(Enum.NormalId.Front, named, faction, STRIP_COUNT, gth.Accent, "FIN DEL MAPA · NIV. 76–100").Parent = board
+	blk(deco, Vector3.new(126, 4, 8), gateCF(lane, u - 14, 0, FLOOR_TOP + P - 4), gth.Accent, M.Neon, false)
+	blk(deco, Vector3.new(126, 4, 8), gateCF(lane, u - 14, 0, FLOOR_TOP + P - 64), dark, th.WallMat, false)
+	-- anillo con la insignia sobre el tablero (disco que mira hacia adentro)
+	local ringY = FLOOR_TOP + P + 34
+	local ringCF = gateCF(lane, u - 12, 0, ringY) * CFrame.Angles(0, math.pi / 2, 0)
+	mk(deco, "Cyl", Vector3.new(2, 76, 76), ringCF, gth.Accent, M.Neon, false)
+	mk(deco, "Cyl", Vector3.new(3.2, 68, 68), ringCF * CFrame.new(-0.4, 0, 0), C(8, 12, 20), M.SmoothPlastic, false)
+	local face = Instance.new("Part")
+	face.Name = "Insignia"
+	face.Anchored = true
+	face.CanCollide = false
+	face.CanQuery = false
+	face.CanTouch = false
+	face.CastShadow = false
+	face.Transparency = 1
+	face.Size = Vector3.new(60, 60, 0.4)
+	local fpos = lp(lane, u - 16, 0, ringY)
+	face.CFrame = CFrame.lookAt(fpos, fpos + inward)
+	face.Parent = lane.Deco
+	local sg = Instance.new("SurfaceGui")
+	sg.Face = Enum.NormalId.Front
+	sg.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+	sg.CanvasSize = Vector2.new(600, 600)
+	sg.LightInfluence = 0
+	sg.Brightness = 1.6
+	sg.Parent = face
+	local id = BiomeAssets.Get(faction .. "_insignia")
+	if id then
+		local img = Instance.new("ImageLabel")
+		img.BackgroundTransparency = 1
+		img.Size = UDim2.fromScale(1, 1)
+		img.Image = id
+		img.Parent = sg
+	else
+		local t = Instance.new("TextLabel")
+		t.BackgroundTransparency = 1
+		t.Size = UDim2.fromScale(1, 1)
+		t.Text = BANNER_TEXT[faction]
+		t.TextScaled = true
+		t.Font = Enum.Font.GothamBold
+		t.TextColor3 = gth.Accent
+		t.Parent = sg
+	end
+end
+
+-- Suelo exterior (un nivel más abajo, solo se ve afuera de las franjas) y paisaje lejano detrás de la muralla del fondo
+local function buildExterior(lane: Lane, faction: string, laneIdx: number)
+	local deco: Ctx = { Barrier = lane.Barrier, Deco = lane.Deco, Far = true }
+	local EXT = 700
+	local uEnd = CITY_SIZE + STRIP_DEPTH * STRIP_COUNT
+	for strip = 1, STRIP_COUNT do
+		local th = THEMES[faction .. "_" .. strip]
+		if th then
+			local u0 = CITY_SIZE + (strip - 1) * STRIP_DEPTH
+			local u1 = u0 + STRIP_DEPTH
+			if strip == STRIP_COUNT then
+				u1 += EXT
+			end
+			local halfW = hw(lane, math.min(u1, uEnd)) + EXT
+			local pieces = math.ceil(2 * halfW / 1900)
+			local pl = 2 * halfW / pieces
+			local id = BiomeAssets.Get(string.format("%s_%d_floor", faction, strip))
+			for k = 1, pieces do
+				local v = -halfW + (k - 0.5) * pl
+				local p = blk(deco, Vector3.new(pl, 6, u1 - u0), gateCF(lane, (u0 + u1) / 2, v, FLOOR_TOP - 5.5 + laneIdx * 0.04), th.FloorCol:Lerp(Color3.new(0, 0, 0), 0.15), th.FloorMat, false)
+				p.Name = string.format("Exterior_%d_%d", strip, k)
+				if id then
+					local tex = Instance.new("Texture")
+					tex.Texture = id
+					tex.Face = Enum.NormalId.Top
+					tex.StudsPerTileU = 64
+					tex.StudsPerTileV = 64
+					tex.Parent = p
+				end
+			end
+		end
+	end
+	local th4 = THEMES[faction .. "_4"]
+	local backFn = th4 and BACK[th4.Back]
+	if th4 and backFn then
+		local rng = Random.new(777 + laneIdx)
+		local ext = BACK_EXT[th4.Back] or 40
+		local halfW = hw(lane, uEnd) + 300
+		local v = -halfW
+		while v < halfW do
+			local pos = lp(lane, uEnd + ext + 90 + rng:NextNumber() * 120, v, FLOOR_TOP)
+			backFn(deco, pos, lane.Dir, rng, th4)
+			v += 200 + rng:NextNumber() * 80
+		end
+	end
+end
+
+---------------------------------------------------------------------
 -- SUELO
 ---------------------------------------------------------------------
 local function styleFloor(biome: Instance, faction: string)
@@ -1146,6 +1329,18 @@ local function styleBiome(biome: Instance, faction: string)
 		return
 	end
 	table.insert(lanes, lane)
+	for _, job in ipairs({ "back", "ext" }) do
+		local okJ, errJ = pcall(function()
+			if job == "back" then
+				buildBackWall(lane, faction)
+			else
+				buildExterior(lane, faction, #lanes)
+			end
+		end)
+		if not okJ then
+			warn("[BiomeStyler] " .. job .. " de " .. biome.Name .. ": " .. tostring(errJ))
+		end
+	end
 	local okG, errG = pcall(styleGates, biome, lane, faction)
 	if not okG then
 		warn("[BiomeStyler] Puertas de " .. biome.Name .. ": " .. tostring(errG))
