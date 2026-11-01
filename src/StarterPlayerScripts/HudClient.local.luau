@@ -30,6 +30,7 @@ local DealDamageEvent = ClientNet.Get("DealDamageEvent")
 local AutoAttackRemote = ClientNet.Get("AutoAttack")
 local UseAbilityRemote = ClientNet.Get("UseAbility")
 local AbilityCatalog = require(Modules:WaitForChild("AbilityCatalog", 10))
+local MOBILE = require(script.Parent:WaitForChild("Platform", 10)).IsMobile() -- en celular la interfaz la dibuja MobileClient
 
 local function listen(name: string, fn: (...any) -> ())
 	local r = ClientNet.Get(name)
@@ -48,6 +49,7 @@ local theme = UITheme.For(player:GetAttribute("Faction"))
 local root = Instance.new("Frame") -- contenedor que se reconstruye si cambia la facción
 root.Size = UDim2.fromScale(1, 1)
 root.BackgroundTransparency = 1
+root.Visible = not MOBILE -- (panel del jugador y barra de poderes de la PC)
 root.Parent = gui
 
 -- referencias actualizables
@@ -151,6 +153,7 @@ local say: (string) -> () = function() end -- se define más abajo
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 local menuBar = UITheme.Frame(gui, theme, UDim2.fromOffset(620, 44), UDim2.new(0.5, 0, 1, -8), Vector2.new(0.5, 1))
 -- los botones van en su propio contenedor: así el UIListLayout no mueve los adornos del marco (fondo, cuerda, remaches)
+menuBar.Visible = not MOBILE
 local menuRow = Instance.new("Frame")
 menuRow.Name = "Botones"
 menuRow.BackgroundTransparency = 1
@@ -325,6 +328,7 @@ topRight.AnchorPoint = Vector2.new(1, 0)
 topRight.Position = UDim2.new(1, -14, 0, 14)
 topRight.Size = UDim2.fromOffset(240, 96)
 topRight.BackgroundTransparency = 1
+topRight.Visible = not MOBILE
 topRight.Parent = gui
 local layout = Instance.new("UIListLayout")
 layout.Padding = UDim.new(0, 6)
@@ -353,7 +357,7 @@ arenaChip.Text = "Vidas de arena: 3"
 
 local notice = Instance.new("TextLabel")
 notice.AnchorPoint = Vector2.new(0.5, 0)
-notice.Position = UDim2.new(0.5, 0, 0, 84)
+notice.Position = if MOBILE then UDim2.new(0.5, 0, 0.3, 0) else UDim2.new(0.5, 0, 0, 84)
 notice.Size = UDim2.fromOffset(460, 34)
 notice.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
 notice.BackgroundTransparency = 0.2

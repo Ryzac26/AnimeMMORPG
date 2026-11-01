@@ -9,11 +9,14 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ContextActionService = game:GetService("ContextActionService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
+local GearView = require(script.Parent:WaitForChild("GearView", 10))
+local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "InventoryGui"
@@ -52,6 +55,113 @@ grid.CellPadding = UDim2.fromOffset(8, 8)
 grid.SortOrder = Enum.SortOrder.LayoutOrder
 grid.Parent = scroll
 
+WindowDrag.Attach(win, "Inventory", 40, 50) -- arrastra el título para mover la mochila
+UITheme.Text(win, "arrastra el título para mover", 10, Color3.fromRGB(130, 130, 145), UDim2.fromOffset(16, 487), UDim2.fromOffset(348, 12))
+
+-- Panel de COMPARACIÓN (a un costado de la mochila): objeto seleccionado vs lo que llevas puesto
+local cmp = Instance.new("Frame")
+cmp.Name = "Compare"
+cmp.Size = UDim2.fromOffset(276, 10)
+cmp.AutomaticSize = Enum.AutomaticSize.Y
+cmp.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
+cmp.BorderSizePixel = 0
+cmp.Visible = false
+cmp.Parent = win
+Instance.new("UICorner", cmp)
+UITheme.Border(cmp, theme, 2)
+local cmpPad = Instance.new("UIPadding")
+cmpPad.PaddingTop, cmpPad.PaddingBottom = UDim.new(0, 10), UDim.new(0, 10)
+cmpPad.PaddingLeft, cmpPad.PaddingRight = UDim.new(0, 12), UDim.new(0, 12)
+cmpPad.Parent = cmp
+local cmpList = Instance.new("UIListLayout")
+cmpList.Padding = UDim.new(0, 6)
+cmpList.SortOrder = Enum.SortOrder.LayoutOrder
+cmpList.Parent = cmp
+
+local function cmpLabel(order: number, size: number): TextLabel
+	local t = Instance.new("TextLabel")
+	t.LayoutOrder = order
+	t.BackgroundTransparency = 1
+	t.Size = UDim2.new(1, 0, 0, 0)
+	t.AutomaticSize = Enum.AutomaticSize.Y
+	t.Font = UITheme.Font
+	t.TextSize = size
+	t.TextColor3 = Color3.new(1, 1, 1)
+	t.TextWrapped = true
+	t.RichText = true
+	t.TextXAlignment = Enum.TextXAlignment.Left
+	t.TextYAlignment = Enum.TextYAlignment.Top
+	t.Text = ""
+	t.Parent = cmp
+	return t
+end
+local cmpVerdict = cmpLabel(1, 16)
+local cmpBody = cmpLabel(2, 13)
+
+local GREEN, RED, GRAY, YELLOW = "#6fdc7f", "#ff6b6b", "#aaaab8", "#ffd45e"
+
+local function statLines(effects: { [string]: number }?, versus: { [string]: number }?, showDelta: boolean): string
+	local out = {}
+	for _, stat in ipairs(GearView.StatOrder) do
+		local v = if effects then effects[stat] else nil
+		local other = if versus then versus[stat] else nil
+		if v or (showDelta and other) then
+			local line = string.format("%s: %s", GearView.StatName[stat], if v then GearView.Format(stat, v) else "—")
+			if showDelta and versus then
+				local d = (v or 0) - (other or 0)
+				if math.abs(d) > 0.00001 then
+					line ..= string.format(' <font color="%s">(%s)</font>', if d > 0 then GREEN else RED, GearView.Format(stat, d))
+				end
+			end
+			table.insert(out, line)
+		end
+	end
+	return table.concat(out, "\n")
+end
+
+local function updateCompare(slotIndex: number?)
+	local stack = slotIndex and Store.Bag[slotIndex]
+	local c = if stack then GearView.Compare(stack.Id, stack.Plus) else nil
+	if not c then
+		cmp.Visible = false
+		return
+	end
+	-- el panel va a la izquierda de la mochila; si no cabe, a la derecha
+	cmp.Position = if win.AbsolutePosition.X > 300 then UDim2.new(0, -284, 0, 0) else UDim2.new(1, 8, 0, 0)
+
+	local slotName = ItemCatalog.SlotDisplay[c.Slot] or c.Slot
+	local v = c.Verdict
+	local head
+	if not c.Usable then
+		head = string.format('<font color="%s">No puedes equiparlo</font>\n<font size="12" color="%s">%s</font>', RED, GRAY, c.Reason or "")
+	elseif v == "Better" then
+		head = string.format('<font color="%s">MEJOR que tu %s</font>  <font size="13">(%+.1f%% de poder)</font>', GREEN, slotName:lower(), c.Gain * 100)
+	elseif v == "Worse" then
+		head = string.format('<font color="%s">PEOR que tu %s</font>  <font size="13">(%+.1f%% de poder)</font>', RED, slotName:lower(), c.Gain * 100)
+	elseif v == "Same" then
+		head = string.format('<font color="%s">Igual que tu %s</font>', YELLOW, slotName:lower())
+	elseif v == "Different" then
+		head = string.format('<font color="%s">Distinto a tu %s</font>\n<font size="12" color="%s">Compara los valores de abajo</font>', YELLOW, slotName:lower(), GRAY)
+	else
+		head = string.format('<font color="%s">Ranura de %s vacía: ¡equípalo!</font>', GREEN, slotName:lower())
+	end
+	cmpVerdict.Text = head
+
+	local col = ItemCatalog.RarityColor[c.Item.Rarity] or Color3.new(1, 1, 1)
+	local body = string.format('<b>Seleccionado</b>  <font color="#%s">%s</font>\n%s', col:ToHex(), GearView.DisplayName(c.Item, c.Plus), statLines(c.Effects, c.EquippedEffects, c.EquippedEffects ~= nil))
+	local eq = c.EquippedItem
+	if eq then
+		local ecol = ItemCatalog.RarityColor[eq.Rarity] or Color3.new(1, 1, 1)
+		local eqText = if c.EquippedEffects then statLines(c.EquippedEffects, nil, false) else "(sin efecto para tu personaje)"
+		body ..= string.format('\n\n<b>Equipado</b>  <font color="#%s">%s</font>\n%s', ecol:ToHex(), GearView.DisplayName(eq, c.EquippedPlus), eqText)
+	end
+	if c.Item.Set and c.Item.Set ~= "" then
+		body ..= string.format('\n\n<font size="11" color="%s">Set de %s: con 2 piezas +5%%, con 4 piezas +15%%.</font>', GRAY, tostring(c.Item.Set))
+	end
+	cmpBody.Text = body
+	cmp.Visible = true
+end
+
 local info = UITheme.Text(win, "Selecciona un objeto", 14, nil, UDim2.fromOffset(16, 392), UDim2.fromOffset(348, 56))
 info.TextWrapped = true
 info.TextYAlignment = Enum.TextYAlignment.Top
@@ -83,9 +193,49 @@ button("Tirar", 138, Color3.fromRGB(150, 50, 50), function()
 	end
 end)
 
+-- ORO acumulado (a la derecha de los botones). Cada vez que sube aparece un "+N" verde que se desvanece.
+local goldLabel = Instance.new("TextLabel")
+goldLabel.BackgroundTransparency = 1
+goldLabel.Position = UDim2.fromOffset(256, 454)
+goldLabel.Size = UDim2.fromOffset(110, 32)
+goldLabel.Font = UITheme.Font
+goldLabel.TextSize = 15
+goldLabel.RichText = true
+goldLabel.TextColor3 = Color3.fromRGB(255, 214, 90)
+goldLabel.TextXAlignment = Enum.TextXAlignment.Right
+goldLabel.TextYAlignment = Enum.TextYAlignment.Center
+goldLabel.Parent = win
+local goldGain = UITheme.Text(win, "", 13, Color3.fromRGB(111, 220, 127), UDim2.fromOffset(258, 455), UDim2.fromOffset(70, 14), Enum.TextXAlignment.Left)
+local lastGold = -1
+
+local function withCommas(n: number): string
+	local s = tostring(math.floor(n))
+	local out = s:reverse():gsub("(%d%d%d)", "%1,"):reverse()
+	if string.sub(out, 1, 1) == "," then
+		out = string.sub(out, 2)
+	end
+	return out
+end
+
+local function updateGold()
+	local g = player:GetAttribute("Gold")
+	local gold = if typeof(g) == "number" then g else 0
+	goldLabel.Text = string.format('<font size="10" color="#aaaab8">ORO</font>\n%s', withCommas(gold))
+	if lastGold >= 0 and gold > lastGold then
+		goldGain.Text = "+" .. withCommas(gold - lastGold)
+		goldGain.TextTransparency = 0
+		goldGain.TextStrokeTransparency = 0.6
+		TweenService:Create(goldGain, TweenInfo.new(2.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+	end
+	lastGold = gold
+end
+player:GetAttributeChangedSignal("Gold"):Connect(updateGold)
+updateGold()
+
 local function describe(slotIndex: number?)
 	local stack = slotIndex and Store.Bag[slotIndex]
 	local item = stack and ItemCatalog.Items[stack.Id]
+	updateCompare(slotIndex)
 	if not stack or not item then
 		info.Text = "Selecciona un objeto"
 		return
@@ -94,10 +244,10 @@ local function describe(slotIndex: number?)
 	local statsText = ""
 	if item.Stats then
 		for k, v in pairs(item.Stats) do
-			statsText ..= string.format("  +%d %s", v, k)
+			statsText ..= string.format("  +%s %s", tostring(v), k)
 		end
 	end
-	info.Text = string.format('<font color="#%s">%s</font> x%d  [%s]%s\n%s', col:ToHex(), item.Name, stack.Count, item.Rarity, statsText, item.Desc or (if item.Slot then "Equipa en: " .. item.Slot else ""))
+	info.Text = string.format('<font color="#%s">%s</font> x%d  [%s]%s\n%s', col:ToHex(), GearView.DisplayName(item, stack.Plus), stack.Count, item.Rarity, statsText, item.Desc or (if item.Slot then "Equipa en: " .. item.Slot else ""))
 end
 
 local function render()
@@ -130,7 +280,7 @@ local function render()
 			local col = ItemCatalog.RarityColor[item.Rarity] or Color3.new(1, 1, 1)
 			b.BackgroundColor3 = col:Lerp(Color3.new(0, 0, 0), 0.7)
 			st.Color = col
-			local t = UITheme.Text(b, item.Name, 11, col, UDim2.fromScale(0, 0.1), UDim2.fromScale(1, 0.8), Enum.TextXAlignment.Center)
+			local t = UITheme.Text(b, GearView.DisplayName(item, stack.Plus), 11, col, UDim2.fromScale(0, 0.1), UDim2.fromScale(1, 0.8), Enum.TextXAlignment.Center)
 			t.TextWrapped = true
 			if stack.Count > 1 then
 				UITheme.Text(b, tostring(stack.Count), 12, nil, UDim2.fromScale(0.5, 0.7), UDim2.fromScale(0.48, 0.28), Enum.TextXAlignment.Right)

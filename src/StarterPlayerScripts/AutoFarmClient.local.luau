@@ -42,6 +42,13 @@ gui.Parent = player:WaitForChild("PlayerGui", 10)
 local holder = Instance.new("Frame")
 holder.AnchorPoint = Vector2.new(1, 0.5)
 holder.Position = UDim2.new(1, -10, 0.62, 0)
+local MOBILE = require(script.Parent:WaitForChild("Platform", 10)).IsMobile()
+if MOBILE then
+	-- en celular el panel solo se abre con una pulsación larga del botón AutoFarm (MobileClient) y sale al centro
+	holder.AnchorPoint = Vector2.new(0.5, 0.5)
+	holder.Position = UDim2.new(0.5, 0, 0.5, 0)
+	holder.Visible = false
+end
 holder.Size = UDim2.fromOffset(172, 10)
 holder.AutomaticSize = Enum.AutomaticSize.Y
 holder.BackgroundTransparency = 1
@@ -306,6 +313,17 @@ local function toggle()
 end
 
 click.Activated:Connect(toggle)
+if MOBILE then
+	local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
+	MenuBus.Event:Connect(function(name: string)
+		if name == "AutoFarm" then
+			toggle()
+		elseif name == "AutoFarmMode" then
+			holder.Visible = not holder.Visible
+			panel.Visible = holder.Visible
+		end
+	end)
+end
 modeBtn.Activated:Connect(function()
 	panel.Visible = not panel.Visible
 end)

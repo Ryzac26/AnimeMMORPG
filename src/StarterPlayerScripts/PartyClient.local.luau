@@ -12,6 +12,7 @@ local player = Players.LocalPlayer
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local remote = ReplicatedStorage:WaitForChild("Remotes", 10):WaitForChild("Party", 10) :: RemoteEvent
 local theme = UITheme.For(player:GetAttribute("Faction"))
+local MOBILE = require(script.Parent:WaitForChild("Platform", 10)).IsMobile()
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "PartyGui"
@@ -20,7 +21,7 @@ gui.DisplayOrder = 4
 gui.Parent = player:WaitForChild("PlayerGui", 10)
 
 local holder = Instance.new("Frame")
-holder.Position = UDim2.new(0, 14, 0, 200)
+holder.Position = if MOBILE then UDim2.new(0, 12, 0, 76) else UDim2.new(0, 14, 0, 200)
 holder.Size = UDim2.fromOffset(190, 10)
 holder.AutomaticSize = Enum.AutomaticSize.Y
 holder.BackgroundTransparency = 1
@@ -197,6 +198,16 @@ task.spawn(function()
 	end
 end)
 
+if MOBILE then
+	local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
+	MenuBus.Event:Connect(function(name: string)
+		if name == "Party" then -- botón Grupo del celular = la tecla P
+			expanded = true
+			invitesOpen = not invitesOpen
+			render()
+		end
+	end)
+end
 head.Activated:Connect(function()
 	expanded = not expanded
 	render()

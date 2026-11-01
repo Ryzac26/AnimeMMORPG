@@ -27,6 +27,11 @@ holder.AutomaticSize = Enum.AutomaticSize.Y
 holder.BackgroundTransparency = 1
 holder.Visible = false
 holder.Parent = gui
+if require(script.Parent:WaitForChild("Platform", 10)).IsMobile() then
+	-- en celular: más pequeño y pegado al chip de evento (no tapa los botones)
+	holder.Position = UDim2.new(1, -12, 0, 42)
+	Instance.new("UIScale", holder).Scale = 0.6
+end
 local list = Instance.new("UIListLayout")
 list.Padding = UDim.new(0, 3)
 list.SortOrder = Enum.SortOrder.LayoutOrder

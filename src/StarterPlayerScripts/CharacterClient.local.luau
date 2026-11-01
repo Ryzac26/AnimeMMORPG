@@ -20,6 +20,8 @@ local GB = require(Modules:WaitForChild("GameBalance", 10))
 local PlayerClass = require(Modules:WaitForChild("PlayerClass", 10))
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
+local GearView = require(script.Parent:WaitForChild("GearView", 10))
+local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "CharacterGui"
@@ -30,7 +32,7 @@ gui.Parent = player:WaitForChild("PlayerGui", 10)
 local theme = UITheme.For(player:GetAttribute("Faction"))
 local win: Frame
 local viewport: ViewportFrame
-local statsLabel: TextLabel
+local statsScroll: ScrollingFrame
 local title: TextLabel
 local slotButtons: { [string]: TextButton } = {}
 local angle = 0
@@ -73,7 +75,7 @@ local function refreshSlots()
 		local stroke = b:FindFirstChildOfClass("UIStroke") :: UIStroke
 		if item then
 			local col = ItemCatalog.RarityColor[item.Rarity] or Color3.new(1, 1, 1)
-			label.Text = item.Name
+			label.Text = GearView.DisplayName(item, Store.EquipPlus[name])
 			label.TextColor3 = col
 			stroke.Color = col
 			b.BackgroundColor3 = col:Lerp(Color3.new(0, 0, 0), 0.75)
@@ -114,43 +116,152 @@ local ROLE_INFO: { [string]: { Desc: string, Pasivas: { string } } } = {
 }
 local passiveLabel: TextLabel? = nil
 
+local GREEN, RED, GRAY = Color3.fromRGB(111, 220, 127), Color3.fromRGB(255, 107, 107), Color3.fromRGB(150, 150, 165)
+
+-- Filas del panel de estadísticas (se reconstruyen cuando algo cambia)
+local rowOrder = 0
+local function addRow(height: number): Frame
+	rowOrder += 1
+	local f = Instance.new("Frame")
+	f.LayoutOrder = rowOrder
+	f.BackgroundTransparency = 1
+	f.Size = UDim2.new(1, 0, 0, height)
+	f.Parent = statsScroll
+	return f
+end
+
+local function addHeader(text: string)
+	local f = addRow(24)
+	UITheme.Text(f, text, 14, theme.Primary, UDim2.fromOffset(0, 4), UDim2.new(1, 0, 0, 18))
+	local line = Instance.new("Frame")
+	line.BackgroundColor3 = theme.Secondary
+	line.BorderSizePixel = 0
+	line.Position = UDim2.new(0, 0, 1, -2)
+	line.Size = UDim2.new(1, 0, 0, 1)
+	line.Parent = f
+end
+
+-- "Nombre ......... valor   +x%"
+local function addStat(name: string, value: string, bonus: string?, bonusColor: Color3?)
+	local f = addRow(20)
+	UITheme.Text(f, name, 13, Color3.fromRGB(215, 215, 225), UDim2.fromOffset(0, 0), UDim2.new(0.5, 0, 1, 0))
+	UITheme.Text(f, value, 13, nil, UDim2.new(0.5, 0, 0, 0), UDim2.new(0.2, 0, 1, 0), Enum.TextXAlignment.Right)
+	if bonus then
+		UITheme.Text(f, bonus, 13, bonusColor or GREEN, UDim2.new(0.7, 4, 0, 0), UDim2.new(0.3, -4, 1, 0), Enum.TextXAlignment.Right)
+	end
+end
+
+local function addNote(text: string, color: Color3?)
+	rowOrder += 1
+	local t = Instance.new("TextLabel")
+	t.LayoutOrder = rowOrder
+	t.BackgroundTransparency = 1
+	t.Size = UDim2.new(1, 0, 0, 0)
+	t.AutomaticSize = Enum.AutomaticSize.Y
+	t.Font = Enum.Font.Gotham
+	t.TextSize = 11
+	t.TextColor3 = color or GRAY
+	t.TextWrapped = true
+	t.TextXAlignment = Enum.TextXAlignment.Left
+	t.TextYAlignment = Enum.TextYAlignment.Top
+	t.Text = text
+	t.Parent = statsScroll
+end
+
+local function withCommas(n: number): string
+	local s = tostring(math.floor(n))
+	local out = s:reverse():gsub("(%d%d%d)", "%1,"):reverse()
+	if string.sub(out, 1, 1) == "," then
+		out = string.sub(out, 2)
+	end
+	return out
+end
+
 local function refreshStats()
+	if not statsScroll then
+		return
+	end
+	for _, c in ipairs(statsScroll:GetChildren()) do
+		if c:IsA("GuiObject") then
+			c:Destroy()
+		end
+	end
+	rowOrder = 0
+
 	local class = PlayerClass.Get(player)
 	local char = player.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	local level = (player:GetAttribute("Level") :: number?) or 1
-	local bonus: { [string]: number } = {}
-	for _, id in pairs(Store.Equip) do
-		local it = ItemCatalog.Items[id]
-		if it and it.Stats then
-			for k, v in pairs(it.Stats) do
-				bonus[k] = (bonus[k] or 0) + v
+	local br = GearView.Breakdown()
+	local total = br.Total
+
+	addHeader(string.format("%s  ·  Nivel %d", class.CharacterName, level))
+	addNote(string.format("%s · %s", theme.Faction, class.Role))
+
+	addHeader("Atributos")
+	addStat("Vida", tostring(if hum then math.floor(hum.MaxHealth) else 0), if total.Vida then GearView.Format("Vida", total.Vida) else nil)
+	addStat(theme.Resource, tostring(class.BaseEnergy))
+	local gold, points = player:GetAttribute("Gold"), player:GetAttribute("FactionPoints")
+	addStat("Oro", withCommas(if typeof(gold) == "number" then gold else 0))
+	addStat("Pts. de facción", withCommas(if typeof(points) == "number" then points else 0))
+	local power = math.floor(class.PrimarySkill.BaseValue * GB.PlayerDamageMult(level) * (1 + (total.Ataque or 0)))
+	addStat("Poder básico", tostring(power), if total.Ataque then GearView.Format("Ataque", total.Ataque) else nil)
+	addStat("Defensa base", tostring(class.BaseDefense))
+	addStat("Velocidad", tostring(if hum then math.floor(hum.WalkSpeed) else 0))
+
+	-- HISTORIAL DE ORO: de dónde viene y en qué se gastó (WalletService publica GoldIn_<motivo> / GoldOut_<motivo>)
+	local earned, spent = {}, {}
+	local totalIn, totalOut = 0, 0
+	for name, value in pairs(player:GetAttributes()) do
+		if typeof(value) == "number" then
+			if string.sub(name, 1, 7) == "GoldIn_" then
+				table.insert(earned, { string.sub(name, 8), value })
+				totalIn += value
+			elseif string.sub(name, 1, 8) == "GoldOut_" then
+				table.insert(spent, { string.sub(name, 9), value })
+				totalOut += value
 			end
 		end
 	end
-	local lines = {
-		string.format("<b>%s</b>", class.CharacterName),
-		string.format("%s · %s", theme.Faction, class.Role),
-		"",
-		string.format("Nivel: %d", level),
-		string.format("Vida: %d", if hum then math.floor(hum.MaxHealth) else 0),
-		string.format("%s: %d", theme.Resource, class.BaseEnergy),
-		string.format("Daño (x nivel): %.2f", GB.PlayerDamageMult(level)),
-		string.format("Poder básico: %d", math.floor(class.PrimarySkill.BaseValue * GB.PlayerDamageMult(level))),
-		string.format("Defensa: %d", class.BaseDefense),
-		string.format("Velocidad: %d", if hum then math.floor(hum.WalkSpeed) else 0),
-		"",
-		"<b>Bonus de equipo</b>",
-	}
-	local any = false
-	for k, v in pairs(bonus) do
-		table.insert(lines, string.format("+%d %s", v, k))
-		any = true
+	if totalIn > 0 or totalOut > 0 then
+		addHeader("Historial de oro")
+		table.sort(earned, function(a, b) return a[2] > b[2] end)
+		table.sort(spent, function(a, b) return a[2] > b[2] end)
+		for _, e in ipairs(earned) do
+			addStat(e[1], "", "+" .. withCommas(e[2]))
+		end
+		for _, e in ipairs(spent) do
+			addStat(e[1], "", "-" .. withCommas(e[2]), RED)
+		end
+		addNote(string.format("Total obtenido %s · gastado %s", withCommas(totalIn), withCommas(totalOut)))
 	end
-	if not any then
-		table.insert(lines, "(sin equipo)")
+
+	addHeader("Bonos del equipo")
+	for _, stat in ipairs(GearView.StatOrder) do
+		local v = total[stat]
+		local name = GearView.StatName[stat]
+		if v and v > 0 then
+			local tag = if br.Capped[stat] then GearView.Format(stat, v) .. " (tope)" else GearView.Format(stat, v)
+			addStat(name, "", tag)
+			local parts = {}
+			for _, s in ipairs(br.Sources[stat] or {}) do
+				table.insert(parts, string.format("%s %s", s.Label, GearView.Format(stat, s.Value)))
+			end
+			addNote("   " .. table.concat(parts, "  ·  "))
+		else
+			addStat(name, "", "—", GRAY)
+		end
 	end
-	statsLabel.Text = table.concat(lines, "\n")
+	if br.SetPieces >= 2 then
+		addNote(string.format("Bono de set activo: %d/4 piezas de tu rol (+%d%% al equipo).", br.SetPieces, math.floor(br.SetBonus * 100 + 0.5)), GREEN)
+	elseif br.SetPieces == 0 then
+		addNote("Equipa piezas del set de tu rol: 2 dan +5%, 4 dan +15%.")
+	else
+		addNote("1 pieza de set: con 2 piezas se activa +5%.")
+	end
+	if #br.Ignored > 0 then
+		addNote("Sin efecto (no puedes usarlos): " .. table.concat(br.Ignored, ", "), RED)
+	end
 end
 
 local function refreshModel()
@@ -197,6 +308,7 @@ local function build()
 		table.clear(slotButtons)
 	end
 	win = UITheme.Frame(gui, theme, UDim2.fromOffset(700, 700), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
+	WindowDrag.Attach(win, "Character", 40, 50)
 	title = UITheme.Text(win, "PERFIL DEL PERSONAJE", 20, theme.Primary, UDim2.fromOffset(18, 8), UDim2.fromOffset(300, 28))
 	local close = Instance.new("TextButton")
 	close.Position = UDim2.new(1, -38, 0, 8)
@@ -250,7 +362,7 @@ local function build()
 		end
 	end)
 
-	-- panel de estadísticas
+	-- panel de estadísticas (con scroll por si hay muchas filas)
 	local statsBox = Instance.new("Frame")
 	statsBox.Position = UDim2.fromOffset(398, 46)
 	statsBox.Size = UDim2.fromOffset(284, 330)
@@ -259,10 +371,20 @@ local function build()
 	statsBox.Parent = win
 	Instance.new("UICorner", statsBox)
 	UITheme.Border(statsBox, theme, 2)
-	statsLabel = UITheme.Text(statsBox, "", 15, nil, UDim2.fromOffset(14, 10), UDim2.fromOffset(256, 310))
-	statsLabel.TextYAlignment = Enum.TextYAlignment.Top
-	statsLabel.RichText = true
-	UITheme.Text(win, "Clic en una ranura para desequiparla.  Equipa desde la mochila (I).", 12, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(18, 466), UDim2.fromOffset(660, 20))
+	statsScroll = Instance.new("ScrollingFrame")
+	statsScroll.Position = UDim2.fromOffset(10, 8)
+	statsScroll.Size = UDim2.fromOffset(264, 314)
+	statsScroll.BackgroundTransparency = 1
+	statsScroll.BorderSizePixel = 0
+	statsScroll.ScrollBarThickness = 4
+	statsScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	statsScroll.CanvasSize = UDim2.fromOffset(0, 0)
+	statsScroll.Parent = statsBox
+	local statsList = Instance.new("UIListLayout")
+	statsList.SortOrder = Enum.SortOrder.LayoutOrder
+	statsList.Padding = UDim.new(0, 2)
+	statsList.Parent = statsScroll
+	UITheme.Text(win, "Clic en una ranura para desequiparla.  Equipa desde la mochila (B).  Arrastra el título para mover la ventana.", 12, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(18, 466), UDim2.fromOffset(660, 20))
 
 	-- descripción del personaje y pasivas
 	local pBox = Instance.new("Frame")
@@ -318,6 +440,12 @@ player.CharacterAdded:Connect(function()
 end)
 player:GetAttributeChangedSignal("Level"):Connect(function()
 	if gui.Enabled then
+		refreshStats()
+	end
+end)
+player.AttributeChanged:Connect(function(name: string)
+	local isGold = name == "Gold" or name == "FactionPoints" or string.sub(name, 1, 7) == "GoldIn_" or string.sub(name, 1, 8) == "GoldOut_"
+	if gui.Enabled and (isGold or string.sub(name, 1, 10) == "EquipPlus_") then
 		refreshStats()
 	end
 end)
