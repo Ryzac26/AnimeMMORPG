@@ -96,6 +96,10 @@ local IDS: { [string]: string } = {
 	Shinigami_skyB_rt = "121876946780992",
 	Shinigami_skyB_up = "116050443990871",
 	Shinigami_skyB_dn = "97881354318536",
+	Saiyan_insignia = "71209314886243",
+	Shinobi_insignia = "71480231300625",
+	Pirate_insignia = "134942609330374",
+	Shinigami_insignia = "119428109797145",
 }
 
 local BiomeAssets = {}

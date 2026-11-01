@@ -24,6 +24,7 @@
 ]]
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BiomeAssets = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("BiomeAssets"))
@@ -704,6 +705,333 @@ local function buildSide(lane: Lane, faction: string, strip: number, s: number, 
 end
 
 ---------------------------------------------------------------------
+-- MUROS Y ARCOS ENTRE FRANJAS + HOLOGRAMA DE ENTRADA
+-- ProjectBootstrapper construye 3 arcos por muro (Puertas_de_Franja > Puerta_FranjaN). Aquí se les cambia el material y el
+-- color según la zona a la que entras, se les agregan adornos y se reemplaza el cartel por un holograma con la insignia.
+---------------------------------------------------------------------
+type GateTheme = { Name: string, Wall: Enum.Material, WallCol: Color3, Accent: Color3, Cap: string, Orn: string }
+local GATES: { [string]: GateTheme } = {
+	Saiyan_2 = { Name = "PLANETA NAMEK", Wall = M.Slate, WallCol = C(74, 143, 156), Accent = C(126, 240, 184), Cap = "trim", Orn = "finial" },
+	Saiyan_3 = { Name = "RUINAS · CELL GAMES", Wall = M.Concrete, WallCol = C(106, 98, 90), Accent = C(255, 176, 80), Cap = "wire", Orn = "broken" },
+	Saiyan_4 = { Name = "DIMENSIÓN DE BUU", Wall = M.Sandstone, WallCol = C(216, 120, 168), Accent = C(255, 208, 236), Cap = "spikes", Orn = "spires" },
+	Shinobi_2 = { Name = "PAÍS DE LA LLUVIA", Wall = M.Metal, WallCol = C(106, 120, 134), Accent = C(140, 216, 255), Cap = "pipes", Orn = "antenna" },
+	Shinobi_3 = { Name = "DESIERTO DE SUNA", Wall = M.Sandstone, WallCol = C(192, 145, 90), Accent = C(255, 208, 112), Cap = "trim", Orn = "finial" },
+	Shinobi_4 = { Name = "VALLE DEL FIN", Wall = M.Slate, WallCol = C(58, 42, 50), Accent = C(255, 90, 74), Cap = "torii", Orn = "none" },
+	Pirate_2 = { Name = "ARLONG PARK", Wall = M.Cobblestone, WallCol = C(58, 120, 180), Accent = C(138, 232, 255), Cap = "teeth", Orn = "teeth" },
+	Pirate_3 = { Name = "ENIES LOBBY", Wall = M.Marble, WallCol = C(236, 236, 228), Accent = C(255, 216, 112), Cap = "merlon", Orn = "finial" },
+	Pirate_4 = { Name = "MARINEFORD", Wall = M.Concrete, WallCol = C(200, 204, 210), Accent = C(255, 122, 48), Cap = "merlon", Orn = "ice" },
+	Shinigami_2 = { Name = "HUECO MUNDO", Wall = M.Marble, WallCol = C(230, 228, 220), Accent = C(184, 192, 255), Cap = "trim", Orn = "crystals" },
+	Shinigami_3 = { Name = "LAS NOCHES", Wall = M.Concrete, WallCol = C(236, 238, 244), Accent = C(168, 180, 255), Cap = "merlon", Orn = "dome" },
+	Shinigami_4 = { Name = "SEIREITEI", Wall = M.Concrete, WallCol = C(246, 242, 234), Accent = C(255, 176, 96), Cap = "roof", Orn = "none" },
+}
+local GATE_FRACS = { -0.55, 0, 0.55 }
+local GATE_WIDTH = 90
+local GATE_WALL_H = 46
+local GATE_CLEAR_H = 32
+
+local function gateCF(lane: Lane, u: number, v: number, y: number): CFrame
+	local pos = lp(lane, u, v, y)
+	return CFrame.lookAt(pos, pos + lane.Dir)
+end
+
+local function capLine(c: Ctx, lane: Lane, u: number, v0: number, v1: number, y: number, th: GateTheme)
+	local len = v1 - v0
+	if len < 2 then
+		return
+	end
+	local Yb = FLOOR_TOP + y
+	blk(c, Vector3.new(len, 1.6, 10), gateCF(lane, u, (v0 + v1) / 2, Yb + 0.8), th.Accent:Lerp(th.WallCol, 0.6), th.Wall, false)
+	local cap = th.Cap
+	if cap == "merlon" then
+		local v = v0 + 4
+		while v < v1 - 4 do
+			blk(c, Vector3.new(7, 5, 10), gateCF(lane, u, v, Yb + 4.1), th.WallCol, th.Wall, false)
+			v += 16
+		end
+	elseif cap == "roof" then
+		blk(c, Vector3.new(len, 2.5, 20), gateCF(lane, u, (v0 + v1) / 2, Yb + 2.8), C(52, 54, 68), M.Slate, false)
+		blk(c, Vector3.new(len, 2, 12), gateCF(lane, u, (v0 + v1) / 2, Yb + 4.8), C(40, 42, 56), M.Slate, false)
+	elseif cap == "spikes" then
+		local v = v0 + 5
+		while v < v1 - 4 do
+			blk(c, Vector3.new(1.8, 12, 1.8), gateCF(lane, u, v, Yb + 7), th.Accent, M.Sandstone, false)
+			v += 13
+		end
+	elseif cap == "wire" then
+		local v = v0 + 5
+		while v < v1 - 4 do
+			cylV(c, lp(lane, u, v, Yb + 1.6), 0.4, 7, C(60, 62, 70), M.Metal, false)
+			v += 22
+		end
+		blk(c, Vector3.new(len, 0.3, 0.3), gateCF(lane, u, (v0 + v1) / 2, Yb + 7), C(40, 40, 46), M.Metal, false)
+		blk(c, Vector3.new(len, 0.3, 0.3), gateCF(lane, u, (v0 + v1) / 2, Yb + 5), C(40, 40, 46), M.Metal, false)
+	elseif cap == "pipes" then
+		for _, dz in ipairs({ -2.5, 2.5 }) do
+			mk(c, "Cyl", Vector3.new(len, 1.8, 1.8), gateCF(lane, u + dz, (v0 + v1) / 2, Yb + 2.8), C(96, 106, 120), M.Metal, false)
+		end
+	elseif cap == "teeth" then
+		local v = v0 + 4
+		while v < v1 - 3 do
+			blk(c, Vector3.new(3.6, 3.6, 5), gateCF(lane, u, v, Yb + 3.4) * CFrame.Angles(0, 0, math.rad(45)), Color3.fromRGB(235, 240, 245), M.Marble, false)
+			v += 10
+		end
+	end
+end
+
+local function ornament(c: Ctx, lane: Lane, u: number, v: number, th: GateTheme, rng: Random)
+	local topY = FLOOR_TOP + 60 -- tope de los pilares
+	local base = lp(lane, u, v, topY)
+	local o = th.Orn
+	if o == "finial" then
+		ball(c, base + Y * 5, 10, th.Accent:Lerp(th.WallCol, 0.4), th.Wall, false)
+	elseif o == "dome" then
+		ball(c, base + Y * 6, 18, th.WallCol, th.Wall, false)
+		cylV(c, base + Y * 14, 0.6, 12, th.Accent, M.Neon, false)
+	elseif o == "spires" then
+		for k = -1, 1 do
+			blk(c, Vector3.new(3, 16 + (2 - math.abs(k)) * 8, 3), CFrame.new(base + Y * 10 + lane.Side * (k * 4)) * CFrame.Angles(0, 0, math.rad(k * 10)), th.Accent, M.Neon, false)
+		end
+	elseif o == "antenna" then
+		cylV(c, base, 0.5, 26, C(160, 168, 178), M.Metal, false)
+		ball(c, base + Y * 27, 3, C(255, 70, 70), M.Neon, false)
+	elseif o == "crystals" then
+		for k = -1, 1 do
+			local cf = CFrame.new(base + Y * 9 + lane.Side * (k * 4)) * CFrame.Angles(math.rad(rng:NextNumber() * 10 - 5), 0, math.rad(k * 14))
+			blk(c, Vector3.new(3.4, 16 + rng:NextNumber() * 10, 3.4), cf, th.WallCol, M.Glass, false, 0.1)
+		end
+	elseif o == "ice" then
+		for k = -1, 1 do
+			local cf = CFrame.new(base + Y * 8 + lane.Side * (k * 4)) * CFrame.Angles(0, 0, math.rad(k * 12))
+			blk(c, Vector3.new(3.2, 15 + rng:NextNumber() * 8, 3.2), cf, C(160, 215, 245), M.Ice, false, 0.1)
+		end
+	elseif o == "broken" then
+		blk(c, Vector3.new(9, 6, 9), CFrame.new(base + Y * 3) * CFrame.Angles(math.rad(8), math.rad(25), math.rad(-10)), th.WallCol, th.Wall, false)
+		cylV(c, base + Y * 5, 0.5, 14, th.Accent, M.Metal, false, CFrame.Angles(0, 0, math.rad(18)))
+	end
+end
+
+local function gateGui(face: Enum.NormalId, th: GateTheme, faction: string, zone: number, accent: Color3, lvText: string): SurfaceGui
+	local sg = Instance.new("SurfaceGui")
+	sg.Face = face
+	sg.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+	sg.CanvasSize = Vector2.new(1000, 460)
+	sg.LightInfluence = 0
+	sg.Brightness = 1.6
+	local function F(parent: Instance, x: number, y: number, w: number, h: number, col: Color3, tr: number): Frame
+		local f = Instance.new("Frame")
+		f.Position = UDim2.fromOffset(x, y)
+		f.Size = UDim2.fromOffset(w, h)
+		f.BackgroundColor3 = col
+		f.BackgroundTransparency = tr
+		f.BorderSizePixel = 0
+		f.Parent = parent
+		return f
+	end
+	local function T(parent: Instance, text: string, x: number, y: number, w: number, h: number, maxSize: number, col: Color3, font: Enum.Font): TextLabel
+		local t = Instance.new("TextLabel")
+		t.BackgroundTransparency = 1
+		t.Position = UDim2.fromOffset(x, y)
+		t.Size = UDim2.fromOffset(w, h)
+		t.Text = text
+		t.Font = font
+		t.TextColor3 = col
+		t.TextScaled = true
+		t.TextXAlignment = Enum.TextXAlignment.Left
+		local lim = Instance.new("UITextSizeConstraint")
+		lim.MaxTextSize = maxSize
+		lim.Parent = t
+		local st = Instance.new("UIStroke")
+		st.Color = accent
+		st.Thickness = 2
+		st.Transparency = 0.6
+		st.Parent = t
+		t.Parent = parent
+		return t
+	end
+	local root = F(sg, 0, 0, 1000, 460, C(6, 10, 18), 0.4)
+	root.Size = UDim2.fromScale(1, 1)
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 22)
+	corner.Parent = root
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = accent
+	stroke.Thickness = 6
+	stroke.Parent = root
+	for i = 0, 11 do
+		F(root, 0, 18 + i * 37, 1000, 3, accent, 0.88)
+	end
+	for _, cx in ipairs({ 18, 1000 - 18 - 70 }) do
+		for _, cy in ipairs({ 18, 460 - 18 - 8 }) do
+			F(root, cx, cy, 70, 8, accent, 0)
+			F(root, if cx < 500 then cx else cx + 62, if cy < 230 then cy else cy - 62, 8, 70, accent, 0)
+		end
+	end
+	local id = BiomeAssets.Get(faction .. "_insignia")
+	if id then
+		local img = Instance.new("ImageLabel")
+		img.BackgroundTransparency = 1
+		img.Position = UDim2.fromOffset(40, 50)
+		img.Size = UDim2.fromOffset(320, 360)
+		img.Image = id
+		img.ScaleType = Enum.ScaleType.Fit
+		img.Parent = root
+	else
+		local ring = F(root, 50, 70, 300, 300, accent, 1)
+		local rc = Instance.new("UICorner")
+		rc.CornerRadius = UDim.new(1, 0)
+		rc.Parent = ring
+		local rs = Instance.new("UIStroke")
+		rs.Color = accent
+		rs.Thickness = 10
+		rs.Parent = ring
+		local g = T(ring, BANNER_TEXT[faction], 0, 0, 300, 300, 170, accent, Enum.Font.GothamBold)
+		g.TextXAlignment = Enum.TextXAlignment.Center
+	end
+	T(root, "ZONA " .. tostring(zone), 390, 24, 580, 130, 130, accent, Enum.Font.GothamBlack)
+	T(root, th.Name, 390, 168, 580, 110, 74, Color3.new(1, 1, 1), Enum.Font.GothamBold)
+	F(root, 390, 292, 580, 4, accent, 0.4)
+	T(root, lvText, 390, 306, 580, 70, 48, accent:Lerp(Color3.new(1, 1, 1), 0.45), Enum.Font.GothamMedium)
+	return sg
+end
+
+local function styleGates(biome: Instance, lane: Lane, faction: string)
+	local fan = biome:FindFirstChild("Abanico")
+	local doors = fan and fan:FindFirstChild("Puertas_de_Franja")
+	if not doors then
+		return
+	end
+	for zone = 2, STRIP_COUNT do
+		local th = GATES[faction .. "_" .. zone]
+		local gate = doors:FindFirstChild("Puerta_Franja" .. zone)
+		if th and gate then
+			local rng = Random.new(zone * 313 + #faction)
+			local c: Ctx = { Barrier = lane.Barrier, Deco = lane.Deco, Far = true }
+			local u = CITY_SIZE + (zone - 1) * STRIP_DEPTH
+			local half = hw(lane, u) + 4
+			-- 1) quitar el cartel viejo y su poste
+			for _, name in ipairs({ "Holograma", "Soporte" }) do
+				local old = gate:FindFirstChild(name)
+				if old then
+					old:Destroy()
+				end
+			end
+			-- 2) recolorear muros, pilares y dinteles; la luz toma el color de la zona
+			local wallId = BiomeAssets.Get(string.format("%s_%d_wall", faction, zone))
+			for _, d in ipairs(gate:GetDescendants()) do
+				if d:IsA("BasePart") then
+					if string.sub(d.Name, 1, 4) == "Muro" then
+						d.Material = th.Wall
+						d.Color = th.WallCol
+						if wallId then
+							for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+								local tex = Instance.new("Texture")
+								tex.Texture = wallId
+								tex.Face = face
+								tex.StudsPerTileU = 36
+								tex.StudsPerTileV = 36
+								tex.Parent = d
+							end
+						end
+					elseif d.Name == "Pilar" then
+						d.Material = th.Wall
+						d.Color = th.WallCol:Lerp(Color3.new(0, 0, 0), 0.18)
+					elseif d.Name == "Dintel" then
+						d.Material = th.Wall
+						d.Color = th.WallCol:Lerp(th.Accent, 0.12)
+					elseif d.Name == "Luz" then
+						d.Color = th.Accent
+					end
+				end
+			end
+			-- 3) remate en los tramos de muro y sobre cada arco
+			local edges: { number } = { -half }
+			local centers: { number } = {}
+			for _, f in ipairs(GATE_FRACS) do
+				local cc = f * (half - 4)
+				table.insert(centers, cc)
+				table.insert(edges, cc - GATE_WIDTH / 2)
+				table.insert(edges, cc + GATE_WIDTH / 2)
+			end
+			table.insert(edges, half)
+			for i = 1, #edges, 2 do
+				capLine(c, lane, u, edges[i], edges[i + 1], GATE_WALL_H, th)
+			end
+			for _, cc in ipairs(centers) do
+				capLine(c, lane, u, cc - GATE_WIDTH / 2 - 6, cc + GATE_WIDTH / 2 + 6, GATE_CLEAR_H + 22, th)
+				for _, sgn in ipairs({ -1, 1 }) do
+					ornament(c, lane, u, cc + sgn * (GATE_WIDTH / 2 + 3), th, rng)
+				end
+				if th.Orn == "teeth" then
+					local v = cc - GATE_WIDTH / 2 + 5
+					while v < cc + GATE_WIDTH / 2 - 3 do
+						blk(c, Vector3.new(4, 4, 5), gateCF(lane, u, v, FLOOR_TOP + GATE_CLEAR_H - 1.5) * CFrame.Angles(0, 0, math.rad(45)), Color3.fromRGB(235, 240, 245), M.Marble, false)
+						v += 9
+					end
+				end
+				if th.Cap == "torii" then
+					blk(c, Vector3.new(GATE_WIDTH + 44, 5, 12), gateCF(lane, u, cc, FLOOR_TOP + 58.5), th.Accent, M.Concrete, false)
+					for _, sgn in ipairs({ -1, 1 }) do
+						blk(c, Vector3.new(14, 5, 12), gateCF(lane, u, cc + sgn * (GATE_WIDTH / 2 + 21), FLOOR_TOP + 61.5) * CFrame.Angles(0, 0, math.rad(-sgn * 16)), th.Accent, M.Concrete, false)
+					end
+					blk(c, Vector3.new(GATE_WIDTH + 26, 3, 9), gateCF(lane, u, cc, FLOOR_TOP + 53), C(24, 18, 22), M.Slate, false)
+				end
+			end
+			-- 4) holograma de entrada sobre el arco del medio (gira; se lee de los dos lados)
+			local lo = (zone - 1) * 25 + 1
+			local hi = zone * 25
+			local lvText = string.format("MONSTRUOS NIV. %d–%d%s", lo, hi, if zone == STRIP_COUNT then " · ÉLITE" else "")
+			local signW, signH = 100, 46
+			local signPos = lp(lane, u, 0, FLOOR_TOP + 94)
+			local holo = Instance.new("Model")
+			holo.Name = "HologramaZona"
+			local board = Instance.new("Part")
+			board.Name = "Pantalla"
+			board.Anchored = true
+			board.CanCollide = false
+			board.CanQuery = false
+			board.CanTouch = false
+			board.CastShadow = false
+			board.Transparency = 1
+			board.Size = Vector3.new(signW, signH, 0.4)
+			board.CFrame = CFrame.lookAt(signPos, signPos + lane.Dir)
+			board.Parent = holo
+			for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+				gateGui(face, th, faction, zone, th.Accent, lvText).Parent = board
+			end
+			for _, dy in ipairs({ -signH / 2 - 0.8, signH / 2 + 0.8 }) do
+				local bar = Instance.new("Part")
+				bar.Name = "Borde"
+				bar.Anchored = true
+				bar.CanCollide = false
+				bar.CanQuery = false
+				bar.CanTouch = false
+				bar.CastShadow = false
+				bar.Material = M.Neon
+				bar.Color = th.Accent
+				bar.Size = Vector3.new(signW + 3, 1.2, 1.2)
+				bar.CFrame = CFrame.lookAt(signPos + Vector3.new(0, dy, 0), signPos + Vector3.new(0, dy, 0) + lane.Dir)
+				bar.Parent = holo
+			end
+			local light = Instance.new("PointLight")
+			light.Color = th.Accent
+			light.Range = 60
+			light.Brightness = 1.5
+			light.Parent = board
+			holo.PrimaryPart = board
+			holo.WorldPivot = CFrame.new(signPos)
+			holo.Parent = lane.Deco
+			CollectionService:AddTag(holo, "SpinEmblem") -- SpinEmblemClient lo hace girar
+			-- emisor + haz de luz (no gira)
+			local topLintel = FLOOR_TOP + GATE_CLEAR_H + 22
+			cylV(c, lp(lane, u, 0, topLintel), 8, 1.6, th.Accent, M.Neon, false)
+			cylV(c, lp(lane, u, 0, topLintel + 1.6), 3, 4, th.WallCol:Lerp(Color3.new(0, 0, 0), 0.3), th.Wall, false)
+			local beam = cylV(c, lp(lane, u, 0, topLintel + 5.6), 5.5, (signPos.Y - signH / 2) - (topLintel + 5.6), th.Accent, M.Neon, false)
+			beam.Transparency = 0.72
+		end
+	end
+end
+
+---------------------------------------------------------------------
 -- SUELO
 ---------------------------------------------------------------------
 local function styleFloor(biome: Instance, faction: string)
@@ -738,18 +1066,21 @@ end
 ---------------------------------------------------------------------
 -- LANES
 ---------------------------------------------------------------------
-local function readLane(biome: Instance, faction: string): Lane?
+local function findSample(biome: Instance): BasePart?
 	local fan = biome:FindFirstChild("Abanico")
 	local piso = fan and fan:FindFirstChild("Piso")
-	local sample: BasePart? = nil
 	if piso then
 		for _, d in ipairs(piso:GetDescendants()) do
 			if d:IsA("BasePart") and d:GetAttribute("LaneStart") then
-				sample = d
-				break
+				return d
 			end
 		end
 	end
+	return nil
+end
+
+local function readLane(biome: Instance, faction: string): Lane?
+	local sample = findSample(biome)
 	if not sample then
 		return nil
 	end
@@ -783,6 +1114,10 @@ local function styleBiome(biome: Instance, faction: string)
 		return
 	end
 	table.insert(lanes, lane)
+	local okG, errG = pcall(styleGates, biome, lane, faction)
+	if not okG then
+		warn("[BiomeStyler] Puertas de " .. biome.Name .. ": " .. tostring(errG))
+	end
 	for strip = 1, STRIP_COUNT do
 		local th = THEMES[faction .. "_" .. strip]
 		if th then
@@ -814,16 +1149,26 @@ local function zoneOf(pos: Vector3): (string?, Lane?, number, number)
 	return nil, nil, 0, 0
 end
 
-local function startWatcher()
-	local strikes: { [Player]: number } = {}
-	local params = OverlapParams.new()
-	params.FilterType = Enum.RaycastFilterType.Include
+local overlapParams = OverlapParams.new()
+overlapParams.FilterType = Enum.RaycastFilterType.Include
+overlapParams.RespectCanCollide = true
+
+local function refreshParams()
 	local folders: { Instance } = {}
 	for _, lane in ipairs(lanes) do
 		table.insert(folders, lane.Barrier)
 	end
-	params.FilterDescendantsInstances = folders
-	params.RespectCanCollide = true
+	overlapParams.FilterDescendantsInstances = folders
+end
+
+local watcherStarted = false
+local function startWatcher()
+	if watcherStarted then
+		return
+	end
+	watcherStarted = true
+	local strikes: { [Player]: number } = {}
+	local params = overlapParams
 	task.spawn(function()
 		while true do
 			task.wait(1)
@@ -860,18 +1205,32 @@ local function startWatcher()
 	end)
 end
 
-local function run()
-	local waited = 0
-	while Workspace:GetAttribute("MapBuilt") ~= true and waited < 90 do
-		task.wait(0.25)
-		waited += 0.25
+-- El mapa puede reconstruirse varias veces al arrancar (si hay constructores duplicados). Se estiliza el ÚLTIMO mapa
+-- que exista, y se repite si aparece uno nuevo.
+local latest: Instance? = nil
+local running = false
+
+local function styleMap(map: Instance)
+	-- esperar a que los 4 biomas tengan datos de carril (el constructor puede estar a mitad de obra)
+	local t = 0
+	while t < 40 and map.Parent do
+		local ready = 0
+		for _, biome in ipairs(map:GetChildren()) do
+			if BIOME_FACTION[biome.Name] and findSample(biome) then
+				ready += 1
+			end
+		end
+		if ready >= 4 then
+			break
+		end
+		task.wait(0.5)
+		t += 0.5
 	end
-	local map = Workspace:WaitForChild(MAP_NAME, 60)
-	if not map then
-		warn("[BiomeStyler] No existe " .. MAP_NAME)
-		Workspace:SetAttribute("BiomeStyleDone", true)
-		return
+	task.wait(1.5) -- margen por si llega otra reconstrucción
+	if latest ~= map or not map.Parent then
+		return false
 	end
+	table.clear(lanes)
 	local done, failed = 0, 0
 	for _, biome in ipairs(map:GetChildren()) do
 		local faction = BIOME_FACTION[biome.Name]
@@ -885,10 +1244,48 @@ local function run()
 			end
 		end
 	end
+	refreshParams()
 	startWatcher()
 	Workspace:SetAttribute("BiomeStyleStatus", string.format("%d biomas con estilo, %d con error, %d partes", done, failed, partCount))
 	Workspace:SetAttribute("BiomeStyleDone", true)
 	print(string.format("[BiomeStyler] Biomas listos: %d facciones, %d partes.", done, partCount))
+	return true
+end
+
+local function process()
+	if running then
+		return
+	end
+	running = true
+	while latest and latest.Parent do
+		local map = latest
+		if styleMap(map) and latest == map then
+			break
+		end
+	end
+	running = false
+end
+
+local function run()
+	local waited = 0
+	while Workspace:GetAttribute("MapBuilt") ~= true and waited < 90 do
+		task.wait(0.25)
+		waited += 0.25
+	end
+	Workspace.ChildAdded:Connect(function(child)
+		if child.Name == MAP_NAME then
+			latest = child
+			task.defer(process)
+		end
+	end)
+	local map = Workspace:FindFirstChild(MAP_NAME) or Workspace:WaitForChild(MAP_NAME, 60)
+	if not map then
+		warn("[BiomeStyler] No existe " .. MAP_NAME)
+		Workspace:SetAttribute("BiomeStyleDone", true)
+		return
+	end
+	latest = map
+	process()
 end
 
 local BiomeStyler = {}
