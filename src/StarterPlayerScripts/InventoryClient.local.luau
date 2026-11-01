@@ -31,17 +31,33 @@ local currentPage = 1
 
 local win = UITheme.Frame(gui, theme, UDim2.fromOffset(380, 500), UDim2.new(1, -20, 0.5, 0), Vector2.new(1, 0.5))
 UITheme.Text(win, "MOCHILA", 20, theme.Primary, UDim2.fromOffset(16, 8), UDim2.fromOffset(200, 28))
-local capLabel = UITheme.Text(win, "", 12, Color3.fromRGB(200, 200, 210), UDim2.fromOffset(222, 12), UDim2.fromOffset(118, 20), Enum.TextXAlignment.Right)
+local capLabel = UITheme.Text(win, "", 12, Color3.fromRGB(200, 200, 210), UDim2.fromOffset(268, 12), UDim2.fromOffset(72, 20), Enum.TextXAlignment.Right)
 local bestBtn = Instance.new("TextButton")
 bestBtn.Position = UDim2.fromOffset(112, 9)
-bestBtn.Size = UDim2.fromOffset(104, 24)
+bestBtn.Size = UDim2.fromOffset(84, 24)
 bestBtn.BackgroundColor3 = Color3.fromRGB(60, 100, 160)
 bestBtn.TextColor3 = Color3.new(1, 1, 1)
 bestBtn.Font = UITheme.Font
 bestBtn.TextSize = 12
 bestBtn.Text = "★ Mejor set"
+bestBtn.ZIndex = 30 -- por encima de la barra de arrastre (ZIndex 20), si no se traga los clics
 bestBtn.Parent = win
 Instance.new("UICorner", bestBtn)
+local sortBtn = Instance.new("TextButton")
+sortBtn.Position = UDim2.fromOffset(200, 9)
+sortBtn.Size = UDim2.fromOffset(64, 24)
+sortBtn.BackgroundColor3 = Color3.fromRGB(90, 80, 130)
+sortBtn.TextColor3 = Color3.new(1, 1, 1)
+sortBtn.Font = UITheme.Font
+sortBtn.TextSize = 12
+sortBtn.Text = "Ordenar"
+sortBtn.ZIndex = 30 -- por encima de la barra de arrastre (ZIndex 20), si no se traga los clics
+sortBtn.Parent = win
+Instance.new("UICorner", sortBtn)
+sortBtn.Activated:Connect(function()
+	selected = nil
+	Store.Action("Sort") -- junta lo apilable y ordena por rareza
+end)
 bestBtn.Activated:Connect(function()
 	Store.Action("EquipBest")
 end)
@@ -194,6 +210,23 @@ deselectBtn.Visible = false
 deselectBtn.Parent = win
 Instance.new("UICorner", deselectBtn)
 
+local lockBtn = Instance.new("TextButton")
+lockBtn.Position = UDim2.fromOffset(312, 390)
+lockBtn.Size = UDim2.fromOffset(26, 24)
+lockBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+lockBtn.TextColor3 = Color3.new(1, 1, 1)
+lockBtn.Font = UITheme.Font
+lockBtn.TextSize = 13
+lockBtn.Text = "🔓"
+lockBtn.Visible = false
+lockBtn.Parent = win
+Instance.new("UICorner", lockBtn)
+lockBtn.Activated:Connect(function()
+	if selected then
+		Store.Action("Lock", selected) -- candado: no se vende ni se tira
+	end
+end)
+
 local function button(text: string, x: number, color: Color3, fn: () -> ())
 	local b = Instance.new("TextButton")
 	b.Position = UDim2.fromOffset(x, 456)
@@ -213,7 +246,11 @@ button("Equipar", 16, Color3.fromRGB(50, 130, 70), function()
 		selected = nil
 	end
 end)
+local lockBtn: TextButton
 button("Tirar", 138, Color3.fromRGB(150, 50, 50), function()
+	if selected and Store.Bag[selected] and Store.Bag[selected].Locked then
+		return -- bloqueado: no se tira (el servidor también lo rechaza)
+	end
 	if selected then
 		Store.Action("Drop", selected)
 		selected = nil
@@ -264,6 +301,8 @@ local function describe(slotIndex: number?)
 	local item = stack and ItemCatalog.Items[stack.Id]
 	updateCompare(slotIndex)
 	deselectBtn.Visible = stack ~= nil
+	lockBtn.Visible = stack ~= nil
+	lockBtn.Text = if stack and stack.Locked then "🔒" else "🔓"
 	if not stack or not item then
 		info.Text = "Selecciona un objeto"
 		return
@@ -313,7 +352,14 @@ buyButton.Activated:Connect(function()
 	Store.Action("BuyPage")
 end)
 
+-- arrastrar y soltar
+local slotButtons: { [number]: TextButton } = {}
+local pressed: { Slot: number, Start: Vector2 }? = nil
+local dragging: { Slot: number, Ghost: Frame }? = nil
+local suppressUntil = 0
+
 local function render()
+	table.clear(slotButtons)
 	theme = UITheme.For(player:GetAttribute("Faction"))
 	for _, c in ipairs(scroll:GetChildren()) do
 		if c:IsA("TextButton") then
@@ -326,8 +372,8 @@ local function render()
 	end
 	local unlocked = BagCatalog.FreePages + Store.Pages
 	local totalCap = BagCatalog.Capacity(Store.Pages)
-	capLabel.Text = string.format("%d / %d casillas", used, math.max(totalCap, Store.Capacity))
-	if currentPage > unlocked + 1 then
+	capLabel.Text = string.format("%d/%d", used, math.max(totalCap, Store.Capacity))
+	if currentPage > #BagCatalog.PageSizes then
 		currentPage = 1
 	end
 	-- pestañas de páginas: las bloqueadas llevan candado
@@ -344,7 +390,7 @@ local function render()
 		local nextPaid = currentPage - BagCatalog.FreePages
 		local size = BagCatalog.PageSizes[currentPage]
 		local ready = nextPaid == Store.Pages + 1
-		buyText.Text = string.format("Página %d · %d casillas más\n%s", currentPage, size, if ready then "Se desbloquea con Robux" else "Primero desbloquea la página anterior")
+		buyText.Text = string.format("Página %d · %d casillas más\n%s", currentPage, size, if ready then "Se desbloquea con Robux" else "Primero desbloquea la página anterior") .. "\nPrecio: " .. (BagCatalog.PriceText[nextPaid] or "?")
 		buyButton.Visible = ready
 		buyButton.Text = "Desbloquear  " .. (BagCatalog.PriceText[nextPaid] or "")
 		return
@@ -357,6 +403,7 @@ local function render()
 		b.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
 		b.Text = ""
 		b.Parent = scroll
+		slotButtons[i] = b
 		Instance.new("UICorner", b)
 		local st = Instance.new("UIStroke")
 		st.Thickness = if selected == i then 3 else 1
@@ -370,11 +417,22 @@ local function render()
 			st.Color = col
 			local t = UITheme.Text(b, GearView.DisplayName(item, stack.Plus), 11, col, UDim2.fromScale(0, 0.1), UDim2.fromScale(1, 0.8), Enum.TextXAlignment.Center)
 			t.TextWrapped = true
+			if stack.Locked then
+				UITheme.Text(b, "🔒", 12, nil, UDim2.fromScale(0.02, 0.02), UDim2.fromScale(0.5, 0.3), Enum.TextXAlignment.Left)
+			end
 			if stack.Count > 1 then
 				UITheme.Text(b, tostring(stack.Count), 12, nil, UDim2.fromScale(0.5, 0.7), UDim2.fromScale(0.48, 0.28), Enum.TextXAlignment.Right)
 			end
 		end
+		b.InputBegan:Connect(function(input)
+			if stack and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+				pressed = { Slot = i, Start = Vector2.new(input.Position.X, input.Position.Y) }
+			end
+		end)
 		b.Activated:Connect(function()
+			if os.clock() < suppressUntil then
+				return -- fue un arrastre, no un clic
+			end
 			if selected and selected ~= i then
 				Store.Action("Move", selected, i)
 				selected = nil
@@ -391,6 +449,115 @@ deselectBtn.Activated:Connect(function()
 	selected = nil
 	render()
 	describe(nil)
+end)
+
+-- qué hay bajo el puntero: casilla (número) o pestaña de página (letra "P"+n)
+local function hitAt(pos: Vector2): (number?, number?)
+	local pg = player:FindFirstChildOfClass("PlayerGui")
+	if not pg then
+		return nil, nil
+	end
+	for _, obj in ipairs(pg:GetGuiObjectsAtPosition(pos.X, pos.Y)) do
+		for i, b in pairs(slotButtons) do
+			if obj == b or obj:IsDescendantOf(b) then
+				return i, nil
+			end
+		end
+		for n, t in ipairs(pageTabs) do
+			if obj == t then
+				return nil, n
+			end
+		end
+	end
+	return nil, nil
+end
+
+local hoverTab: number? = nil
+local hoverSince = 0
+
+local function endDrag(pos: Vector2?)
+	local d = dragging
+	pressed = nil
+	if not d then
+		return
+	end
+	dragging = nil
+	d.Ghost:Destroy()
+	suppressUntil = os.clock() + 0.15
+	if not pos then
+		return
+	end
+	local slot, tab = hitAt(pos)
+	if tab and tab <= BagCatalog.FreePages + Store.Pages then
+		-- soltado sobre una pestaña: va a la primera casilla libre de esa página
+		local first, last = BagCatalog.PageRange(tab)
+		for i = first, last do
+			if not Store.Bag[i] then
+				Store.Action("Move", d.Slot, i)
+				break
+			end
+		end
+	elseif slot and slot ~= d.Slot then
+		Store.Action("Move", d.Slot, slot)
+	end
+	selected = nil
+	render()
+	describe(nil)
+end
+
+UserInputService.InputChanged:Connect(function(input)
+	if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then
+		return
+	end
+	local pos = Vector2.new(input.Position.X, input.Position.Y)
+	if pressed and not dragging and (pos - pressed.Start).Magnitude > 8 then
+		local stack = Store.Bag[pressed.Slot]
+		local item = stack and ItemCatalog.Items[stack.Id]
+		if stack and item then
+			local col = ItemCatalog.RarityColor[item.Rarity] or Color3.new(1, 1, 1)
+			local ghost = Instance.new("Frame")
+			ghost.AnchorPoint = Vector2.new(0.5, 0.5)
+			ghost.Size = UDim2.fromOffset(58, 58)
+			ghost.BackgroundColor3 = col:Lerp(Color3.new(0, 0, 0), 0.5)
+			ghost.BackgroundTransparency = 0.15
+			ghost.ZIndex = 50
+			ghost.Active = false
+			ghost.Parent = gui
+			Instance.new("UICorner", ghost)
+			local gs = Instance.new("UIStroke")
+			gs.Color = col
+			gs.Thickness = 2
+			gs.Parent = ghost
+			local gt = UITheme.Text(ghost, GearView.DisplayName(item, stack.Plus), 10, col, UDim2.fromScale(0, 0.1), UDim2.fromScale(1, 0.8), Enum.TextXAlignment.Center)
+			gt.TextWrapped = true
+			gt.ZIndex = 51
+			dragging = { Slot = pressed.Slot, Ghost = ghost }
+		end
+	end
+	if dragging then
+		dragging.Ghost.Position = UDim2.fromOffset(pos.X, pos.Y)
+		-- mantener sobre una pestaña medio segundo = cambiar a esa página (para soltar en una casilla concreta)
+		local _, tab = hitAt(pos)
+		if tab ~= hoverTab then
+			hoverTab, hoverSince = tab, os.clock()
+		elseif tab and tab ~= currentPage and tab <= BagCatalog.FreePages + Store.Pages and os.clock() - hoverSince > 0.5 then
+			currentPage = tab
+			render()
+		end
+	end
+end)
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if dragging then
+			endDrag(Vector2.new(input.Position.X, input.Position.Y))
+		end
+		pressed = nil
+	end
+end)
+gui:GetPropertyChangedSignal("Enabled"):Connect(function()
+	if not gui.Enabled then
+		endDrag(nil)
+	end
 end)
 
 for p, tab in ipairs(pageTabs) do

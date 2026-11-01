@@ -81,7 +81,7 @@ local function sellList(): { { Slot: number, Id: string, Count: number, Plus: nu
 		local st = Store.Bag[i]
 		local item = (ItemCatalog.Items :: any)[st.Id]
 		local unit = ShopCatalog.SellPrice(st.Id, item, st.Plus)
-		if unit then
+		if unit and not st.Locked then
 			table.insert(out, { Slot = i, Id = st.Id, Count = st.Count, Plus = st.Plus or 0, Unit = unit })
 		end
 	end

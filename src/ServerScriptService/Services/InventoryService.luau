@@ -34,8 +34,8 @@ local ActionRemote = Net.Get("InventoryAction")
 
 local MAX_SLOT = 1000 -- tope de seguridad al cargar datos (evita una mochila gigante por datos corruptos)
 
-type Stack = { Id: string, Count: number, Plus: number? }
-type State = { Bag: { [number]: Stack }, Equip: { [string]: string }, EquipPlus: { [string]: number }, Orphans: { Stack }, Pages: number }
+type Stack = { Id: string, Count: number, Plus: number?, Locked: boolean? }
+type State = { Bag: { [number]: Stack }, Equip: { [string]: string }, EquipPlus: { [string]: number }, EquipLocked: { [string]: boolean }, Orphans: { Stack }, Pages: number }
 local MAX_PLUS = 9
 
 local function cleanPlus(item: any, plus: any): number
@@ -67,7 +67,7 @@ local function push(player: Player)
 		-- lista plana (los remotes no conservan bien tablas con índices salteados)
 		local list = {}
 		for i, stack in pairs(st.Bag) do
-			table.insert(list, { Slot = i, Id = stack.Id, Count = stack.Count, Plus = stack.Plus or 0 })
+			table.insert(list, { Slot = i, Id = stack.Id, Count = stack.Count, Plus = stack.Plus or 0, Locked = stack.Locked == true })
 		end
 		UpdateRemote:FireClient(player, list, st.Equip, capacity(st), st.EquipPlus, st.Pages)
 	end
@@ -93,7 +93,7 @@ local function firstFreeInside(st: State): number?
 end
 
 -- ¿Cabe `count` de este objeto? (completando pilas existentes y usando casillas libres)
-local function canFit(st: State, itemId: string, count: number, plus: number): boolean
+local function canFit(st: State, itemId: string, count: number, plus: number, locked: boolean?): boolean
 	local item = ItemCatalog.Items[itemId]
 	if not item then
 		return false
@@ -101,7 +101,7 @@ local function canFit(st: State, itemId: string, count: number, plus: number): b
 	local maxStack = item.Stack or 1
 	local room = 0
 	for _, stack in pairs(st.Bag) do
-		if stack.Id == itemId and (stack.Plus or 0) == plus and stack.Count < maxStack then
+		if stack.Id == itemId and (stack.Plus or 0) == plus and stack.Count < maxStack and not stack.Locked and not locked then
 			room += maxStack - stack.Count
 		end
 	end
@@ -118,9 +118,9 @@ end
 -- Guardado / carga (formato plano: el DataStore no admite índices con huecos)
 ---------------------------------------------------------------------
 local function serialize(st: State): any
-	local bag: { { Slot: number, Id: string, Count: number, Plus: number? } } = {}
+	local bag: { { Slot: number, Id: string, Count: number, Plus: number?, Locked: boolean? } } = {}
 	for slot, stack in pairs(st.Bag) do
-		table.insert(bag, { Slot = slot, Id = stack.Id, Count = stack.Count, Plus = stack.Plus })
+		table.insert(bag, { Slot = slot, Id = stack.Id, Count = stack.Count, Plus = stack.Plus, Locked = if stack.Locked then true else nil })
 	end
 	table.sort(bag, function(a: { Slot: number }, b: { Slot: number }): boolean
 		return a.Slot < b.Slot
@@ -139,11 +139,17 @@ local function serialize(st: State): any
 			equipPlus[slotName] = plus
 		end
 	end
-	return { Bag = bag, Equip = equip, EquipPlus = equipPlus, Orphans = orphans, Pages = st.Pages }
+	local equipLocked = {}
+	for slotName, v in pairs(st.EquipLocked) do
+		if v then
+			equipLocked[slotName] = true
+		end
+	end
+	return { Bag = bag, Equip = equip, EquipPlus = equipPlus, EquipLocked = equipLocked, Orphans = orphans, Pages = st.Pages }
 end
 
 local function deserialize(saved: any): State
-	local st: State = { Bag = {}, Equip = {}, EquipPlus = {}, Orphans = {}, Pages = 0 }
+	local st: State = { Bag = {}, Equip = {}, EquipPlus = {}, EquipLocked = {}, Orphans = {}, Pages = 0 }
 	if typeof(saved) ~= "table" then
 		return st
 	end
@@ -176,7 +182,7 @@ local function deserialize(saved: any): State
 							slot = firstFree(st) -- casilla inválida o repetida: no se pierde, va a la primera libre
 						end
 						local plus = cleanPlus((ItemCatalog.Items :: any)[id], e.Plus)
-						st.Bag[slot] = { Id = id, Count = count, Plus = if plus > 0 then plus else nil }
+						st.Bag[slot] = { Id = id, Count = count, Plus = if plus > 0 then plus else nil, Locked = if e.Locked == true then true else nil }
 					end
 				end
 			end
@@ -196,6 +202,9 @@ local function deserialize(saved: any): State
 					if plus > 0 then
 						st.EquipPlus[slotName] = plus
 					end
+					if typeof(saved.EquipLocked) == "table" and saved.EquipLocked[slotName] == true then
+						st.EquipLocked[slotName] = true
+					end
 				else
 					st.Bag[firstFree(st)] = { Id = id, Count = 1 } -- cambió la ranura del objeto en el catálogo: vuelve a la mochila
 				end
@@ -209,7 +218,7 @@ function Inventory.Get(player: Player): State?
 	return states[player]
 end
 
-function Inventory.Add(player: Player, itemId: string, count: number, plus: number?): boolean
+function Inventory.Add(player: Player, itemId: string, count: number, plus: number?, locked: boolean?): boolean
 	local st = states[player]
 	local item = ItemCatalog.Items[itemId]
 	if not st or not item or count <= 0 then
@@ -217,7 +226,7 @@ function Inventory.Add(player: Player, itemId: string, count: number, plus: numb
 	end
 	local maxStack = item.Stack or 1
 	local plusValue = cleanPlus(item, plus)
-	if not canFit(st, itemId, count, plusValue) then
+	if not canFit(st, itemId, count, plusValue, locked) then
 		Net.Get("Notify"):FireClient(player, "Mochila llena: libera espacio (o desbloquea más páginas)")
 		return false
 	end
@@ -226,7 +235,7 @@ function Inventory.Add(player: Player, itemId: string, count: number, plus: numb
 		if count <= 0 then
 			break
 		end
-		if stack.Id == itemId and (stack.Plus or 0) == plusValue and stack.Count < maxStack then
+		if stack.Id == itemId and (stack.Plus or 0) == plusValue and stack.Count < maxStack and not stack.Locked and not locked then
 			local add = math.min(maxStack - stack.Count, count)
 			stack.Count += add
 			count -= add
@@ -234,7 +243,7 @@ function Inventory.Add(player: Player, itemId: string, count: number, plus: numb
 	end
 	while count > 0 do
 		local add = math.min(maxStack, count)
-		st.Bag[firstFreeInside(st) :: number] = { Id = itemId, Count = add, Plus = if plusValue > 0 then plusValue else nil }
+		st.Bag[firstFreeInside(st) :: number] = { Id = itemId, Count = add, Plus = if plusValue > 0 then plusValue else nil, Locked = if locked then true else nil }
 		count -= add
 	end
 	push(player)
@@ -283,8 +292,8 @@ end
 function Inventory.RemoveSlot(player: Player, index: number, count: number?): (string?, number, number)
 	local st = states[player]
 	local stack = if st then st.Bag[math.floor(index)] else nil
-	if not st or not stack then
-		return nil, 0, 0
+	if not st or not stack or stack.Locked then
+		return nil, 0, 0 -- lo bloqueado (candado) nunca se vende ni se quita por aquí
 	end
 	local take = math.clamp(math.floor(count or stack.Count), 1, stack.Count)
 	local id, plus = stack.Id, stack.Plus or 0
@@ -354,10 +363,12 @@ local function equip(player: Player, st: State, bagIndex: number)
 	-- Accesorio: usa Accesorio1 y, si está ocupado, Accesorio2
 	local previous = st.Equip[slot]
 	local previousPlus = st.EquipPlus[slot]
+	local previousLocked = st.EquipLocked[slot]
 	local newPlus = stack.Plus or 0
 	st.Equip[slot] = stack.Id
 	st.EquipPlus[slot] = if newPlus > 0 then newPlus else nil
-	local previousStack: Stack? = if previous then { Id = previous, Count = 1, Plus = previousPlus } else nil
+	st.EquipLocked[slot] = if stack.Locked then true else nil -- el candado viaja con la pieza
+	local previousStack: Stack? = if previous then { Id = previous, Count = 1, Plus = previousPlus, Locked = previousLocked } else nil
 	if stack.Count > 1 then
 		stack.Count -= 1
 		if previousStack then
@@ -371,15 +382,17 @@ local function equip(player: Player, st: State, bagIndex: number)
 end
 
 -- Poder de una pieza = suma de sus bonos x multiplicador de mejora (igual que la comparación de la mochila)
-local function powerOf(item: any, plus: number): number
-	local total = 0
+local function powerOf(player: Player, item: any, plus: number): number
 	if item and item.Gear then
 		local mult = GearCatalog.EnhanceMult(plus)
-		for _, v in pairs(item.Gear) do
-			total += v * mult
+		local effects: { [string]: number } = {}
+		for stat, v in pairs(item.Gear) do
+			effects[stat] = v * mult
 		end
+		local role = player:GetAttribute("Role")
+		return GearCatalog.PowerGain(if typeof(role) == "string" then role else "Guerrero", effects)
 	end
-	return total
+	return 0
 end
 
 -- EQUIPAR MEJOR SET: por cada ranura deja la pieza más fuerte que tu clase y nivel pueden usar.
@@ -390,12 +403,12 @@ local function equipBest(player: Player, st: State)
 		local curId = st.Equip[slotName]
 		local curItem: any = if curId then (ItemCatalog.Items :: any)[curId] else nil
 		local curUsable = curItem ~= nil and GearService.CanEquip(player, curId :: string)
-		local bestPower = if curItem and curUsable then powerOf(curItem, st.EquipPlus[slotName] or 0) else 0
+		local bestPower = if curItem and curUsable then powerOf(player, curItem, st.EquipPlus[slotName] or 0) else 0
 		local bestIndex: number? = nil
 		for i, stack in pairs(st.Bag) do
 			local item: any = (ItemCatalog.Items :: any)[stack.Id]
 			if item and item.Slot == slotName and item.Gear and not item.Pet and GearService.CanEquip(player, stack.Id) then
-				local p = powerOf(item, stack.Plus or 0)
+				local p = powerOf(player, item, stack.Plus or 0)
 				if p > bestPower + 1e-9 then
 					bestPower, bestIndex = p, i
 				end
@@ -406,15 +419,73 @@ local function equipBest(player: Player, st: State)
 			changed += 1
 		elseif curItem and not curUsable and canFit(st, curId :: string, 1, st.EquipPlus[slotName] or 0) then
 			local plus = st.EquipPlus[slotName]
+			local wasLocked = st.EquipLocked[slotName]
 			st.Equip[slotName] = nil
 			st.EquipPlus[slotName] = nil
+			st.EquipLocked[slotName] = nil
 			player:SetAttribute("Equip_" .. slotName, nil)
 			player:SetAttribute("EquipPlus_" .. slotName, nil)
-			Inventory.Add(player, curId :: string, 1, plus)
+			Inventory.Add(player, curId :: string, 1, plus, wasLocked)
 			changed += 1
 		end
 	end
 	Net.Get("Notify"):FireClient(player, if changed > 0 then string.format("Mejor set: %d pieza(s) cambiadas", changed) else "Ya llevas lo mejor que puedes usar")
+end
+
+-- ORDENAR: junta lo apilable (pociones, materiales) y ordena todo por rareza (Mítico primero), luego equipo antes que materiales
+local RARITY_RANK: { [string]: number } = { Mitico = 5, Legendario = 4, Epico = 3, Raro = 2, Comun = 1 }
+local function sortBag(st: State)
+	local stacks: { Stack } = {}
+	local merged: { [string]: Stack } = {}
+	for _, stack in pairs(st.Bag) do
+		local item: any = (ItemCatalog.Items :: any)[stack.Id]
+		local maxStack = if item then (item.Stack or 1) else 1
+		local key = stack.Id .. "|" .. tostring(stack.Plus or 0) .. "|" .. tostring(stack.Locked == true)
+		local target = merged[key]
+		if maxStack > 1 and target and target.Count < maxStack then
+			local move = math.min(maxStack - target.Count, stack.Count)
+			target.Count += move
+			if stack.Count - move > 0 then
+				local rest = { Id = stack.Id, Count = stack.Count - move, Plus = stack.Plus, Locked = stack.Locked }
+				table.insert(stacks, rest)
+				merged[key] = rest
+			end
+		else
+			table.insert(stacks, stack)
+			if maxStack > 1 then
+				merged[key] = stack
+			end
+		end
+	end
+	table.sort(stacks, function(x: Stack, y: Stack): boolean
+		local ix: any, iy: any = (ItemCatalog.Items :: any)[x.Id], (ItemCatalog.Items :: any)[y.Id]
+		local rx = if ix then (RARITY_RANK[ix.Rarity] or 0) else 0
+		local ry = if iy then (RARITY_RANK[iy.Rarity] or 0) else 0
+		if rx ~= ry then
+			return rx > ry
+		end
+		local gx = if ix and ix.Slot then 1 else 0
+		local gy = if iy and iy.Slot then 1 else 0
+		if gx ~= gy then
+			return gx > gy -- el equipo antes que lo demás
+		end
+		local sx = if ix and ix.Slot then ix.Slot else ""
+		local sy = if iy and iy.Slot then iy.Slot else ""
+		if sx ~= sy then
+			return sx < sy
+		end
+		if (x.Plus or 0) ~= (y.Plus or 0) then
+			return (x.Plus or 0) > (y.Plus or 0)
+		end
+		if x.Id ~= y.Id then
+			return x.Id < y.Id
+		end
+		return x.Count > y.Count
+	end)
+	st.Bag = {}
+	for i, stack in ipairs(stacks) do
+		st.Bag[i] = stack
+	end
 end
 
 ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any, b: any)
@@ -427,27 +498,41 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 	elseif action == "Unequip" and typeof(a) == "string" and st.Equip[a] then
 		local id = st.Equip[a]
 		local plus = st.EquipPlus[a]
-		if not canFit(st, id, 1, plus or 0) then
+		if not canFit(st, id, 1, plus or 0, st.EquipLocked[a]) then
 			Net.Get("Notify"):FireClient(player, "Mochila llena: libera espacio para quitarte esto")
 			return
 		end
+		local wasLocked = st.EquipLocked[a]
 		st.Equip[a] = nil
 		st.EquipPlus[a] = nil
+		st.EquipLocked[a] = nil
 		player:SetAttribute("Equip_" .. a, nil)
 		player:SetAttribute("EquipPlus_" .. a, nil)
-		Inventory.Add(player, id, 1, plus)
+		Inventory.Add(player, id, 1, plus, wasLocked)
 		return
 	elseif action == "Move" and typeof(a) == "number" and typeof(b) == "number" then
 		a, b = math.floor(a), math.floor(b)
 		if a >= 1 and b >= 1 and b <= capacity(st) + 0 then
 			st.Bag[a], st.Bag[b] = st.Bag[b], st.Bag[a]
 		end
+	elseif action == "Sort" then
+		sortBag(st)
 	elseif action == "EquipBest" then
 		equipBest(player, st)
 	elseif action == "BuyPage" then
 		Inventory.RequestPage(player)
 		return
-	elseif action == "Drop" and typeof(a) == "number" then
+	elseif action == "Lock" and typeof(a) == "number" and a == a then
+		local stack = st.Bag[math.floor(a)]
+		if stack then
+			stack.Locked = if stack.Locked then nil else true -- candado: pone / quita
+		end
+	elseif action == "Drop" and typeof(a) == "number" and a == a then
+		local stack = st.Bag[math.floor(a)]
+		if stack and stack.Locked then
+			Net.Get("Notify"):FireClient(player, "Está bloqueado 🔒: quítale el candado para tirarlo")
+			return
+		end
 		st.Bag[math.floor(a)] = nil
 	end
 	push(player)
@@ -525,6 +610,34 @@ local function init(pl: Player)
 	end
 	push(pl)
 	task.spawn(checkOwnedPasses, pl)
+	-- cambio de clase: lo puesto que la nueva clase no puede usar vuelve a la mochila (lo que todas las clases usan se queda puesto)
+	pl:GetAttributeChangedSignal("Role"):Connect(function()
+		task.wait(0.4) -- deja que ClassSelectService termine de aplicar facción y rol
+		local cur = states[pl]
+		if not cur then
+			return
+		end
+		local moved = 0
+		for _, slotName in ipairs(ItemCatalog.EquipSlots) do
+			local id = cur.Equip[slotName]
+			if id and not GearService.CanEquip(pl, id) then
+				local plus = cur.EquipPlus[slotName]
+				local wasLocked = cur.EquipLocked[slotName]
+				if canFit(cur, id, 1, plus or 0, wasLocked) then
+					cur.Equip[slotName] = nil
+					cur.EquipPlus[slotName] = nil
+					cur.EquipLocked[slotName] = nil
+					pl:SetAttribute("Equip_" .. slotName, nil)
+					pl:SetAttribute("EquipPlus_" .. slotName, nil)
+					Inventory.Add(pl, id, 1, plus, wasLocked)
+					moved += 1
+				end
+			end
+		end
+		if moved > 0 then
+			Net.Get("Notify"):FireClient(pl, string.format("Cambio de clase: %d pieza(s) que tu nueva clase no usa volvieron a la mochila", moved))
+		end
+	end)
 end
 
 -- Qué guarda PlayerData de este servicio (nil = todavía no cargó: no se toca la sección)

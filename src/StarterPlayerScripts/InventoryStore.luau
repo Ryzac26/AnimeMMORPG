@@ -9,7 +9,7 @@
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 
 local Store = {}
-Store.Bag = {} :: { [number]: { Id: string, Count: number, Plus: number } }
+Store.Bag = {} :: { [number]: { Id: string, Count: number, Plus: number, Locked: boolean } }
 Store.Equip = {} :: { [string]: string }
 Store.EquipPlus = {} :: { [string]: number }
 Store.Capacity = 70
@@ -25,7 +25,7 @@ if updateRemote then
 	updateRemote.OnClientEvent:Connect(function(list: any, equip: any, capacity: number, equipPlus: any, pages: any)
 		local bag = {}
 		for _, e in ipairs(list) do
-			bag[e.Slot] = { Id = e.Id, Count = e.Count, Plus = e.Plus or 0 }
+			bag[e.Slot] = { Id = e.Id, Count = e.Count, Plus = e.Plus or 0, Locked = e.Locked == true }
 		end
 		Store.Bag = bag
 		Store.Equip = equip

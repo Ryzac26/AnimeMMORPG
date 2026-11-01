@@ -238,6 +238,10 @@ local function sell(player: Player, index: any, count: any)
 		reply(player, false, "Ese objeto ya no está en tu mochila.")
 		return
 	end
+	if stack.Locked then
+		reply(player, false, "Está bloqueado 🔒: quítale el candado en la mochila para venderlo.")
+		return
+	end
 	local item: any = (ItemCatalog.Items :: any)[stack.Id]
 	local unit = ShopCatalog.SellPrice(stack.Id, item, stack.Plus)
 	if not unit then
@@ -265,7 +269,7 @@ local function sellCommons(player: Player)
 	local slots: { number } = {}
 	for i, stack in pairs(st.Bag) do
 		local item: any = (ItemCatalog.Items :: any)[stack.Id]
-		if item and not item.Pet and (item.Gear or item.Slot) and item.Rarity == "Comun" and (stack.Plus or 0) == 0 then
+		if item and not item.Pet and (item.Gear or item.Slot) and item.Rarity == "Comun" and (stack.Plus or 0) == 0 and not stack.Locked then
 			table.insert(slots, i)
 		end
 	end
