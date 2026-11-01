@@ -402,8 +402,8 @@ BACK.mesas = function(c, p, n, rng, th)
 end
 
 BACK.hills = function(c, p, n, rng, th)
-	local s = Vector3.new(110 + rng:NextNumber() * 70, 60 + rng:NextNumber() * 60, 110 + rng:NextNumber() * 70)
-	ellipsoid(c, CFrame.new(p.X, FLOOR_TOP + 4, p.Z) * CFrame.Angles(0, rng:NextNumber() * 6.28, 0), s, shade(th.BackCol, 0.9 + rng:NextNumber() * 0.25), th.BackMat)
+	local s = Vector3.new(120 + rng:NextNumber() * 60, 36 + rng:NextNumber() * 40, 120 + rng:NextNumber() * 60)
+	ellipsoid(c, CFrame.new(p.X, FLOOR_TOP - 2, p.Z) * CFrame.Angles(0, rng:NextNumber() * 6.28, 0), s, shade(th.BackCol, 1.25 + rng:NextNumber() * 0.25), th.BackMat)
 end
 
 BACK.dunes = function(c, p, n, rng, th)
@@ -469,8 +469,8 @@ end
 
 BACK.statues = function(c, p, n, rng, th)
 	-- un mismo estilo de montaña lejana; las estatuas gigantes se ponen aparte (ver buildStatues)
-	local s = Vector3.new(110 + rng:NextNumber() * 70, 90 + rng:NextNumber() * 70, 110 + rng:NextNumber() * 70)
-	ellipsoid(c, CFrame.new(p.X, FLOOR_TOP + 2, p.Z) * CFrame.Angles(0, rng:NextNumber() * 6.28, 0), s, C(72, 56, 66), M.Slate)
+	local s = Vector3.new(120 + rng:NextNumber() * 60, 60 + rng:NextNumber() * 50, 120 + rng:NextNumber() * 60)
+	ellipsoid(c, CFrame.new(p.X, FLOOR_TOP, p.Z) * CFrame.Angles(0, rng:NextNumber() * 6.28, 0), s, C(96, 78, 90), M.Slate)
 end
 
 -- radio horizontal máximo de cada escenografía: se usa para sacarla del muro y de la ciudad (la ciudad llega hasta u = 800)
@@ -689,12 +689,16 @@ local function buildSide(lane: Lane, faction: string, strip: number, s: number, 
 	local backFn = BACK[th.Back]
 	if backFn then
 		local ext = BACK_EXT[th.Back] or 40
-		-- en la franja 1 se empieza más adentro para no tapar la muralla de la ciudad
-		local bu = if strip == 1 then CITY_SIZE + ext + 10 else ua + 30
+		local bu = ua + 30
 		while bu < ub - 20 do
-			local out = -(ext + 8 + rng:NextNumber() * 25)
-			backFn(far, edgePoint(lane, s, bu, out, n), n, rng, th)
-			bu += 70 + rng:NextNumber() * 50
+			local out = -(ext + 18 + rng:NextNumber() * 25)
+			local pos = edgePoint(lane, s, bu, out, n)
+			-- al alejarse en diagonal la pieza también retrocede en u: se descarta si llegaría a la ciudad (u < 800)
+			local uc = (pos - lane.Start):Dot(lane.Dir)
+			if uc - ext >= CITY_SIZE + 10 then
+				backFn(far, pos, n, rng, th)
+			end
+			bu += (if th.Back == "hills" or th.Back == "statues" then 120 else 70) + rng:NextNumber() * 60
 		end
 	end
 
@@ -894,11 +898,37 @@ local function gateGui(face: Enum.NormalId, th: GateTheme, faction: string, zone
 	return sg
 end
 
+-- Torre en cada extremo de un muro entre franjas: tapa la unión entre el muro de la franja y el del arco
+local function cornerTower(lane: Lane, u: number, sgn: number, th: GateTheme)
+	local solid: Ctx = { Barrier = lane.Barrier, Deco = lane.Deco, Far = false }
+	local deco: Ctx = { Barrier = lane.Barrier, Deco = lane.Deco, Far = true }
+	local v = sgn * (hw(lane, u) - 2)
+	local H = 66
+	local dark = th.WallCol:Lerp(Color3.new(0, 0, 0), 0.12)
+	blk(solid, Vector3.new(19, 6, 19), gateCF(lane, u, v, FLOOR_TOP + 3), dark, th.Wall, true)
+	blk(solid, Vector3.new(16, H, 16), gateCF(lane, u, v, FLOOR_TOP + H / 2), dark, th.Wall, true)
+	for _, du in ipairs({ -8.2, 8.2 }) do
+		blk(deco, Vector3.new(1.2, H - 16, 1.2), gateCF(lane, u + du, v - sgn * 8.2, FLOOR_TOP + H / 2), th.Accent, M.Neon, false)
+	end
+	blk(deco, Vector3.new(20, 3, 20), gateCF(lane, u, v, FLOOR_TOP + H + 1.5), th.Accent:Lerp(th.WallCol, 0.55), th.Wall, false)
+	blk(deco, Vector3.new(16, 4, 16), gateCF(lane, u, v, FLOOR_TOP + H + 5), C(52, 54, 68), M.Slate, false)
+	blk(deco, Vector3.new(11, 4, 11), gateCF(lane, u, v, FLOOR_TOP + H + 9), C(44, 46, 60), M.Slate, false)
+	blk(deco, Vector3.new(6, 4, 6), gateCF(lane, u, v, FLOOR_TOP + H + 13), C(36, 38, 52), M.Slate, false)
+	ball(deco, lp(lane, u, v, FLOOR_TOP + H + 18.5), 5, th.Accent, M.Neon, false)
+end
+
 local function styleGates(biome: Instance, lane: Lane, faction: string)
 	local fan = biome:FindFirstChild("Abanico")
 	local doors = fan and fan:FindFirstChild("Puertas_de_Franja")
 	if not doors then
 		return
+	end
+	-- torres de la unión con la ciudad (inicio de la franja 1)
+	local t1 = THEMES[faction .. "_1"]
+	if t1 then
+		local gt: GateTheme = { Name = "", Wall = t1.WallMat, WallCol = t1.WallCol, Accent = t1.CapCol, Cap = t1.Cap, Orn = "none" }
+		cornerTower(lane, CITY_SIZE + 10, -1, gt)
+		cornerTower(lane, CITY_SIZE + 10, 1, gt)
 	end
 	for zone = 2, STRIP_COUNT do
 		local th = GATES[faction .. "_" .. zone]
@@ -943,6 +973,8 @@ local function styleGates(biome: Instance, lane: Lane, faction: string)
 					end
 				end
 			end
+			cornerTower(lane, u, -1, th)
+			cornerTower(lane, u, 1, th)
 			-- 3) remate en los tramos de muro y sobre cada arco
 			local edges: { number } = { -half }
 			local centers: { number } = {}
