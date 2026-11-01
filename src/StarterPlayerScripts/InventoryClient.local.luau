@@ -246,7 +246,6 @@ button("Equipar", 16, Color3.fromRGB(50, 130, 70), function()
 		selected = nil
 	end
 end)
-local lockBtn: TextButton
 button("Tirar", 138, Color3.fromRGB(150, 50, 50), function()
 	if selected and Store.Bag[selected] and Store.Bag[selected].Locked then
 		return -- bloqueado: no se tira (el servidor también lo rechaza)

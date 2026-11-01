@@ -602,6 +602,10 @@ local function init(pl: Player)
 		return -- la carga falló (el jugador es expulsado) o ya salió
 	end
 	local st = deserialize(saved.Inventory)
+	local ignorePasses = RunService:IsStudio() and BagCatalog.DevIgnorePasses
+	if ignorePasses then
+		st.Pages = 0 -- prueba en Studio: se ven las páginas de pago como las vería un jugador nuevo
+	end
 	states[pl] = st
 	-- AttackAnimator y compañía leen el equipo por atributos Equip_<ranura>: se restauran al cargar
 	for slotName, id in pairs(st.Equip) do
@@ -609,7 +613,9 @@ local function init(pl: Player)
 		pl:SetAttribute("EquipPlus_" .. slotName, st.EquipPlus[slotName])
 	end
 	push(pl)
-	task.spawn(checkOwnedPasses, pl)
+	if not ignorePasses then
+		task.spawn(checkOwnedPasses, pl)
+	end
 	-- cambio de clase: lo puesto que la nueva clase no puede usar vuelve a la mochila (lo que todas las clases usan se queda puesto)
 	pl:GetAttributeChangedSignal("Role"):Connect(function()
 		task.wait(0.4) -- deja que ClassSelectService termine de aplicar facción y rol
