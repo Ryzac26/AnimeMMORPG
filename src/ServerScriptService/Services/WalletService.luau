@@ -45,7 +45,7 @@ end
 function WalletService.AddGold(player: Player, amount: number, reason: string?): number
 	local w = wallets[player]
 	local n = math.floor(amount)
-	if not w or n <= 0 then
+	if not w or n ~= n or n <= 0 or n == math.huge then
 		return 0
 	end
 	w.Gold += n
@@ -59,7 +59,7 @@ end
 function WalletService.AddFactionPoints(player: Player, amount: number): number
 	local w = wallets[player]
 	local n = math.floor(amount)
-	if not w or n <= 0 then
+	if not w or n ~= n or n <= 0 or n == math.huge then
 		return 0
 	end
 	w.FactionPoints += n
@@ -70,7 +70,7 @@ end
 function WalletService.TrySpendGold(player: Player, amount: number, reason: string?): boolean
 	local w = wallets[player]
 	local n = math.floor(amount)
-	if not w or n <= 0 or w.Gold < n then
+	if not w or n ~= n or n <= 0 or n == math.huge or w.Gold < n then
 		return false
 	end
 	w.Gold -= n

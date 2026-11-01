@@ -1076,6 +1076,7 @@ end
 -- MAPA COMPLETO
 ---------------------------------------------------------------------
 local function build(): Folder
+	Workspace:SetAttribute("MapBuildCount", ((Workspace:GetAttribute("MapBuildCount") :: number?) or 0) + 1)
 	local existing = Workspace:FindFirstChild(MAP_NAME)
 	if existing then
 		existing:Destroy()

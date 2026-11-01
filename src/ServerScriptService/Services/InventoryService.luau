@@ -238,6 +238,23 @@ function Inventory.Consume(player: Player, itemId: string, count: number?): bool
 	return true
 end
 
+-- Quita (hasta) count unidades de UNA casilla de la mochila (venta, tienda). Devuelve itemId, plus, cantidad quitada (nil,0,0 si no hay nada).
+function Inventory.RemoveSlot(player: Player, index: number, count: number?): (string?, number, number)
+	local st = states[player]
+	local stack = if st then st.Bag[math.floor(index)] else nil
+	if not st or not stack then
+		return nil, 0, 0
+	end
+	local take = math.clamp(math.floor(count or stack.Count), 1, stack.Count)
+	local id, plus = stack.Id, stack.Plus or 0
+	stack.Count -= take
+	if stack.Count <= 0 then
+		st.Bag[math.floor(index)] = nil
+	end
+	push(player)
+	return id, plus, take
+end
+
 -- Mejora +n de una pieza. ref: ("Equip", "Arma") o ("Bag", 7). Devuelve itemId, plus (o nil si no hay nada ahí).
 function Inventory.GetPlus(player: Player, kind: string, key: any): (string?, number)
 	local st = states[player]

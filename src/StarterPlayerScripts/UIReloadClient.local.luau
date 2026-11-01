@@ -8,8 +8,8 @@
 local Players = game:GetService("Players")
 
 local player = Players.LocalPlayer
-local RELOAD = { "HudClient", "AutoFarmClient", "BoostClient", "PartyClient", "InventoryClient", "CharacterClient", "ShrineClient", "MobileClient" }
-local KEEP_GUIS = { ClassSelect = true, ClassSelectGui = true, PatchNotesGui = true, PatchNotes = true }
+local RELOAD = { "HudClient", "AutoFarmClient", "BoostClient", "PartyClient", "InventoryClient", "CharacterClient", "ShrineClient", "MobileClient", "SmithClient", "GearAlertClient", "ShopClient" }
+local KEEP_GUIS = { ClassSelect = true, ClassSelectGui = true, PatchNotesGui = true, PatchNotes = true, LoadingScreen = true }
 
 local token = 0
 local lastFaction = player:GetAttribute("Faction")
