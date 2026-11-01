@@ -144,10 +144,10 @@ end
 -- "Nombre ......... valor   +x%"
 local function addStat(name: string, value: string, bonus: string?, bonusColor: Color3?)
 	local f = addRow(20)
-	UITheme.Text(f, name, 13, Color3.fromRGB(215, 215, 225), UDim2.fromOffset(0, 0), UDim2.new(0.5, 0, 1, 0))
-	UITheme.Text(f, value, 13, nil, UDim2.new(0.5, 0, 0, 0), UDim2.new(0.2, 0, 1, 0), Enum.TextXAlignment.Right)
+	UITheme.Text(f, name, 13, Color3.fromRGB(215, 215, 225), UDim2.fromOffset(0, 0), UDim2.new(0.44, 0, 1, 0))
+	UITheme.Text(f, value, 13, nil, UDim2.new(0.44, 0, 0, 0), UDim2.new(0.24, 0, 1, 0), Enum.TextXAlignment.Right)
 	if bonus then
-		UITheme.Text(f, bonus, 13, bonusColor or GREEN, UDim2.new(0.7, 4, 0, 0), UDim2.new(0.3, -4, 1, 0), Enum.TextXAlignment.Right)
+		UITheme.Text(f, bonus, 13, bonusColor or GREEN, UDim2.new(0.68, 0, 0, 0), UDim2.new(0.32, -2, 1, 0), Enum.TextXAlignment.Right)
 	end
 end
 
@@ -364,8 +364,8 @@ local function build()
 
 	-- panel de estadísticas (con scroll por si hay muchas filas)
 	local statsBox = Instance.new("Frame")
-	statsBox.Position = UDim2.fromOffset(398, 46)
-	statsBox.Size = UDim2.fromOffset(284, 330)
+	statsBox.Position = UDim2.fromOffset(388, 46)
+	statsBox.Size = UDim2.fromOffset(296, 330)
 	statsBox.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
 	statsBox.BorderSizePixel = 0
 	statsBox.Parent = win
@@ -373,10 +373,13 @@ local function build()
 	UITheme.Border(statsBox, theme, 2)
 	statsScroll = Instance.new("ScrollingFrame")
 	statsScroll.Position = UDim2.fromOffset(10, 8)
-	statsScroll.Size = UDim2.fromOffset(264, 314)
+	statsScroll.Size = UDim2.fromOffset(276, 314)
 	statsScroll.BackgroundTransparency = 1
 	statsScroll.BorderSizePixel = 0
 	statsScroll.ScrollBarThickness = 4
+	local statsPad = Instance.new("UIPadding")
+	statsPad.PaddingRight = UDim.new(0, 12)
+	statsPad.Parent = statsScroll
 	statsScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	statsScroll.CanvasSize = UDim2.fromOffset(0, 0)
 	statsScroll.Parent = statsBox

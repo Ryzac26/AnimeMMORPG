@@ -12,7 +12,8 @@ local Store = {}
 Store.Bag = {} :: { [number]: { Id: string, Count: number, Plus: number } }
 Store.Equip = {} :: { [string]: string }
 Store.EquipPlus = {} :: { [string]: number }
-Store.Capacity = 20
+Store.Capacity = 70
+Store.Pages = 0 -- páginas de pago desbloqueadas (0..3)
 
 local changed = Instance.new("BindableEvent")
 Store.Changed = changed.Event :: RBXScriptSignal
@@ -21,7 +22,7 @@ local updateRemote = ClientNet.Get("InventoryUpdate")
 local actionRemote = ClientNet.Get("InventoryAction")
 
 if updateRemote then
-	updateRemote.OnClientEvent:Connect(function(list: any, equip: any, capacity: number, equipPlus: any)
+	updateRemote.OnClientEvent:Connect(function(list: any, equip: any, capacity: number, equipPlus: any, pages: any)
 		local bag = {}
 		for _, e in ipairs(list) do
 			bag[e.Slot] = { Id = e.Id, Count = e.Count, Plus = e.Plus or 0 }
@@ -30,6 +31,7 @@ if updateRemote then
 		Store.Equip = equip
 		Store.EquipPlus = if typeof(equipPlus) == "table" then equipPlus else {}
 		Store.Capacity = capacity
+		Store.Pages = if typeof(pages) == "number" then pages else 0
 		changed:Fire()
 	end)
 end

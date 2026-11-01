@@ -26,6 +26,7 @@ holder.Size = UDim2.fromOffset(190, 10)
 holder.AutomaticSize = Enum.AutomaticSize.Y
 holder.BackgroundTransparency = 1
 holder.Parent = gui
+require(script.Parent:WaitForChild("SideCollapse", 10)).Attach(gui, holder, "Left", "Party", 190)
 local layout = Instance.new("UIListLayout")
 layout.Padding = UDim.new(0, 4)
 layout.SortOrder = Enum.SortOrder.LayoutOrder

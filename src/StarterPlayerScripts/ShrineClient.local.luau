@@ -74,6 +74,8 @@ local function label(parent: Instance, text: string, size: number, color: Color3
 end
 
 local header = label(panel, "SANTUARIOS", 13, theme.Primary, 1, 16)
+local minimized = false
+local savedPos: UDim2? = nil
 
 type Row = { Status: TextLabel, Fill: Frame }
 local rows: { [string]: Row } = {}
@@ -142,6 +144,61 @@ if MOBILE then
 		end
 	end)
 	setCollapsed(true)
+end
+-- ESCRITORIO: el panel se mueve arrastrando el título y se minimiza con el botón "–" (la posición y el estado se recuerdan)
+if not MOBILE then
+	local UserInputService = game:GetService("UserInputService")
+	header.Size = UDim2.new(1, 0, 0, 20)
+	local drag = Instance.new("TextButton")
+	drag.BackgroundTransparency = 1
+	drag.Text = ""
+	drag.AutoButtonColor = false
+	drag.Size = UDim2.new(1, -26, 1, 0)
+	drag.Parent = header
+	local minBtn = Instance.new("TextButton")
+	minBtn.AnchorPoint = Vector2.new(1, 0)
+	minBtn.Position = UDim2.fromScale(1, 0)
+	minBtn.Size = UDim2.fromOffset(22, 18)
+	minBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 54)
+	minBtn.TextColor3 = Color3.new(1, 1, 1)
+	minBtn.Font = UITheme.Font
+	minBtn.TextSize = 14
+	minBtn.Parent = header
+	Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 4)
+	local function setMin(m: boolean)
+		minimized = m
+		minBtn.Text = if m then "+" else "–"
+		for _, ch in ipairs(panel:GetChildren()) do
+			if ch:IsA("GuiObject") and ch ~= header then
+				ch.Visible = not m
+			end
+		end
+	end
+	minBtn.Activated:Connect(function()
+		setMin(not minimized)
+	end)
+	if savedPos then
+		panel.Position = savedPos
+	end
+	setMin(minimized)
+	local dragging, startPointer, startPos = false, Vector2.zero, panel.Position
+	drag.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging, startPointer, startPos = true, Vector2.new(input.Position.X, input.Position.Y), panel.Position
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local d = Vector2.new(input.Position.X, input.Position.Y) - startPointer
+			panel.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+			dragging = false
+			savedPos = panel.Position
+		end
+	end)
 end
 mine.TextWrapped = true
 mine.TextTruncate = Enum.TextTruncate.None

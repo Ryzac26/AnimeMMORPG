@@ -16,6 +16,7 @@ local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
 local GearView = require(script.Parent:WaitForChild("GearView", 10))
+local BagCatalog = require(ReplicatedStorage.Modules.BagCatalog)
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
 
 local gui = Instance.new("ScreenGui")
@@ -26,10 +27,24 @@ gui.Parent = player:WaitForChild("PlayerGui", 10)
 
 local theme = UITheme.For(player:GetAttribute("Faction"))
 local selected: number? = nil
+local currentPage = 1
 
 local win = UITheme.Frame(gui, theme, UDim2.fromOffset(380, 500), UDim2.new(1, -20, 0.5, 0), Vector2.new(1, 0.5))
 UITheme.Text(win, "MOCHILA", 20, theme.Primary, UDim2.fromOffset(16, 8), UDim2.fromOffset(200, 28))
-local capLabel = UITheme.Text(win, "", 13, Color3.fromRGB(200, 200, 210), UDim2.fromOffset(180, 12), UDim2.fromOffset(184, 20), Enum.TextXAlignment.Right)
+local capLabel = UITheme.Text(win, "", 12, Color3.fromRGB(200, 200, 210), UDim2.fromOffset(222, 12), UDim2.fromOffset(118, 20), Enum.TextXAlignment.Right)
+local bestBtn = Instance.new("TextButton")
+bestBtn.Position = UDim2.fromOffset(112, 9)
+bestBtn.Size = UDim2.fromOffset(104, 24)
+bestBtn.BackgroundColor3 = Color3.fromRGB(60, 100, 160)
+bestBtn.TextColor3 = Color3.new(1, 1, 1)
+bestBtn.Font = UITheme.Font
+bestBtn.TextSize = 12
+bestBtn.Text = "★ Mejor set"
+bestBtn.Parent = win
+Instance.new("UICorner", bestBtn)
+bestBtn.Activated:Connect(function()
+	Store.Action("EquipBest")
+end)
 local close = UITheme.Text(win, "X", 18, Color3.fromRGB(255, 120, 120), UDim2.new(1, -34, 0, 8), UDim2.fromOffset(24, 24), Enum.TextXAlignment.Center)
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.fromScale(1, 1)
@@ -41,8 +56,8 @@ closeBtn.Activated:Connect(function()
 end)
 
 local scroll = Instance.new("ScrollingFrame")
-scroll.Position = UDim2.fromOffset(14, 44)
-scroll.Size = UDim2.fromOffset(352, 340)
+scroll.Position = UDim2.fromOffset(14, 76)
+scroll.Size = UDim2.fromOffset(352, 308)
 scroll.BackgroundTransparency = 1
 scroll.BorderSizePixel = 0
 scroll.ScrollBarThickness = 6
@@ -167,6 +182,18 @@ info.TextWrapped = true
 info.TextYAlignment = Enum.TextYAlignment.Top
 info.RichText = true
 
+local deselectBtn = Instance.new("TextButton")
+deselectBtn.Position = UDim2.fromOffset(342, 390)
+deselectBtn.Size = UDim2.fromOffset(24, 24)
+deselectBtn.BackgroundColor3 = Color3.fromRGB(70, 40, 40)
+deselectBtn.TextColor3 = Color3.fromRGB(255, 140, 140)
+deselectBtn.Font = UITheme.Font
+deselectBtn.TextSize = 14
+deselectBtn.Text = "X"
+deselectBtn.Visible = false
+deselectBtn.Parent = win
+Instance.new("UICorner", deselectBtn)
+
 local function button(text: string, x: number, color: Color3, fn: () -> ())
 	local b = Instance.new("TextButton")
 	b.Position = UDim2.fromOffset(x, 456)
@@ -236,6 +263,7 @@ local function describe(slotIndex: number?)
 	local stack = slotIndex and Store.Bag[slotIndex]
 	local item = stack and ItemCatalog.Items[stack.Id]
 	updateCompare(slotIndex)
+	deselectBtn.Visible = stack ~= nil
 	if not stack or not item then
 		info.Text = "Selecciona un objeto"
 		return
@@ -250,6 +278,41 @@ local function describe(slotIndex: number?)
 	info.Text = string.format('<font color="#%s">%s</font> x%d  [%s]%s\n%s', col:ToHex(), GearView.DisplayName(item, stack.Plus), stack.Count, item.Rarity, statsText, item.Desc or (if item.Slot then "Equipa en: " .. item.Slot else ""))
 end
 
+local pageTabs: { TextButton } = {}
+for p = 1, #BagCatalog.PageSizes do
+	local t = Instance.new("TextButton")
+	t.Position = UDim2.fromOffset(14 + (p - 1) * 71, 46)
+	t.Size = UDim2.fromOffset(66, 24)
+	t.Font = UITheme.Font
+	t.TextSize = 13
+	t.Text = tostring(p)
+	t.Parent = win
+	Instance.new("UICorner", t)
+	pageTabs[p] = t
+end
+local buyBar = Instance.new("Frame")
+buyBar.Position = UDim2.fromOffset(14, 76)
+buyBar.Size = UDim2.fromOffset(352, 308)
+buyBar.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+buyBar.BorderSizePixel = 0
+buyBar.Visible = false
+buyBar.Parent = win
+Instance.new("UICorner", buyBar)
+local buyText = UITheme.Text(buyBar, "", 16, Color3.new(1, 1, 1), UDim2.fromOffset(16, 90), UDim2.fromOffset(320, 60), Enum.TextXAlignment.Center)
+buyText.TextWrapped = true
+local buyButton = Instance.new("TextButton")
+buyButton.Position = UDim2.fromOffset(76, 170)
+buyButton.Size = UDim2.fromOffset(200, 40)
+buyButton.BackgroundColor3 = Color3.fromRGB(50, 130, 70)
+buyButton.TextColor3 = Color3.new(1, 1, 1)
+buyButton.Font = UITheme.Font
+buyButton.TextSize = 16
+buyButton.Parent = buyBar
+Instance.new("UICorner", buyButton)
+buyButton.Activated:Connect(function()
+	Store.Action("BuyPage")
+end)
+
 local function render()
 	theme = UITheme.For(player:GetAttribute("Faction"))
 	for _, c in ipairs(scroll:GetChildren()) do
@@ -261,8 +324,33 @@ local function render()
 	for _ in pairs(Store.Bag) do
 		used += 1
 	end
-	capLabel.Text = string.format("%d / %d casillas", used, Store.Capacity)
-	for i = 1, Store.Capacity do
+	local unlocked = BagCatalog.FreePages + Store.Pages
+	local totalCap = BagCatalog.Capacity(Store.Pages)
+	capLabel.Text = string.format("%d / %d casillas", used, math.max(totalCap, Store.Capacity))
+	if currentPage > unlocked + 1 then
+		currentPage = 1
+	end
+	-- pestañas de páginas: las bloqueadas llevan candado
+	for p, tab in ipairs(pageTabs) do
+		local open = p <= unlocked
+		tab.Text = if open then tostring(p) else "🔒" .. tostring(p)
+		tab.BackgroundColor3 = if p == currentPage then theme.Primary else (if open then Color3.fromRGB(40, 40, 54) else Color3.fromRGB(60, 40, 40))
+		tab.TextColor3 = if p == currentPage then Color3.new(0, 0, 0) else Color3.new(1, 1, 1)
+	end
+	local lockedPage = currentPage > unlocked
+	buyBar.Visible = lockedPage
+	scroll.Visible = not lockedPage
+	if lockedPage then
+		local nextPaid = currentPage - BagCatalog.FreePages
+		local size = BagCatalog.PageSizes[currentPage]
+		local ready = nextPaid == Store.Pages + 1
+		buyText.Text = string.format("Página %d · %d casillas más\n%s", currentPage, size, if ready then "Se desbloquea con Robux" else "Primero desbloquea la página anterior")
+		buyButton.Visible = ready
+		buyButton.Text = "Desbloquear  " .. (BagCatalog.PriceText[nextPaid] or "")
+		return
+	end
+	local firstSlot, lastSlot = BagCatalog.PageRange(currentPage)
+	for i = firstSlot, math.min(lastSlot, math.max(totalCap, Store.Capacity)) do
 		local b = Instance.new("TextButton")
 		b.LayoutOrder = i
 		b.AutoButtonColor = true
@@ -291,12 +379,25 @@ local function render()
 				Store.Action("Move", selected, i)
 				selected = nil
 			else
-				selected = if stack then i else nil
+				selected = if stack and selected ~= i then i else nil -- clic otra vez en el mismo = deseleccionar
 			end
 			render()
 			describe(selected)
 		end)
 	end
+end
+
+deselectBtn.Activated:Connect(function()
+	selected = nil
+	render()
+	describe(nil)
+end)
+
+for p, tab in ipairs(pageTabs) do
+	tab.Activated:Connect(function()
+		currentPage = p
+		render()
+	end)
 end
 
 Store.Changed:Connect(function()

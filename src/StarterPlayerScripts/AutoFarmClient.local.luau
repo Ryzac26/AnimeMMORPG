@@ -53,6 +53,9 @@ holder.Size = UDim2.fromOffset(172, 10)
 holder.AutomaticSize = Enum.AutomaticSize.Y
 holder.BackgroundTransparency = 1
 holder.Parent = gui
+if not MOBILE then
+	require(script.Parent:WaitForChild("SideCollapse", 10)).Attach(gui, holder, "Right", "AutoFarm", 172)
+end
 local list = Instance.new("UIListLayout")
 list.Padding = UDim.new(0, 4)
 list.HorizontalAlignment = Enum.HorizontalAlignment.Right

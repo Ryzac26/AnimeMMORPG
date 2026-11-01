@@ -220,7 +220,7 @@ local function buy(player: Player, itemId: any, qty: any)
 	end
 	if not Inventory.Add(player, itemId, n) then
 		Wallet.AddGold(player, price, "Tienda") -- no debería pasar: se devuelve el oro
-		reply(player, false, "No se pudo guardar en la mochila.")
+		reply(player, false, "Mochila llena: libera espacio.")
 		return
 	end
 	reply(player, true, string.format("Compraste %s x%d por %d de oro.", item.Name, n, price))

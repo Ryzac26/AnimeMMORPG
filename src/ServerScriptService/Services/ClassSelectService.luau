@@ -7,6 +7,7 @@
       - Remote "ChooseClass"(faction, role): el servidor valida contra FactionClassesModule, guarda,
         pone los atributos y reaparece al jugador en la ciudad de su facción (RespawnLocation lo fija ProjectBootstrapper).
       - Solo se puede elegir una vez. Para pruebas: workspace:SetAttribute("AllowReselect", true) permite volver a elegir
+        Cambio de clase GRATIS: el Instructor de tu ciudad (InstructorService) llama a Allow(player) y el jugador puede elegir otro rol de SU facción.
         (y en Studio puedes borrar tu elección con player:SetAttribute("ClassChosen", false) desde la consola del servidor).
 ]]
 local Players = game:GetService("Players")
@@ -22,6 +23,14 @@ local choose = Net.Get("ChooseClass")
 
 local loaded: { [Player]: boolean } = {}
 local busy: { [Player]: boolean } = {}
+local ClassSelect = {}
+local tickets: { [Player]: number } = {} -- permiso de cambio de clase dado por el Instructor (vence a los 120 s)
+local TICKET_SECONDS = 120
+
+-- El Instructor de la ciudad da permiso para cambiar de rol (gratis) dentro de tu misma facción
+function ClassSelect.Allow(player: Player)
+	tickets[player] = os.clock() + TICKET_SECONDS
+end
 
 local function applyChoice(player: Player, faction: string, role: string)
 	player:SetAttribute("Faction", faction)
@@ -78,14 +87,19 @@ choose.OnServerEvent:Connect(function(player: Player, faction: any, role: any)
 	if not loaded[player] or busy[player] then
 		return
 	end
-	if player:GetAttribute("ClassChosen") == true and Workspace:GetAttribute("AllowReselect") ~= true then
-		return
-	end
 	if typeof(faction) ~= "string" or typeof(role) ~= "string" then
 		return
 	end
 	if not FactionClasses.FindClass(faction, role) then
 		return
+	end
+	if player:GetAttribute("ClassChosen") == true and Workspace:GetAttribute("AllowReselect") ~= true then
+		-- cambio de clase: solo con permiso del Instructor, misma facción y otro rol
+		local ticket = tickets[player]
+		if not ticket or os.clock() > ticket or faction ~= player:GetAttribute("Faction") or role == player:GetAttribute("Role") then
+			return
+		end
+		tickets[player] = nil
 	end
 	busy[player] = true
 	applyChoice(player, faction, role)
@@ -107,6 +121,7 @@ end
 PlayerData.Releasing:Connect(function(pl: Player)
 	loaded[pl] = nil
 	busy[pl] = nil
+	tickets[pl] = nil
 end)
 
-return {}
+return ClassSelect

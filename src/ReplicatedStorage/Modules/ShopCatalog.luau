@@ -18,7 +18,7 @@ ShopCatalog.MaterialSell = {
 	Mat_Piel = 6, Mat_Colmillo = 12, Mat_Esencia = 40, Mat_Nucleo = 120, Mat_FragArmadura = 30, Mat_Escama = 600,
 } :: { [string]: number }
 ShopCatalog.PotionSell = 10
-ShopCatalog.MAX_BUY = 99 -- máximo de unidades por compra
+ShopCatalog.MAX_BUY = 999 -- máximo de unidades por compra
 
 function ShopCatalog.BuyPrice(level: number): number
 	return math.floor(25 * (1 + 0.15 * level) + 0.5)

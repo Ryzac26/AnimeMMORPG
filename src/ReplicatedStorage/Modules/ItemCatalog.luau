@@ -28,6 +28,9 @@ export type Item = {
 
 local ItemCatalog = {}
 
+local STACK_MAX = 999 -- máximo por casilla de lo apilable
+ItemCatalog.StackMax = STACK_MAX
+
 ItemCatalog.RarityColor = {
 	Comun = Color3.fromRGB(200, 200, 205),
 	Raro = Color3.fromRGB(80, 160, 255),
@@ -86,6 +89,12 @@ do
 	end
 	for id, item in pairs(LootTables.Materials) do
 		items[id] = item
+	end
+	-- Todo lo que NO es equipo ni mascota (pociones, materiales, fragmentos...) apila hasta 999 por casilla
+	for _, item in pairs(items) do
+		if not item.Slot and not item.Gear and not item.Pet then
+			item.Stack = STACK_MAX
+		end
 	end
 end
 

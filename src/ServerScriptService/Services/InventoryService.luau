@@ -2,8 +2,8 @@
 --[[
     InventoryService (ModuleScript) -> ServerScriptService.Services.InventoryService
     Mochila y equipo de cada jugador (SERVIDOR = fuente de verdad; el cliente solo pide acciones).
-      - Mochila AUTO-EXPANDIBLE: capacidad = max(20, siguiente múltiplo de 5 sobre las casillas usadas + 1).
-        Si llenas todas las casillas aparece una fila nueva sola. Nunca hay un tope fijo.
+      - Mochila por PÁGINAS (ReplicatedStorage.Modules.BagCatalog): 2 páginas gratis de 35 casillas + 3 páginas de pago (Game Pass) de 40.
+        Add() devuelve false si no cabe (mochila llena). "BuyPage" (remote InventoryAction) abre la compra de la siguiente página.
       - Equipo: una casilla por ranura de ItemCatalog.EquipSlots (Casco, Arma, Capa, Alas, Montura, Traje...).
       - API: Add(player, itemId, count, plus?) -> bool · Get(player) -> estado
       - Mejora +0..+9 (la hace el Herrero): cada pieza de equipo lleva su propio "Plus" (en la mochila: stack.Plus; puesta: st.EquipPlus[ranura],
@@ -16,11 +16,15 @@
       - Mientras el perfil carga, Get() devuelve nil y Add() devuelve false (el loot no debe llegar antes de cargar).
     Loot: Add() es el punto de entrada para el loot futuro.
 ]]
+local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
+local BagCatalog = require(ReplicatedStorage.Modules.BagCatalog)
+local GearCatalog = require(ReplicatedStorage.Modules.GearCatalog)
 local Net = require(ServerScriptService.Services.Net)
 local PlayerData = require(ServerScriptService.Services.PlayerData)
 local GearService = require(ServerScriptService.Services.GearService)
@@ -28,12 +32,10 @@ local GearService = require(ServerScriptService.Services.GearService)
 local UpdateRemote = Net.Get("InventoryUpdate")
 local ActionRemote = Net.Get("InventoryAction")
 
-local MIN_SLOTS = 20
-local ROW = 5
 local MAX_SLOT = 1000 -- tope de seguridad al cargar datos (evita una mochila gigante por datos corruptos)
 
 type Stack = { Id: string, Count: number, Plus: number? }
-type State = { Bag: { [number]: Stack }, Equip: { [string]: string }, EquipPlus: { [string]: number }, Orphans: { Stack } }
+type State = { Bag: { [number]: Stack }, Equip: { [string]: string }, EquipPlus: { [string]: number }, Orphans: { Stack }, Pages: number }
 local MAX_PLUS = 9
 
 local function cleanPlus(item: any, plus: any): number
@@ -55,9 +57,8 @@ local function usedSlots(st: State): number
 end
 
 local function capacity(st: State): number
-	-- siempre queda al menos 1 casilla libre visible; crece de a filas completas
-	local needed = usedSlots(st) + 1
-	return math.max(MIN_SLOTS, math.ceil(needed / ROW) * ROW)
+	-- tamaño fijo por páginas (BagCatalog); si hay objetos guardados más allá (datos viejos) se muestran igual
+	return math.max(BagCatalog.Capacity(st.Pages), usedSlots(st))
 end
 
 local function push(player: Player)
@@ -68,7 +69,7 @@ local function push(player: Player)
 		for i, stack in pairs(st.Bag) do
 			table.insert(list, { Slot = i, Id = stack.Id, Count = stack.Count, Plus = stack.Plus or 0 })
 		end
-		UpdateRemote:FireClient(player, list, st.Equip, capacity(st), st.EquipPlus)
+		UpdateRemote:FireClient(player, list, st.Equip, capacity(st), st.EquipPlus, st.Pages)
 	end
 end
 
@@ -78,6 +79,39 @@ local function firstFree(st: State): number
 		i += 1
 	end
 	return i
+end
+
+-- primera casilla libre DENTRO de la capacidad (nil = mochila llena)
+local function firstFreeInside(st: State): number?
+	local cap = capacity(st)
+	for i = 1, cap do
+		if not st.Bag[i] then
+			return i
+		end
+	end
+	return nil
+end
+
+-- ¿Cabe `count` de este objeto? (completando pilas existentes y usando casillas libres)
+local function canFit(st: State, itemId: string, count: number, plus: number): boolean
+	local item = ItemCatalog.Items[itemId]
+	if not item then
+		return false
+	end
+	local maxStack = item.Stack or 1
+	local room = 0
+	for _, stack in pairs(st.Bag) do
+		if stack.Id == itemId and (stack.Plus or 0) == plus and stack.Count < maxStack then
+			room += maxStack - stack.Count
+		end
+	end
+	local free = 0
+	for i = 1, capacity(st) do
+		if not st.Bag[i] then
+			free += 1
+		end
+	end
+	return room + free * maxStack >= count
 end
 
 ---------------------------------------------------------------------
@@ -105,13 +139,16 @@ local function serialize(st: State): any
 			equipPlus[slotName] = plus
 		end
 	end
-	return { Bag = bag, Equip = equip, EquipPlus = equipPlus, Orphans = orphans }
+	return { Bag = bag, Equip = equip, EquipPlus = equipPlus, Orphans = orphans, Pages = st.Pages }
 end
 
 local function deserialize(saved: any): State
-	local st: State = { Bag = {}, Equip = {}, EquipPlus = {}, Orphans = {} }
+	local st: State = { Bag = {}, Equip = {}, EquipPlus = {}, Orphans = {}, Pages = 0 }
 	if typeof(saved) ~= "table" then
 		return st
+	end
+	if typeof(saved.Pages) == "number" then
+		st.Pages = math.clamp(math.floor(saved.Pages), 0, BagCatalog.MaxPaid())
 	end
 	local orphans: any = saved.Orphans
 	if typeof(orphans) == "table" then
@@ -180,6 +217,10 @@ function Inventory.Add(player: Player, itemId: string, count: number, plus: numb
 	end
 	local maxStack = item.Stack or 1
 	local plusValue = cleanPlus(item, plus)
+	if not canFit(st, itemId, count, plusValue) then
+		Net.Get("Notify"):FireClient(player, "Mochila llena: libera espacio (o desbloquea más páginas)")
+		return false
+	end
 	-- completar pilas existentes (solo con el mismo nivel de mejora)
 	for _, stack in pairs(st.Bag) do
 		if count <= 0 then
@@ -193,7 +234,7 @@ function Inventory.Add(player: Player, itemId: string, count: number, plus: numb
 	end
 	while count > 0 do
 		local add = math.min(maxStack, count)
-		st.Bag[firstFree(st)] = { Id = itemId, Count = add, Plus = if plusValue > 0 then plusValue else nil }
+		st.Bag[firstFreeInside(st) :: number] = { Id = itemId, Count = add, Plus = if plusValue > 0 then plusValue else nil }
 		count -= add
 	end
 	push(player)
@@ -305,6 +346,10 @@ local function equip(player: Player, st: State, bagIndex: number)
 		Net.Get("Notify"):FireClient(player, reason or "No puedes equipar esto")
 		return
 	end
+	if stack.Count > 1 and st.Equip[item.Slot :: string] and not firstFreeInside(st) then
+		Net.Get("Notify"):FireClient(player, "Mochila llena: no hay dónde dejar la pieza que llevas puesta")
+		return
+	end
 	local slot = item.Slot :: string
 	-- Accesorio: usa Accesorio1 y, si está ocupado, Accesorio2
 	local previous = st.Equip[slot]
@@ -316,13 +361,60 @@ local function equip(player: Player, st: State, bagIndex: number)
 	if stack.Count > 1 then
 		stack.Count -= 1
 		if previousStack then
-			st.Bag[firstFree(st)] = previousStack
+			st.Bag[firstFreeInside(st) :: number] = previousStack
 		end
 	else
 		st.Bag[bagIndex] = previousStack
 	end
 	player:SetAttribute("Equip_" .. slot, st.Equip[slot])
 	player:SetAttribute("EquipPlus_" .. slot, if newPlus > 0 then newPlus else nil)
+end
+
+-- Poder de una pieza = suma de sus bonos x multiplicador de mejora (igual que la comparación de la mochila)
+local function powerOf(item: any, plus: number): number
+	local total = 0
+	if item and item.Gear then
+		local mult = GearCatalog.EnhanceMult(plus)
+		for _, v in pairs(item.Gear) do
+			total += v * mult
+		end
+	end
+	return total
+end
+
+-- EQUIPAR MEJOR SET: por cada ranura deja la pieza más fuerte que tu clase y nivel pueden usar.
+-- Lo que llevas puesto y ya no puedes usar (cambio de clase) vuelve a la mochila si hay espacio.
+local function equipBest(player: Player, st: State)
+	local changed = 0
+	for _, slotName in ipairs(ItemCatalog.EquipSlots) do
+		local curId = st.Equip[slotName]
+		local curItem: any = if curId then (ItemCatalog.Items :: any)[curId] else nil
+		local curUsable = curItem ~= nil and GearService.CanEquip(player, curId :: string)
+		local bestPower = if curItem and curUsable then powerOf(curItem, st.EquipPlus[slotName] or 0) else 0
+		local bestIndex: number? = nil
+		for i, stack in pairs(st.Bag) do
+			local item: any = (ItemCatalog.Items :: any)[stack.Id]
+			if item and item.Slot == slotName and item.Gear and not item.Pet and GearService.CanEquip(player, stack.Id) then
+				local p = powerOf(item, stack.Plus or 0)
+				if p > bestPower + 1e-9 then
+					bestPower, bestIndex = p, i
+				end
+			end
+		end
+		if bestIndex then
+			equip(player, st, bestIndex)
+			changed += 1
+		elseif curItem and not curUsable and canFit(st, curId :: string, 1, st.EquipPlus[slotName] or 0) then
+			local plus = st.EquipPlus[slotName]
+			st.Equip[slotName] = nil
+			st.EquipPlus[slotName] = nil
+			player:SetAttribute("Equip_" .. slotName, nil)
+			player:SetAttribute("EquipPlus_" .. slotName, nil)
+			Inventory.Add(player, curId :: string, 1, plus)
+			changed += 1
+		end
+	end
+	Net.Get("Notify"):FireClient(player, if changed > 0 then string.format("Mejor set: %d pieza(s) cambiadas", changed) else "Ya llevas lo mejor que puedes usar")
 end
 
 ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any, b: any)
@@ -335,6 +427,10 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 	elseif action == "Unequip" and typeof(a) == "string" and st.Equip[a] then
 		local id = st.Equip[a]
 		local plus = st.EquipPlus[a]
+		if not canFit(st, id, 1, plus or 0) then
+			Net.Get("Notify"):FireClient(player, "Mochila llena: libera espacio para quitarte esto")
+			return
+		end
 		st.Equip[a] = nil
 		st.EquipPlus[a] = nil
 		player:SetAttribute("Equip_" .. a, nil)
@@ -346,11 +442,74 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 		if a >= 1 and b >= 1 and b <= capacity(st) + 0 then
 			st.Bag[a], st.Bag[b] = st.Bag[b], st.Bag[a]
 		end
+	elseif action == "EquipBest" then
+		equipBest(player, st)
+	elseif action == "BuyPage" then
+		Inventory.RequestPage(player)
+		return
 	elseif action == "Drop" and typeof(a) == "number" then
 		st.Bag[math.floor(a)] = nil
 	end
 	push(player)
 end)
+
+---------------------------------------------------------------------
+-- Páginas de pago (Game Pass). Se compran en orden: la 3, luego la 4, luego la 5.
+---------------------------------------------------------------------
+local function unlockTo(player: Player, paid: number)
+	local st = states[player]
+	if st and paid > st.Pages and paid <= BagCatalog.MaxPaid() then
+		st.Pages = paid
+		push(player)
+		PlayerData.Save(player)
+		Net.Get("Notify"):FireClient(player, string.format("¡Página %d de la mochila desbloqueada! (+%d casillas)", BagCatalog.FreePages + paid, BagCatalog.PageSizes[BagCatalog.FreePages + paid]))
+	end
+end
+
+function Inventory.RequestPage(player: Player)
+	local st = states[player]
+	if not st then
+		return
+	end
+	local nextPaid = st.Pages + 1
+	if nextPaid > BagCatalog.MaxPaid() then
+		return
+	end
+	local passId = BagCatalog.GamePassIds[nextPaid]
+	if passId and passId > 0 then
+		local ok, err = pcall(MarketplaceService.PromptGamePassPurchase, MarketplaceService, player, passId)
+		if not ok then
+			warn("[InventoryService] No se pudo abrir la compra de la página: " .. tostring(err))
+		end
+	elseif RunService:IsStudio() then
+		unlockTo(player, nextPaid) -- prueba en Studio: sin pase configurado se desbloquea gratis
+	else
+		Net.Get("Notify"):FireClient(player, "Esta página aún no está a la venta")
+	end
+end
+
+MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player: Player, passId: number, purchased: boolean)
+	if not purchased then
+		return
+	end
+	for i, id in ipairs(BagCatalog.GamePassIds) do
+		if id == passId and id > 0 then
+			unlockTo(player, i)
+		end
+	end
+end)
+
+-- al entrar: si ya tenía algún pase (otro servidor, compra anterior) se reconocen sus páginas
+local function checkOwnedPasses(player: Player)
+	for i, id in ipairs(BagCatalog.GamePassIds) do
+		if id > 0 and states[player] then
+			local ok, owns = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, id)
+			if ok and owns then
+				unlockTo(player, i)
+			end
+		end
+	end
+end
 
 local function init(pl: Player)
 	local saved = PlayerData.WaitForData(pl)
@@ -365,6 +524,7 @@ local function init(pl: Player)
 		pl:SetAttribute("EquipPlus_" .. slotName, st.EquipPlus[slotName])
 	end
 	push(pl)
+	task.spawn(checkOwnedPasses, pl)
 end
 
 -- Qué guarda PlayerData de este servicio (nil = todavía no cargó: no se toca la sección)

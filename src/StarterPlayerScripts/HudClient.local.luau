@@ -244,6 +244,43 @@ local function modelFromPart(part: Instance?): Model?
 end
 
 local mouse = player:GetMouse()
+
+-- Elige el objetivo bajo el cursor. Si algo invisible (efectos, adornos) tapa al enemigo y el clic no lo alcanza,
+-- se busca el enemigo "Targetable" más cercano a la cámara cuyo cuerpo cae bajo el cursor en pantalla.
+local function pickTarget(): Model?
+	local direct = modelFromPart(mouse.Target)
+	if direct and direct ~= player.Character and not direct:GetAttribute("Boss") then
+		return direct
+	end
+	local cam = workspace.CurrentCamera
+	if not cam then
+		return direct
+	end
+	-- si el clic cayó en el cuerpo gigante del jefe, cualquier enemigo más pequeño bajo el cursor tiene prioridad
+	local best: Model? = direct
+	local bestDepth = math.huge
+	local cursor = Vector2.new(mouse.X, mouse.Y)
+	for _, inst in ipairs(CollectionService:GetTagged("Targetable")) do
+		if inst:IsA("Model") and inst ~= player.Character and inst ~= direct then
+			local hum = inst:FindFirstChildOfClass("Humanoid")
+			local root = inst.PrimaryPart or inst:FindFirstChild("HumanoidRootPart")
+			if hum and hum.Health > 0 and root and root:IsA("BasePart") then
+				local depth = (cam.CFrame.Position - root.Position).Magnitude
+				if depth < bestDepth and depth < 250 and not inst:GetAttribute("Boss") then
+					local screen, onScreen = cam:WorldToViewportPoint(root.Position)
+					if onScreen and screen.Z > 0 then
+						local size = inst:GetExtentsSize()
+						local radius = math.max(26, (math.max(size.X, size.Z) * 0.5) * (cam.ViewportSize.Y / (2 * screen.Z * math.tan(math.rad(cam.FieldOfView) / 2))))
+						if (Vector2.new(screen.X, screen.Y) - cursor).Magnitude <= radius then
+							best, bestDepth = inst, depth
+						end
+					end
+				end
+			end
+		end
+	end
+	return best
+end
 listen("AbilityCooldown", function(slot: any, seconds: any)
 	if typeof(slot) == "number" and typeof(seconds) == "number" then
 		cooldownEnd[slot] = if seconds > 0 then os.clock() + seconds else 0
@@ -256,7 +293,7 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		return
 	end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		local m = modelFromPart(mouse.Target)
+		local m = pickTarget()
 		if m and m ~= player.Character then
 			target = m
 			highlight.Adornee = m
@@ -282,7 +319,7 @@ local function useSlot(i: number)
 		end
 		local h = target
 		if not h or not h.Parent then
-			h = modelFromPart(mouse.Target)
+			h = pickTarget()
 		end
 		if UseAbilityRemote then
 			UseAbilityRemote:FireServer(i, h) -- el servidor valida y responde con AbilityCooldown
@@ -297,7 +334,7 @@ local function useSlot(i: number)
 	end
 	local hint = target
 	if not hint or not hint.Parent then
-		hint = modelFromPart(mouse.Target)
+		hint = pickTarget()
 	end
 	cooldownEnd[i] = now + skill.Cooldown
 	cooldownLen[i] = skill.Cooldown
