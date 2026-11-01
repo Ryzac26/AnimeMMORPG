@@ -184,8 +184,8 @@ local function mk(c: Ctx, shape: string, size: Vector3, cf: CFrame, color: Color
 	p.CFrame = cf
 	p.Color = color
 	p.Material = mat
-	p.TopSurface = Enum.Surface.Smooth
-	p.BottomSurface = Enum.Surface.Smooth
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
 	if transp then
 		p.Transparency = transp
 	end
@@ -401,12 +401,12 @@ BACK.mesas = function(c, p, n, rng, th)
 end
 
 BACK.hills = function(c, p, n, rng, th)
-	local s = Vector3.new(160 + rng:NextNumber() * 120, 70 + rng:NextNumber() * 70, 160 + rng:NextNumber() * 120)
+	local s = Vector3.new(110 + rng:NextNumber() * 70, 60 + rng:NextNumber() * 60, 110 + rng:NextNumber() * 70)
 	ellipsoid(c, CFrame.new(p.X, FLOOR_TOP + 4, p.Z) * CFrame.Angles(0, rng:NextNumber() * 6.28, 0), s, shade(th.BackCol, 0.9 + rng:NextNumber() * 0.25), th.BackMat)
 end
 
 BACK.dunes = function(c, p, n, rng, th)
-	local s = Vector3.new(220 + rng:NextNumber() * 160, 40 + rng:NextNumber() * 40, 160 + rng:NextNumber() * 100)
+	local s = Vector3.new(140 + rng:NextNumber() * 100, 40 + rng:NextNumber() * 40, 110 + rng:NextNumber() * 70)
 	ellipsoid(c, CFrame.new(p.X, FLOOR_TOP, p.Z) * CFrame.Angles(0, rng:NextNumber() * 6.28, 0), s, shade(th.BackCol, 0.92 + rng:NextNumber() * 0.15), th.BackMat)
 end
 
@@ -468,9 +468,15 @@ end
 
 BACK.statues = function(c, p, n, rng, th)
 	-- un mismo estilo de montaña lejana; las estatuas gigantes se ponen aparte (ver buildStatues)
-	local s = Vector3.new(180 + rng:NextNumber() * 100, 90 + rng:NextNumber() * 70, 160 + rng:NextNumber() * 80)
+	local s = Vector3.new(110 + rng:NextNumber() * 70, 90 + rng:NextNumber() * 70, 110 + rng:NextNumber() * 70)
 	ellipsoid(c, CFrame.new(p.X, FLOOR_TOP + 2, p.Z) * CFrame.Angles(0, rng:NextNumber() * 6.28, 0), s, C(72, 56, 66), M.Slate)
 end
+
+-- radio horizontal máximo de cada escenografía: se usa para sacarla del muro y de la ciudad (la ciudad llega hasta u = 800)
+local BACK_EXT: { [string]: number } = {
+	mesas = 60, hills = 90, dunes = 120, towers = 16, skyline = 40, spires = 26,
+	whiteDome = 45, whiteRoof = 45, iceLava = 40, statues = 90,
+}
 
 local function buildStatue(c: Ctx, base: Vector3, n: Vector3, col: Color3)
 	-- figura sentada de ~120 studs que mira hacia el centro de la franja (el Valle del Fin)
@@ -681,9 +687,11 @@ local function buildSide(lane: Lane, faction: string, strip: number, s: number, 
 	local far: Ctx = { Barrier = lane.Barrier, Deco = lane.Deco, Far = true }
 	local backFn = BACK[th.Back]
 	if backFn then
-		local bu = ua + 30
+		local ext = BACK_EXT[th.Back] or 40
+		-- en la franja 1 se empieza más adentro para no tapar la muralla de la ciudad
+		local bu = if strip == 1 then CITY_SIZE + ext + 10 else ua + 30
 		while bu < ub - 20 do
-			local out = -(20 + rng:NextNumber() * 70)
+			local out = -(ext + 8 + rng:NextNumber() * 25)
 			backFn(far, edgePoint(lane, s, bu, out, n), n, rng, th)
 			bu += 70 + rng:NextNumber() * 50
 		end
