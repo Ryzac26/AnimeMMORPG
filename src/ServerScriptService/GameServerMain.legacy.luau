@@ -38,6 +38,7 @@ require(Services:WaitForChild("BossService")) -- jefe mundial (cada 6 h)
 require(Services:WaitForChild("AutoFarmService")) -- Auto-farm PvE (Semi / Metin / Jefe)
 require(Services:WaitForChild("CityStyler")) -- estilo anime de las 4 ciudades (usa CityAssets)
 require(Services:WaitForChild("ArenaStyler")) -- Arena: campamentos, altares, santuarios y temas rotativos
+require(Services:WaitForChild("BiomeStyler")) -- biomas PvE de las 4 franjas de cada facción (suelo, muros, ríos, árboles, escenografía)
 require(Services:WaitForChild("StreamService")) -- pide al cliente que cargue el mapa donde aparece (Roblox web)
 require(Services:WaitForChild("WorldReadyService")) -- mundo listo: espera mapa + estilos y mantiene quieto al jugador hasta que su pantalla cargue
 -- CombatService: se carga aquí por si nadie más lo requiere (require repetido devuelve el mismo módulo, no se duplica)
