@@ -151,7 +151,7 @@ build()
 ---------------------------------------------------------------------
 local say: (string) -> () = function() end -- se define más abajo
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
-local menuBar = UITheme.Frame(gui, theme, UDim2.fromOffset(620, 44), UDim2.new(0.5, 0, 1, -8), Vector2.new(0.5, 1))
+local menuBar = UITheme.Frame(gui, theme, UDim2.fromOffset(700, 44), UDim2.new(0.5, 0, 1, -8), Vector2.new(0.5, 1))
 -- los botones van en su propio contenedor: así el UIListLayout no mueve los adornos del marco (fondo, cuerda, remaches)
 menuBar.Visible = not MOBILE
 local menuRow = Instance.new("Frame")
@@ -167,7 +167,7 @@ menuLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 menuLayout.Padding = UDim.new(0, 6)
 menuLayout.Parent = menuRow
 local MENU = {
-	{ "Perfil", "C", "Character" }, { "Mochila", "B", "Inventory" }, { "Habilidades", "", "" }, { "Misiones", "", "" },
+	{ "Perfil", "C", "Character" }, { "Mochila", "B", "Inventory" }, { "Tienda", "", "Tienda" }, { "Habilidades", "", "" }, { "Misiones", "", "" },
 	{ "Mapa", "", "" }, { "Facción", "", "" }, { "Ajustes", "", "" },
 }
 for _, m in ipairs(MENU) do

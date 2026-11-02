@@ -28,6 +28,13 @@ local function boostMult(pl: Player): number
 	if ok and type(bs) == "table" and bs.XpMult then
 		mult = bs.XpMult(pl)
 	end
+	-- boost de XP comprado en la Tienda (PurchaseService)
+	local okP, ps = pcall(function()
+		return require(Services.PurchaseService)
+	end)
+	if okP and type(ps) == "table" and ps.XpMult then
+		mult *= ps.XpMult(pl)
+	end
 	local shrine = pl:GetAttribute("ShrineXp") -- santuario de Fortuna (ArenaStyler)
 	if typeof(shrine) == "number" then
 		mult *= shrine
