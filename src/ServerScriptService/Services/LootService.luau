@@ -31,6 +31,15 @@ local RewardService = require(Services.RewardService)
 local Inventory = require(Services.InventoryService)
 local Wallet = require(Services.WalletService)
 local GearService = require(Services.GearService)
+local LevelService = require(Services.LevelService)
+local LevelGap = require(Modules.LevelGap)
+
+-- Brecha de nivel (LevelGap): multiplicador de botín por jugador durante la muerte que se está repartiendo.
+-- Escala el oro y las probabilidades (luckOf) de quien mató monstruos de nivel muy bajo.
+local gapMult: { [Player]: number } = {}
+local function luckOf(pl: Player): number
+	return (1 + GearService.Luck(pl)) * (gapMult[pl] or 1) - 1
+end
 local PlayerData = require(Services.PlayerData)
 
 local NotifyRemote = Net.Get("Notify")
@@ -113,7 +122,7 @@ local function deliver(player: Player, h: Haul, header: string, alwaysNotify: bo
 end
 
 local function goldFor(player: Player, level: number, mult: number): number
-	return math.floor(LootTables.GoldFor(level, mult, rng) * GearService.GoldMult(player))
+	return math.floor(LootTables.GoldFor(level, mult, rng) * GearService.GoldMult(player) * (gapMult[player] or 1))
 end
 
 local function classOf(player: Player): (string, string)
@@ -166,7 +175,7 @@ local function onMob(level: number, strip: number, participants: { Player }, sha
 	local M = LootTables.Mob
 	for _, pl in ipairs(participants) do
 		if pl.Parent and (shares[pl] or 0) >= M.MinShare then
-			local luck = GearService.Luck(pl)
+			local luck = luckOf(pl)
 			local faction, role = classOf(pl)
 			local h = newHaul()
 			h.Gold = goldFor(pl, level, 1)
@@ -193,7 +202,7 @@ end
 local function onBoss(cfg: any, level: number, strip: number?, participants: { Player }, shares: { [Player]: number }, title: string)
 	for _, pl in ipairs(participants) do
 		if pl.Parent then
-			local luck = GearService.Luck(pl)
+			local luck = luckOf(pl)
 			local h = newHaul()
 			h.Gold = goldFor(pl, level, cfg.GoldMult)
 			h.Points = cfg.FactionPoints
@@ -221,7 +230,7 @@ local function onMetin(rarityId: string, level: number, participants: { Player }
 	end
 	for _, pl in ipairs(participants) do
 		if pl.Parent and (shares[pl] or 0) >= X.MinShare then
-			local luck = GearService.Luck(pl)
+			local luck = luckOf(pl)
 			local faction, role = classOf(pl)
 			local h = newHaul()
 			h.Gold = goldFor(pl, level, R.GoldMult)
@@ -250,7 +259,7 @@ local function onMini(strip: number, level: number, participants: { Player }, sh
 	local X = LootTables.MiniBoss
 	for _, pl in ipairs(participants) do
 		if pl.Parent and (shares[pl] or 0) >= X.MinShare then
-			local luck = GearService.Luck(pl)
+			local luck = luckOf(pl)
 			local faction, role = classOf(pl)
 			local h = newHaul()
 			h.Gold = goldFor(pl, level, X.GoldMult)
@@ -333,6 +342,10 @@ local function onKilled(mobId: string, level: number, participants: { Player }, 
 		return
 	end
 	local shares = sharesOf(participants, rawShares)
+	table.clear(gapMult)
+	for _, pl in ipairs(participants) do
+		gapMult[pl] = LevelGap.Mult(LevelService.GetLevel(pl), level)
+	end
 	if mobId == "WorldBoss" then
 		onBoss(LootTables.WorldBoss, level, nil, participants, shares, "jefe mundial")
 	elseif string.sub(mobId, 1, 6) == "Metin_" then
@@ -349,6 +362,7 @@ local function onKilled(mobId: string, level: number, participants: { Player }, 
 			onMob(level, strip, participants, shares)
 		end
 	end
+	table.clear(gapMult)
 end
 
 RewardService.MobKilled:Connect(onKilled)

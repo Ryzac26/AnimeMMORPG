@@ -7,6 +7,7 @@
     IMPORTANTE: está en la lista RELOAD de UIReloadClient.
 ]]
 local Players = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
@@ -33,16 +34,80 @@ local GREEN, RED, GRAY, GOLD = "#6fdc7f", "#ff6b6b", "#aaaab8", "#ffd45e"
 local theme = UITheme.For(player:GetAttribute("Faction"))
 local win: Frame
 local scroll: ScrollingFrame
-local header: TextLabel
+local boostPill: TextLabel
+local resetLabel: TextLabel
 local footer: TextLabel
 local resultLabel: TextLabel
 local state: any = nil
 local resultText = ""
 
+-- color de cada tipo de producto
+local ACCENT: { [string]: Color3 } = {
+	Boost = Color3.fromRGB(70, 200, 120),
+	Hours = Color3.fromRGB(80, 150, 255),
+	Combo = Color3.fromRGB(235, 100, 190),
+}
+local FALLBACK_TEXT: { [string]: string } = {
+	Boost4h = "+50%", Horas3 = "3 H", Horas5 = "5 H", Horas8 = "8 H", Horas12 = "12 H",
+	ComboDespegue = "COMBO", ComboMaraton = "COMBO",
+}
+
+-- Iconos: el de cada Developer Product (el que subiste en Creator Hub) o ProductCatalog.Icon si lo pones a mano.
+local iconCache: { [string]: string | boolean } = {} -- clave -> "rbxassetid://..." | false (no tiene)
+local iconTargets: { [string]: { Image: ImageLabel, Fallback: TextLabel } } = {}
+
+local function applyIcon(key: string)
+	local target = iconTargets[key]
+	local v = iconCache[key]
+	if target and typeof(v) == "string" and target.Image.Parent then
+		target.Image.Image = v
+		target.Image.Visible = true
+		target.Fallback.Visible = false
+	end
+end
+
+local function loadIcon(p: ProductCatalog.Product)
+	if iconCache[p.Key] ~= nil then
+		applyIcon(p.Key)
+		return
+	end
+	if p.Icon and p.Icon ~= "" then
+		iconCache[p.Key] = p.Icon
+		applyIcon(p.Key)
+		return
+	end
+	if p.ProductId <= 0 then
+		iconCache[p.Key] = false
+		return
+	end
+	iconCache[p.Key] = false -- evita pedirlo dos veces mientras llega
+	task.spawn(function()
+		local ok, info = pcall(function()
+			return MarketplaceService:GetProductInfo(p.ProductId, Enum.InfoType.Product)
+		end)
+		if ok and typeof(info) == "table" then
+			local id = (info :: any).IconImageAssetId
+			if typeof(id) == "number" and id > 0 then
+				iconCache[p.Key] = "rbxassetid://" .. tostring(math.floor(id))
+				applyIcon(p.Key)
+			end
+		end
+	end)
+end
+
 local function hms(seconds: number): string
 	local h = math.floor(seconds / 3600)
 	local m = math.floor((seconds % 3600) / 60)
 	return if h > 0 then string.format("%d h %02d min", h, m) else string.format("%d min", m)
+end
+
+local function thousands(n: number): string
+	local str = tostring(math.floor(n))
+	local out = str:reverse():gsub("(%d%d%d)", "%1."):reverse()
+	if out:sub(1, 1) == "." then
+		out = out:sub(2)
+	end
+	return out
 end
 
 local function level(): number
@@ -52,12 +117,19 @@ end
 
 local function updateTexts()
 	local boostLeft = if state then state.BoostLeft else 0
-	header.Text = if boostLeft > 0
-		then string.format('<font color="%s">Boost de XP activo:</font> +50%% · quedan %s', GREEN, hms(boostLeft))
+	boostPill.Text = if boostLeft > 0
+		then string.format('<font color="%s"><b>BOOST ACTIVO  +50%% XP</b></font>  ·  quedan %s', GREEN, hms(boostLeft))
 		else string.format('<font color="%s">Sin boost activo</font>', GRAY)
 	local resetIn = if state then state.ResetIn else 0
-	footer.Text = string.format("Las compras diarias se reinician en %s. Los paquetes de horas y combos se bloquean entre sí: elige UNO por día.", hms(resetIn))
+	resetLabel.Text = string.format("Reinicio diario en %s", hms(resetIn))
 	resultLabel.Text = resultText
+end
+
+local function gradient(obj: GuiObject, a: Color3, b: Color3, rot: number?)
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new(a, b)
+	g.Rotation = rot or 90
+	g.Parent = obj
 end
 
 local function render()
@@ -69,104 +141,174 @@ local function render()
 			c:Destroy()
 		end
 	end
+	table.clear(iconTargets)
 	updateTexts()
 	local order = 0
-	local function section(text: string)
+
+	local function section(title: string, sub: string, color: Color3)
 		order += 1
-		local t = Instance.new("TextLabel")
-		t.LayoutOrder = order
-		t.Size = UDim2.new(1, -8, 0, 22)
-		t.BackgroundTransparency = 1
-		t.Font = UITheme.Font
-		t.TextSize = 14
-		t.TextColor3 = theme.Primary
-		t.TextXAlignment = Enum.TextXAlignment.Left
-		t.Text = text
-		t.Parent = scroll
+		local f = Instance.new("Frame")
+		f.LayoutOrder = order
+		f.Size = UDim2.new(1, -8, 0, 34)
+		f.BackgroundTransparency = 1
+		f.Parent = scroll
+		local bar = Instance.new("Frame")
+		bar.Size = UDim2.fromOffset(4, 26)
+		bar.Position = UDim2.fromOffset(2, 4)
+		bar.BackgroundColor3 = color
+		bar.BorderSizePixel = 0
+		bar.Parent = f
+		Instance.new("UICorner", bar)
+		UITheme.Text(f, title, 16, color, UDim2.fromOffset(14, 0), UDim2.fromOffset(300, 18))
+		local t = UITheme.Text(f, sub, 11, Color3.fromRGB(165, 165, 180), UDim2.fromOffset(14, 18), UDim2.new(1, -20, 0, 14))
+		t.TextTruncate = Enum.TextTruncate.AtEnd
 	end
+
 	local function notice(text: string)
 		order += 1
 		local f = Instance.new("Frame")
 		f.LayoutOrder = order
-		f.Size = UDim2.new(1, -8, 0, 50)
-		f.BackgroundColor3 = Color3.fromRGB(46, 38, 14)
+		f.Size = UDim2.new(1, -8, 0, 44)
+		f.BackgroundColor3 = Color3.fromRGB(44, 36, 14)
 		f.BorderSizePixel = 0
 		f.Parent = scroll
 		Instance.new("UICorner", f)
 		local st = Instance.new("UIStroke")
 		st.Color = Color3.fromRGB(255, 212, 94)
+		st.Transparency = 0.35
 		st.Parent = f
-		local t = UITheme.Text(f, text, 12, Color3.fromRGB(255, 232, 160), UDim2.fromOffset(10, 4), UDim2.new(1, -20, 1, -8))
+		local t = UITheme.Text(f, text, 12, Color3.fromRGB(255, 232, 160), UDim2.fromOffset(12, 3), UDim2.new(1, -24, 1, -6))
 		t.RichText = true
 		t.TextWrapped = true
 		t.TextYAlignment = Enum.TextYAlignment.Center
 	end
+
 	local function card(p: ProductCatalog.Product)
 		order += 1
 		local info = if state then state.Items[p.Key] else nil
 		local bought = if info then info.Bought else 0
 		local ok = info ~= nil and info.Ok == true
 		local chosen = state ~= nil and state.Path == p.Key
+		local accent = ACCENT[p.Kind] or theme.Primary
 		local f = Instance.new("Frame")
 		f.LayoutOrder = order
-		f.Size = UDim2.new(1, -8, 0, 96)
-		f.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
+		f.Size = UDim2.new(1, -8, 0, 112)
+		f.BackgroundColor3 = Color3.fromRGB(24, 24, 34)
 		f.BorderSizePixel = 0
 		f.Parent = scroll
 		Instance.new("UICorner", f)
+		gradient(f, Color3.fromRGB(34, 34, 48), Color3.fromRGB(20, 20, 28), 0)
 		local st = Instance.new("UIStroke")
-		st.Color = if chosen then Color3.fromRGB(255, 212, 94) elseif ok then theme.Primary else Color3.fromRGB(70, 70, 85)
+		st.Thickness = if chosen then 2 else 1
+		st.Color = if chosen then Color3.fromRGB(255, 212, 94) elseif ok then accent else Color3.fromRGB(70, 70, 85)
 		st.Parent = f
-		UITheme.Text(f, p.Name .. (if chosen then "   ✔ ELEGIDO HOY" else ""), 15, if ok or chosen then Color3.new(1, 1, 1) else Color3.fromRGB(150, 150, 165), UDim2.fromOffset(12, 6), UDim2.fromOffset(330, 20))
-		local desc = p.Desc
-		if p.Hours then
-			local lv = level()
-			local xp, lvls = ProductCatalog.HoursXp(GB, p.Hours, lv, 0)
-			desc = string.format("%s\nPaquete ahora: +%s XP (≈ %.2f niveles)", p.Desc, tostring(xp), lvls)
-		end
-		local d = UITheme.Text(f, desc, 12, Color3.fromRGB(180, 180, 195), UDim2.fromOffset(12, 28), UDim2.fromOffset(330, 40))
+
+		-- caja del icono
+		local box = Instance.new("Frame")
+		box.Position = UDim2.fromOffset(10, 14)
+		box.Size = UDim2.fromOffset(84, 84)
+		box.BackgroundColor3 = accent
+		box.BorderSizePixel = 0
+		box.Parent = f
+		Instance.new("UICorner", box).CornerRadius = UDim.new(0, 12)
+		gradient(box, accent:Lerp(Color3.new(1, 1, 1), 0.25), accent:Lerp(Color3.new(0, 0, 0), 0.45))
+		local bst = Instance.new("UIStroke")
+		bst.Color = accent:Lerp(Color3.new(1, 1, 1), 0.4)
+		bst.Thickness = 2
+		bst.Parent = box
+		local fb = UITheme.Text(box, FALLBACK_TEXT[p.Key] or "★", 24, Color3.new(1, 1, 1), UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
+		fb.TextStrokeTransparency = 0.3
+		local img = Instance.new("ImageLabel")
+		img.Size = UDim2.fromScale(1, 1)
+		img.BackgroundTransparency = 1
+		img.ScaleType = Enum.ScaleType.Fit
+		img.Visible = false
+		img.Parent = box
+		Instance.new("UICorner", img).CornerRadius = UDim.new(0, 12)
+		iconTargets[p.Key] = { Image = img, Fallback = fb }
+		loadIcon(p)
+
+		-- textos
+		UITheme.Text(f, p.Name, 16, if ok or chosen then Color3.new(1, 1, 1) else Color3.fromRGB(160, 160, 175), UDim2.fromOffset(106, 8), UDim2.fromOffset(300, 20))
+		local d = UITheme.Text(f, p.Desc, 12, Color3.fromRGB(180, 180, 195), UDim2.fromOffset(106, 30), UDim2.fromOffset(290, 30))
 		d.TextWrapped = true
 		d.TextYAlignment = Enum.TextYAlignment.Top
+		if p.Hours then
+			local xp, lvls, capped = ProductCatalog.HoursXp(GB, p.Hours, level(), 0)
+			local chip = UITheme.Text(f, string.format("Hoy te daría +%s XP  ≈ %.1f niveles%s", thousands(xp), lvls, if capped then "  (tope por compra)" else ""), 12, Color3.fromRGB(150, 220, 255), UDim2.fromOffset(106, 62), UDim2.fromOffset(300, 16))
+			chip.TextWrapped = false
+		elseif p.Seconds then
+			UITheme.Text(f, "Se suma al tiempo que ya tengas (máx. 12 h)", 12, Color3.fromRGB(150, 235, 170), UDim2.fromOffset(106, 62), UDim2.fromOffset(300, 16))
+		end
 		local why = if info and info.Why then info.Why else ""
-		local line = UITheme.Text(f, string.format("Hoy: %d/%d%s", bought, p.DailyLimit, if why ~= "" then "  ·  " .. why else ""), 11, if ok or chosen then Color3.fromRGB(150, 150, 165) else Color3.fromRGB(255, 140, 120), UDim2.fromOffset(12, 74), UDim2.fromOffset(340, 16))
+		local line = UITheme.Text(f, string.format("Hoy: %d/%d%s", bought, p.DailyLimit, if why ~= "" then "  ·  🔒 " .. why else ""), 11, if ok or chosen then Color3.fromRGB(150, 150, 165) else Color3.fromRGB(255, 140, 120), UDim2.fromOffset(106, 88), UDim2.fromOffset(300, 16))
 		line.TextWrapped = false
+
+		-- precio / comprar
 		local original, saved = ProductCatalog.Savings(p)
 		local buy = Instance.new("TextButton")
-		buy.Position = UDim2.new(1, -118, 0.5, if saved > 0 then -30 else -20)
-		buy.Size = UDim2.fromOffset(106, 40)
-		buy.BackgroundColor3 = if ok then Color3.fromRGB(50, 130, 70) else Color3.fromRGB(60, 60, 70)
+		buy.AnchorPoint = Vector2.new(1, 0)
+		buy.Position = UDim2.new(1, -10, 0, if saved > 0 then 30 else 38)
+		buy.Size = UDim2.fromOffset(104, 38)
+		buy.BackgroundColor3 = if ok then Color3.fromRGB(60, 160, 85) else Color3.fromRGB(60, 60, 72)
 		buy.TextColor3 = Color3.new(1, 1, 1)
 		buy.Font = UITheme.Font
-		buy.TextSize = 14
+		buy.TextSize = 15
 		buy.Text = if ok then p.PriceText else "🔒 " .. p.PriceText
 		buy.AutoButtonColor = ok
 		buy.Parent = f
 		Instance.new("UICorner", buy)
+		if ok then
+			gradient(buy, Color3.fromRGB(95, 205, 120), Color3.fromRGB(40, 125, 65))
+		end
 		buy.Activated:Connect(function()
 			if ok and actionRemote then
 				actionRemote:FireServer("Buy", p.Key)
 			end
 		end)
 		if saved > 0 then
-			local sv = UITheme.Text(f, string.format('<s>%d R$</s>  <font color="%s">¡Ahorras %d R$!</font>', original, GREEN, saved), 11, Color3.fromRGB(170, 170, 185), UDim2.new(1, -122, 0.5, 16), UDim2.fromOffset(114, 16))
-			sv.RichText = true
+			local old = UITheme.Text(f, string.format("<s>%d R$</s>", original), 12, Color3.fromRGB(160, 160, 175), UDim2.new(1, -114, 0, 72), UDim2.fromOffset(104, 14), Enum.TextXAlignment.Center)
+			old.RichText = true
+			local tag = Instance.new("TextLabel")
+			tag.AnchorPoint = Vector2.new(1, 0)
+			tag.Position = UDim2.new(1, -10, 0, 8)
+			tag.Size = UDim2.fromOffset(104, 18)
+			tag.BackgroundColor3 = Color3.fromRGB(255, 200, 60)
+			tag.TextColor3 = Color3.fromRGB(60, 35, 0)
+			tag.Font = UITheme.Font
+			tag.TextSize = 12
+			tag.Text = string.format("¡AHORRAS %d R$!", saved)
+			tag.Parent = f
+			Instance.new("UICorner", tag).CornerRadius = UDim.new(0, 9)
+		end
+		if chosen then
+			local c = Instance.new("TextLabel")
+			c.Size = UDim2.fromOffset(84, 16)
+			c.Position = UDim2.fromOffset(10, 96)
+			c.BackgroundColor3 = Color3.fromRGB(255, 212, 94)
+			c.TextColor3 = Color3.fromRGB(60, 35, 0)
+			c.Font = UITheme.Font
+			c.TextSize = 11
+			c.Text = "✔ ELEGIDO HOY"
+			c.Parent = f
+			Instance.new("UICorner", c).CornerRadius = UDim.new(0, 8)
 		end
 	end
-	section("BOOST DE XP")
-	notice('El boost se <b>combina</b> con cualquier paquete. El +50% cuenta solo mientras juegas.')
+
+	section("BOOST DE XP", "+50% de experiencia mientras juegas. Se combina con cualquier paquete.", ACCENT.Boost)
 	for _, p in ipairs(ProductCatalog.Products) do
 		if p.Lane == "Boost" then
 			card(p)
 		end
 	end
-	section("PAQUETES DE HORAS")
+	section("PAQUETES DE HORAS", "Recibes la XP que ganarías jugando esas horas, sin jugarlas (desde nivel 20).", ACCENT.Hours)
 	notice('<b>Elige UNO por día:</b> al comprar un paquete o combo, los demás se bloquean hasta mañana. Puedes repetir el que elegiste hasta su límite diario.')
 	for _, p in ipairs(ProductCatalog.Products) do
 		if p.Lane == "Horas" and p.Kind == "Hours" then
 			card(p)
 		end
 	end
-	section("COMBOS (boost + paquete, con descuento)")
+	section("COMBOS", "Boost + paquete en una sola compra, más barato que por separado.", ACCENT.Combo)
 	for _, p in ipairs(ProductCatalog.Products) do
 		if p.Kind == "Combo" then
 			card(p)
@@ -179,9 +321,9 @@ local function build()
 	if win then
 		win:Destroy()
 	end
-	win = UITheme.Frame(gui, theme, UDim2.fromOffset(520, 500), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
+	win = UITheme.Frame(gui, theme, UDim2.fromOffset(600, 590), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
 	WindowDrag.Attach(win, "Tienda", 40, 50)
-	UITheme.Text(win, "TIENDA", 20, theme.Primary, UDim2.fromOffset(18, 8), UDim2.fromOffset(200, 26))
+	UITheme.Text(win, "TIENDA", 22, theme.Primary, UDim2.fromOffset(18, 8), UDim2.fromOffset(200, 28))
 	local close = Instance.new("TextButton")
 	close.Position = UDim2.new(1, -38, 0, 8)
 	close.Size = UDim2.fromOffset(28, 28)
@@ -195,12 +337,21 @@ local function build()
 	close.Activated:Connect(function()
 		gui.Enabled = false
 	end)
-	header = UITheme.Text(win, "", 13, Color3.new(1, 1, 1), UDim2.fromOffset(18, 44), UDim2.fromOffset(484, 18))
-	header.RichText = true
+	-- barra de estado: boost activo + reinicio
+	local bar = Instance.new("Frame")
+	bar.Position = UDim2.fromOffset(14, 44)
+	bar.Size = UDim2.fromOffset(572, 28)
+	bar.BackgroundColor3 = Color3.fromRGB(20, 22, 30)
+	bar.BorderSizePixel = 0
+	bar.Parent = win
+	Instance.new("UICorner", bar)
+	boostPill = UITheme.Text(bar, "", 13, Color3.new(1, 1, 1), UDim2.fromOffset(12, 0), UDim2.fromOffset(380, 28))
+	boostPill.RichText = true
+	resetLabel = UITheme.Text(bar, "", 12, Color3.fromRGB(170, 170, 185), UDim2.new(1, -180, 0, 0), UDim2.fromOffset(170, 28), Enum.TextXAlignment.Right)
 	scroll = Instance.new("ScrollingFrame")
-	scroll.Position = UDim2.fromOffset(14, 70)
-	scroll.Size = UDim2.fromOffset(492, 340)
-	scroll.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
+	scroll.Position = UDim2.fromOffset(14, 80)
+	scroll.Size = UDim2.fromOffset(572, 410)
+	scroll.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
 	scroll.BorderSizePixel = 0
 	scroll.ScrollBarThickness = 5
 	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
@@ -208,17 +359,17 @@ local function build()
 	scroll.Parent = win
 	Instance.new("UICorner", scroll)
 	local pad = Instance.new("UIPadding")
-	pad.PaddingTop, pad.PaddingLeft = UDim.new(0, 6), UDim.new(0, 6)
+	pad.PaddingTop, pad.PaddingLeft, pad.PaddingBottom = UDim.new(0, 6), UDim.new(0, 6), UDim.new(0, 8)
 	pad.Parent = scroll
 	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0, 6)
+	layout.Padding = UDim.new(0, 8)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Parent = scroll
-	resultLabel = UITheme.Text(win, "", 13, Color3.new(1, 1, 1), UDim2.fromOffset(18, 416), UDim2.fromOffset(484, 36))
+	resultLabel = UITheme.Text(win, "", 13, Color3.new(1, 1, 1), UDim2.fromOffset(18, 496), UDim2.fromOffset(564, 36))
 	resultLabel.RichText = true
 	resultLabel.TextWrapped = true
 	resultLabel.TextYAlignment = Enum.TextYAlignment.Top
-	footer = UITheme.Text(win, "", 11, Color3.fromRGB(150, 150, 165), UDim2.fromOffset(18, 456), UDim2.fromOffset(484, 34))
+	footer = UITheme.Text(win, "Los precios son en Robux. Los paquetes y combos se bloquean entre sí: elige UNO por día. El boost se combina con todo.", 11, Color3.fromRGB(150, 150, 165), UDim2.fromOffset(18, 538), UDim2.fromOffset(564, 40))
 	footer.TextWrapped = true
 	footer.TextYAlignment = Enum.TextYAlignment.Top
 end

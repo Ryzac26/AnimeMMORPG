@@ -15,7 +15,7 @@
       - Boost de XP: +50% durante 4 h de juego (el tiempo solo corre con el jugador conectado; comprar más SUMA tiempo, nunca
         multiplica; tope MAX_BOOST_SECONDS acumulado). El +50% NO se aplica a la XP de los paquetes.
       - Paquete de horas: da la XP de esas horas de juego a TU nivel actual (HoursXp). Desde nivel MIN_LEVEL_HOURS, y como máximo
-        MAX_LEVELS_PER_USE niveles por compra, para que no sirva para saltarse el inicio.
+        LEVELS_CAP_PER_HOUR niveles por cada hora del paquete, para que no sirva para saltarse el inicio.
       - Combo = boost + paquete en una sola compra con descuento (Components + Price sirven para mostrar "Ahorras X R$").
 ]]
 local ProductCatalog = {}
@@ -27,6 +27,7 @@ export type Product = {
 	Lane: string, -- "Boost" (independiente) | "Horas" (se bloquean entre sí)
 	Price: number, -- R$ (solo para calcular descuentos en pantalla; el cobro real es el del Developer Product)
 	Components: { string }?,
+	Icon: string?, -- opcional: "rbxassetid://..." propio; si no, se toma el icono del Developer Product (GetProductInfo)
 	Name: string,
 	Desc: string,
 	ProductId: number,
@@ -39,7 +40,30 @@ export type Product = {
 }
 
 ProductCatalog.MIN_LEVEL_HOURS = 20
-ProductCatalog.MAX_LEVELS_PER_USE = 2
+-- Tope de niveles por hora del paquete (0,6): a nivel bajo el paquete da menos que jugar (protege el inicio); desde ~nivel 45 ya no se nota.
+ProductCatalog.LEVELS_CAP_PER_HOUR = 0.6
+
+-- CALIBRACIÓN con jugadores reales (nov 2026): XP por hora de juego REAL ÷ lo que dice el modelo de GameBalance.
+--   nivel 20: 15,6 % de nivel en 3 min y 1 nivel en 18 min  -> ≈ 62.000 XP/h  (modelo 10.206)  -> x6,1
+--   nivel 50: 10,9 % (74.369 XP) en 20 min                   -> ≈ 223.000 XP/h (modelo 77.616)  -> x2,87
+--   nivel 100: SIN MEDIR (estimado x1,6). Volver a medir a nivel 80+ y corregir esta tabla.
+-- Así un paquete de N horas da lo mismo que jugar N horas a ritmo normal. Entre puntos se interpola (logarítmico).
+ProductCatalog.RATE_POINTS = { { 20, 6.1 }, { 50, 2.87 }, { 100, 1.6 } } :: { { number } }
+
+function ProductCatalog.RateFactor(level: number): number
+	local pts = ProductCatalog.RATE_POINTS
+	if level <= pts[1][1] then
+		return pts[1][2]
+	end
+	for i = 2, #pts do
+		local a, b = pts[i - 1], pts[i]
+		if level <= b[1] then
+			local t = (math.log(level) - math.log(a[1])) / (math.log(b[1]) - math.log(a[1]))
+			return math.exp(math.log(a[2]) + t * (math.log(b[2]) - math.log(a[2])))
+		end
+	end
+	return pts[#pts][2]
+end
 ProductCatalog.MAX_BOOST_SECONDS = 12 * 3600
 
 ProductCatalog.Products = {
@@ -106,20 +130,22 @@ end
 
 -- XP que da un paquete de `hours` horas a `level`, con el tope de niveles por compra.
 -- GB = ReplicatedStorage.Modules.GameBalance (se pasa para no depender de él aquí). Devuelve (xp, niveles aproximados).
-function ProductCatalog.HoursXp(GB: any, hours: number, level: number, currentXp: number): (number, number)
+function ProductCatalog.HoursXp(GB: any, hours: number, level: number, currentXp: number): (number, number, boolean)
 	if level >= GB.MAX_LEVEL then
-		return 0, 0
+		return 0, 0, false
 	end
-	local xp = hours * GB.KILLS_PER_HOUR * GB.MobXp(level)
-	-- tope: lo que falta para el siguiente nivel + (MAX_LEVELS_PER_USE - 1) niveles enteros más
-	local cap = GB.XpToNext(level) - currentXp
-	for i = 1, ProductCatalog.MAX_LEVELS_PER_USE - 1 do
+	local xp = hours * GB.KILLS_PER_HOUR * GB.MobXp(level) * ProductCatalog.RateFactor(level)
+	-- tope por compra: LEVELS_CAP_PER_HOUR niveles por cada hora del paquete (así 3 h < 5 h < 8 h < 12 h SIEMPRE, también
+	-- a niveles bajos donde jugar da muchos niveles por hora). Se mide desde el nivel actual; no depende de la XP ya ganada.
+	local r = hours * ProductCatalog.LEVELS_CAP_PER_HOUR
+	local cap = 0
+	for i = 0, math.ceil(r) - 1 do
 		if level + i < GB.MAX_LEVEL then
-			cap += GB.XpToNext(level + i)
+			cap += GB.XpToNext(level + i) * math.min(1, r - i)
 		end
 	end
 	local granted = math.floor(math.min(xp, math.max(cap, 0)))
-	return granted, granted / math.max(GB.XpToNext(level), 1)
+	return granted, granted / math.max(GB.XpToNext(level), 1), xp > math.max(cap, 0)
 end
 
 return ProductCatalog

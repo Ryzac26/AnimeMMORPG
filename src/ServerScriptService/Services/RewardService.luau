@@ -17,6 +17,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local GB = require(ReplicatedStorage.Modules.GameBalance)
 local Services = ServerScriptService.Services
 local LevelService = require(Services.LevelService)
+local LevelGap = require(ReplicatedStorage.Modules.LevelGap)
 local DamageService = require(Services.DamageService)
 local Net = require(Services.Net)
 -- BoostService se carga al usarlo (evita el error "required recursively" si otro módulo lo requiere de vuelta)
@@ -54,6 +55,17 @@ local function petXpMult(pl: Player): number
 end
 
 local RewardService = {}
+
+-- XP reducida por brecha de nivel (ver LevelGap). Avisa al jugador como mucho cada 40 s.
+local gapNotified: { [Player]: number } = {}
+local function gapMult(pl: Player, mobLevel: number): number
+	local m = LevelGap.Mult(LevelService.GetLevel(pl), mobLevel)
+	if m < 0.95 and os.clock() - (gapNotified[pl] or -1000) > 40 then
+		gapNotified[pl] = os.clock()
+		Net.Get("Notify"):FireClient(pl, string.format("Monstruo de nivel muy bajo para ti: XP y botín al %d%%", math.floor(m * 100 + 0.5)))
+	end
+	return m
+end
 
 local killedEvent = Instance.new("BindableEvent")
 local lootEvent = Instance.new("BindableEvent")
@@ -96,7 +108,7 @@ function RewardService.OnMobKilled(mob: Model, mobId: string, level: number, isB
 		end
 		local xp = math.floor(GB.BossXp(level) * (xpMult or 1))
 		for _, pl in ipairs(participants) do
-			LevelService.AddXp(pl, math.floor(xp * boostMult(pl) * petXpMult(pl)))
+			LevelService.AddXp(pl, math.floor(xp * boostMult(pl) * petXpMult(pl) * gapMult(pl, level)))
 			Net.Get("Notify"):FireClient(pl, string.format("Jefe derrotado: +%d XP", xp))
 		end
 		-- El botín del jefe (reparto garantizado + sorteo) lo hace LootService con MobKilled; ya no se elige un único ganador aquí.
@@ -105,7 +117,7 @@ function RewardService.OnMobKilled(mob: Model, mobId: string, level: number, isB
 		for pl, dmg in pairs(log.ByPlayer) do
 			if pl.Parent then
 				table.insert(participants, pl)
-				LevelService.AddXp(pl, math.max(1, math.floor(xp * dmg / log.Total * boostMult(pl) * petXpMult(pl))))
+				LevelService.AddXp(pl, math.max(1, math.floor(xp * dmg / log.Total * boostMult(pl) * petXpMult(pl) * gapMult(pl, level))))
 			end
 		end
 	end
@@ -120,6 +132,7 @@ function RewardService.OnMobKilled(mob: Model, mobId: string, level: number, isB
 end
 
 Players.PlayerRemoving:Connect(function(pl)
+	gapNotified[pl] = nil
 	for _, log in pairs(damageLog) do
 		log.ByPlayer[pl] = nil
 	end
