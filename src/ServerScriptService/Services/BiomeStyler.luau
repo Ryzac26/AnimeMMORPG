@@ -814,6 +814,63 @@ local function ornament(c: Ctx, lane: Lane, u: number, v: number, th: GateTheme,
 	end
 end
 
+-- Insignia como Decal sobre una parte invisible (el Decal acepta tanto IDs de imagen como de decal)
+-- false = el holograma y el monumento dibujan un anillo neón con el símbolo de la facción (sin imágenes). true = usan el ID de <Facción>_insignia
+local INSIGNIA_IMAGENES = false
+
+local function insigniaId(faction: string): string?
+	if not INSIGNIA_IMAGENES then
+		return nil
+	end
+	return BiomeAssets.Get(faction .. "_insignia")
+end
+
+local function addInsignia(parent: Instance, faction: string, size: Vector3, cf: CFrame, face: Enum.NormalId)
+	local id = insigniaId(faction)
+	if not id then
+		return
+	end
+	local p = Instance.new("Part")
+	p.Name = "Insignia"
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	-- casi invisible (0.98): con 1 el Decal desaparece; sin panel oscuro no quedan cuadrados negros si una imagen falla
+	p.Transparency = 0.98
+	p.Material = Enum.Material.SmoothPlastic
+	p.Size = size
+	p.CFrame = cf
+	-- dos formas a la vez (Decal e ImageLabel) porque cada una exige un tipo de ID distinto; la que sirva se ve
+	local d = Instance.new("Decal")
+	-- Studio nuevo: la propiedad se llama ColorMapContent (Texture quedó obsoleta); se prueban las dos
+	local okNew = pcall(function()
+		(d :: any).ColorMapContent = (Content :: any).fromUri(id)
+	end)
+	if not okNew then
+		pcall(function()
+			d.Texture = id
+		end)
+	end
+	d.Face = face
+	d.Parent = p
+	local sg = Instance.new("SurfaceGui")
+	sg.Face = face
+	sg.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+	sg.CanvasSize = Vector2.new(512, 512)
+	sg.LightInfluence = 0
+	sg.Brightness = 1.6
+	local il = Instance.new("ImageLabel")
+	il.BackgroundTransparency = 1
+	il.Size = UDim2.fromScale(1, 1)
+	il.Image = id
+	il.ScaleType = Enum.ScaleType.Fit
+	il.Parent = sg
+	sg.Parent = p
+	p.Parent = parent
+end
+
 local function gateGui(face: Enum.NormalId, th: GateTheme, faction: string, zone: number, accent: Color3, lvText: string): SurfaceGui
 	local sg = Instance.new("SurfaceGui")
 	sg.Face = face
@@ -870,16 +927,8 @@ local function gateGui(face: Enum.NormalId, th: GateTheme, faction: string, zone
 			F(root, if cx < 500 then cx else cx + 62, if cy < 230 then cy else cy - 62, 8, 70, accent, 0)
 		end
 	end
-	local id = BiomeAssets.Get(faction .. "_insignia")
-	if id then
-		local img = Instance.new("ImageLabel")
-		img.BackgroundTransparency = 1
-		img.Position = UDim2.fromOffset(40, 50)
-		img.Size = UDim2.fromOffset(320, 360)
-		img.Image = id
-		img.ScaleType = Enum.ScaleType.Fit
-		img.Parent = root
-	else
+	-- con ID, la insignia se pone como Decal en una parte aparte (ver addInsignia); sin ID se dibuja el anillo con el kanji
+	if not insigniaId(faction) then
 		local ring = F(root, 50, 70, 300, 300, accent, 1)
 		local rc = Instance.new("UICorner")
 		rc.CornerRadius = UDim.new(1, 0)
@@ -1030,6 +1079,10 @@ local function styleGates(biome: Instance, lane: Lane, faction: string)
 			for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
 				gateGui(face, th, faction, zone, th.Accent, lvText).Parent = board
 			end
+			-- insignia (GUI izquierda): en la cara frontal queda en +X local; en la trasera, en -X local
+			local boardCF = board.CFrame
+			addInsignia(holo, faction, Vector3.new(30, 34, 0.2), boardCF * CFrame.new(30, 0, -0.35), Enum.NormalId.Front)
+			addInsignia(holo, faction, Vector3.new(30, 34, 0.2), boardCF * CFrame.new(-30, 0, 0.35), Enum.NormalId.Back)
 			for _, dy in ipairs({ -signH / 2 - 0.8, signH / 2 + 0.8 }) do
 				local bar = Instance.new("Part")
 				bar.Name = "Borde"
@@ -1173,21 +1226,15 @@ local function buildBackWall(lane: Lane, faction: string)
 	local fpos = lp(lane, u - 16, 0, ringY)
 	face.CFrame = CFrame.lookAt(fpos, fpos + inward)
 	face.Parent = lane.Deco
-	local sg = Instance.new("SurfaceGui")
-	sg.Face = Enum.NormalId.Front
-	sg.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
-	sg.CanvasSize = Vector2.new(600, 600)
-	sg.LightInfluence = 0
-	sg.Brightness = 1.6
-	sg.Parent = face
-	local id = BiomeAssets.Get(faction .. "_insignia")
-	if id then
-		local img = Instance.new("ImageLabel")
-		img.BackgroundTransparency = 1
-		img.Size = UDim2.fromScale(1, 1)
-		img.Image = id
-		img.Parent = sg
-	else
+	addInsignia(lane.Deco, faction, Vector3.new(60, 60, 0.4), CFrame.lookAt(fpos, fpos + inward), Enum.NormalId.Front)
+	if not insigniaId(faction) then
+		local sg = Instance.new("SurfaceGui")
+		sg.Face = Enum.NormalId.Front
+		sg.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+		sg.CanvasSize = Vector2.new(600, 600)
+		sg.LightInfluence = 0
+		sg.Brightness = 1.6
+		sg.Parent = face
 		local t = Instance.new("TextLabel")
 		t.BackgroundTransparency = 1
 		t.Size = UDim2.fromScale(1, 1)
