@@ -8,7 +8,8 @@
          Así puede haber cientos de puntos pero solo existen unos pocos mobs a la vez.
       3. Un bucle central (10 Hz) ejecuta MobBrain.Step de los mobs activos. (Un solo Heartbeat, no uno por mob.)
       4. Al morir: RewardService reparte XP/botín, el cadáver desaparece y el punto reaparece (normal 20 s, jefe 5 min).
-    API: SpawnAt(defId, cframe, level?) para pruebas/eventos, ActiveCount(), ClearAll().
+    API: SpawnAt(defId, cframe, level?) para pruebas/eventos, ActiveCount(), ClearAll(), SpawnMini / Despawn (mini jefes de franja).
+    Zonas con tag "ZoneCamp" (campamentos): ahí no nace ningún grupo.
     Cualquier enemigo propio (Metin, jefe mundial) puede usar DamageService siempre que tenga atributos IsMob=true y Level.
 ]]
 local Workspace = game:GetService("Workspace")
@@ -105,15 +106,24 @@ local function fadeCorpse(model: Model)
 	end
 end
 
-local function create(def: MobCatalog.MobDef, cf: CFrame, level: number, summoned: boolean, point: Point?): Mob?
+-- Opciones de un mini jefe (PveZoneService): más vida, más grande, más daño, XP y botín propios
+type MiniOpts = { HpMult: number, DmgMult: number, Scale: number, Title: string, XpMult: number, OnDied: ((Model) -> ())? }
+
+local function create(def: MobCatalog.MobDef, cf: CFrame, level: number, summoned: boolean, point: Point?, mini: MiniOpts?): Mob?
 	local look = MobLooks[def.Id]
 	if not look then
 		warn("[MobService] Sin Look para " .. def.Id)
 		return nil
 	end
-	local model = MobBuilder.Build(look, string.format("Nv.%d %s", level, def.Name))
+	local model = MobBuilder.Build(look, if mini then string.format("Nv.%d %s", level, mini.Title) else string.format("Nv.%d %s", level, def.Name))
+	if mini then
+		model:ScaleTo(model:GetScale() * mini.Scale)
+		model:SetAttribute("Mini", true)
+		model:SetAttribute("DmgBuff", mini.DmgMult)
+		model:SetAttribute("BaseBuff", mini.DmgMult)
+	end
 	local hum = model:FindFirstChildOfClass("Humanoid") :: Humanoid
-	local hp = math.floor(GB.MobHp(level) * (if def.Boss then GB.EliteHpMult(def.Strip) else 1))
+	local hp = math.floor(GB.MobHp(level) * (if mini then mini.HpMult elseif def.Boss then GB.EliteHpMult(def.Strip) else 1))
 	hum.MaxHealth = hp
 	hum.Health = hp
 	hum.WalkSpeed = def.Speed
@@ -148,7 +158,10 @@ local function create(def: MobCatalog.MobDef, cf: CFrame, level: number, summone
 	end)
 	hum.Died:Once(function()
 		fadeCorpse(model)
-		RewardService.OnMobKilled(model, def.Id, level, def.Boss, summoned)
+		RewardService.OnMobKilled(model, if mini then "Mini|" .. def.Id else def.Id, level, def.Boss, summoned, if mini then mini.XpMult else nil)
+		if mini and mini.OnDied then
+			task.spawn(mini.OnDied, model)
+		end
 		active[model] = nil
 		activeCount -= 1
 		DamageService.Forget(model)
@@ -193,6 +206,27 @@ function MobService.SpawnWave(defId: string, cf: CFrame, level: number, target: 
 	mob.Provoked = true
 	mob.Target = target
 	return mob.Model
+end
+
+-- Mini jefe de franja: un mob normal reforzado (vida x HpMult, más grande, XP y botín propios). onDied avisa a PveZoneService.
+function MobService.SpawnMini(defId: string, cf: CFrame, level: number, opts: MiniOpts): Model?
+	local def = MobCatalog.ById[defId]
+	if not def then
+		return nil
+	end
+	local mob = create(def, cf, level, false, nil, opts)
+	return if mob then mob.Model else nil
+end
+
+-- Retira un mob sin matarlo (sin XP ni botín): lo usa PveZoneService cuando no hay jugadores cerca del mini jefe
+function MobService.Despawn(model: Model)
+	if active[model] then
+		active[model] = nil
+		activeCount -= 1
+	end
+	DamageService.Forget(model)
+	RewardService.Forget(model)
+	model:Destroy()
 end
 
 function MobService.SummonAround(owner: Model, defId: string, count: number)
@@ -420,8 +454,31 @@ local function nearest(pos: Vector3, list: { Vector3 }): number
 	return best
 end
 
+-- Campamentos (tag "ZoneCamp"): ningún grupo nace dentro ni pegado a ellos
+local CAMP_MARGIN = 16
+local function campParts(): { BasePart }
+	local out: { BasePart } = {}
+	for _, z in ipairs(CollectionService:GetTagged("ZoneCamp")) do
+		if z:IsA("BasePart") then
+			table.insert(out, z)
+		end
+	end
+	return out
+end
+
+local function inCamp(pos: Vector3, camps: { BasePart }): boolean
+	for _, z in ipairs(camps) do
+		local l = z.CFrame:PointToObjectSpace(pos)
+		if math.abs(l.X) <= z.Size.X / 2 + CAMP_MARGIN and math.abs(l.Z) <= z.Size.Z / 2 + CAMP_MARGIN then
+			return true
+		end
+	end
+	return false
+end
+
 local function refresh()
 	local ppos = playerPositions()
+	local camps = campParts()
 	local now = os.clock()
 	-- Renacimiento por grupo: si ya no queda ningún miembro vivo, arranca la cuenta para TODO el grupo
 	local groups: { [number]: { alive: boolean, waiting: boolean } } = {}
@@ -448,7 +505,7 @@ local function refresh()
 	for _, pt in ipairs(points) do
 		local d = nearest(pt.Pos, ppos)
 		if pt.Mob == nil then
-			if d <= ACTIVATE_RADIUS and now >= pt.RespawnAt then
+			if d <= ACTIVATE_RADIUS and now >= pt.RespawnAt and not inCamp(pt.Pos, camps) then
 				local mob = create(pt.Def, CFrame.new(pt.Pos), pickLevel(pt.Def), false, pt)
 				pt.Mob = mob
 			end

@@ -30,8 +30,14 @@ LootTables.Materials = {
 	Mat_FragArmadura = { Name = "Fragmento de Armadura", Rarity = "Comun", Stack = 99, Desc = "Material de mejora de armaduras." },
 	Mat_Gema = { Name = "Gema de Mejora", Rarity = "Raro", Stack = 99, Desc = "Sirve para mejorar el equipo (+1 a +9)." },
 	Mat_Escama = { Name = "Escama del Titán", Rarity = "Epico", Stack = 99, Desc = "Material de crafteo avanzado del jefe mundial." },
+	-- Recursos de recolección (nodos del mapa). Sirven para la Ofrenda del altar y para cocinar pociones en el campamento.
+	Rec_1 = { Name = "Hierba Espiritual", Rarity = "Comun", Stack = 99, Desc = "Se recolecta en la Franja 1. Sirve para cocinar pociones en el campamento y para la Ofrenda del altar." },
+	Rec_2 = { Name = "Cristal de Zona", Rarity = "Raro", Stack = 99, Desc = "Se recolecta en la Franja 2. Sirve para cocinar pociones en el campamento y para la Ofrenda del altar." },
+	Rec_3 = { Name = "Reliquia Antigua", Rarity = "Raro", Stack = 99, Desc = "Se recolecta en la Franja 3. Sirve para cocinar pociones en el campamento y para la Ofrenda del altar." },
+	Rec_4 = { Name = "Corazón de Poder", Rarity = "Epico", Stack = 99, Desc = "Se recolecta en la Franja 4. Sirve para cocinar pociones en el campamento y para la Ofrenda del altar." },
 } :: { [string]: { [string]: any } }
 LootTables.StripMaterial = { "Mat_Piel", "Mat_Colmillo", "Mat_Esencia", "Mat_Nucleo" } -- por franja 1..4
+LootTables.StripResource = { "Rec_1", "Rec_2", "Rec_3", "Rec_4" } -- recursos de recolección por franja 1..4
 
 ---------------------------------------------------------------------
 -- NÚMEROS
@@ -47,6 +53,8 @@ LootTables.Lottery = { BaseTickets = 1, ShareTickets = 4, PityStep = 0.5, PityMa
 LootTables.GearSlotWeights = { Arma = 30, Armadura = 25, Casco = 25, Zapatos = 20 }
 LootTables.JewelryChance = 0.20
 
+-- Mob normal. El equipo mejora con la franja, pero Épico/Legendario siguen siendo raros (cada franja da más que la anterior).
+-- Los mobs normales NUNCA sueltan Mítico. Para subir o bajar la dificultad cambia SOLO estas listas.
 LootTables.Mob = {
 	MinShare = 0.10, -- % mínimo del daño para tener botín (evita "tocar y llevarse")
 	ItemChance = 0.30,
@@ -54,8 +62,13 @@ LootTables.Mob = {
 	ConsumableCount = { 1, 3 },
 	MaterialCount = { 1, 2 },
 	FragmentShare = 0.30, -- de los materiales, qué parte es Fragmento de Armadura (el resto, material de la franja)
-	GearChance = 0.02,
-	GearRarity = { Comun = 60, Raro = 32, Epico = 8 },
+	GearChanceByStrip = { 0.012, 0.014, 0.016, 0.018 }, -- antes 0.02 fijo
+	GearRarityByStrip = {
+		[1] = { Comun = 86, Raro = 13.7, Epico = 0.3 },
+		[2] = { Comun = 76, Raro = 22.5, Epico = 1.5 },
+		[3] = { Comun = 64, Raro = 32, Epico = 3.9, Legendario = 0.1 },
+		[4] = { Comun = 52, Raro = 41, Epico = 6.5, Legendario = 0.5 },
+	},
 	PetChance = 0.0008,
 	PetRarity = { Comun = 85, Raro = 15 },
 }
@@ -68,13 +81,13 @@ LootTables.EliteBoss = {
 	FragmentCount = { 2, 4 }, -- Fragmentos de Armadura, garantizados
 	WinnerFraction = 0.20, MinWinners = 1, MaxWinners = 4,
 	PrizeRarity = {
-		[1] = { Epico = 85, Legendario = 15 },
-		[2] = { Epico = 85, Legendario = 15 },
-		[3] = { Epico = 70, Legendario = 30 },
-		[4] = { Epico = 70, Legendario = 30 },
+		[1] = { Raro = 60, Epico = 39, Legendario = 1 },
+		[2] = { Raro = 35, Epico = 62, Legendario = 3 },
+		[3] = { Epico = 85, Legendario = 14.5, Mitico = 0.5 },
+		[4] = { Epico = 75, Legendario = 23, Mitico = 2 },
 	},
 	PetChance = 0.015,
-	PetRarity = { Raro = 55, Epico = 40, Legendario = 5 },
+	PetRarity = { Raro = 62, Epico = 35, Legendario = 3 },
 }
 
 LootTables.WorldBoss = {
@@ -82,26 +95,122 @@ LootTables.WorldBoss = {
 	FactionPoints = 100,
 	ScaleCount = { 1, 3 }, -- Escamas del Titán, garantizadas
 	WinnerFraction = 0.25, MinWinners = 1, MaxWinners = 6,
-	PrizeRarity = { Epico = 45, Legendario = 55 },
+	PrizeRarity = { Epico = 62, Legendario = 36, Mitico = 2 },
 	PetChance = 0.02,
-	PetRarity = { Epico = 55, Legendario = 40, Mitico = 5 },
+	PetRarity = { Epico = 62, Legendario = 36, Mitico = 2 },
 }
 
 -- Piedras Metin (por id de MetinCatalog)
 LootTables.Metin = {
 	MinShare = 0.05,
 	GemChance = 0.45,
-	ChestChance = 0.17, -- "cofre": tirada extra de equipo de rareza alta (se entrega directo, sin objeto cofre)
-	EmblemChance = 0.04, -- Emblema exclusivo de TU facción
+	ChestChance = 0.08, -- antes 0.17 -- "cofre": tirada extra de equipo de rareza alta (se entrega directo, sin objeto cofre)
+	EmblemChance = 0.02, -- antes 0.04 -- Emblema exclusivo de TU facción
 	PetChance = 0.01,
 	Rarities = {
-		Comun = { GoldMult = 3, FactionPoints = 5, GemCount = { 1, 1 }, ChestRarity = { Raro = 70, Epico = 30 }, EmblemRarity = { Epico = 100 }, PetRarity = { Comun = 40, Raro = 40, Epico = 18, Legendario = 2 } },
-		PocoComun = { GoldMult = 4, FactionPoints = 8, GemCount = { 1, 1 }, ChestRarity = { Raro = 60, Epico = 40 }, EmblemRarity = { Epico = 100 }, PetRarity = { Comun = 40, Raro = 40, Epico = 18, Legendario = 2 } },
-		Raro = { GoldMult = 6, FactionPoints = 12, GemCount = { 1, 2 }, ChestRarity = { Raro = 45, Epico = 50, Legendario = 5 }, EmblemRarity = { Epico = 85, Legendario = 15 }, PetRarity = { Raro = 55, Epico = 40, Legendario = 5 } },
-		Epico = { GoldMult = 9, FactionPoints = 20, GemCount = { 1, 3 }, ChestRarity = { Epico = 80, Legendario = 20 }, EmblemRarity = { Epico = 70, Legendario = 30 }, PetRarity = { Raro = 40, Epico = 50, Legendario = 10 } },
-		Legendario = { GoldMult = 14, FactionPoints = 35, GemCount = { 2, 3 }, ChestRarity = { Epico = 60, Legendario = 40 }, EmblemRarity = { Epico = 50, Legendario = 50 }, PetRarity = { Epico = 55, Legendario = 40, Mitico = 5 } },
+		Comun = { GoldMult = 3, FactionPoints = 5, GemCount = { 1, 1 }, ChestRarity = { Comun = 40, Raro = 55, Epico = 5 }, EmblemRarity = { Epico = 100 }, PetRarity = { Comun = 55, Raro = 40, Epico = 5 } },
+		PocoComun = { GoldMult = 4, FactionPoints = 8, GemCount = { 1, 1 }, ChestRarity = { Raro = 80, Epico = 20 }, EmblemRarity = { Epico = 100 }, PetRarity = { Comun = 50, Raro = 42, Epico = 8 } },
+		Raro = { GoldMult = 6, FactionPoints = 12, GemCount = { 1, 2 }, ChestRarity = { Raro = 62, Epico = 37, Legendario = 1 }, EmblemRarity = { Epico = 94, Legendario = 6 }, PetRarity = { Raro = 70, Epico = 28, Legendario = 2 } },
+		Epico = { GoldMult = 9, FactionPoints = 20, GemCount = { 1, 3 }, ChestRarity = { Raro = 30, Epico = 66, Legendario = 4 }, EmblemRarity = { Epico = 88, Legendario = 12 }, PetRarity = { Raro = 55, Epico = 41, Legendario = 4 } },
+		Legendario = { GoldMult = 14, FactionPoints = 35, GemCount = { 2, 3 }, ChestRarity = { Epico = 80, Legendario = 19, Mitico = 1 }, EmblemRarity = { Epico = 78, Legendario = 21, Mitico = 1 }, PetRarity = { Epico = 66, Legendario = 32, Mitico = 2 } },
 	},
 }
+
+
+---------------------------------------------------------------------
+-- PUNTOS DE INTERÉS DE LAS FRANJAS (PveZoneService)
+-- Todo es por franja 1..4: cada franja da más y mejor que la anterior. Épico/Legendario/Mítico son difíciles de ver.
+---------------------------------------------------------------------
+-- Mini jefe (uno por franja). Vida = vida de mob de su nivel x HpMult. XP = XpKills kills de ese nivel.
+LootTables.MiniBoss = {
+	HpMult = { 3, 3.5, 4, 5 }, -- élite de franja: 8 / 10 / 12 / 15
+	DmgMult = 1.2,
+	Scale = 1.35,
+	XpKills = 4,
+	RespawnSeconds = 480,
+	MinShare = 0.10,
+	GoldMult = 5,
+	FactionPoints = 4,
+	StripCount = { 1, 3 },
+	FragmentCount = { 1, 2 },
+	GemChance = 0.30,
+	GearChance = { 0.28, 0.30, 0.32, 0.35 },
+	GearRarity = {
+		[1] = { Comun = 40, Raro = 54, Epico = 6 },
+		[2] = { Comun = 25, Raro = 62, Epico = 12.5, Legendario = 0.5 },
+		[3] = { Raro = 70, Epico = 27, Legendario = 3 },
+		[4] = { Raro = 55, Epico = 38, Legendario = 6.5, Mitico = 0.5 },
+	},
+	PetChance = 0.004,
+	PetRarity = { Comun = 40, Raro = 50, Epico = 10 },
+}
+
+-- Cofre escondido del mapa (se reabre cada ReopenSeconds; lo gana quien lo abre, sin sorteo)
+LootTables.MapChest = {
+	ReopenSeconds = 900,
+	GoldMult = 6,
+	StripCount = { 2, 4 },
+	GemChance = 0.35,
+	GemCount = { 1, 2 },
+	GearChance = { 0.55, 0.60, 0.65, 0.70 },
+	GearRarity = {
+		[1] = { Comun = 20, Raro = 66, Epico = 14 },
+		[2] = { Raro = 62, Epico = 36, Legendario = 2 },
+		[3] = { Raro = 45, Epico = 51, Legendario = 4 },
+		[4] = { Raro = 30, Epico = 60, Legendario = 9.5, Mitico = 0.5 },
+	},
+	-- "Mejorado": poco común. El equipo sube UNA rareza y llega con mejora +1 a +3.
+	UpgradedChance = { 0.04, 0.05, 0.06, 0.08 },
+	UpgradedPlus = { 1, 3 },
+}
+
+-- Altar de Ofrenda: entregas recursos + material de la franja + oro y recibes una tirada de equipo mejor que la de un mob.
+LootTables.Offering = {
+	CooldownSeconds = 600, -- por jugador y altar
+	ResourceCost = { 6, 8, 10, 12 }, -- Rec_<franja>
+	MaterialCost = { 4, 5, 6, 8 }, -- Mat de la franja
+	GoldCostMult = 3, -- oro = GoldFor(nivel, mult)
+	GemCount = { 1, 2 },
+	GearRarity = {
+		[1] = { Comun = 25, Raro = 62, Epico = 13 },
+		[2] = { Raro = 62, Epico = 36, Legendario = 2 },
+		[3] = { Raro = 48, Epico = 48, Legendario = 4 },
+		[4] = { Raro = 34, Epico = 57, Legendario = 8.5, Mitico = 0.5 },
+	},
+	JewelryBias = 0.25, -- las ofrendas dan joyas un poco más seguido
+}
+
+-- Altar de Desafío: 3 oleadas contra monstruos de la franja. Premio personal para todos los que ayudaron.
+LootTables.Challenge = {
+	CooldownSeconds = 480, -- del altar (cualquiera que lo active lo gasta)
+	TimeLimit = 150,
+	Radius = 70, -- quienes estén a esta distancia del altar cuando termina, reciben el premio
+	WaveSizes = { 3, 4, 3 }, -- la última oleada incluye un campeón
+	GoldMult = 7,
+	FactionPoints = 6,
+	StripCount = { 2, 4 },
+	GemChance = 0.55,
+	GearChance = { 0.70, 0.72, 0.75, 0.80 },
+	GearRarity = {
+		[1] = { Raro = 62, Epico = 36, Legendario = 2 },
+		[2] = { Raro = 48, Epico = 48, Legendario = 4 },
+		[3] = { Raro = 34, Epico = 58, Legendario = 7.5, Mitico = 0.5 },
+		[4] = { Raro = 22, Epico = 62, Legendario = 14, Mitico = 2 },
+	},
+	PetChance = 0.01,
+	PetRarity = { Raro = 55, Epico = 40, Legendario = 5 },
+}
+
+-- Nodos de recolección
+LootTables.Gathering = {
+	RespawnSeconds = 150,
+	Count = { 1, 3 },
+	BonusMatChance = 0.25, -- además, 1 material de la franja
+	NodesPerStrip = 10,
+}
+
+-- Hoguera del campamento: cocinar (Recursos de la franja -> pociones)
+LootTables.Cooking = { Resources = 3, Potions = 2 }
 
 ---------------------------------------------------------------------
 -- FUNCIONES PURAS
@@ -180,11 +289,16 @@ function LootTables.Tickets(share: number, pity: number): number
 end
 
 -- Equipo que cae, YA resuelto al personaje que lo recibe. Devuelve el id del objeto.
-function LootTables.RollGear(faction: string, role: string, level: number, rarityWeights: { [string]: number }, rng: RNG): string?
+function LootTables.RollGear(faction: string, role: string, level: number, rarityWeights: { [string]: number }, rng: RNG, jewelryChance: number?, upgradeRarity: boolean?): string?
 	local tier = GearCatalog.TierOfLevel(level)
 	local rarity = LootTables.Pick(rarityWeights, rng)
+	if upgradeRarity then
+		local order = GearCatalog.Rarities
+		local at = table.find(order, rarity) or 1
+		rarity = order[math.min(#order, at + 1)]
+	end
 	local id: string
-	if rng:NextNumber() < LootTables.JewelryChance then
+	if rng:NextNumber() < (jewelryChance or LootTables.JewelryChance) then
 		local slots = { "Anillo", "Brazalete", "Collar" }
 		local slot = slots[rng:NextInteger(1, #slots)]
 		local focus = LootTables.Pick(GearCatalog.RoleWeights[role], rng)

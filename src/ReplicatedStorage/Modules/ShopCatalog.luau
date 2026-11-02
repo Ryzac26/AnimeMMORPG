@@ -16,6 +16,7 @@ ShopCatalog.Stock = { "Pocion_Vida", "Pocion_Energia" }
 ShopCatalog.RarityMult = { Comun = 1, Raro = 2, Epico = 4, Legendario = 8, Mitico = 16 } :: { [string]: number }
 ShopCatalog.MaterialSell = {
 	Mat_Piel = 6, Mat_Colmillo = 12, Mat_Esencia = 40, Mat_Nucleo = 120, Mat_FragArmadura = 30, Mat_Escama = 600,
+	Rec_1 = 8, Rec_2 = 20, Rec_3 = 50, Rec_4 = 110,
 } :: { [string]: number }
 ShopCatalog.PotionSell = 10
 ShopCatalog.MAX_BUY = 999 -- máximo de unidades por compra

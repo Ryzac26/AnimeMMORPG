@@ -2,7 +2,8 @@
 --[[
     LootService (ModuleScript) -> ServerScriptService.Services.LootService
     REPARTE EL BOTÍN. Escucha RewardService.MobKilled(mobId, nivel, participantes, partes) y entrega a cada jugador:
-        Mob normal   : oro siempre · 30% objeto (poción o material) · 2% equipo · 0.08% mascota
+        Mob normal   : oro siempre · 30% objeto (poción o material) · 1.2% a 1.8% equipo según la franja (Épico/Legendario muy raros) · 0.08% mascota
+        Mini jefe / cofres / altares: ver LootTables.MiniBoss, MapChest, Offering, Challenge (LootService.Grant)
         Metin        : oro + puntos de facción · 45% Gema · 17% "cofre" (tirada extra de equipo alto) · 4% Emblema de tu facción · 1% mascota
         Jefe de franja / Jefe mundial : TODOS los participantes reciben oro, puntos y materiales garantizados;
                        además hay un SORTEO de un objeto Épico/Legendario entre los participantes: no tocan a todos.
@@ -44,22 +45,22 @@ end
 ---------------------------------------------------------------------
 -- Entrega
 ---------------------------------------------------------------------
-type Haul = { Gold: number, Points: number, Items: { { Id: string, Count: number } }, Notable: boolean }
+type Haul = { Gold: number, Points: number, Items: { { Id: string, Count: number, Plus: number? } }, Notable: boolean }
 
 local function newHaul(): Haul
 	return { Gold = 0, Points = 0, Items = {}, Notable = false }
 end
 
-local function addItem(h: Haul, id: string?, count: number, notable: boolean)
+local function addItem(h: Haul, id: string?, count: number, notable: boolean, plus: number?)
 	if id then
-		table.insert(h.Items, { Id = id, Count = count })
+		table.insert(h.Items, { Id = id, Count = count, Plus = plus })
 		if notable then
 			h.Notable = true
 		end
 	end
 end
 
-local function label(id: string, count: number): string
+local function label(id: string, count: number, plus: number?): string
 	local item = (ItemCatalog.Items :: any)[id]
 	if not item then
 		return id
@@ -67,6 +68,9 @@ local function label(id: string, count: number): string
 	local text = item.Name
 	if item.Gear or item.Pet then
 		text = string.format("[%s] %s", GearCatalog.RarityName[item.Rarity] or item.Rarity, item.Name)
+		if plus and plus > 0 then
+			text ..= " +" .. plus
+		end
 	end
 	if count > 1 then
 		text ..= " x" .. count
@@ -79,7 +83,7 @@ local function notify(player: Player, text: string)
 end
 
 -- Entrega el botín y avisa. alwaysNotify = jefes y Metin (siempre); mob normal = solo si cayó un objeto.
-local function deliver(player: Player, h: Haul, header: string, alwaysNotify: boolean, goldReason: string)
+local function deliver(player: Player, h: Haul, header: string, alwaysNotify: boolean, goldReason: string): boolean
 	local parts: { string } = {}
 	local gold = Wallet.AddGold(player, h.Gold, goldReason)
 	if gold > 0 then
@@ -90,10 +94,13 @@ local function deliver(player: Player, h: Haul, header: string, alwaysNotify: bo
 		table.insert(parts, string.format("+%d pts de facción", points))
 	end
 	local gotItems = false
+	local allAdded = true
 	for _, entry in ipairs(h.Items) do
-		if Inventory.Add(player, entry.Id, entry.Count) then
+		if not Inventory.Add(player, entry.Id, entry.Count, entry.Plus) then
+			allAdded = false
+		else
 			gotItems = true
-			table.insert(parts, label(entry.Id, entry.Count))
+			table.insert(parts, label(entry.Id, entry.Count, entry.Plus))
 		end
 	end
 	if #parts > 0 and (alwaysNotify or gotItems) then
@@ -102,6 +109,7 @@ local function deliver(player: Player, h: Haul, header: string, alwaysNotify: bo
 	if h.Notable and gotItems then
 		PlayerData.Save(player) -- un premio importante no debe esperar al próximo autoguardado
 	end
+	return allAdded
 end
 
 local function goldFor(player: Player, level: number, mult: number): number
@@ -171,8 +179,8 @@ local function onMob(level: number, strip: number, participants: { Player }, sha
 					addItem(h, id, LootTables.Count(M.MaterialCount, rng), false)
 				end
 			end
-			if rng:NextNumber() < chance(M.GearChance, luck) then
-				addItem(h, LootTables.RollGear(faction, role, level, M.GearRarity, rng), 1, true)
+			if rng:NextNumber() < chance(M.GearChanceByStrip[strip] or M.GearChanceByStrip[1], luck) then
+				addItem(h, LootTables.RollGear(faction, role, level, M.GearRarityByStrip[strip] or M.GearRarityByStrip[1], rng), 1, true)
 			end
 			if rng:NextNumber() < chance(M.PetChance, luck) then
 				addItem(h, LootTables.RollPet(M.PetRarity, rng), 1, true)
@@ -236,6 +244,88 @@ local function onMetin(rarityId: string, level: number, participants: { Player }
 end
 
 ---------------------------------------------------------------------
+-- Mini jefe de franja (mobId "Mini|<Id del mob>"): botín personal para cada jugador con suficiente participación
+---------------------------------------------------------------------
+local function onMini(strip: number, level: number, participants: { Player }, shares: { [Player]: number })
+	local X = LootTables.MiniBoss
+	for _, pl in ipairs(participants) do
+		if pl.Parent and (shares[pl] or 0) >= X.MinShare then
+			local luck = GearService.Luck(pl)
+			local faction, role = classOf(pl)
+			local h = newHaul()
+			h.Gold = goldFor(pl, level, X.GoldMult)
+			h.Points = X.FactionPoints
+			addItem(h, LootTables.StripMaterial[strip], LootTables.Count(X.StripCount, rng), false)
+			addItem(h, "Mat_FragArmadura", LootTables.Count(X.FragmentCount, rng), false)
+			if rng:NextNumber() < chance(X.GemChance, luck) then
+				addItem(h, "Mat_Gema", 1, false)
+			end
+			if rng:NextNumber() < chance(X.GearChance[strip], luck) then
+				addItem(h, LootTables.RollGear(faction, role, strip * 25, X.GearRarity[strip], rng), 1, true)
+			end
+			if rng:NextNumber() < chance(X.PetChance, luck) then
+				addItem(h, LootTables.RollPet(X.PetRarity, rng), 1, true)
+			end
+			deliver(pl, h, "Mini jefe derrotado", true, "Jefes")
+		end
+	end
+end
+
+---------------------------------------------------------------------
+-- Premios de los puntos de interés (cofres, ofrendas, desafíos). Los llama PveZoneService.
+-- kind: "MapChest" | "Offering" | "Challenge". El nivel del equipo es el tope de la franja (25/50/75/100).
+---------------------------------------------------------------------
+local function grant(player: Player, kind: string, strip: number): boolean
+	if not player.Parent then
+		return false
+	end
+	strip = math.clamp(strip, 1, 4)
+	local level = strip * 25
+	local luck = GearService.Luck(player)
+	local faction, role = classOf(player)
+	local h = newHaul()
+	local header
+	if kind == "MapChest" then
+		local X = LootTables.MapChest
+		header = "Cofre"
+		h.Gold = goldFor(player, level, X.GoldMult)
+		addItem(h, LootTables.StripMaterial[strip], LootTables.Count(X.StripCount, rng), false)
+		if rng:NextNumber() < chance(X.GemChance, luck) then
+			addItem(h, "Mat_Gema", LootTables.Count(X.GemCount, rng), false)
+		end
+		if rng:NextNumber() < chance(X.GearChance[strip], luck) then
+			local upgraded = rng:NextNumber() < chance(X.UpgradedChance[strip], luck)
+			local id = LootTables.RollGear(faction, role, level, X.GearRarity[strip], rng, nil, upgraded)
+			addItem(h, id, 1, true, if upgraded then LootTables.Count(X.UpgradedPlus, rng) else nil)
+			if upgraded and id then
+				notify(player, "¡Cofre MEJORADO! El equipo subió de rareza y viene con mejora")
+			end
+		end
+	elseif kind == "Offering" then
+		local X = LootTables.Offering
+		header = "Ofrenda aceptada"
+		addItem(h, "Mat_Gema", LootTables.Count(X.GemCount, rng), false)
+		addItem(h, LootTables.RollGear(faction, role, level, X.GearRarity[strip], rng, X.JewelryBias), 1, true)
+	else
+		local X = LootTables.Challenge
+		header = "Desafío superado"
+		h.Gold = goldFor(player, level, X.GoldMult)
+		h.Points = X.FactionPoints
+		addItem(h, LootTables.StripMaterial[strip], LootTables.Count(X.StripCount, rng), false)
+		if rng:NextNumber() < chance(X.GemChance, luck) then
+			addItem(h, "Mat_Gema", 1, false)
+		end
+		if rng:NextNumber() < chance(X.GearChance[strip], luck) then
+			addItem(h, LootTables.RollGear(faction, role, level, X.GearRarity[strip], rng), 1, true)
+		end
+		if rng:NextNumber() < chance(X.PetChance, luck) then
+			addItem(h, LootTables.RollPet(X.PetRarity, rng), 1, true)
+		end
+	end
+	return deliver(player, h, header, true, if kind == "Challenge" then "Jefes" else "Cofres")
+end
+
+---------------------------------------------------------------------
 -- Conexión con RewardService
 ---------------------------------------------------------------------
 local function onKilled(mobId: string, level: number, participants: { Player }, rawShares: { [Player]: number }?)
@@ -247,6 +337,9 @@ local function onKilled(mobId: string, level: number, participants: { Player }, 
 		onBoss(LootTables.WorldBoss, level, nil, participants, shares, "jefe mundial")
 	elseif string.sub(mobId, 1, 6) == "Metin_" then
 		onMetin(string.sub(mobId, 7), level, participants, shares)
+	elseif string.sub(mobId, 1, 5) == "Mini|" then
+		local def: any = (MobCatalog.ById :: any)[string.sub(mobId, 6)]
+		onMini(if def then def.Strip else math.clamp(math.ceil(level / 25), 1, 4), level, participants, shares)
 	else
 		local def: any = (MobCatalog.ById :: any)[mobId]
 		local strip = if def then def.Strip else math.clamp(math.ceil(level / 25), 1, 4)
@@ -263,5 +356,6 @@ RewardService.MobKilled:Connect(onKilled)
 -- API por si otro sistema (misiones, eventos) quiere repartir con las mismas reglas
 local LootService = {}
 LootService.OnKilled = onKilled
+LootService.Grant = grant
 
 return LootService
