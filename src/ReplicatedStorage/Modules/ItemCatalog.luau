@@ -72,6 +72,11 @@ ItemCatalog.Items = {
 	Pocion_Vida = { Name = "Poción de Vida", Rarity = "Comun", Stack = 20, Desc = "Restaura 30% de la vida.", Use = { HealPct = 0.30, Cooldown = 8 } },
 	-- Poción de energía: en el HUD se muestra con el nombre del recurso de cada facción (Ki / Chakra / Haki / Reiatsu)
 	Pocion_Energia = { Name = "Poción de Energía", Rarity = "Comun", Stack = 20, Desc = "Restaura 30% de la energía (Ki, Chakra, Haki o Reiatsu).", Use = { EnergyPct = 0.30, Cooldown = 8 } },
+	-- Grados altos: los fabrica el Alquimista (AlchemyCatalog). El auto-farm los detecta solo (todo lo que tenga Use.HealPct / EnergyPct).
+	Pocion_Vida_Mayor = { Name = "Poción de Vida Mayor", Rarity = "Raro", Stack = 20, Desc = "Restaura 50% de la vida.", Use = { HealPct = 0.50, Cooldown = 8 } },
+	Pocion_Vida_Suprema = { Name = "Poción de Vida Suprema", Rarity = "Epico", Stack = 20, Desc = "Restaura 75% de la vida.", Use = { HealPct = 0.75, Cooldown = 8 } },
+	Pocion_Energia_Mayor = { Name = "Poción de Energía Mayor", Rarity = "Raro", Stack = 20, Desc = "Restaura 50% de la energía (Ki, Chakra, Haki o Reiatsu).", Use = { EnergyPct = 0.50, Cooldown = 8 } },
+	Pocion_Energia_Suprema = { Name = "Poción de Energía Suprema", Rarity = "Epico", Stack = 20, Desc = "Restaura 75% de la energía (Ki, Chakra, Haki o Reiatsu).", Use = { EnergyPct = 0.75, Cooldown = 8 } },
 	Fragmento_Metin = { Name = "Fragmento de Metin", Rarity = "Epico", Stack = 99, Desc = "Material de mejora." },
 } :: { [string]: Item }
 
