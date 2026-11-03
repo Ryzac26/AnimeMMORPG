@@ -135,6 +135,7 @@ local function create(def: MobCatalog.MobDef, cf: CFrame, level: number, summone
 	model:SetAttribute("Summoned", summoned)
 	model:SetAttribute("GroupId", if point then point.Group else 0)
 	model:SetAttribute("Faction", def.Faction) -- facción "dueña" del mob (solo informativo)
+	model:SetAttribute("Strip", def.Strip) -- franja del mob (PveZoneService: límite diario del mini jefe)
 	CollectionService:AddTag(model, "Mob")
 	CollectionService:AddTag(model, "Targetable")
 

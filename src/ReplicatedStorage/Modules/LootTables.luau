@@ -35,6 +35,12 @@ LootTables.Materials = {
 	Rec_2 = { Name = "Cristal de Zona", Rarity = "Raro", Stack = 99, Desc = "Se recolecta en la Franja 2. Sirve para cocinar pociones en el campamento y para la Ofrenda del altar." },
 	Rec_3 = { Name = "Reliquia Antigua", Rarity = "Raro", Stack = 99, Desc = "Se recolecta en la Franja 3. Sirve para cocinar pociones en el campamento y para la Ofrenda del altar." },
 	Rec_4 = { Name = "Corazón de Poder", Rarity = "Epico", Stack = 99, Desc = "Se recolecta en la Franja 4. Sirve para cocinar pociones en el campamento y para la Ofrenda del altar." },
+	-- Llaves de cofre (una por franja). Caen de los monstruos de esa franja, con tope diario. Duran solo el día en que caen.
+	-- Bound = true: no se pueden vender (ShopCatalog) ni intercambiar (cuando exista el intercambio, debe respetar Bound).
+	Key_1 = { Name = "Llave de Cofre · Franja 1", Rarity = "Raro", Stack = 99, Bound = true, Desc = "Abre un cofre de la Franja 1. Caduca al terminar el día. No se vende ni se intercambia." },
+	Key_2 = { Name = "Llave de Cofre · Franja 2", Rarity = "Raro", Stack = 99, Bound = true, Desc = "Abre un cofre de la Franja 2. Caduca al terminar el día. No se vende ni se intercambia." },
+	Key_3 = { Name = "Llave de Cofre · Franja 3", Rarity = "Epico", Stack = 99, Bound = true, Desc = "Abre un cofre de la Franja 3. Caduca al terminar el día. No se vende ni se intercambia." },
+	Key_4 = { Name = "Llave de Cofre · Franja 4", Rarity = "Epico", Stack = 99, Bound = true, Desc = "Abre un cofre de la Franja 4. Caduca al terminar el día. No se vende ni se intercambia." },
 } :: { [string]: { [string]: any } }
 LootTables.StripMaterial = { "Mat_Piel", "Mat_Colmillo", "Mat_Esencia", "Mat_Nucleo" } -- por franja 1..4
 LootTables.StripResource = { "Rec_1", "Rec_2", "Rec_3", "Rec_4" } -- recursos de recolección por franja 1..4
@@ -145,9 +151,9 @@ LootTables.MiniBoss = {
 	PetRarity = { Comun = 40, Raro = 50, Epico = 10 },
 }
 
--- Cofre escondido del mapa (se reabre cada ReopenSeconds; lo gana quien lo abre, sin sorteo)
+-- Cofre del mapa: se abre con una LLAVE de su franja (ver KeyDrop y Daily). Lo gana quien lo abre, sin sorteo.
 LootTables.MapChest = {
-	ReopenSeconds = 900,
+	AnimSeconds = 3, -- tiempo que queda abierta la tapa (el cofre sigue disponible: lo limita la llave)
 	GoldMult = 6,
 	StripCount = { 2, 4 },
 	GemChance = 0.35,
@@ -209,8 +215,21 @@ LootTables.Gathering = {
 	NodesPerStrip = 10,
 }
 
--- Hoguera del campamento: cocinar (Recursos de la franja -> pociones)
-LootTables.Cooking = { Resources = 3, Potions = 2 }
+-- (Cocinar: la olla del campamento abre la ventana del Alquimista; las recetas están en AlchemyCatalog)
+
+-- LÍMITES DIARIOS por jugador y por franja (cada franja cuenta aparte). Se reinician a medianoche (ResetUtcOffsetHours: -3 = hora de Montevideo).
+--   Keys      = llaves de cofre que PUEDEN CAER por día (no se acumulan: las que sobren caducan al reiniciar el día) = cofres que se pueden abrir por día
+--   Challenge = desafíos del altar con premio por día
+--   MiniBoss  = mini jefes con premio por día (al agotarlo no puedes ni pegarle)
+LootTables.Daily = {
+	ResetUtcOffsetHours = -3,
+	Keys = { 3, 3, 3, 3 },
+	Challenge = { 2, 2, 2, 2 },
+	MiniBoss = { 3, 3, 3, 3 },
+}
+
+-- Probabilidad de que caiga una llave de la franja al matar (solo mientras queden llaves por caer ese día)
+LootTables.KeyDrop = { Mob = 0.025, Mini = 0.35, Elite = 0.50 }
 
 ---------------------------------------------------------------------
 -- FUNCIONES PURAS

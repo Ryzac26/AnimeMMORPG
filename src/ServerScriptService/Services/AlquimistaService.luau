@@ -47,6 +47,17 @@ local BIOME_FACTION: { [string]: string } = {
 local AlquimistaService = {}
 local models: { Model } = {}
 local lastTry: { [Player]: number } = {}
+local stations: { BasePart } = {} -- otros puestos de alquimia (la olla de los campamentos, PveZoneService)
+
+-- Registra una parte (la olla de un campamento) como puesto de alquimia: quien esté cerca puede fabricar y desmontar
+function AlquimistaService.RegisterStation(part: BasePart)
+	table.insert(stations, part)
+end
+
+-- Abre la ventana del alquimista para un jugador (misma ventana que el NPC)
+function AlquimistaService.OpenAt(player: Player, name: string, title: string, faction: string)
+	OpenRemote:FireClient(player, name, title, faction)
+end
 
 ---------------------------------------------------------------------
 -- NPC
@@ -172,6 +183,11 @@ local function nearAlchemist(player: Player): boolean
 	for _, m in ipairs(models) do
 		local r = m:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if r and (r.Position - root.Position).Magnitude <= USE_DISTANCE then
+			return true
+		end
+	end
+	for _, s in ipairs(stations) do
+		if s.Parent and (s.Position - root.Position).Magnitude <= USE_DISTANCE then
 			return true
 		end
 	end

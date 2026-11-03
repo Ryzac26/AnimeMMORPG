@@ -30,8 +30,8 @@ function ShopCatalog.SellPrice(itemId: string, item: { [string]: any }?, plus: n
 	if not item then
 		return nil
 	end
-	if item.Pet then
-		return nil
+	if item.Pet or item.Bound then
+		return nil -- mascotas y objetos ligados (llaves de cofre) no se venden
 	end
 	if item.Gear or item.Slot then
 		local req = item.ReqLevel

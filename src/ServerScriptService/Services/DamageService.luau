@@ -40,6 +40,12 @@ function DamageService.SetDamageListener(fn: (Model, Player, number) -> ())
 	damageListener = fn
 end
 
+-- Compuerta de ataque (PveZoneService): decide si un jugador puede dañar a un mob (campamento = zona segura, mini jefe agotado)
+local attackGate: ((Player, Model) -> boolean)? = nil
+function DamageService.SetAttackGate(fn: (Player, Model) -> boolean)
+	attackGate = fn
+end
+
 type Opts = { Stun: number?, Slow: number?, SlowAmount: number?, Push: Vector3? }
 
 local function humanoidOf(m: Model): Humanoid?
@@ -259,6 +265,10 @@ function DamageService.Deal(attacker: Model, victim: Model, base: number, opts: 
 			return 0
 		end
 		victim:SetAttribute("LastHitFaction", fa)
+	end
+
+	if aPlayer and vMob and attackGate and not attackGate(aPlayer, victim) then
+		return 0
 	end
 
 	if aPlayer and vMob then

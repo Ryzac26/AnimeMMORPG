@@ -41,6 +41,7 @@ local function luckOf(pl: Player): number
 	return (1 + GearService.Luck(pl)) * (gapMult[pl] or 1) - 1
 end
 local PlayerData = require(Services.PlayerData)
+local DailyLimits = require(Services.DailyLimits)
 
 local NotifyRemote = Net.Get("Notify")
 local rng = Random.new()
@@ -169,6 +170,23 @@ local function runLottery(participants: { Player }, shares: { [Player]: number }
 end
 
 ---------------------------------------------------------------------
+-- Llaves de cofre: caen de los monstruos de la franja, con tope diario por jugador y por franja (DailyLimits).
+-- Si ya cayeron todas las de hoy no cae ninguna más; las que sobren caducan al cambiar el día.
+---------------------------------------------------------------------
+local function tryKey(pl: Player, strip: number, p: number)
+	if DailyLimits.Remaining(pl, "Keys", strip) <= 0 then
+		return
+	end
+	if rng:NextNumber() >= p * (gapMult[pl] or 1) then
+		return
+	end
+	if Inventory.Add(pl, "Key_" .. strip, 1) then
+		DailyLimits.Use(pl, "Keys", strip)
+		notify(pl, string.format("¡Llave de cofre de la Franja %d! (hoy %d de %d)", strip, DailyLimits.Used(pl, "Keys", strip), DailyLimits.Limit("Keys", strip)))
+	end
+end
+
+---------------------------------------------------------------------
 -- Cada tipo de muerte
 ---------------------------------------------------------------------
 local function onMob(level: number, strip: number, participants: { Player }, shares: { [Player]: number })
@@ -195,6 +213,7 @@ local function onMob(level: number, strip: number, participants: { Player }, sha
 				addItem(h, LootTables.RollPet(M.PetRarity, rng), 1, true)
 			end
 			deliver(pl, h, "Botín", false, "Monstruos")
+			tryKey(pl, strip, LootTables.KeyDrop.Mob)
 		end
 	end
 end
@@ -216,6 +235,9 @@ local function onBoss(cfg: any, level: number, strip: number?, participants: { P
 				addItem(h, LootTables.RollPet(cfg.PetRarity, rng), 1, true)
 			end
 			deliver(pl, h, "Jefe derrotado", true, "Jefes")
+			if strip then
+				tryKey(pl, strip, LootTables.KeyDrop.Elite)
+			end
 		end
 	end
 	local prize = if strip then cfg.PrizeRarity[strip] else cfg.PrizeRarity
@@ -259,6 +281,10 @@ local function onMini(strip: number, level: number, participants: { Player }, sh
 	local X = LootTables.MiniBoss
 	for _, pl in ipairs(participants) do
 		if pl.Parent and (shares[pl] or 0) >= X.MinShare then
+			if not DailyLimits.Use(pl, "MiniBoss", strip) then
+				notify(pl, string.format("Mini jefe: ya agotaste tus recompensas de hoy en la Franja %d (%d al día)", strip, DailyLimits.Limit("MiniBoss", strip)))
+				continue
+			end
 			local luck = luckOf(pl)
 			local faction, role = classOf(pl)
 			local h = newHaul()
@@ -276,6 +302,7 @@ local function onMini(strip: number, level: number, participants: { Player }, sh
 				addItem(h, LootTables.RollPet(X.PetRarity, rng), 1, true)
 			end
 			deliver(pl, h, "Mini jefe derrotado", true, "Jefes")
+			tryKey(pl, strip, LootTables.KeyDrop.Mini)
 		end
 	end
 end
@@ -317,6 +344,10 @@ local function grant(player: Player, kind: string, strip: number): boolean
 		addItem(h, LootTables.RollGear(faction, role, level, X.GearRarity[strip], rng, X.JewelryBias), 1, true)
 	else
 		local X = LootTables.Challenge
+		if not DailyLimits.Use(player, "Challenge", strip) then
+			notify(player, string.format("Desafío superado, pero ya agotaste tus premios de hoy en la Franja %d (%d al día)", strip, DailyLimits.Limit("Challenge", strip)))
+			return true
+		end
 		header = "Desafío superado"
 		h.Gold = goldFor(player, level, X.GoldMult)
 		h.Points = X.FactionPoints

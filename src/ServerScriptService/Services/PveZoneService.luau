@@ -2,15 +2,18 @@
 --[[
     PveZoneService (ModuleScript) -> ServerScriptService.Services.PveZoneService
     PUNTOS DE INTERÉS de las 16 franjas PvE (4 por facción). Se construye solo sobre las losas del mapa (tag "ZonePvE"):
-      CAMPAMENTO (1 por franja, a mitad de la franja): zona segura (los mobs te pierden de vista y no nace ningún grupo dentro),
+      CAMPAMENTO (franjas 2, 3 y 4, a mitad de la franja; la franja 1 no lo necesita: está pegada a la ciudad y la ciudad también regenera): zona segura (los mobs te pierden de vista y no nace ningún grupo dentro),
           regenera vida y energía, hoguera para FIJAR el punto de reaparición (si mueres en esa franja vuelves al campamento
-          y no a la ciudad) y olla para COCINAR (3 recursos de la franja -> 2 pociones). Aquí NO hay mercader (lo vende el pase "Mercader portátil").
+          y no a la ciudad) y olla de ALQUIMIA (abre la misma ventana del Alquimista: pociones x1/x10/x50/x100/Máx con los recursos). Dentro del campamento NO se puede atacar. Aquí NO hay mercader.
       ALTAR DE OFRENDA: entregas recursos + material de la franja + oro y recibes una tirada de equipo mejor que la de un mob. Enfriamiento por jugador.
-      ALTAR DE DESAFÍO: 3 oleadas de monstruos de la franja; premio personal para todos los que estén cerca al terminar. Enfriamiento del altar.
-      COFRES (3 por franja): se abren una vez y se reabren cada 15 min. Rara vez salen "mejorados" (una rareza más y con mejora +1..+3).
+      ALTAR DE DESAFÍO: 3 oleadas de monstruos de la franja; premio personal para todos los que estén cerca al terminar. Enfriamiento del altar,
+          tope diario por jugador y por franja, y si alguien de tu grupo tiene un desafío en curso no puedes iniciar otro hasta que termine.
+      COFRES (3 por franja): están sellados: se abren con una LLAVE de su franja, que cae de los monstruos de esa franja con tope diario por jugador
+          (LootTables.Daily.Keys; las llaves sobrantes caducan al cambiar el día, no se venden ni se intercambian). Rara vez salen "mejorados".
       MINI JEFE (1 por franja): un mob fuerte de la zona (vida x3 a x5, más grande), botín propio. Reaparece a los 8 min.
+          Tope diario por jugador y por franja: al agotarlo no puedes ni pegarle, y si se muere no te da nada.
       NODOS DE RECOLECCIÓN (10 por franja): dan el recurso de la franja (Hierba, Cristal, Reliquia, Corazón) que sirve para cocinar y para la ofrenda.
-    Todos los números (probabilidades, costos, tiempos) están en ReplicatedStorage.Modules.LootTables (MiniBoss, MapChest, Offering, Challenge, Gathering, Cooking).
+    Todos los números (probabilidades, costos, tiempos) están en ReplicatedStorage.Modules.LootTables (MiniBoss, MapChest, Offering, Challenge, Gathering, Daily, KeyDrop).
     El botín lo entrega LootService.Grant. Si el mapa se vuelve a construir, todo se rehace solo.
     Lee la geometría de cada carril de los atributos que deja ProjectBootstrapper en las losas (LaneStart, LaneDir, FanC, FanK, UStart, UEnd).
 ]]
@@ -30,6 +33,10 @@ local Wallet = require(Services.WalletService)
 local LootService = require(Services.LootService)
 local Energy = require(Services.EnergyRegenService)
 local MobService = require(Services.Mobs.MobService)
+local DamageService = require(Services.DamageService)
+local DailyLimits = require(Services.DailyLimits)
+local PartyService = require(Services.PartyService)
+local Alchemist = require(Services.AlquimistaService)
 
 local NotifyRemote = Net.Get("Notify")
 local MAP_NAME = "Map_WC3_Style"
@@ -60,6 +67,7 @@ local NODE_COLOR: { Color3 } = {
 
 -- Ajustes de colocación
 local CAMP_U = 0.5 -- el campamento a mitad de la franja
+local CAMP_FROM_STRIP = 2 -- la franja 1 no tiene campamento (está pegada a la ciudad)
 local CAMP_RADIUS = 30 -- radio de la zona segura
 local SAFE_BOX = 64
 local EDGE_MARGIN = 62 -- distancia mínima a los muros laterales
@@ -345,11 +353,12 @@ local function buildCamp(l: Lane, root: Folder): Camp
 	local potPos = center + Vector3.new(0, 0, 0) + Vector3.new(dir.X, 0, dir.Z) * 13
 	local pot = cyl(f, "Olla", 4, 3, potPos + Vector3.new(0, 1.9, 0), Color3.fromRGB(45, 45, 52), Enum.Material.Metal, true)
 	cyl(f, "OllaCaldo", 3.4, 0.3, potPos + Vector3.new(0, 3.3, 0), Color3.fromRGB(120, 200, 110), Enum.Material.Neon, false)
-	local potPrompt = prompt(pot, "Cocinar", string.format("3 %s → pociones", itemName(LootTables.StripResource[l.Strip])), 1, Enum.KeyCode.E)
+	local potPrompt = prompt(pot, "Cocinar pociones", "Olla del campamento", 0.5, Enum.KeyCode.E)
+	Alchemist.RegisterStation(pot)
 
 	-- rótulo
 	label(fire, string.format("%s · FRANJA %d", style.Camp, l.Strip), style.Accent, 11, UDim2.fromOffset(320, 40))
-	label(pot, "Cocinar", Color3.new(1, 1, 1), 4, UDim2.fromOffset(140, 26))
+	label(pot, "Alquimia", Color3.new(1, 1, 1), 4, UDim2.fromOffset(140, 26))
 
 	-- zona segura (los mobs te pierden de vista) y exclusión de nacimientos
 	local safe = Instance.new("Part")
@@ -391,31 +400,12 @@ local function buildCamp(l: Lane, root: Folder): Camp
 		notify(player, string.format("Campamento fijado. Si mueres en la franja %d, reaparecerás aquí", l.Strip))
 	end)
 
-	-- olla: recursos -> pociones
+	-- olla: abre la ventana del Alquimista (pociones con los recursos; el servidor valida que estés cerca de la olla)
 	potPrompt.Triggered:Connect(function(player: Player)
 		if not nearEnough(player, potPos, USE_DISTANCE) then
 			return
 		end
-		local C = LootTables.Cooking
-		local rid = LootTables.StripResource[l.Strip]
-		if Inventory.Count(player, rid) < C.Resources then
-			notify(player, string.format("Para cocinar necesitas %d %s", C.Resources, itemName(rid)))
-			return
-		end
-		local vida = math.ceil(C.Potions / 2)
-		local energia = C.Potions - vida
-		if not Inventory.Consume(player, rid, C.Resources) then
-			return
-		end
-		local ok = Inventory.Add(player, "Pocion_Vida", vida)
-		if energia > 0 then
-			ok = Inventory.Add(player, "Pocion_Energia", energia) and ok
-		end
-		if ok then
-			notify(player, string.format("Cocinaste: +%d Poción de Vida, +%d Poción de Energía", vida, energia))
-		else
-			Inventory.Add(player, rid, C.Resources) -- no cabía: devuelve los recursos
-		end
+		Alchemist.OpenAt(player, "Olla del campamento", "Cocina de campaña", l.Faction)
 	end)
 
 	table.insert(camps, camp)
@@ -490,6 +480,17 @@ end
 ---------------------------------------------------------------------
 -- ALTAR DE DESAFÍO
 ---------------------------------------------------------------------
+-- Desafíos en curso: jugadores que participan ahora. Si alguien de tu grupo está en uno, tú no puedes iniciar otro (evita abrir varios a la vez)
+local challengeBusy: { [Player]: boolean } = {}
+local function groupInChallenge(player: Player): boolean
+	for q in pairs(challengeBusy) do
+		if q == player or (q.Parent ~= nil and PartyService.SameParty(player, q)) then
+			return true
+		end
+	end
+	return false
+end
+
 local function buildChallenge(l: Lane, root: Folder, pos: Vector3)
 	local style = FACTION_STYLE[l.Faction]
 	local tint = Color3.fromRGB(255, 80, 70)
@@ -521,6 +522,7 @@ local function buildChallenge(l: Lane, root: Folder, pos: Vector3)
 		return out
 	end
 
+	local marked: { Player } = {} -- quienes participan en este desafío (se liberan al terminar)
 	local function run()
 		local alive: { Model } = {}
 		local function cleanup()
@@ -544,6 +546,8 @@ local function buildChallenge(l: Lane, root: Folder, pos: Vector3)
 				break
 			end
 			for _, p in ipairs(who) do
+				challengeBusy[p] = true -- tú y tu grupo no pueden iniciar otro desafío hasta que este termine
+				table.insert(marked, p)
 				notify(p, string.format("Desafío: oleada %d de %d", wave, #X.WaveSizes))
 			end
 			local remaining = 0
@@ -593,6 +597,20 @@ local function buildChallenge(l: Lane, root: Folder, pos: Vector3)
 		state.Busy = false
 	end
 
+	local function runSafe(starter: Player)
+		challengeBusy[starter] = true
+		table.insert(marked, starter)
+		local ok, err = pcall(run)
+		if not ok then
+			warn("[PveZoneService] desafío: " .. tostring(err))
+			state.Busy = false
+		end
+		for _, p in ipairs(marked) do
+			challengeBusy[p] = nil -- se libera a los que participaron en este desafío
+		end
+		table.clear(marked)
+	end
+
 	pp.Triggered:Connect(function(player: Player)
 		if not nearEnough(player, pos, USE_DISTANCE) then
 			return
@@ -609,8 +627,16 @@ local function buildChallenge(l: Lane, root: Folder, pos: Vector3)
 		if #defs == 0 then
 			return
 		end
+		if DailyLimits.Remaining(player, "Challenge", l.Strip) <= 0 then
+			notify(player, string.format("Ya usaste tus %d desafíos de hoy en la Franja %d", DailyLimits.Limit("Challenge", l.Strip), l.Strip))
+			return
+		end
+		if groupInChallenge(player) then
+			notify(player, "Tu grupo ya tiene un desafío en curso: espera a que termine")
+			return
+		end
 		state.Busy = true
-		task.spawn(run)
+		task.spawn(runSafe, player)
 	end)
 end
 
@@ -632,27 +658,37 @@ local function buildChest(l: Lane, root: Folder, pos: Vector3, index: number)
 	local lid = mk(f, "Tapa", Vector3.new(5, 0.9, 3.2), lidClosed, Color3.fromRGB(138, 90, 46), Enum.Material.Wood)
 	local latch = mk(f, "Cierre", Vector3.new(0.8, 1, 0.5), base * CFrame.new(0, 2.7, -1.7), Color3.fromRGB(255, 225, 120), Enum.Material.Neon)
 	glow(latch, Color3.fromRGB(255, 220, 120), 16, 1.2)
-	local state = { Open = false }
-	local pp = prompt(body, "Abrir cofre", "Cofre de la zona", 1.2, Enum.KeyCode.E)
-	label(body, "COFRE", Color3.fromRGB(255, 225, 120), 4.2, UDim2.fromOffset(120, 24))
+	local busy = false
+	local keyId = "Key_" .. l.Strip
+	local pp = prompt(body, "Abrir cofre (usa 1 llave)", "Cofre sellado · Franja " .. l.Strip, 1.2, Enum.KeyCode.E)
+	label(body, "COFRE SELLADO", Color3.fromRGB(255, 225, 120), 4.2, UDim2.fromOffset(150, 24))
 	pp.Triggered:Connect(function(player: Player)
-		if state.Open or not nearEnough(player, pos, USE_DISTANCE) then
+		if busy or not nearEnough(player, pos, USE_DISTANCE) then
+			return
+		end
+		if Inventory.Count(player, keyId) < 1 then
+			local more = DailyLimits.Remaining(player, "Keys", l.Strip)
+			notify(player, string.format("Cofre sellado: necesitas una Llave de la Franja %d. Cae de los monstruos de esta franja (hoy te pueden caer %d más)", l.Strip, more))
+			return
+		end
+		busy = true
+		if not Inventory.Consume(player, keyId, 1) then
+			busy = false
 			return
 		end
 		if not LootService.Grant(player, "MapChest", l.Strip) then
-			return -- mochila llena: el cofre queda cerrado para reintentar
+			Inventory.Add(player, keyId, 1) -- mochila llena: se devuelve la llave
+			busy = false
+			return
 		end
-		state.Open = true
-		pp.Enabled = false
 		lid.CFrame = lidClosed * CFrame.new(0, 0.6, 1.5) * CFrame.Angles(math.rad(-70), 0, 0)
 		latch.Transparency = 1
-		task.delay(LootTables.MapChest.ReopenSeconds, function()
+		task.delay(LootTables.MapChest.AnimSeconds, function()
 			if lid.Parent then
 				lid.CFrame = lidClosed
 				latch.Transparency = 0
-				pp.Enabled = true
-				state.Open = false
 			end
+			busy = false
 		end)
 	end)
 end
@@ -834,8 +870,10 @@ end
 
 local function buildLane(l: Lane, root: Folder)
 	local len = l.U1 - l.U0
-	local camp = buildCamp(l, root)
-	local placed: { Vector3 } = { camp.Pos }
+	local placed: { Vector3 } = {}
+	if l.Strip >= CAMP_FROM_STRIP then
+		placed[1] = buildCamp(l, root).Pos
+	end
 	local function pick(uFrom: number, uTo: number, minDist: number?, preferSide: number?): Vector3?
 		for _ = 1, 60 do
 			local u = l.U0 + len * (uFrom + (uTo - uFrom) * rng:NextNumber())
@@ -945,12 +983,31 @@ local function campNear(pos: Vector3): Camp?
 	return nil
 end
 
+-- ¿Está la posición dentro de una zona segura (ciudad, fuerte o campamento)? Piezas con tag "ZoneSafe"
+local function inSafeZone(pos: Vector3, zones: { BasePart }): boolean
+	for _, z in ipairs(zones) do
+		local l = z.CFrame:PointToObjectSpace(pos)
+		local h = z.Size / 2
+		if math.abs(l.X) <= h.X and math.abs(l.Z) <= h.Z and l.Y >= -h.Y - 5 and l.Y <= h.Y + 80 then
+			return true
+		end
+	end
+	return false
+end
+
+-- Vida y energía rápidas en la ciudad, en los fuertes y en los campamentos
 local function regenStep()
+	local zones: { BasePart } = {}
+	for _, z in ipairs(CollectionService:GetTagged("ZoneSafe")) do
+		if z:IsA("BasePart") then
+			table.insert(zones, z)
+		end
+	end
 	for _, p in ipairs(Players:GetPlayers()) do
 		local char = p.Character
 		local root = char and char:FindFirstChild("HumanoidRootPart")
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
-		if root and root:IsA("BasePart") and hum and hum.Health > 0 and campNear(root.Position) then
+		if root and root:IsA("BasePart") and hum and hum.Health > 0 and inSafeZone(root.Position, zones) then
 			if hum.Health < hum.MaxHealth then
 				hum.Health = math.min(hum.MaxHealth, hum.Health + hum.MaxHealth * REGEN_PCT)
 			end
@@ -961,6 +1018,32 @@ local function regenStep()
 		end
 	end
 end
+
+-- COMPUERTA DE ATAQUE (DamageService): dentro del campamento no se puede atacar; un mini jefe con tope diario agotado no se puede dañar
+local lastGateMsg: { [Player]: number } = {}
+local function gateMessage(player: Player, text: string)
+	local now = os.clock()
+	if now - (lastGateMsg[player] or 0) > 3 then
+		lastGateMsg[player] = now
+		notify(player, text)
+	end
+end
+
+DamageService.SetAttackGate(function(player: Player, victim: Model): boolean
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") and campNear(root.Position) then
+		gateMessage(player, "Dentro del campamento no se puede atacar")
+		return false
+	end
+	if victim:GetAttribute("Mini") == true then
+		local strip = victim:GetAttribute("Strip")
+		if typeof(strip) == "number" and DailyLimits.Remaining(player, "MiniBoss", strip) <= 0 then
+			gateMessage(player, string.format("Ya agotaste tus mini jefes de hoy en la Franja %d: no puedes atacarlo", strip))
+			return false
+		end
+	end
+	return true
+end)
 
 local function hookPlayer(player: Player)
 	local function onChar(char: Model)
@@ -1017,6 +1100,8 @@ Players.PlayerRemoving:Connect(function(p)
 	campOf[p] = nil
 	lastRest[p] = nil
 	pendingRespawn[p] = nil
+	lastGateMsg[p] = nil
+	challengeBusy[p] = nil
 end)
 
 task.spawn(function()
