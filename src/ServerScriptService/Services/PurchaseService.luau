@@ -30,6 +30,8 @@ type Shop = { Day: string, Bought: { [string]: number }, Path: string?, BoostLef
 local PurchaseService = {}
 local shops: { [Player]: Shop } = {}
 local pending: { [Player]: { Key: string, At: number } } = {}
+local passOwned: { [Player]: { [string]: boolean } } = {} -- pases de una sola compra (ProductCatalog.Passes)
+local studioGranted: { [Player]: { [string]: boolean } } = {} -- solo Studio: "comprados" en esta sesión de prueba
 local lastAction: { [Player]: number } = {}
 
 local function today(): string
@@ -83,12 +85,84 @@ local function pushState(player: Player)
 	end
 	local t = os.time()
 	local nextReset = (math.floor(t / 86400) + 1) * 86400
-	StateRemote:FireClient(player, { Items = items, Path = s.Path, BoostLeft = math.floor(s.BoostLeft), ResetIn = nextReset - t })
+	StateRemote:FireClient(player, { Items = items, Path = s.Path, BoostLeft = math.floor(s.BoostLeft), ResetIn = nextReset - t, Passes = passOwned[player] or {} })
 end
 
 local function reply(player: Player, ok: boolean, text: string)
 	ResultRemote:FireClient(player, ok, text)
 end
+
+---------------------------------------------------------------------
+-- PASES (Game Pass, una sola compra)
+---------------------------------------------------------------------
+local function setPass(player: Player, ps: ProductCatalog.Pass, owned: boolean)
+	local t = passOwned[player]
+	if not t then
+		t = {}
+		passOwned[player] = t
+	end
+	t[ps.Key] = owned
+	player:SetAttribute(ps.Attr, owned)
+end
+
+local function checkPasses(player: Player)
+	for _, ps in ipairs(ProductCatalog.Passes) do
+		local owned = false
+		if RunService:IsStudio() then
+			-- en Studio tu cuenta NO tiene los pases salvo que lo pidas en ProductCatalog.DevOwnPasses (o los "compres" de prueba)
+			owned = ProductCatalog.DevOwnPasses[ps.Key] == true or (studioGranted[player] ~= nil and studioGranted[player][ps.Key] == true)
+		elseif ps.PassId > 0 then
+			local ok, has = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, ps.PassId)
+			owned = ok and has == true
+		end
+		if player.Parent then
+			setPass(player, ps, owned)
+		end
+	end
+end
+
+local function buyPass(player: Player, key: any)
+	local ps = if typeof(key) == "string" then ProductCatalog.PassByKey[key] else nil
+	if not ps then
+		return
+	end
+	if passOwned[player] and passOwned[player][ps.Key] then
+		reply(player, false, "Ya tienes este pase.")
+		return
+	end
+	if ps.PassId > 0 then
+		local ok, err = pcall(MarketplaceService.PromptGamePassPurchase, MarketplaceService, player, ps.PassId)
+		if not ok then
+			warn("[PurchaseService] No se pudo abrir la compra del pase: " .. tostring(err))
+			reply(player, false, "No se pudo abrir la compra")
+		end
+	elseif RunService:IsStudio() then
+		local g = studioGranted[player]
+		if not g then
+			g = {}
+			studioGranted[player] = g
+		end
+		g[ps.Key] = true
+		setPass(player, ps, true)
+		reply(player, true, "(Prueba en Studio) " .. ps.Name .. " activado solo en esta sesión.")
+		pushState(player)
+	else
+		reply(player, false, "Este pase aún no está a la venta")
+	end
+end
+
+MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player: Player, passId: number, purchased: boolean)
+	if not purchased then
+		return
+	end
+	for _, ps in ipairs(ProductCatalog.Passes) do
+		if ps.PassId > 0 and ps.PassId == passId then
+			setPass(player, ps, true)
+			reply(player, true, string.format("¡%s adquirido! Gracias por apoyar el juego.", ps.Name))
+			pushState(player)
+		end
+	end
+end)
 
 -- Entrega el producto (ya pagado o de prueba). Devuelve true si quedó entregado.
 local function grant(player: Player, s: Shop, p: ProductCatalog.Product): boolean
@@ -206,6 +280,8 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, key: an
 		pushState(player)
 	elseif action == "Buy" then
 		request(player, key)
+	elseif action == "BuyPass" then
+		buyPass(player, key)
 	end
 end)
 
@@ -285,11 +361,15 @@ local function init(player: Player)
 	shops[player] = s
 	player:SetAttribute("XpBoostLeft", math.floor(s.BoostLeft))
 	pushState(player)
+	checkPasses(player)
+	pushState(player)
 end
 
 PlayerData.Releasing:Connect(function(player: Player)
 	shops[player] = nil
 	pending[player] = nil
+	passOwned[player] = nil
+	studioGranted[player] = nil
 	lastAction[player] = nil
 end)
 Players.PlayerAdded:Connect(function(pl)

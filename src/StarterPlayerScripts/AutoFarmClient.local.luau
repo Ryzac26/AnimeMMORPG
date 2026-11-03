@@ -31,6 +31,7 @@ local OFF_COLOR = Color3.fromRGB(150, 150, 165)
 
 local theme = UITheme.For(player:GetAttribute("Faction"))
 local ItemCatalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("ItemCatalog"))
+local AlchemyCatalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("AlchemyCatalog"))
 local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
 
 local gui = Instance.new("ScreenGui")
@@ -192,11 +193,20 @@ local function candidates(field: string): { string }
 	local out: { string } = {}
 	for id, it in pairs(ItemCatalog.Items) do
 		local use: any = it.Use
-		if use and use[field] and bagCount(id) > 0 then
+		if use and use[field] and bagCount(id) > 0 and AlchemyCatalog.PotionAllowed(id, player:GetAttribute("Pass_Belt") == true) then
 			table.insert(out, id)
 		end
 	end
-	table.sort(out)
+	-- de menor a mayor efecto (así al rotar se pasa Normal -> Mayor -> Suprema)
+	table.sort(out, function(a, b)
+		local ua: any = ItemCatalog.Items[a].Use
+		local ub: any = ItemCatalog.Items[b].Use
+		local pa, pb = ua[field] or 0, ub[field] or 0
+		if pa ~= pb then
+			return pa < pb
+		end
+		return a < b
+	end)
 	return out
 end
 local function currentPct(attr: string): number
@@ -269,7 +279,9 @@ local function refreshPotions()
 		if typeof(want) == "string" and want ~= "" and ItemCatalog.Items[want] then
 			id = want
 		else
-			id = candidates(k.Field)[1]
+			local list = candidates(k.Field)
+			-- "Auto": con el pase usa la MEJOR que tengas; sin él, la base
+			id = if player:GetAttribute("Pass_Belt") == true then list[#list] else list[1]
 		end
 		ui.Count.Text = tostring(if id then bagCount(id) else 0)
 		ui.Name.Text = if typeof(want) == "string" and want ~= "" then (ItemCatalog.Items[want] and ItemCatalog.Items[want].Name or "Auto") else "Auto" .. (if id then (": " .. ItemCatalog.Items[id].Name) else " (sin poción)")

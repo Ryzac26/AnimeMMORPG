@@ -20,6 +20,7 @@ local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local GearView = require(script.Parent:WaitForChild("GearView", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
+local RarityPicker = require(script.Parent:WaitForChild("RarityPicker", 10))
 
 local CLOSE_DISTANCE = 32
 local openRemote = ClientNet.Get("ShopOpen")
@@ -42,6 +43,8 @@ local detail: TextLabel
 local resultLabel: TextLabel
 local actionBox: Frame
 local commonsButton: TextButton
+local picker: any = nil
+local confirmBulk = false
 local goldLabel: TextLabel
 local tabBuy: TextButton
 local tabSell: TextButton
@@ -124,6 +127,25 @@ local function refreshDetail()
 		b.Activated:Connect(fn)
 	end
 	commonsButton.Visible = mode == "Sell"
+	if picker then
+		picker.Holder.Visible = mode == "Sell"
+	end
+	if mode == "Sell" and picker then
+		local pieces, total = 0, 0
+		for _, st in pairs(Store.Bag) do
+			local item: any = (ItemCatalog.Items :: any)[st.Id]
+			if item and not item.Pet and (item.Gear or item.Slot) and not st.Locked and picker:Matches(item, st.Plus or 0) then
+				local unit = ShopCatalog.SellPrice(st.Id, item, st.Plus or 0)
+				if unit then
+					pieces += st.Count
+					total += unit * st.Count
+				end
+			end
+		end
+		local asking = confirmBulk and picker:Dangerous()
+		commonsButton.Text = if pieces == 0 then "Nada que vender con esa selección" elseif asking then string.format("¿Seguro? Vender %d piezas (%s)", pieces, withCommas(total)) else string.format("Vender %d piezas · %s de oro", pieces, withCommas(total))
+		commonsButton.BackgroundColor3 = if pieces == 0 then Color3.fromRGB(70, 60, 60) elseif asking then Color3.fromRGB(190, 70, 50) else Color3.fromRGB(140, 100, 40)
+	end
 	if mode == "Buy" then
 		local item: any = if selectedId then (ItemCatalog.Items :: any)[selectedId] else nil
 		if not item or not selectedId then
@@ -324,35 +346,45 @@ local function build()
 	Instance.new("UICorner", box)
 	UITheme.Border(box, theme, 2)
 
-	detail = UITheme.Text(box, "", 14, nil, UDim2.fromOffset(14, 12), UDim2.fromOffset(318, 130))
+	detail = UITheme.Text(box, "", 14, nil, UDim2.fromOffset(14, 8), UDim2.fromOffset(318, 120))
 	detail.TextWrapped = true
 	detail.RichText = true
 	detail.TextYAlignment = Enum.TextYAlignment.Top
 
-	resultLabel = UITheme.Text(box, "", 14, nil, UDim2.fromOffset(14, 150), UDim2.fromOffset(318, 60))
+	resultLabel = UITheme.Text(box, "", 13, nil, UDim2.fromOffset(14, 128), UDim2.fromOffset(318, 40))
 	resultLabel.TextWrapped = true
 	resultLabel.RichText = true
 	resultLabel.TextYAlignment = Enum.TextYAlignment.Top
 
 	actionBox = Instance.new("Frame")
 	actionBox.BackgroundTransparency = 1
-	actionBox.Position = UDim2.fromOffset(14, 224)
+	actionBox.Position = UDim2.fromOffset(14, 170)
 	actionBox.Size = UDim2.fromOffset(318, 38)
 	actionBox.Parent = box
 
 	commonsButton = Instance.new("TextButton")
-	commonsButton.Position = UDim2.fromOffset(14, 300)
-	commonsButton.Size = UDim2.fromOffset(318, 38)
+	commonsButton.Position = UDim2.fromOffset(14, 318)
+	commonsButton.Size = UDim2.fromOffset(318, 30)
 	commonsButton.BackgroundColor3 = Color3.fromRGB(140, 100, 40)
 	commonsButton.TextColor3 = Color3.new(1, 1, 1)
 	commonsButton.Font = UITheme.Font
 	commonsButton.TextSize = 14
-	commonsButton.Text = "Vender todo el equipo Común"
+	commonsButton.Text = "Vender"
 	commonsButton.Visible = false
 	commonsButton.Parent = box
 	Instance.new("UICorner", commonsButton)
+	picker = RarityPicker.new(box, UDim2.fromOffset(14, 248), function()
+		confirmBulk = false
+		refreshDetail()
+	end)
 	commonsButton.Activated:Connect(function()
-		actionRemote:FireServer("SellCommons")
+		if picker:Dangerous() and not confirmBulk then
+			confirmBulk = true
+			refreshDetail()
+			return
+		end
+		confirmBulk = false
+		actionRemote:FireServer("SellRarity", picker:List(), picker:IncludePlus())
 	end)
 end
 

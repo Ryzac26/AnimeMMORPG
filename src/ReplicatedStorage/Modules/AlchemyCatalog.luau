@@ -3,7 +3,7 @@
     AlchemyCatalog (ModuleScript) -> ReplicatedStorage.Modules.AlchemyCatalog
     ALQUIMISTA: recetas de pociones y rendimiento de "Desmontar equipo". Un solo lugar para balancear (lo leen servidor y cliente).
       RECETAS: cada poción cuesta recursos de recolección (Rec_1..4, se sacan de los nodos del mapa) + algo de material de franja + oro.
-               Los grados altos NO se pagan con Robux: los puede fabricar cualquiera con los materiales.
+               Los grados Mayor y Suprema (Premium) necesitan el pase "Cinturón de Pociones" para fabricarlos y usarlos en el auto-farm; las normales son para todos.
                Los materiales NO dependen de los Metin (el más bajo es nivel 55): salen de nodos y monstruos de cada franja.
       DESMONTAR: equipo de la mochila (sin candado) -> materiales de su franja + fragmentos; Épico o mejor puede dar una Gema.
 ]]
@@ -15,7 +15,24 @@ export type Recipe = {
 	Cost: { [string]: number }, -- material -> cantidad por poción
 	Gold: number, -- oro por poción
 	Yield: number, -- pociones por fabricación
+	Premium: boolean?, -- true = solo con el pase "Cinturón de Pociones" (fabricar y usar en el auto-farm)
 }
+
+-- POCIONES EN EL AUTO-FARM: sin el pase "Cinturón de Pociones" el auto-farm solo usa las pociones BASE (las de siempre).
+-- Con el pase puede usar Mayor y Suprema, elegir el grado a mano o usar siempre la mejor disponible.
+-- Si algún día quieres que todos las usen: pon FREE_HIGH_GRADES = true (un solo cambio).
+AlchemyCatalog.BASE_POTIONS = { Pocion_Vida = true, Pocion_Energia = true } :: { [string]: boolean }
+AlchemyCatalog.FREE_HIGH_GRADES = false
+-- ¿Puede este jugador fabricar esta receta? (las Premium piden el pase)
+function AlchemyCatalog.CanCraft(recipe: Recipe, hasBelt: boolean): boolean
+	return recipe.Premium ~= true or hasBelt or AlchemyCatalog.FREE_HIGH_GRADES
+end
+function AlchemyCatalog.PotionAllowed(id: string, hasBelt: boolean): boolean
+	if hasBelt or AlchemyCatalog.FREE_HIGH_GRADES or AlchemyCatalog.BASE_POTIONS[id] then
+		return true
+	end
+	return AlchemyCatalog.ById[id] == nil -- objetos fuera del Alquimista (futuros) no se restringen
+end
 
 AlchemyCatalog.MAX_QTY = 999
 AlchemyCatalog.QTY_OPTIONS = { 1, 10, 50, 100 } -- más el botón "Máx"
@@ -23,11 +40,11 @@ AlchemyCatalog.QTY_OPTIONS = { 1, 10, 50, 100 } -- más el botón "Máx"
 -- Orden de la lista. Efecto (% de vida/energía) en ItemCatalog (Use).
 AlchemyCatalog.Recipes = {
 	{ Id = "Pocion_Vida", Kind = "Hp", Cost = { Rec_1 = 1 }, Gold = 10, Yield = 1 },
-	{ Id = "Pocion_Vida_Mayor", Kind = "Hp", Cost = { Rec_2 = 2, Mat_Colmillo = 1 }, Gold = 40, Yield = 1 },
-	{ Id = "Pocion_Vida_Suprema", Kind = "Hp", Cost = { Rec_3 = 2, Mat_Esencia = 2 }, Gold = 120, Yield = 1 },
+	{ Id = "Pocion_Vida_Mayor", Premium = true, Kind = "Hp", Cost = { Rec_2 = 2, Mat_Colmillo = 1 }, Gold = 40, Yield = 1 },
+	{ Id = "Pocion_Vida_Suprema", Premium = true, Kind = "Hp", Cost = { Rec_3 = 2, Mat_Esencia = 2 }, Gold = 120, Yield = 1 },
 	{ Id = "Pocion_Energia", Kind = "En", Cost = { Rec_1 = 1 }, Gold = 10, Yield = 1 },
-	{ Id = "Pocion_Energia_Mayor", Kind = "En", Cost = { Rec_2 = 2, Mat_Colmillo = 1 }, Gold = 40, Yield = 1 },
-	{ Id = "Pocion_Energia_Suprema", Kind = "En", Cost = { Rec_3 = 2, Mat_Esencia = 2 }, Gold = 120, Yield = 1 },
+	{ Id = "Pocion_Energia_Mayor", Premium = true, Kind = "En", Cost = { Rec_2 = 2, Mat_Colmillo = 1 }, Gold = 40, Yield = 1 },
+	{ Id = "Pocion_Energia_Suprema", Premium = true, Kind = "En", Cost = { Rec_3 = 2, Mat_Esencia = 2 }, Gold = 120, Yield = 1 },
 } :: { Recipe }
 
 AlchemyCatalog.ById = {} :: { [string]: Recipe }

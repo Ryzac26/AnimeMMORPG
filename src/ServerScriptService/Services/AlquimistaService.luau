@@ -7,7 +7,7 @@
     Recetas y rendimientos: ReplicatedStorage.Modules.AlchemyCatalog.
     - Pone un NPC en cada "NPCSpawnPoint" con Role = "Alquimista". Botón "Hablar" abre la ventana (AlquimiaClient).
     - Remotes: AlquimiaOpen (servidor -> cliente) · AlquimiaAction (cliente -> servidor) · AlquimiaResult (servidor -> cliente)
-        AlquimiaAction: ("Craft", idReceta, cantidad | "max") · ("Dismantle", casillaMochila) · ("DismantleCommons")
+        AlquimiaAction: ("Craft", idReceta, cantidad | "max") · ("Dismantle", casillaMochila) · ("DismantleRarity", {rarezas}, incluirMejoradas) · ("DismantleCommons")
     - El SERVIDOR valida todo: cerca del alquimista, perfil cargado, recursos y oro. Si algo no cabe en la mochila se devuelve todo.
 ]]
 local CollectionService = game:GetService("CollectionService")
@@ -233,6 +233,10 @@ local function craft(player: Player, recipeId: any, qty: any)
 		return
 	end
 	local item: any = (ItemCatalog.Items :: any)[recipe.Id]
+	if not AlchemyCatalog.CanCraft(recipe, player:GetAttribute("Pass_Belt") == true) then
+		reply(player, false, "Necesitas el pase Cinturón de Pociones (Tienda > Pases) para fabricar " .. item.Name .. ".")
+		return
+	end
 	if n < 1 or most < 1 then
 		reply(player, false, "Te faltan materiales u oro para fabricar " .. nameOf(recipe.Id) .. ".")
 		return
@@ -365,16 +369,37 @@ local function dismantle(player: Player, index: any)
 	PlayerData.Save(player)
 end
 
--- Desmonta de una vez todo el equipo Común sin mejorar y sin candado
-local function dismantleCommons(player: Player)
+local VALID_RARITY = { Comun = true, Raro = true, Epico = true, Legendario = true, Mitico = true }
+-- Lista de rarezas que manda el cliente -> conjunto validado (ignora basura)
+local function raritySet(list: any): { [string]: boolean }
+	local set: { [string]: boolean } = {}
+	if typeof(list) == "table" then
+		for i = 1, math.min(#list, 8) do
+			local r = (list :: any)[i]
+			if typeof(r) == "string" and VALID_RARITY[r] then
+				set[r] = true
+			end
+		end
+	end
+	return set
+end
+
+-- Desmonta de una vez TODO el equipo de las rarezas elegidas (sin candado; las piezas mejoradas solo si includePlus)
+local function dismantleRarities(player: Player, rarities: any, includePlus: any)
+	local set = raritySet(rarities)
+	if next(set) == nil then
+		reply(player, false, "Elige al menos una rareza.")
+		return
+	end
 	local st = Inventory.Get(player)
 	if not st then
 		return
 	end
+	local withPlus = includePlus == true
 	local slots: { number } = {}
 	for i, stack in pairs(st.Bag) do
 		local item = dismantlable(stack)
-		if item and item.Rarity == "Comun" and (stack.Plus or 0) == 0 then
+		if item and set[item.Rarity] and (withPlus or (stack.Plus or 0) == 0) then
 			table.insert(slots, i)
 		end
 	end
@@ -385,13 +410,13 @@ local function dismantleCommons(player: Player)
 		local item = if stack then dismantlable(stack) else nil
 		if stack and item then
 			for _ = 1, stack.Count do
-				rollYield(item, 0, yields)
+				rollYield(item, stack.Plus or 0, yields)
 				pieces += 1
 			end
 		end
 	end
 	if pieces == 0 then
-		reply(player, false, "No tienes equipo Común para desmontar.")
+		reply(player, false, "No tienes equipo de esa rareza para desmontar.")
 		return
 	end
 	if not giveAll(player, yields) then
@@ -404,7 +429,7 @@ local function dismantleCommons(player: Player)
 			Inventory.RemoveSlot(player, i, stack.Count)
 		end
 	end
-	reply(player, true, string.format("Desmontaste %d piezas Comunes: %s.", pieces, describe(yields)))
+	reply(player, true, string.format("Desmontaste %d piezas: %s.", pieces, describe(yields)))
 	PlayerData.Save(player)
 end
 
@@ -429,8 +454,10 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 		craft(player, a, b)
 	elseif action == "Dismantle" then
 		dismantle(player, a)
+	elseif action == "DismantleRarity" then
+		dismantleRarities(player, a, b)
 	elseif action == "DismantleCommons" then
-		dismantleCommons(player)
+		dismantleRarities(player, { "Comun" }, false)
 	end
 end)
 
@@ -454,5 +481,5 @@ task.spawn(function()
 	scan()
 end)
 
-AlquimistaService.Debug = { Craft = craft, Dismantle = dismantle, DismantleCommons = dismantleCommons, Models = models }
+AlquimistaService.Debug = { Craft = craft, Dismantle = dismantle, DismantleRarities = dismantleRarities, Models = models }
 return AlquimistaService

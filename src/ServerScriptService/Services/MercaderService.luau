@@ -5,7 +5,7 @@
       - Pone un NPC en cada "NPCSpawnPoint" con Role = "Mercader". Nombres/colores: tabla MERCHANTS de aquí abajo.
       - Hablar con él (botón "Comerciar") abre la ventana (ShopClient).
       - Remotes: ShopOpen (servidor -> cliente) · ShopAction (cliente -> servidor) · ShopResult (servidor -> cliente)
-        ShopAction: ("Buy", itemId, cantidad) · ("Sell", casillaMochila, cantidad?) · ("SellCommons")
+        ShopAction: ("Buy", itemId, cantidad) · ("Sell", casillaMochila, cantidad?) · ("SellRarity", {rarezas}, incluirMejoradas) · ("SellCommons")
       - El SERVIDOR valida todo: cerca del mercader, perfil cargado, el objeto está en la mochila (no puesto) y se puede vender.
       - Precios: ReplicatedStorage.Modules.ShopCatalog. El oro entra al historial como "Venta" y sale como "Tienda".
     Necesita Inventory.RemoveSlot (pequeño añadido a InventoryService, ver LEEME).
@@ -260,16 +260,37 @@ local function sell(player: Player, index: any, count: any)
 	PlayerData.Save(player)
 end
 
--- Vende de una vez todo el equipo Común sin mejorar que esté en la mochila
-local function sellCommons(player: Player)
+local VALID_RARITY = { Comun = true, Raro = true, Epico = true, Legendario = true, Mitico = true }
+-- Lista de rarezas que manda el cliente -> conjunto validado (ignora basura)
+local function raritySet(list: any): { [string]: boolean }
+	local set: { [string]: boolean } = {}
+	if typeof(list) == "table" then
+		for i = 1, math.min(#list, 8) do
+			local r = (list :: any)[i]
+			if typeof(r) == "string" and VALID_RARITY[r] then
+				set[r] = true
+			end
+		end
+	end
+	return set
+end
+
+-- Vende de una vez TODO el equipo de las rarezas elegidas que esté en la mochila (sin candado; lo mejorado solo si includePlus)
+local function sellRarities(player: Player, rarities: any, includePlus: any)
+	local set = raritySet(rarities)
+	if next(set) == nil then
+		reply(player, false, "Elige al menos una rareza.")
+		return
+	end
 	local st = Inventory.Get(player)
 	if not st then
 		return
 	end
+	local withPlus = includePlus == true
 	local slots: { number } = {}
 	for i, stack in pairs(st.Bag) do
 		local item: any = (ItemCatalog.Items :: any)[stack.Id]
-		if item and not item.Pet and (item.Gear or item.Slot) and item.Rarity == "Comun" and (stack.Plus or 0) == 0 and not stack.Locked then
+		if item and not item.Pet and (item.Gear or item.Slot) and set[item.Rarity] and (withPlus or (stack.Plus or 0) == 0) and not stack.Locked then
 			table.insert(slots, i)
 		end
 	end
@@ -278,20 +299,22 @@ local function sellCommons(player: Player)
 		local stack = st.Bag[i]
 		if stack then
 			local item: any = (ItemCatalog.Items :: any)[stack.Id]
-			local unit = ShopCatalog.SellPrice(stack.Id, item, 0)
-			local id, _, taken = Inventory.RemoveSlot(player, i, stack.Count)
-			if id and unit then
-				total += unit * taken
-				pieces += taken
+			local unit = ShopCatalog.SellPrice(stack.Id, item, stack.Plus or 0)
+			if unit then
+				local id, _, taken = Inventory.RemoveSlot(player, i, stack.Count)
+				if id then
+					total += unit * taken
+					pieces += taken
+				end
 			end
 		end
 	end
 	if pieces == 0 then
-		reply(player, false, "No tienes equipo Común para vender.")
+		reply(player, false, "No tienes equipo de esa rareza para vender.")
 		return
 	end
 	Wallet.AddGold(player, total, "Venta")
-	reply(player, true, string.format("Vendiste %d piezas Comunes por %d de oro.", pieces, total))
+	reply(player, true, string.format("Vendiste %d piezas por %d de oro.", pieces, total))
 	PlayerData.Save(player)
 end
 
@@ -316,8 +339,10 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 		buy(player, a, b)
 	elseif action == "Sell" then
 		sell(player, a, b)
+	elseif action == "SellRarity" then
+		sellRarities(player, a, b)
 	elseif action == "SellCommons" then
-		sellCommons(player)
+		sellRarities(player, { "Comun" }, false)
 	end
 end)
 
@@ -342,6 +367,6 @@ task.spawn(function()
 end)
 
 -- solo para pruebas automáticas
-MercaderService.Debug = { Buy = buy, Sell = sell, SellCommons = sellCommons, Merchants = merchantModels }
+MercaderService.Debug = { Buy = buy, Sell = sell, SellRarities = sellRarities, Merchants = merchantModels }
 
 return MercaderService

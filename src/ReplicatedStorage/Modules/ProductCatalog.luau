@@ -108,6 +108,43 @@ ProductCatalog.Products = {
 	},
 } :: { Product }
 
+---------------------------------------------------------------------
+-- PASES (se compran UNA sola vez, Game Pass). Creación: Creator Hub > tu experiencia > Monetización > Pases.
+-- Pega el ID en PassId. Con PassId = 0 no se puede comprar en el juego publicado (en Studio se entrega para probar).
+-- Al tenerlo, el jugador recibe el atributo `Attr` (true) y los sistemas lo consultan.
+---------------------------------------------------------------------
+export type Pass = {
+	Key: string,
+	Attr: string,
+	Name: string,
+	Desc: string,
+	Perks: { string },
+	PassId: number,
+	PriceText: string,
+	Icon: string?,
+}
+-- Solo Studio: pases que TU cuenta tendrá "comprados" para probar. false = como un jugador sin el pase.
+ProductCatalog.DevOwnPasses = { Belt = false } :: { [string]: boolean }
+
+ProductCatalog.Passes = {
+	{
+		Key = "Belt", Attr = "Pass_Belt", Name = "Cinturón de Pociones",
+		Desc = "Fabrica pociones Mayor y Suprema y deja que el Auto-farm las use.",
+		Perks = {
+			"Fabrica pociones Mayor (50%) y Suprema (75%) con el Alquimista",
+			"El Auto-farm las usa solas",
+			"Elige el grado a mano o deja \"Auto\" = siempre la mejor que tengas",
+			"Sin el pase: solo pociones normales (Auto-farm incluido)",
+		},
+		PassId = 2067774732, PriceText = "99 R$",
+	},
+} :: { Pass }
+
+ProductCatalog.PassByKey = {} :: { [string]: Pass }
+for _, ps in ipairs(ProductCatalog.Passes) do
+	ProductCatalog.PassByKey[ps.Key] = ps
+end
+
 ProductCatalog.ByKey = {} :: { [string]: Product }
 for _, p in ipairs(ProductCatalog.Products) do
 	ProductCatalog.ByKey[p.Key] = p

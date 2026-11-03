@@ -21,6 +21,7 @@ local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local GearView = require(script.Parent:WaitForChild("GearView", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
+local RarityPicker = require(script.Parent:WaitForChild("RarityPicker", 10))
 
 local CLOSE_DISTANCE = 32
 local openRemote = ClientNet.Get("AlquimiaOpen")
@@ -43,6 +44,8 @@ local detail: TextLabel
 local resultLabel: TextLabel
 local actionBox: Frame
 local commonsButton: TextButton
+local picker: any = nil
+local confirmBulk = false
 local goldLabel: TextLabel
 local tabCraft: TextButton
 local tabDismantle: TextButton
@@ -82,7 +85,14 @@ local function itemName(id: string): string
 	return if it then it.Name else id
 end
 
+local function hasBelt(): boolean
+	return player:GetAttribute("Pass_Belt") == true
+end
+
 local function maxCraft(r: AlchemyCatalog.Recipe): number
+	if not AlchemyCatalog.CanCraft(r, hasBelt()) then
+		return 0
+	end
 	return AlchemyCatalog.MaxCraft(r, owned, myGold())
 end
 
@@ -137,6 +147,22 @@ local function refreshDetail()
 		b.Activated:Connect(fn)
 	end
 	commonsButton.Visible = mode == "Dismantle"
+	actionBox.Position = if mode == "Craft" then UDim2.fromOffset(14, 262) else UDim2.fromOffset(14, 164)
+	if picker then
+		picker.Holder.Visible = mode == "Dismantle"
+	end
+	if mode == "Dismantle" and picker then
+		local pieces = 0
+		for _, st in pairs(Store.Bag) do
+			local item: any = (ItemCatalog.Items :: any)[st.Id]
+			if item and not item.Pet and (item.Gear or item.Slot) and not st.Locked and picker:Matches(item, st.Plus or 0) then
+				pieces += st.Count
+			end
+		end
+		local asking = confirmBulk and picker:Dangerous()
+		commonsButton.Text = if pieces == 0 then "Nada que desmontar con esa selección" elseif asking then string.format("¿Seguro? Desmontar %d piezas", pieces) else string.format("Desmontar %d piezas", pieces)
+		commonsButton.BackgroundColor3 = if pieces == 0 then Color3.fromRGB(70, 60, 60) elseif asking then Color3.fromRGB(190, 70, 50) else Color3.fromRGB(140, 100, 40)
+	end
 	if mode == "Craft" then
 		local r = if selectedRecipe then AlchemyCatalog.ById[selectedRecipe] else nil
 		if not r then
@@ -155,6 +181,10 @@ local function refreshDetail()
 			table.insert(lines, string.format('  %d %s  <font color="%s">(tienes %d)</font>', need, itemName(id), if have >= need then GREEN else RED, have))
 		end
 		table.insert(lines, string.format('  <font color="%s">%s</font> de oro  <font color="%s">(tienes %s)</font>', GOLD, withCommas(r.Gold), GOLD, withCommas(myGold())))
+		local locked = not AlchemyCatalog.CanCraft(r, hasBelt())
+		if locked then
+			table.insert(lines, string.format('\n<font color="%s">🔒 Requiere el pase Cinturón de Pociones (Tienda > Pases)</font>', RED))
+		end
 		local most = maxCraft(r)
 		table.insert(lines, string.format('\nAhora puedes fabricar: <font color="%s"><b>%d</b></font>', if most > 0 then GREEN else RED, most))
 		detail.Text = table.concat(lines, "\n")
@@ -228,7 +258,7 @@ local function refreshList()
 	if mode == "Craft" then
 		for _, r in ipairs(AlchemyCatalog.Recipes) do
 			local most = maxCraft(r)
-			entry(r.Id, 0, if most > 0 then string.format("Puedes fabricar %d", most) else "Faltan materiales", selectedRecipe == r.Id, function()
+			entry(r.Id, 0, if not AlchemyCatalog.CanCraft(r, hasBelt()) then "🔒 Requiere Cinturón de Pociones" elseif most > 0 then string.format("Puedes fabricar %d", most) else "Faltan materiales", selectedRecipe == r.Id, function()
 				selectedRecipe = r.Id
 				resultLabel.Text = ""
 				refreshList()
@@ -347,12 +377,12 @@ local function build()
 	Instance.new("UICorner", box)
 	UITheme.Border(box, theme, 2)
 
-	detail = UITheme.Text(box, "", 14, nil, UDim2.fromOffset(14, 12), UDim2.fromOffset(318, 190))
+	detail = UITheme.Text(box, "", 14, nil, UDim2.fromOffset(14, 8), UDim2.fromOffset(318, 190))
 	detail.TextWrapped = true
 	detail.RichText = true
 	detail.TextYAlignment = Enum.TextYAlignment.Top
 
-	resultLabel = UITheme.Text(box, "", 14, nil, UDim2.fromOffset(14, 210), UDim2.fromOffset(318, 44))
+	resultLabel = UITheme.Text(box, "", 13, nil, UDim2.fromOffset(14, 208), UDim2.fromOffset(318, 38))
 	resultLabel.TextWrapped = true
 	resultLabel.RichText = true
 	resultLabel.TextYAlignment = Enum.TextYAlignment.Top
@@ -364,18 +394,28 @@ local function build()
 	actionBox.Parent = box
 
 	commonsButton = Instance.new("TextButton")
-	commonsButton.Position = UDim2.fromOffset(14, 308)
-	commonsButton.Size = UDim2.fromOffset(318, 38)
+	commonsButton.Position = UDim2.fromOffset(14, 318)
+	commonsButton.Size = UDim2.fromOffset(318, 30)
 	commonsButton.BackgroundColor3 = Color3.fromRGB(140, 100, 40)
 	commonsButton.TextColor3 = Color3.new(1, 1, 1)
 	commonsButton.Font = UITheme.Font
 	commonsButton.TextSize = 14
-	commonsButton.Text = "Desmontar todo el equipo Común"
+	commonsButton.Text = "Desmontar"
 	commonsButton.Visible = false
 	commonsButton.Parent = box
 	Instance.new("UICorner", commonsButton)
+	picker = RarityPicker.new(box, UDim2.fromOffset(14, 248), function()
+		confirmBulk = false
+		refreshDetail()
+	end)
 	commonsButton.Activated:Connect(function()
-		actionRemote:FireServer("DismantleCommons")
+		if picker:Dangerous() and not confirmBulk then
+			confirmBulk = true
+			refreshDetail()
+			return
+		end
+		confirmBulk = false
+		actionRemote:FireServer("DismantleRarity", picker:List(), picker:IncludePlus())
 	end)
 end
 
@@ -411,6 +451,7 @@ end
 
 Store.Changed:Connect(refreshAll)
 player:GetAttributeChangedSignal("Gold"):Connect(refreshAll)
+player:GetAttributeChangedSignal("Pass_Belt"):Connect(refreshAll)
 
 task.spawn(function()
 	while true do

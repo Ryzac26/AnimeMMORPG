@@ -46,6 +46,7 @@ local ACCENT: { [string]: Color3 } = {
 	Boost = Color3.fromRGB(70, 200, 120),
 	Hours = Color3.fromRGB(80, 150, 255),
 	Combo = Color3.fromRGB(235, 100, 190),
+	Pass = Color3.fromRGB(255, 190, 60),
 }
 local FALLBACK_TEXT: { [string]: string } = {
 	Boost4h = "+50%", Horas3 = "3 H", Horas5 = "5 H", Horas8 = "8 H", Horas12 = "12 H",
@@ -66,30 +67,31 @@ local function applyIcon(key: string)
 	end
 end
 
-local function loadIcon(p: ProductCatalog.Product)
-	if iconCache[p.Key] ~= nil then
-		applyIcon(p.Key)
+-- key: clave de caché ("Boost4h", "pass_Belt"...) · assetId: ID del Developer Product o del Game Pass · infoType: Product | GamePass
+local function loadIcon(key: string, assetId: number, override: string?, infoType: Enum.InfoType)
+	if iconCache[key] ~= nil then
+		applyIcon(key)
 		return
 	end
-	if p.Icon and p.Icon ~= "" then
-		iconCache[p.Key] = p.Icon
-		applyIcon(p.Key)
+	if override and override ~= "" then
+		iconCache[key] = override
+		applyIcon(key)
 		return
 	end
-	if p.ProductId <= 0 then
-		iconCache[p.Key] = false
+	if assetId <= 0 then
+		iconCache[key] = false
 		return
 	end
-	iconCache[p.Key] = false -- evita pedirlo dos veces mientras llega
+	iconCache[key] = false -- evita pedirlo dos veces mientras llega
 	task.spawn(function()
 		local ok, info = pcall(function()
-			return MarketplaceService:GetProductInfo(p.ProductId, Enum.InfoType.Product)
+			return MarketplaceService:GetProductInfo(assetId, infoType)
 		end)
 		if ok and typeof(info) == "table" then
 			local id = (info :: any).IconImageAssetId
 			if typeof(id) == "number" and id > 0 then
-				iconCache[p.Key] = "rbxassetid://" .. tostring(math.floor(id))
-				applyIcon(p.Key)
+				iconCache[key] = "rbxassetid://" .. tostring(math.floor(id))
+				applyIcon(key)
 			end
 		end
 	end)
@@ -226,7 +228,7 @@ local function render()
 		img.Parent = box
 		Instance.new("UICorner", img).CornerRadius = UDim.new(0, 12)
 		iconTargets[p.Key] = { Image = img, Fallback = fb }
-		loadIcon(p)
+		loadIcon(p.Key, p.ProductId, p.Icon, Enum.InfoType.Product)
 
 		-- textos
 		UITheme.Text(f, p.Name, 16, if ok or chosen then Color3.new(1, 1, 1) else Color3.fromRGB(160, 160, 175), UDim2.fromOffset(106, 8), UDim2.fromOffset(300, 20))
@@ -313,6 +315,70 @@ local function render()
 		if p.Kind == "Combo" then
 			card(p)
 		end
+	end
+
+	-- PASES de una sola compra
+	section("PASES", "Se compran una sola vez y son tuyos para siempre.", ACCENT.Pass)
+	for _, ps in ipairs(ProductCatalog.Passes) do
+		order += 1
+		local has = state ~= nil and state.Passes ~= nil and state.Passes[ps.Key] == true
+		local f = Instance.new("Frame")
+		f.LayoutOrder = order
+		f.Size = UDim2.new(1, -8, 0, 128)
+		f.BackgroundColor3 = Color3.fromRGB(24, 24, 34)
+		f.BorderSizePixel = 0
+		f.Parent = scroll
+		Instance.new("UICorner", f)
+		gradient(f, Color3.fromRGB(44, 38, 20), Color3.fromRGB(22, 20, 16), 0)
+		local st = Instance.new("UIStroke")
+		st.Thickness = 2
+		st.Color = if has then Color3.fromRGB(111, 220, 127) else Color3.fromRGB(255, 212, 94)
+		st.Parent = f
+		local box = Instance.new("Frame")
+		box.Position = UDim2.fromOffset(10, 22)
+		box.Size = UDim2.fromOffset(84, 84)
+		box.BackgroundColor3 = ACCENT.Pass
+		box.BorderSizePixel = 0
+		box.Parent = f
+		Instance.new("UICorner", box).CornerRadius = UDim.new(0, 12)
+		gradient(box, ACCENT.Pass:Lerp(Color3.new(1, 1, 1), 0.25), ACCENT.Pass:Lerp(Color3.new(0, 0, 0), 0.45))
+		local fb = UITheme.Text(box, "🧪", 34, Color3.new(1, 1, 1), UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
+		local img = Instance.new("ImageLabel")
+		img.Size = UDim2.fromScale(1, 1)
+		img.BackgroundTransparency = 1
+		img.ScaleType = Enum.ScaleType.Fit
+		img.Visible = false
+		img.Parent = box
+		Instance.new("UICorner", img).CornerRadius = UDim.new(0, 12)
+		iconTargets["pass_" .. ps.Key] = { Image = img, Fallback = fb }
+		loadIcon("pass_" .. ps.Key, ps.PassId, ps.Icon, Enum.InfoType.GamePass)
+		UITheme.Text(f, ps.Name, 17, Color3.fromRGB(255, 226, 140), UDim2.fromOffset(106, 8), UDim2.fromOffset(300, 22))
+		local d = UITheme.Text(f, ps.Desc, 12, Color3.fromRGB(200, 200, 212), UDim2.fromOffset(106, 30), UDim2.fromOffset(290, 30))
+		d.TextWrapped = true
+		d.TextYAlignment = Enum.TextYAlignment.Top
+		local perks = UITheme.Text(f, "• " .. table.concat(ps.Perks, "\n• "), 11, Color3.fromRGB(150, 235, 170), UDim2.fromOffset(106, 62), UDim2.fromOffset(290, 60))
+		perks.TextWrapped = true
+		perks.TextYAlignment = Enum.TextYAlignment.Top
+		local buy = Instance.new("TextButton")
+		buy.AnchorPoint = Vector2.new(1, 0)
+		buy.Position = UDim2.new(1, -10, 0, 40)
+		buy.Size = UDim2.fromOffset(104, 38)
+		buy.BackgroundColor3 = if has then Color3.fromRGB(60, 60, 72) else Color3.fromRGB(60, 160, 85)
+		buy.TextColor3 = Color3.new(1, 1, 1)
+		buy.Font = UITheme.Font
+		buy.TextSize = if has then 13 else 15
+		buy.Text = if has then "✔ ADQUIRIDO" else ps.PriceText
+		buy.AutoButtonColor = not has
+		buy.Parent = f
+		Instance.new("UICorner", buy)
+		if not has then
+			gradient(buy, Color3.fromRGB(95, 205, 120), Color3.fromRGB(40, 125, 65))
+		end
+		buy.Activated:Connect(function()
+			if not has and actionRemote then
+				actionRemote:FireServer("BuyPass", ps.Key)
+			end
+		end)
 	end
 end
 

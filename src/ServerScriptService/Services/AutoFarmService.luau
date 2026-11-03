@@ -44,6 +44,7 @@ local EnergyRegenService = require(Services.EnergyRegenService)
 local DamageService = require(Services.DamageService)
 local Inventory = require(Services.InventoryService)
 local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
+local AlchemyCatalog = require(ReplicatedStorage.Modules.AlchemyCatalog)
 
 local SetRemote = Net.Get("AutoFarm")
 local MoveRemote = Net.Get("AutoFarmMove")
@@ -461,7 +462,9 @@ end
 local function findPotion(player: Player, kind: string): string?
 	local want = player:GetAttribute(if kind == "Hp" then "AF_HpItem" else "AF_EnItem")
 	local field = if kind == "Hp" then "HealPct" else "EnergyPct"
-	if typeof(want) == "string" and want ~= "" then
+	-- pase "Cinturón de Pociones": con él el auto-farm usa pociones Mayor/Suprema; sin él, solo las base (AlchemyCatalog)
+	local belt = player:GetAttribute("Pass_Belt") == true
+	if typeof(want) == "string" and want ~= "" and AlchemyCatalog.PotionAllowed(want, belt) then
 		local it = ItemCatalog.Items[want]
 		if it and it.Use and (it.Use :: any)[field] and Inventory.Count(player, want) > 0 then
 			return want
@@ -469,11 +472,21 @@ local function findPotion(player: Player, kind: string): string?
 	end
 	local ids: { string } = {}
 	for id, it in pairs(ItemCatalog.Items) do
-		if it.Use and (it.Use :: any)[field] then
+		if it.Use and (it.Use :: any)[field] and AlchemyCatalog.PotionAllowed(id, belt) then
 			table.insert(ids, id)
 		end
 	end
-	table.sort(ids)
+	-- "Auto": sin pase = la base (orden alfabético, como siempre); con pase = la MEJOR que tengas
+	table.sort(ids, function(a, b)
+		if belt and AlchemyCatalog.PotionAllowed(a, true) then
+			local pa = (ItemCatalog.Items[a].Use :: any)[field] or 0
+			local pb = (ItemCatalog.Items[b].Use :: any)[field] or 0
+			if pa ~= pb then
+				return pa > pb
+			end
+		end
+		return a < b
+	end)
 	for _, id in ipairs(ids) do
 		if Inventory.Count(player, id) > 0 then
 			return id
@@ -881,7 +894,7 @@ SetRemote.OnServerEvent:Connect(function(player: Player, action: any, on: any, m
 		if typeof(extra) == "string" then
 			local field = if on == "Hp" then "HealPct" else "EnergyPct"
 			local it = ItemCatalog.Items[extra]
-			if extra == "" or (it and it.Use and (it.Use :: any)[field]) then
+			if extra == "" or (it and it.Use and (it.Use :: any)[field] and AlchemyCatalog.PotionAllowed(extra, player:GetAttribute("Pass_Belt") == true)) then
 				player:SetAttribute(if on == "Hp" then "AF_HpItem" else "AF_EnItem", extra)
 			end
 		end
