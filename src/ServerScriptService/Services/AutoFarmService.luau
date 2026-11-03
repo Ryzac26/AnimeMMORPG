@@ -291,7 +291,11 @@ local function decide(sk: Skill, ctx: Ctx): (boolean, Model?)
 		return ctx.HpPct < 0.6, nil -- curación propia (poder 7): se usa antes de quedar en peligro
 	end
 	if cat == "heal" then
-		return ctx.HpPct < 0.75 or (ctx.AllyHurt and ctx.AllyDist <= math.max(sk.Radius, 10)), nil -- se cura TEMPRANO; al aliado solo si está dentro del área del poder
+		-- se cura TEMPRANO. Al aliado herido cuando está dentro del ALCANCE REAL del poder:
+		--   poderes con alcance (cura a 3 aliados, cura repartida...: Range 30-40) -> usa el alcance; el servidor elige solo a los más heridos
+		--   poderes 1-2 de cura (centrados en ti) y curas de área -> usa su radio
+		local reach = if sk.Sys == "A" then math.max(sk.Range, sk.Radius, 10) else math.max(sk.Radius, 10)
+		return ctx.HpPct < 0.75 or (ctx.AllyHurt and ctx.AllyDist <= reach - 1), nil
 	elseif cat == "defense" then
 		return ctx.Engaged and ctx.HpPct < 0.7, nil
 	elseif cat == "shield" then

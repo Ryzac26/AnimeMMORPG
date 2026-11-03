@@ -480,8 +480,9 @@ local function buildStands(parent: Instance)
 			end
 			-- baranda trasera (cristal tintado, sólida)
 			local bc = out * (STAND_START + totalDepth + 1) + along * mid
-			local back = part(lf, "Baranda", Vector3.new(len, 12, 2), CFrame.lookAt(Vector3.new(bc.X, STAND_TOP + 6, bc.Z), Vector3.new(bc.X, STAND_TOP + 6, bc.Z) + out), l.Cloth, Enum.Material.Glass, true)
-			back.Transparency = 0.6
+			-- muy alta (40 studs) y gruesa: no se puede saltar por encima ni caer al vacío (antes 12, se saltaba)
+			local back = part(lf, "Baranda", Vector3.new(len, 40, 3), CFrame.lookAt(Vector3.new(bc.X, STAND_TOP + 20, bc.Z), Vector3.new(bc.X, STAND_TOP + 20, bc.Z) + out), l.Cloth, Enum.Material.Glass, true)
+			back.Transparency = 0.7
 			-- muros separadores: extremo (hacia la grada de la facción vecina) e interior (hacia el puente)
 			for _, edge in ipairs({ sign * (WING_OUT + 2), sign * (WING_IN - 2) }) do
 				local wc = out * (STAND_START + totalDepth / 2 + 1) + along * edge
