@@ -1051,10 +1051,28 @@ local function hookPlayer(player: Player)
 			local camp = pendingRespawn[player]
 			pendingRespawn[player] = nil
 			task.spawn(function()
+				-- otros scripts (reaparecer en la ciudad, pantalla de carga) también mueven al jugador: se reintenta ~4 s hasta que quede en el campamento
 				char:WaitForChild("HumanoidRootPart", 10)
-				task.wait(0.6) -- deja que el reaparecer normal termine antes de moverlo
-				if player.Character == char and char.Parent then
-					char:PivotTo(camp.Respawn)
+				local deadline = os.clock() + 4
+				local placed = false
+				task.wait(0.5)
+				while player.Character == char and char.Parent and os.clock() < deadline do
+					local root = char:FindFirstChild("HumanoidRootPart")
+					if root and root:IsA("BasePart") then
+						local d = Vector3.new(root.Position.X - camp.Pos.X, 0, root.Position.Z - camp.Pos.Z).Magnitude
+						if d > 40 then
+							char:PivotTo(camp.Respawn)
+							placed = true
+						elseif placed then
+							break
+						else
+							placed = true
+							break
+						end
+					end
+					task.wait(0.4)
+				end
+				if placed and player.Character == char then
 					notify(player, "Reapareciste en tu campamento")
 				end
 			end)
@@ -1070,17 +1088,18 @@ local function hookPlayer(player: Player)
 				local zone = player:GetAttribute("BiomeZone") -- "<Facción>_<franja>" (lo pone BiomeStyler)
 				local chosen: Camp? = nil
 				if typeof(zone) == "string" and mine[zone] then
-					chosen = mine[zone]
+					chosen = mine[zone] -- murió en una franja con campamento fijado: sin límite de distancia (las franjas son largas)
 				elseif root and root:IsA("BasePart") then
+					-- sin franja (borde del mapa): el campamento fijado más cercano, si está razonablemente cerca
+					local best = 700
 					for _, c in pairs(mine) do
-						if (Vector3.new(root.Position.X - c.Pos.X, 0, root.Position.Z - c.Pos.Z)).Magnitude <= 420 then
-							chosen = c
-							break
+						local d = Vector3.new(root.Position.X - c.Pos.X, 0, root.Position.Z - c.Pos.Z).Magnitude
+						if d <= best then
+							best, chosen = d, c
 						end
 					end
 				end
-				-- solo si murió dentro de su propia franja (no en la arena ni en la ciudad)
-				if chosen and root and root:IsA("BasePart") and (Vector3.new(root.Position.X - chosen.Pos.X, 0, root.Position.Z - chosen.Pos.Z)).Magnitude <= 520 then
+				if chosen then
 					pendingRespawn[player] = chosen
 				end
 			end)
