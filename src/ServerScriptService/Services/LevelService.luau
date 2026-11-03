@@ -70,14 +70,16 @@ function LevelService.AddXp(player: Player, amount: number)
 end
 
 -- Penalización por muerte: % de la barra del nivel actual. No baja de nivel.
-function LevelService.LosePercent(player: Player, pct: number)
+function LevelService.LosePercent(player: Player, pct: number): number
 	local p = data[player]
 	if not p or p.Level < GB.DEATH_PENALTY_MIN_LEVEL or p.Level >= GB.MAX_LEVEL then
-		return
+		return 0
 	end
 	local loss = math.floor(GB.XpToNext(p.Level) * pct)
+	local before = p.XP
 	p.XP = math.max(0, p.XP - loss)
 	push(player)
+	return before - p.XP
 end
 
 function LevelService.SetLevel(player: Player, level: number)

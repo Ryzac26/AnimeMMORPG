@@ -35,7 +35,11 @@ local function onDied(player: Player, char: Model)
 	local recent = typeof(lastAt) == "number" and os.clock() - lastAt < 15
 	local byPlayer = recent and char:GetAttribute("LastHitByPlayer") == true
 
-	LevelService.LosePercent(player, if byPlayer then GB.DEATH_PENALTY_PVP else GB.DEATH_PENALTY_PVE)
+	local lost = LevelService.LosePercent(player, if byPlayer then GB.DEATH_PENALTY_PVP else GB.DEATH_PENALTY_PVE)
+	-- datos para la pantalla de muerte (DeathScreenClient)
+	local killer = char:GetAttribute("LastHitBy")
+	player:SetAttribute("DeathKiller", if recent and typeof(killer) == "string" then killer else "")
+	player:SetAttribute("DeathXpLoss", lost)
 
 	if inArena and (byPlayer or ArenaService.CountEnemyDeaths) then
 		ArenaService.LoseLife(player)
@@ -51,6 +55,7 @@ end
 
 local function onCharacter(player: Player, char: Model)
 	protect(char)
+	player:SetAttribute("DeathPlace", nil) -- PveZoneService lo pone al morir si reaparecerá en un campamento
 	if player:GetAttribute("PendingGrada") == true then
 		player:SetAttribute("PendingGrada", nil)
 		task.spawn(function()

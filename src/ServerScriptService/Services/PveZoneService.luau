@@ -1101,6 +1101,7 @@ local function hookPlayer(player: Player)
 				end
 				if chosen then
 					pendingRespawn[player] = chosen
+					player:SetAttribute("DeathPlace", string.format("Campamento · Franja %d", chosen.Strip))
 				end
 			end)
 		end
