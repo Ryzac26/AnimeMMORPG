@@ -109,15 +109,15 @@ ProductCatalog.Products = {
 	},
 	-- OBJETOS (sin bloqueo entre sí ni con los paquetes): se entregan en la mochila
 	{
-		Key = "2067307786", Group = "Objetos", Kind = "Item", Lane = "Objetos", Price = 25, Name = "Pergamino de Protección",
+		Key = "Pergamino1", Group = "Objetos", Kind = "Item", Lane = "Objetos", Price = 25, Name = "Pergamino de Protección",
 		Desc = "Evita que tu equipo baje de nivel al fallar una mejora +7, +8 o +9 en el Herrero.",
-		ProductId = 0, PriceText = "25 R$", DailyLimit = 20, MinLevel = 1, Items = { Pergamino_Proteccion = 1 },
+		ProductId = 2067307786, PriceText = "25 R$", DailyLimit = 20, MinLevel = 1, Items = { Pergamino_Proteccion = 1 },
 	},
 	{
-		Key = "2067373763", Group = "Objetos", Kind = "Item", Lane = "Objetos", Price = 99, Components = { "Pergamino1", "Pergamino1", "Pergamino1", "Pergamino1", "Pergamino1" },
+		Key = "Pergamino5", Group = "Objetos", Kind = "Item", Lane = "Objetos", Price = 99, Components = { "Pergamino1", "Pergamino1", "Pergamino1", "Pergamino1", "Pergamino1" },
 		Name = "Pack x5 Pergaminos de Protección",
 		Desc = "5 Pergaminos de Protección en una sola compra, más barato que por separado.",
-		ProductId = 0, PriceText = "99 R$", DailyLimit = 10, MinLevel = 1, Items = { Pergamino_Proteccion = 5 },
+		ProductId = 2067373763, PriceText = "99 R$", DailyLimit = 10, MinLevel = 1, Items = { Pergamino_Proteccion = 5 },
 	},
 } :: { Product }
 
@@ -137,7 +137,7 @@ export type Pass = {
 	Icon: string?,
 }
 -- Solo Studio: pases que TU cuenta tendrá "comprados" para probar. false = como un jugador sin el pase.
-ProductCatalog.DevOwnPasses = { Belt = false } :: { [string]: boolean }
+ProductCatalog.DevOwnPasses = { Belt = false, Merchant = false } :: { [string]: boolean }
 
 ProductCatalog.Passes = {
 	{
@@ -150,6 +150,16 @@ ProductCatalog.Passes = {
 			"Sin el pase: solo pociones normales (Auto-farm incluido)",
 		},
 		PassId = 2067774732, PriceText = "99 R$",
+	},
+	{
+		Key = "Merchant", Attr = "Pass_Merchant", Name = "Mercader Portátil",
+		Desc = "Compra y vende desde cualquier lugar, sin volver a la ciudad.",
+		Perks = {
+			"Abre el Mercader en cualquier parte (botón 🛒 o tecla V)",
+			"Compra pociones y vende equipo por rareza sin regresar a la ciudad",
+			"Ideal para el Auto-farm largo: vacía la mochila y repón pociones sin viajar",
+		},
+		PassId = 2068735719, PriceText = "99 R$",
 	},
 } :: { Pass }
 

@@ -15,7 +15,8 @@ EnhanceCatalog.MaxPlus = 9
 EnhanceCatalog.GemItem = "Mat_Gema"
 
 -- Probabilidad de éxito al intentar llegar a +n
-EnhanceCatalog.SuccessRate = { [1] = 1.00, [2] = 1.00, [3] = 1.00, [4] = 0.85, [5] = 0.75, [6] = 0.65, [7] = 0.50, [8] = 0.40, [9] = 0.30 } :: { [number]: number }
+-- Hasta +5 es fácil (≈5 intentos); de ahí en adelante se complica: +9 es el máximo y cuesta (≈100 intentos sin pergaminos, ≈14 con ellos desde +5)
+EnhanceCatalog.SuccessRate = { [1] = 1.00, [2] = 1.00, [3] = 1.00, [4] = 0.95, [5] = 0.90, [6] = 0.65, [7] = 0.45, [8] = 0.30, [9] = 0.15 } :: { [number]: number }
 
 -- Si falla el intento a +n: cuántos niveles baja el objeto (0 = se queda igual)
 EnhanceCatalog.FailDrop = { [1] = 0, [2] = 0, [3] = 0, [4] = 0, [5] = 0, [6] = 0, [7] = 1, [8] = 1, [9] = 1 } :: { [number]: number }
@@ -38,6 +39,9 @@ function EnhanceCatalog.CanEnhance(item: { [string]: any }?): boolean
 end
 
 function EnhanceCatalog.PlusName(name: string, plus: number): string
+	if plus >= EnhanceCatalog.MaxPlus then
+		return string.format("★ +%d %s", plus, name) -- +9: pieza al máximo
+	end
 	return if plus > 0 then string.format("+%d %s", plus, name) else name
 end
 

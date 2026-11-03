@@ -72,6 +72,8 @@ local CAMP_RADIUS = 30 -- radio de la zona segura
 local SAFE_BOX = 64
 local EDGE_MARGIN = 62 -- distancia mínima a los muros laterales
 local OBJECT_SPACING = 42
+local EXTRA_OFFERINGS: { [number]: number } = { [3] = 2, [4] = 3 } -- altares de ofrenda ADICIONALES por franja (además del 1 de siempre)
+local EXTRA_CHALLENGES: { [number]: number } = { [3] = 1, [4] = 2 } -- altares de desafío ADICIONALES por franja
 local USE_DISTANCE = 26
 local REGEN_PCT = 0.05 -- % de vida y energía por segundo dentro del campamento
 local REST_COOLDOWN = 20
@@ -433,10 +435,10 @@ local function altarBase(parent: Folder, name: string, pos: Vector3, style: { Ac
 	return core, f:FindFirstChild("Pedestal") :: Part
 end
 
-local function buildOffering(l: Lane, root: Folder, pos: Vector3)
+local function buildOffering(l: Lane, root: Folder, pos: Vector3, idx: number?)
 	local style = FACTION_STYLE[l.Faction]
 	local tint = Color3.fromRGB(190, 120, 255)
-	local core, pedestal = altarBase(root, "AltarOfrenda_" .. l.Faction .. "_" .. l.Strip, pos, style, tint)
+	local core, pedestal = altarBase(root, "AltarOfrenda_" .. l.Faction .. "_" .. l.Strip .. (if idx then "_" .. idx else ""), pos, style, tint)
 	local O = LootTables.Offering
 	local rid, mid = LootTables.StripResource[l.Strip], LootTables.StripMaterial[l.Strip]
 	local rc, mc = O.ResourceCost[l.Strip], O.MaterialCost[l.Strip]
@@ -491,10 +493,10 @@ local function groupInChallenge(player: Player): boolean
 	return false
 end
 
-local function buildChallenge(l: Lane, root: Folder, pos: Vector3)
+local function buildChallenge(l: Lane, root: Folder, pos: Vector3, idx: number?)
 	local style = FACTION_STYLE[l.Faction]
 	local tint = Color3.fromRGB(255, 80, 70)
-	local core, pedestal = altarBase(root, "AltarDesafio_" .. l.Faction .. "_" .. l.Strip, pos, style, tint)
+	local core, pedestal = altarBase(root, "AltarDesafio_" .. l.Faction .. "_" .. l.Strip .. (if idx then "_" .. idx else ""), pos, style, tint)
 	local X = LootTables.Challenge
 	label(core, "ALTAR DE DESAFÍO", tint, 5, UDim2.fromOffset(260, 36))
 	local state = { Busy = false, CooldownUntil = 0 }
@@ -868,6 +870,30 @@ local function farFromAll(p: Vector3, placed: { Vector3 }, dist: number): boolea
 	return true
 end
 
+-- ¿Hay piso bajo este punto y alrededor? (evita poner altares/jefes donde el mapa tiene huecos o el borde)
+local function hasGround(p: Vector3, radius: number): boolean
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	local map = Workspace:FindFirstChild(MAP_NAME)
+	if not map then
+		return true
+	end
+	params.FilterDescendantsInstances = { map }
+	local offsets = { Vector3.zero }
+	for k = 0, 7 do
+		local a = k * math.pi / 4
+		table.insert(offsets, Vector3.new(math.cos(a) * radius, 0, math.sin(a) * radius))
+	end
+	for _, o in ipairs(offsets) do
+		local origin = p + o + Vector3.new(0, 25, 0)
+		local hit = Workspace:Raycast(origin, Vector3.new(0, -60, 0), params)
+		if not hit or math.abs(hit.Position.Y - p.Y) > 6 then
+			return false
+		end
+	end
+	return true
+end
+
 local function buildLane(l: Lane, root: Folder)
 	local len = l.U1 - l.U0
 	local placed: { Vector3 } = {}
@@ -883,7 +909,7 @@ local function buildLane(l: Lane, root: Folder)
 				v = math.abs(v) * preferSide
 			end
 			local p = lanePoint(l, u, v)
-			if farFromAll(p, placed, minDist or OBJECT_SPACING) then
+			if farFromAll(p, placed, minDist or OBJECT_SPACING) and hasGround(p, 22) then
 				return p
 			end
 		end
@@ -900,6 +926,24 @@ local function buildLane(l: Lane, root: Folder)
 	if chal then
 		table.insert(placed, chal)
 		buildChallenge(l, root, chal)
+	end
+	-- Franjas 3 y 4 son enormes (hasta ~3000 studs de ancho): más altares para no recorrer todo el mapa buscando uno.
+	-- El premio no cambia: la ofrenda comparte su enfriamiento por franja y los desafíos comparten el límite diario por franja.
+	local extraOffer = EXTRA_OFFERINGS[l.Strip] or 0
+	local extraChal = EXTRA_CHALLENGES[l.Strip] or 0
+	for k = 1, extraOffer do
+		local p = pick(0.08, 0.95, 280, if k % 2 == 0 then 1 else -1)
+		if p then
+			table.insert(placed, p)
+			buildOffering(l, root, p, k + 1)
+		end
+	end
+	for k = 1, extraChal do
+		local p = pick(0.1, 0.95, 280, if k % 2 == 0 then -1 else 1)
+		if p then
+			table.insert(placed, p)
+			buildChallenge(l, root, p, k + 1)
+		end
 	end
 	-- mini jefe al fondo-medio
 	local lair = pick(0.72, 0.9, 70, sideOf(l.Strip + 1))
@@ -1047,6 +1091,9 @@ end)
 
 local function hookPlayer(player: Player)
 	local function onChar(char: Model)
+		if pendingRespawn[player] and player:GetAttribute("DeathChoice") ~= "Camp" then
+			pendingRespawn[player] = nil -- eligió la ciudad (o lo revivió un aliado): no va al campamento
+		end
 		if pendingRespawn[player] then
 			local camp = pendingRespawn[player]
 			pendingRespawn[player] = nil

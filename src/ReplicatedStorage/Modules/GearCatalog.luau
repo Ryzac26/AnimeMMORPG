@@ -107,7 +107,8 @@ GearCatalog.WeaponStyle = {
 -- +1..+3 100% · +4 85% · +5 70% · +6 55% · +7 40% · +8 30% · +9 20%)
 function GearCatalog.EnhanceMult(plus: number): number
 	local n = math.clamp(math.floor(plus), 0, 9)
-	return 1 + 0.05 * n + 0.01 * n * n
+	-- +9 (máximo): +10% extra sobre la curva normal (x2,36 en vez de x2,26)
+	return 1 + 0.05 * n + 0.01 * n * n + (if n >= 9 then 0.10 else 0)
 end
 
 ---------------------------------------------------------------------

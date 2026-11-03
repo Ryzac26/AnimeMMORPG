@@ -177,6 +177,9 @@ end
 -- COMPRAR / VENDER
 ---------------------------------------------------------------------
 local function nearMerchant(player: Player): boolean
+	if player:GetAttribute("Pass_Merchant") == true then
+		return true -- pase "Mercader Portátil": comercia desde cualquier lugar
+	end
 	local char = player.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if not root then
@@ -327,6 +330,14 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 		return
 	end
 	lastTry[player] = now
+	if action == "OpenPortable" then
+		if player:GetAttribute("Pass_Merchant") == true then
+			OpenRemote:FireClient(player, "Mercader Portátil", "Compra y vende desde donde estés", "", true)
+		else
+			reply(player, false, "Necesitas el pase Mercader Portátil (Tienda > Pases).")
+		end
+		return
+	end
 	if not nearMerchant(player) then
 		reply(player, false, "Estás muy lejos del mercader.")
 		return

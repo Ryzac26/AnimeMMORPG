@@ -466,6 +466,12 @@ local function buildStands(parent: Instance)
 		for _, sign in ipairs({ -1, 1 }) do
 			local len = WING_OUT - WING_IN
 			local mid = sign * (WING_IN + WING_OUT) / 2
+			-- relleno entre el borde del suelo de la arena y la primera grada (antes quedaba una franja hueco: se caía al vacío)
+			do
+				local fd0, fd1 = ARENA_HALF - 6, STAND_START + 4
+				local fc = out * ((fd0 + fd1) / 2) + along * mid
+				part(lf, "Relleno_Grada", Vector3.new(len + 6, FLOOR_TOP + 8, fd1 - fd0), CFrame.lookAt(Vector3.new(fc.X, (FLOOR_TOP - 8) / 2, fc.Z), Vector3.new(fc.X, (FLOOR_TOP - 8) / 2, fc.Z) + out), C(70, 72, 90), Enum.Material.Concrete, true)
+			end
 			for tier = 1, STAND_TIERS do
 				local d0 = STAND_START + (tier - 1) * STAND_DEPTH
 				local topY = FLOOR_TOP + tier * STAND_RISE

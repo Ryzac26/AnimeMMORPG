@@ -93,7 +93,12 @@ local function loadIcon(key: string, assetId: number, override: string?, infoTyp
 			if typeof(id) == "number" and id > 0 then
 				iconCache[key] = "rbxassetid://" .. tostring(math.floor(id))
 				applyIcon(key)
+			else
+				-- Roblox a veces no devuelve el icono de un Developer Product: pon ProductCatalog.Icon = "rbxassetid://ID" (imagen subida como Decal/Imagen)
+				warn(string.format("[TiendaClient] %s (id %d): Roblox no devolvió icono (IconImageAssetId = %s). Usa el campo Icon del catálogo.", key, assetId, tostring(id)))
 			end
+		else
+			warn(string.format("[TiendaClient] %s (id %d): GetProductInfo falló: %s", key, assetId, tostring(info)))
 		end
 	end)
 end

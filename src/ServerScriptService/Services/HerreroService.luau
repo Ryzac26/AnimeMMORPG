@@ -262,6 +262,10 @@ local function enhance(player: Player, kind: any, key: any, useScroll: any)
 	if rng:NextNumber() < (EnhanceCatalog.SuccessRate[target] or 0) then
 		Inventory.SetPlus(player, kind, key, target)
 		reply(player, true, string.format("¡Éxito! %s", EnhanceCatalog.PlusName(name, target)), target)
+		if target >= EnhanceCatalog.MaxPlus then
+			-- +9: hazaña anunciada a todo el servidor
+			Net.Get("Notify"):FireAllClients(string.format("★ ¡%s forjó %s al máximo!", player.DisplayName, EnhanceCatalog.PlusName(name, target)))
+		end
 	else
 		local drop = EnhanceCatalog.FailDrop[target] or 0
 		if drop > 0 and useScroll == true and Inventory.Consume(player, EnhanceCatalog.ScrollItem, 1) then

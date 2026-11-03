@@ -52,6 +52,9 @@ end
 -- Nombre con el nivel de mejora: "+3 Casco de Acero"
 function GearView.DisplayName(item: any, plus: number?): string
 	local n = plus or 0
+	if n >= 9 then
+		return string.format("★ +%d %s", n, item.Name) -- +9: al máximo
+	end
 	return if n > 0 then string.format("+%d %s", n, item.Name) else item.Name
 end
 

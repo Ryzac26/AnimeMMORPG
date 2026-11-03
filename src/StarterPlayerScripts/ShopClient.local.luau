@@ -389,7 +389,7 @@ local function build()
 end
 
 if openRemote then
-	openRemote.OnClientEvent:Connect(function(name: any, title: any, _faction: any)
+	openRemote.OnClientEvent:Connect(function(name: any, title: any, _faction: any, portable: any)
 		npcName = if typeof(name) == "string" then name else "Mercader"
 		npcTitle = if typeof(title) == "string" then title else ""
 		local ok, err = pcall(function()
@@ -398,7 +398,7 @@ if openRemote then
 			gui.Enabled = true
 			local char = player.Character
 			local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-			openPosition = if root then root.Position else nil
+			openPosition = if root and portable ~= true then root.Position else nil -- el Mercader Portátil no se cierra al alejarte
 			refreshAll()
 		end)
 		if not ok then
@@ -435,3 +435,42 @@ task.spawn(function()
 end)
 
 print("[ShopClient] listo")
+
+---------------------------------------------------------------------
+-- MERCADER PORTÁTIL (pase): botón 🛒 y tecla V abren el mercader desde cualquier lugar
+---------------------------------------------------------------------
+do
+	local UserInputService = game:GetService("UserInputService")
+	local portableGui = Instance.new("ScreenGui")
+	portableGui.Name = "MercaderPortatilGui"
+	portableGui.ResetOnSpawn = false
+	portableGui.DisplayOrder = 8
+	portableGui.Parent = player:WaitForChild("PlayerGui", 10)
+	local pb = Instance.new("TextButton")
+	pb.AnchorPoint = Vector2.new(0, 0.5)
+	pb.Position = UDim2.new(0, 10, 0.62, 0)
+	pb.Size = UDim2.fromOffset(112, 34)
+	pb.BackgroundColor3 = Color3.fromRGB(60, 130, 90)
+	pb.TextColor3 = Color3.new(1, 1, 1)
+	pb.Font = UITheme.Font
+	pb.TextSize = 13
+	pb.Text = "🛒 Mercader [V]"
+	pb.Parent = portableGui
+	Instance.new("UICorner", pb)
+	local function sync()
+		pb.Visible = player:GetAttribute("Pass_Merchant") == true
+	end
+	sync()
+	player:GetAttributeChangedSignal("Pass_Merchant"):Connect(sync)
+	local function openPortable()
+		if player:GetAttribute("Pass_Merchant") == true then
+			actionRemote:FireServer("OpenPortable")
+		end
+	end
+	pb.Activated:Connect(openPortable)
+	UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
+		if not processed and input.KeyCode == Enum.KeyCode.V then
+			openPortable()
+		end
+	end)
+end
