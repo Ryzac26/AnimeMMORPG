@@ -1,8 +1,9 @@
 --!strict
 --[[
     AlquimiaClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > AlquimiaClient
-    Ventana del ALQUIMISTA (botón "Hablar"). Dos pestañas:
+    Ventana del ALQUIMISTA (botón "Hablar"). Tres pestañas:
       POCIONES : recetas de Vida/Energía en 3 grados. Eliges la cantidad: x1 / x10 / x50 / x100 / Máx (todo lo que alcance).
+      ELIXIRES : efecto temporal de 30 min (oro, suerte, daño, vida, regeneración). Fabricas y bebes aquí; también se beben en la mochila (Equipar).
       DESMONTAR: equipo de tu mochila (sin candado) -> materiales de su franja + fragmentos. "Desmontar todo el equipo Común" de una vez.
                  Lo Épico o mejor (o mejorado) pide confirmar con un segundo clic.
     Todo lo valida el servidor (AlquimistaService). Se mueve arrastrando el título y se cierra sola si te alejas.
@@ -49,7 +50,8 @@ local confirmBulk = false
 local goldLabel: TextLabel
 local tabCraft: TextButton
 local tabDismantle: TextButton
-local mode = "Craft" -- "Craft" | "Dismantle"
+local tabElixir: TextButton
+local mode = "Craft" -- "Craft" | "Elixir" | "Dismantle"
 local selectedRecipe: string? = nil
 local selectedSlot: number? = nil
 local confirmSlot: number? = nil
@@ -133,9 +135,9 @@ local function refreshDetail()
 			c:Destroy()
 		end
 	end
-	local function button(text: string, x: number, w: number, color: Color3, fn: () -> ())
+	local function button(text: string, x: number, w: number, color: Color3, fn: () -> (), y: number?)
 		local b = Instance.new("TextButton")
-		b.Position = UDim2.fromOffset(x, 0)
+		b.Position = UDim2.fromOffset(x, y or 0)
 		b.Size = UDim2.fromOffset(w, 38)
 		b.BackgroundColor3 = color
 		b.TextColor3 = Color3.new(1, 1, 1)
@@ -147,7 +149,7 @@ local function refreshDetail()
 		b.Activated:Connect(fn)
 	end
 	commonsButton.Visible = mode == "Dismantle"
-	actionBox.Position = if mode == "Craft" then UDim2.fromOffset(14, 262) else UDim2.fromOffset(14, 164)
+	actionBox.Position = if mode ~= "Dismantle" then UDim2.fromOffset(14, 262) else UDim2.fromOffset(14, 164)
 	if picker then
 		picker.Holder.Visible = mode == "Dismantle"
 	end
@@ -163,14 +165,24 @@ local function refreshDetail()
 		commonsButton.Text = if pieces == 0 then "Nada que desmontar con esa selección" elseif asking then string.format("¿Seguro? Desmontar %d piezas", pieces) else string.format("Desmontar %d piezas", pieces)
 		commonsButton.BackgroundColor3 = if pieces == 0 then Color3.fromRGB(70, 60, 60) elseif asking then Color3.fromRGB(190, 70, 50) else Color3.fromRGB(140, 100, 40)
 	end
-	if mode == "Craft" then
+	if mode ~= "Dismantle" then
 		local r = if selectedRecipe then AlchemyCatalog.ById[selectedRecipe] else nil
+		if r and (r.Kind == "Elixir") ~= (mode == "Elixir") then
+			r = nil
+		end
+		if not r and mode == "Elixir" then
+			local aid = player:GetAttribute("ElixirId")
+			local aleft = player:GetAttribute("ElixirLeft")
+			local cur = if typeof(aid) == "string" and typeof(aleft) == "number" and AlchemyCatalog.Elixirs[aid] then string.format('<font color="%s">Activo: %s (%d:%02d)</font>', GREEN, AlchemyCatalog.Elixirs[aid].Name, aleft // 60, aleft % 60) else "Ningún elixir activo."
+			detail.Text = cur .. "\n\nElige un elixir a la izquierda.\n\n<font size=\"12\" color=\"" .. GRAY .. "\">Duran 30 min (solo corre conectado) y solo uno activo a la vez: beber otro reemplaza al actual. No dan experiencia.</font>"
+			return
+		end
 		if not r then
 			detail.Text = "Elige una poción a la izquierda.\n\n<font size=\"12\" color=\"" .. GRAY .. "\">Los recursos (Hierba, Cristal, Reliquia...) se recolectan en los nodos del mapa; los materiales salen de los monstruos.</font>"
 			return
 		end
 		local item: any = (ItemCatalog.Items :: any)[r.Id]
-		local lines = { string.format('<b>%s</b>\n<font size="12" color="%s">%s</font>\n\nCuesta por poción:', item.Name, GRAY, item.Desc or "") }
+		local lines = { string.format('<b>%s</b>\n<font size="12" color="%s">%s</font>\n\nCuesta por %s:', item.Name, GRAY, if r.Kind == "Elixir" then AlchemyCatalog.Elixirs[r.Id].Short .. " · 30 min" else (item.Desc or ""), if r.Kind == "Elixir" then "elixir" else "poción") }
 		local mats: { string } = {}
 		for id in pairs(r.Cost) do
 			table.insert(mats, id)
@@ -200,6 +212,16 @@ local function refreshDetail()
 		button("Máx", #opts * 65, 58, if most > 0 then Color3.fromRGB(60, 100, 160) else Color3.fromRGB(80, 60, 60), function()
 			actionRemote:FireServer("Craft", r.Id, "max")
 		end)
+		if r.Kind == "Elixir" then
+			local have = owned(r.Id)
+			local aid = player:GetAttribute("ElixirId")
+			local aleft = player:GetAttribute("ElixirLeft")
+			local cur = if typeof(aid) == "string" and typeof(aleft) == "number" and AlchemyCatalog.Elixirs[aid] then string.format('<font color="%s">Activo: %s (%d:%02d)</font>', GREEN, AlchemyCatalog.Elixirs[aid].Name, aleft // 60, aleft % 60) else "Ningún elixir activo."
+			detail.Text ..= string.format('\n%s  <font color="%s">(tienes %d)</font>', cur, GRAY, have)
+			button(if have > 0 then "Beber (30 min)" else "No tienes este elixir", 0, 318, if have > 0 then Color3.fromRGB(150, 90, 190) else Color3.fromRGB(70, 60, 60), function()
+				actionRemote:FireServer("Drink", r.Id)
+			end, 46)
+		end
 	else
 		local row
 		for _, g in ipairs(gearList()) do
@@ -255,8 +277,11 @@ local function refreshList()
 		UITheme.Text(b, subText, 10, Color3.fromRGB(160, 160, 175), UDim2.fromOffset(8, 20), UDim2.new(1, -16, 0, 14))
 		b.Activated:Connect(onClick)
 	end
-	if mode == "Craft" then
+	if mode ~= "Dismantle" then
 		for _, r in ipairs(AlchemyCatalog.Recipes) do
+			if (r.Kind == "Elixir") ~= (mode == "Elixir") then
+				continue
+			end
 			local most = maxCraft(r)
 			entry(r.Id, 0, if not AlchemyCatalog.CanCraft(r, hasBelt()) then "🔒 Requiere Cinturón de Pociones" elseif most > 0 then string.format("Puedes fabricar %d", most) else "Faltan materiales", selectedRecipe == r.Id, function()
 				selectedRecipe = r.Id
@@ -296,6 +321,7 @@ local function refreshAll()
 	end
 	goldLabel.Text = string.format('Oro: <font color="%s">%s</font>', GOLD, withCommas(myGold()))
 	tabCraft.BackgroundColor3 = if mode == "Craft" then Color3.fromRGB(70, 90, 140) else Color3.fromRGB(34, 34, 46)
+	tabElixir.BackgroundColor3 = if mode == "Elixir" then Color3.fromRGB(70, 90, 140) else Color3.fromRGB(34, 34, 46)
 	tabDismantle.BackgroundColor3 = if mode == "Dismantle" then Color3.fromRGB(70, 90, 140) else Color3.fromRGB(34, 34, 46)
 	refreshList()
 	refreshDetail()
@@ -341,6 +367,7 @@ local function build()
 		Instance.new("UICorner", b)
 		b.Activated:Connect(function()
 			mode = m
+			selectedRecipe = nil
 			confirmSlot = nil
 			resultLabel.Text = ""
 			refreshAll()
@@ -348,7 +375,8 @@ local function build()
 		return b
 	end
 	tabCraft = tab("Pociones", 16, "Craft")
-	tabDismantle = tab("Desmontar", 144, "Dismantle")
+	tabElixir = tab("Elixires", 144, "Elixir")
+	tabDismantle = tab("Desmontar", 272, "Dismantle")
 
 	listScroll = Instance.new("ScrollingFrame")
 	listScroll.Position = UDim2.fromOffset(16, 92)
@@ -452,6 +480,11 @@ end
 Store.Changed:Connect(refreshAll)
 player:GetAttributeChangedSignal("Gold"):Connect(refreshAll)
 player:GetAttributeChangedSignal("Pass_Belt"):Connect(refreshAll)
+player:GetAttributeChangedSignal("ElixirLeft"):Connect(function()
+	if gui.Enabled and mode == "Elixir" and win then
+		refreshDetail()
+	end
+end)
 
 task.spawn(function()
 	while true do

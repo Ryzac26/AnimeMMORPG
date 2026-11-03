@@ -479,16 +479,16 @@ local function buildStands(parent: Instance)
 				sp.Name = "Franja"
 			end
 			-- baranda trasera (cristal tintado, sólida)
-			local bc = out * (STAND_START + totalDepth + 1) + along * mid
+			local bc = out * (STAND_START + totalDepth + 0.5) + along * mid
 			-- muy alta (40 studs) y gruesa: no se puede saltar por encima ni caer al vacío (antes 12, se saltaba)
-			local back = part(lf, "Baranda", Vector3.new(len, 40, 3), CFrame.lookAt(Vector3.new(bc.X, STAND_TOP + 20, bc.Z), Vector3.new(bc.X, STAND_TOP + 20, bc.Z) + out), l.Cloth, Enum.Material.Glass, true)
+			local back = part(lf, "Baranda", Vector3.new(len + 3, 40, 4), CFrame.lookAt(Vector3.new(bc.X, STAND_TOP + 20, bc.Z), Vector3.new(bc.X, STAND_TOP + 20, bc.Z) + out), l.Cloth, Enum.Material.Glass, true)
 			back.Transparency = 0.7
 			-- muros separadores: extremo (hacia la grada de la facción vecina) e interior (hacia el puente)
-			for _, edge in ipairs({ sign * (WING_OUT + 2), sign * (WING_IN - 2) }) do
+			for _, edge in ipairs({ sign * (WING_OUT + 1), sign * (WING_IN - 1) }) do
 				local wc = out * (STAND_START + totalDepth / 2 + 1) + along * edge
 				-- lookAt hacia 'along': el eje Z local (grosor 3) queda sobre 'along', el X local (largo) sobre 'out'
-				local wall = part(lf, "Muro_Separador", Vector3.new(totalDepth + 4, STAND_TOP + 6 + 30, 3), CFrame.lookAt(Vector3.new(wc.X, (STAND_TOP + 30 - 6) / 2, wc.Z), Vector3.new(wc.X, (STAND_TOP + 30 - 6) / 2, wc.Z) + along), C(90, 90, 104), Enum.Material.Concrete, true)
-				local trim = part(lf, "Muro_Franja", Vector3.new(totalDepth + 4.2, 1.2, 3.2), wall.CFrame * CFrame.new(0, (STAND_TOP + 36) / 2 - 0.6, 0), l.Cloth, Enum.Material.Neon, false)
+				local wall = part(lf, "Muro_Separador", Vector3.new(totalDepth + 4, STAND_TOP + 6 + 30, 4), CFrame.lookAt(Vector3.new(wc.X, (STAND_TOP + 30 - 6) / 2, wc.Z), Vector3.new(wc.X, (STAND_TOP + 30 - 6) / 2, wc.Z) + along), C(90, 90, 104), Enum.Material.Concrete, true)
+				local trim = part(lf, "Muro_Franja", Vector3.new(totalDepth + 4.2, 1.2, 4.2), wall.CFrame * CFrame.new(0, (STAND_TOP + 36) / 2 - 0.6, 0), l.Cloth, Enum.Material.Neon, false)
 				trim.Transparency = 0.2
 			end
 			-- zona de la grada (invisible; la usa ArenaService)

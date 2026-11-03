@@ -48,6 +48,16 @@ GearCatalog.PVP_GEAR_FACTOR = 0.50 -- en PvP el equipo cuenta la mitad (el PvP n
 GearCatalog.PieceShare = { Arma = 0.40, Armadura = 0.25, Casco = 0.20, Zapatos = 0.15 } :: { [string]: number } -- suman 1
 GearCatalog.JewelryShare = { Collar = 0.10, Anillo = 0.10, Brazalete = 0.10 } :: { [string]: number } -- extra sobre el set
 GearCatalog.EmblemShare = 0.10 -- Emblema de facción (ranura Accesorio1)
+-- BONUS DE SET COMPLETO (4/4 piezas del set de TU rol): se suma al +15% a todo el equipo. Un efecto propio por rol.
+-- Claves: Range (x alcance) · Radius (x radio de áreas) · Lifesteal · Reflect · Critico (+) · CritDmg (+ al multiplicador crítico) · Curacion (+)
+GearCatalog.SetFull = {
+	Tirador = { Text = "+25% de alcance en ataques y poderes", Range = 1.25 },
+	Mago = { Text = "+20% de radio en sus poderes de área", Radius = 1.20 },
+	Guerrero = { Text = "8% del daño que haces te cura", Lifesteal = 0.08 },
+	Tanque = { Text = "10% del daño cuerpo a cuerpo recibido se refleja", Reflect = 0.10 },
+	Asesino = { Text = "+12% de crítico y críticos +0,25 de daño (x1,75)", Critico = 0.12, CritDmg = 0.25 },
+	Curador = { Text = "+20% de curación y +25% de alcance", Curacion = 0.20, Range = 1.25 },
+} :: { [string]: { [string]: any } }
 GearCatalog.SetBonus = { [0] = 0, [1] = 0, [2] = 0.05, [3] = 0.05, [4] = 0.15 } :: { [number]: number } -- piezas del set de TU rol equipadas -> +% a todo el equipo
 
 -- Pesos de estadísticas por rol (suman 1)

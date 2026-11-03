@@ -45,7 +45,24 @@ AlchemyCatalog.Recipes = {
 	{ Id = "Pocion_Energia", Kind = "En", Cost = { Rec_1 = 1 }, Gold = 10, Yield = 1 },
 	{ Id = "Pocion_Energia_Mayor", Premium = true, Kind = "En", Cost = { Rec_2 = 2, Mat_Colmillo = 1 }, Gold = 40, Yield = 1 },
 	{ Id = "Pocion_Energia_Suprema", Premium = true, Kind = "En", Cost = { Rec_3 = 2, Mat_Esencia = 2 }, Gold = 120, Yield = 1 },
+	-- ELIXIRES (pestaña "Elixires"): efecto temporal, para todos. Materiales de las franjas 1-3 (se consiguen antes del nivel 55).
+	{ Id = "Elixir_Oro", Kind = "Elixir", Cost = { Rec_2 = 3, Mat_Piel = 3 }, Gold = 150, Yield = 1 },
+	{ Id = "Elixir_Suerte", Kind = "Elixir", Cost = { Rec_2 = 3, Mat_Colmillo = 3 }, Gold = 200, Yield = 1 },
+	{ Id = "Elixir_Poder", Kind = "Elixir", Cost = { Rec_3 = 3, Mat_Colmillo = 3 }, Gold = 300, Yield = 1 },
+	{ Id = "Elixir_Vigor", Kind = "Elixir", Cost = { Rec_3 = 3, Mat_Esencia = 3 }, Gold = 300, Yield = 1 },
+	{ Id = "Elixir_Regen", Kind = "Elixir", Cost = { Rec_1 = 6, Rec_2 = 2, Mat_Piel = 2 }, Gold = 120, Yield = 1 },
 } :: { Recipe }
+
+-- ELIXIRES: duran ELIXIR_SECONDS (solo corre mientras estás conectado). Solo UNO activo a la vez: beber otro reemplaza al actual.
+-- Effect = estadísticas de GearService (fracciones). No dan experiencia (eso es de la Tienda).
+AlchemyCatalog.ELIXIR_SECONDS = 1800
+AlchemyCatalog.Elixirs = {
+	Elixir_Oro = { Name = "Elixir de Oro", Short = "+20% de oro", Effect = { Oro = 0.20 } },
+	Elixir_Suerte = { Name = "Elixir de Suerte", Short = "+15% de suerte (más botín raro)", Effect = { Suerte = 0.15 } },
+	Elixir_Poder = { Name = "Elixir de Poder", Short = "+10% de daño", Effect = { Ataque = 0.10 } },
+	Elixir_Vigor = { Name = "Elixir de Vigor", Short = "+10% de vida máxima", Effect = { Vida = 0.10 } },
+	Elixir_Regen = { Name = "Elixir de Regeneración", Short = "Recuperas 1,5% de vida por segundo fuera de combate", Effect = { Regen = 0.015 } },
+} :: { [string]: { Name: string, Short: string, Effect: { [string]: number } } }
 
 AlchemyCatalog.ById = {} :: { [string]: Recipe }
 for _, r in ipairs(AlchemyCatalog.Recipes) do

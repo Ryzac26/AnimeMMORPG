@@ -254,8 +254,13 @@ local function refreshStats()
 	end
 	if br.SetPieces >= 2 then
 		addNote(string.format("Bono de set activo: %d/4 piezas de tu rol (+%d%% al equipo).", br.SetPieces, math.floor(br.SetBonus * 100 + 0.5)), GREEN)
+		local full: any = (GearCatalog.SetFull :: any)[PlayerClass.Get(player).Role]
+		if br.SetPieces >= 4 and full then
+			addNote("Set completo: " .. full.Text, GREEN)
+		end
 	elseif br.SetPieces == 0 then
-		addNote("Equipa piezas del set de tu rol: 2 dan +5%, 4 dan +15%.")
+		local fullHint: any = (GearCatalog.SetFull :: any)[PlayerClass.Get(player).Role]
+		addNote("Equipa piezas del set de tu rol: 2 dan +5%, 4 dan +15%" .. (if fullHint then " y " .. string.lower(string.sub(fullHint.Text, 1, 1)) .. string.sub(fullHint.Text, 2) else "") .. ".")
 	else
 		addNote("1 pieza de set: con 2 piezas se activa +5%.")
 	end

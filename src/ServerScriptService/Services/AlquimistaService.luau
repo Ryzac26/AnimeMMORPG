@@ -2,12 +2,12 @@
 --[[
     AlquimistaService (ModuleScript) -> ServerScriptService.Services.AlquimistaService
     ALQUIMISTA de cada ciudad (el "Laboratorio del Alquimista", slot 3 de ProjectBootstrapper). Dos servicios:
-      FABRICAR pociones (Vida/Energía en 3 grados) con recursos + material + oro. Cantidades: 1, 10, 50, 100 o Máx.
+      FABRICAR pociones (Vida/Energía en 3 grados) y ELIXIRES (efecto temporal de 30 min, ver ElixirService) con recursos + material + oro. Cantidades: 1, 10, 50, 100 o Máx.
       DESMONTAR equipo de la mochila (sin candado) -> materiales de su franja + fragmentos (+ Gema de vez en cuando).
     Recetas y rendimientos: ReplicatedStorage.Modules.AlchemyCatalog.
     - Pone un NPC en cada "NPCSpawnPoint" con Role = "Alquimista". Botón "Hablar" abre la ventana (AlquimiaClient).
     - Remotes: AlquimiaOpen (servidor -> cliente) · AlquimiaAction (cliente -> servidor) · AlquimiaResult (servidor -> cliente)
-        AlquimiaAction: ("Craft", idReceta, cantidad | "max") · ("Dismantle", casillaMochila) · ("DismantleRarity", {rarezas}, incluirMejoradas) · ("DismantleCommons")
+        AlquimiaAction: ("Craft", idReceta, cantidad | "max") · ("Drink", idElixir) · ("Dismantle", casillaMochila) · ("DismantleRarity", {rarezas}, incluirMejoradas) · ("DismantleCommons")
     - El SERVIDOR valida todo: cerca del alquimista, perfil cargado, recursos y oro. Si algo no cabe en la mochila se devuelve todo.
 ]]
 local CollectionService = game:GetService("CollectionService")
@@ -22,6 +22,7 @@ local Net = require(ServerScriptService.Services.Net)
 local PlayerData = require(ServerScriptService.Services.PlayerData)
 local Inventory = require(ServerScriptService.Services.InventoryService)
 local Wallet = require(ServerScriptService.Services.WalletService)
+local ElixirService = require(ServerScriptService.Services.ElixirService)
 
 local OpenRemote = Net.Get("AlquimiaOpen")
 local ActionRemote = Net.Get("AlquimiaAction")
@@ -458,6 +459,9 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 		dismantleRarities(player, a, b)
 	elseif action == "DismantleCommons" then
 		dismantleRarities(player, { "Comun" }, false)
+	elseif action == "Drink" then
+		local ok, msg = ElixirService.Drink(player, a)
+		reply(player, ok, msg)
 	end
 end)
 

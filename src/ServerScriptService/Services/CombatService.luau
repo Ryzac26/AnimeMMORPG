@@ -492,9 +492,15 @@ local function handleCast(player: Player, skillKey: any, targetHint: any)
 	local class = PlayerClass.Get(player)
 	local skill = if slot == "PrimarySkill" then class.PrimarySkill else class.SecondarySkill
 	local rm = char:GetAttribute("RangeMult") -- Susanoo: +30% de alcance
-	if typeof(rm) == "number" and rm > 1 then
+	local setR, setA = char:GetAttribute("SetRange"), char:GetAttribute("SetRadius") -- bono de set completo (Tirador/Curador: alcance · Mago: radio)
+	local rangeMult = (if typeof(rm) == "number" and rm > 1 then rm else 1) * (if typeof(setR) == "number" and setR > 1 then setR else 1)
+	local radiusMult = if typeof(setA) == "number" and setA > 1 then setA else 1
+	if rangeMult > 1 or radiusMult > 1 then
 		skill = table.clone(skill)
-		skill.Range = skill.Range * rm
+		skill.Range = skill.Range * rangeMult
+		if skill.AoERadius then
+			skill.AoERadius = skill.AoERadius * radiusMult
+		end
 	end
 
 	-- Cooldown (del módulo)

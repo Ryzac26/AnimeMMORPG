@@ -1195,8 +1195,16 @@ local function cast(player: Player, slot: number, hint: any)
 	local cd = if pvp then ab.CdPvp else ab.CdPve
 	local color = FACTION_COLOR[class.Faction] or Color3.new(1, 1, 1)
 
+	-- bono de set completo: Tirador/Curador +alcance, Mago +radio (copia del poder; el catálogo no se toca)
+	local setR, setA = char:GetAttribute("SetRange"), char:GetAttribute("SetRadius")
+	local abx = ab
+	if (typeof(setR) == "number" and setR > 1) or (typeof(setA) == "number" and setA > 1) then
+		abx = table.clone(ab)
+		abx.Range = ab.Range * (if typeof(setR) == "number" and setR > 1 then setR else 1)
+		abx.Radius = ab.Radius * (if typeof(setA) == "number" and setA > 1 then setA else 1)
+	end
 	local ctx: Ctx = {
-		Player = player, Char = char, Root = root, Hum = hum, Class = class, Ab = ab, P = P, Dur = dur,
+		Player = player, Char = char, Root = root, Hum = hum, Class = class, Ab = abx, P = P, Dur = dur,
 		Pvp = pvp, Hint = hint, Slot = slot, Color = color,
 		SetCooldown = function(seconds: number)
 			mine[slot] = os.clock() + seconds

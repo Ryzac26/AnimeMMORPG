@@ -6,7 +6,7 @@
 
     Get(player) -> { Ataque, Defensa, Vida, Critico, Curacion, Suerte, Oro, Xp, Regen }   (fracciones: 0.05 = 5%)
       - Solo cuentan las piezas que tu personaje PUEDE usar (nivel, rol, facción, arma de su clase).
-      - Bono de set: piezas equipadas del set de TU rol (2-3: +5% / 4: +15% a todo el equipo).
+      - Bono de set: piezas equipadas del set de TU rol (2-3: +5% / 4: +15% a todo el equipo + efecto propio del rol: GearCatalog.SetFull).
       - Defensa y Crítico tienen tope (GearCatalog.DEFENSE_CAP / CRIT_CAP).
     Aplicación:
       Outgoing(player, daño, pvp)  daño x (1+Ataque) y crítico x1.5    -> DamageService (jugador -> mob / PvP)
@@ -27,7 +27,7 @@ local PlayerClass = require(ReplicatedStorage.Modules.PlayerClass)
 
 export type Stats = {
 	Ataque: number, Defensa: number, Vida: number, Critico: number, Curacion: number,
-	Suerte: number, Oro: number, Xp: number, Regen: number,
+	Suerte: number, Oro: number, Xp: number, Regen: number, CritDmg: number,
 }
 
 local OUT_OF_COMBAT = 6 -- s sin recibir golpes para que el Fénix regenere
@@ -38,11 +38,13 @@ local changedEvent = Instance.new("BindableEvent")
 GearService.Changed = changedEvent.Event :: RBXScriptSignal -- (player) cuando cambian sus estadísticas
 
 local cache: { [Player]: Stats } = {}
+local setEffects: { [Player]: { [string]: any }? } = {} -- efecto especial del set completo (alcance, radio, robo de vida, reflejo)
 local pending: { [Player]: boolean } = {}
+local temp: { [Player]: { [string]: number } } = {} -- bonos temporales (elixires): se suman a las estadísticas
 local rng = Random.new()
 
 local function zero(): Stats
-	return { Ataque = 0, Defensa = 0, Vida = 0, Critico = 0, Curacion = 0, Suerte = 0, Oro = 0, Xp = 0, Regen = 0 }
+	return { Ataque = 0, Defensa = 0, Vida = 0, Critico = 0, Curacion = 0, Suerte = 0, Oro = 0, Xp = 0, Regen = 0, CritDmg = 0 }
 end
 
 local function levelOf(player: Player): number
@@ -89,6 +91,20 @@ local function compute(player: Player): Stats
 	for effect, v in pairs(pet) do
 		out[effect] = (out[effect] or 0) + v
 	end
+	local extra = temp[player]
+	if extra then
+		for stat, v in pairs(extra) do
+			out[stat] = (out[stat] or 0) + v
+		end
+	end
+	-- bono de set COMPLETO (4/4): efecto propio del rol
+	local full = if setPieces >= 4 then GearCatalog.SetFull[role] else nil
+	if full then
+		s.Critico += full.Critico or 0
+		s.Curacion += full.Curacion or 0
+		s.CritDmg += full.CritDmg or 0
+	end
+	setEffects[player] = full
 	s.Defensa = math.min(s.Defensa, GearCatalog.DEFENSE_CAP)
 	s.Critico = math.min(s.Critico, GearCatalog.CRIT_CAP)
 	return s
@@ -103,9 +119,30 @@ local function refresh(player: Player)
 		pending[player] = nil
 		if player.Parent then
 			cache[player] = compute(player)
+			GearService.ApplySetAttributes(player)
 			changedEvent:Fire(player)
 		end
 	end)
+end
+
+-- Pone en el personaje los atributos del bono de set completo (los leen CombatService, AbilityService, AutoAttack, AutoFarm y DamageService).
+-- Son atributos PROPIOS (SetRange...), así no chocan con los de los poderes temporales (RangeMult, Lifesteal...).
+function GearService.ApplySetAttributes(player: Player)
+	local char = player.Character
+	if not char then
+		return
+	end
+	local e = setEffects[player]
+	char:SetAttribute("SetRange", if e then e.Range else nil)
+	char:SetAttribute("SetRadius", if e then e.Radius else nil)
+	char:SetAttribute("SetLifesteal", if e then e.Lifesteal else nil)
+	char:SetAttribute("SetReflect", if e then e.Reflect else nil)
+end
+
+-- Bonos temporales (elixires). stats = { Oro = 0.2, ... } o nil para quitarlos. Recalcula y avisa (StatService ajusta la vida máxima).
+function GearService.SetTemp(player: Player, stats: { [string]: number }?)
+	temp[player] = stats
+	refresh(player)
 end
 
 function GearService.Get(player: Player): Stats
@@ -126,7 +163,7 @@ function GearService.Outgoing(player: Player?, damage: number, pvp: boolean): nu
 	local out = damage * (1 + s.Ataque * f)
 	local crit = s.Critico * f
 	if crit > 0 and rng:NextNumber() < crit then
-		out *= GearCatalog.CRIT_MULT
+		out *= GearCatalog.CRIT_MULT + s.CritDmg * f
 	end
 	return out
 end
@@ -171,10 +208,18 @@ local function watch(player: Player)
 end
 
 Players.PlayerAdded:Connect(watch)
+Players.PlayerAdded:Connect(function(pl)
+	pl.CharacterAdded:Connect(function()
+		task.defer(function()
+			GearService.ApplySetAttributes(pl)
+		end)
+	end)
+end)
 for _, pl in ipairs(Players:GetPlayers()) do
 	watch(pl)
 end
 Players.PlayerRemoving:Connect(function(pl)
+	temp[pl] = nil
 	cache[pl] = nil
 	pending[pl] = nil
 end)

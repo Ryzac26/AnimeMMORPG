@@ -245,6 +245,12 @@ local function pickTarget(mobs: { Mob }, current: Model?, maxDist: number): Mode
 	return best
 end
 
+-- multiplicador de alcance real del personaje: poder temporal (RangeMult) x bono de set completo (SetRange)
+local function rangeMultOf(char: Model): number
+	local rm, sr = char:GetAttribute("RangeMult"), char:GetAttribute("SetRange")
+	return (if typeof(rm) == "number" then rm else 1) * (if typeof(sr) == "number" then sr else 1)
+end
+
 local function skillsOf(player: Player, rangeMult: number): { Skill }
 	local list: { Skill } = {}
 	local class = PlayerClass.Get(player)
@@ -860,7 +866,7 @@ local function step(player: Player, st: State, now: number)
 	if now - st.LastCast < MIN_CAST_GAP or DamageService.IsSilenced(char) then
 		return
 	end
-	local rm = char:GetAttribute("RangeMult")
+	local rm = rangeMultOf(char)
 	local ctx: Ctx = {
 		Mode = mode, HpPct = hum.Health / hum.MaxHealth, KiFrac = if max > 0 then cur / max else 0, Root = root, Mobs = mobs,
 		Target = tMob, TargetBoss = tMob ~= nil and tMob.Boss, Boss = boss, Engaged = near30 > 0, AllyHurt = anyHurt, AllyDist = if hurtRoot then flatDist(hurtRoot.Position, root.Position) else math.huge, Near30 = near30,
@@ -1014,7 +1020,7 @@ RunService.Heartbeat:Connect(function(dt)
 				local anyHurt, hurtRoot = alliesHurt(player, root)
 				if anyHurt and hurtRoot then
 					local dist = flatDist(hurtRoot.Position, root.Position)
-					local rm = char:GetAttribute("RangeMult")
+					local rm = rangeMultOf(char)
 					for _, sk in ipairs(skillsOf(player, if typeof(rm) == "number" then rm else 1)) do
 						if sk.Cat == "heal" and sk.Radius > 0 and dist <= sk.Radius + 1 then
 							st.LastCast = now

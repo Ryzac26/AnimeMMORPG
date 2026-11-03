@@ -96,7 +96,8 @@ function AutoAttack.RangeFor(player: Player): number
 	local cfg = ROLES[class.Role] or DEFAULT
 	local char = player.Character
 	local rm = if char then char:GetAttribute("RangeMult") else nil
-	return cfg.Range * (if typeof(rm) == "number" then rm else 1)
+	local setR = if char then char:GetAttribute("SetRange") else nil
+	return cfg.Range * (if typeof(rm) == "number" then rm else 1) * (if typeof(setR) == "number" then setR else 1)
 end
 
 -- API: fija (o limpia con nil) el objetivo del auto-ataque, como si el jugador hubiera hecho clic
@@ -232,7 +233,7 @@ RunService.Heartbeat:Connect(function(dt)
 				if dist > DROP_DISTANCE then
 					st.Target = nil
 					setFlag(player, st)
-				elseif dist <= cfg.Range * ((char:GetAttribute("RangeMult") :: number?) or 1) and now >= st.Next and not DamageService.IsStunned(char) and not DamageService.IsSilenced(char) and not target:GetAttribute("Immune") then
+				elseif dist <= cfg.Range * ((char:GetAttribute("RangeMult") :: number?) or 1) * ((char:GetAttribute("SetRange") :: number?) or 1) and now >= st.Next and not DamageService.IsStunned(char) and not DamageService.IsSilenced(char) and not target:GetAttribute("Immune") then
 					local spd = char:GetAttribute("AtkSpeed") -- (futuro: buffs/equipo de velocidad de ataque; 1 = normal)
 					st.Next = now + cfg.Interval / (if typeof(spd) == "number" and spd > 0.2 then spd else 1)
 					faceTowards(root, tRoot.Position)

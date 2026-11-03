@@ -346,6 +346,16 @@ end
 local function equip(player: Player, st: State, bagIndex: number)
 	local stack = st.Bag[bagIndex]
 	local item = stack and ItemCatalog.Items[stack.Id]
+	if stack and item and item.Elixir then
+		-- elixir del Alquimista: "Equipar" lo bebe (carga perezosa: ElixirService requiere este módulo)
+		local ok, ElixirService = pcall(require, game:GetService("ServerScriptService").Services.ElixirService)
+		if ok then
+			local _, msg = (ElixirService :: any).Drink(player, stack.Id)
+			Net.Get("Notify"):FireClient(player, msg)
+			return
+		end
+		return
+	end
 	if not stack or not item or not item.Slot then
 		return
 	end

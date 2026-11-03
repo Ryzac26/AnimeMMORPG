@@ -382,14 +382,17 @@ function DamageService.Deal(attacker: Model, victim: Model, base: number, opts: 
 		end
 		-- Robo de vida (Modo Kurama)
 		local ls = attacker:GetAttribute("Lifesteal")
+		local setLs = attacker:GetAttribute("SetLifesteal") -- bono de set completo del Guerrero
 		local aHum = humanoidOf(attacker)
-		if typeof(ls) == "number" and aHum then
-			aHum.Health = math.min(aHum.MaxHealth, aHum.Health + damage * ls)
+		local lsTotal = (if typeof(ls) == "number" then ls else 0) + (if typeof(setLs) == "number" then setLs else 0)
+		if lsTotal > 0 and aHum then
+			aHum.Health = math.min(aHum.MaxHealth, aHum.Health + damage * lsTotal)
 		end
 		-- Reflejo cuerpo a cuerpo (Armadura de Arena)
-		local refl = victim:GetAttribute("Reflect")
+		local reflBase, setRefl = victim:GetAttribute("Reflect"), victim:GetAttribute("SetReflect") -- SetReflect: bono de set completo del Tanque
+		local refl = (if typeof(reflBase) == "number" then reflBase else 0) + (if typeof(setRefl) == "number" then setRefl else 0)
 		local aRoot, vRoot = rootOf(attacker), rootOf(victim)
-		if typeof(refl) == "number" and refl > 0 and aHum and aRoot and vRoot and (aRoot.Position - vRoot.Position).Magnitude <= 14 then
+		if refl > 0 and aHum and aRoot and vRoot and (aRoot.Position - vRoot.Position).Magnitude <= 14 then
 			aHum:TakeDamage(math.floor(damage * refl))
 		end
 		-- Quemadura (Diable Jambe)

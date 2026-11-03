@@ -24,6 +24,7 @@ export type Item = {
 	Tier: number?,
 	Kind: string?, -- "Set" | "Jewel" | "Emblem" | "Pet"
 	Pet: { Family: string, Effects: { [string]: number } }?,
+	Elixir: boolean?, -- elixir del Alquimista: al "Equipar" en la mochila se bebe (efecto temporal, ver AlchemyCatalog.Elixirs)
 }
 
 local ItemCatalog = {}
@@ -79,6 +80,23 @@ ItemCatalog.Items = {
 	Pocion_Energia_Suprema = { Name = "Poción de Energía Suprema", Rarity = "Epico", Stack = 20, Desc = "Restaura 75% de la energía (Ki, Chakra, Haki o Reiatsu).", Use = { EnergyPct = 0.75, Cooldown = 8 } },
 	Fragmento_Metin = { Name = "Fragmento de Metin", Rarity = "Epico", Stack = 99, Desc = "Material de mejora." },
 } :: { [string]: Item }
+
+-- Elixires del Alquimista (nombre/efecto en AlchemyCatalog.Elixirs)
+do
+	local AlchemyCatalog = require(script.Parent.AlchemyCatalog)
+	local items = ItemCatalog.Items :: { [string]: any }
+	local order = { Elixir_Oro = "Oro", Elixir_Suerte = "Suerte", Elixir_Poder = "Poder", Elixir_Vigor = "Vigor", Elixir_Regen = "Regen" }
+	for id in pairs(order) do
+		local e = AlchemyCatalog.Elixirs[id]
+		items[id] = {
+			Name = e.Name,
+			Rarity = "Epico",
+			Stack = 20,
+			Elixir = true,
+			Desc = string.format("%s durante %d min. Solo uno activo a la vez. En la mochila: selecciónalo y pulsa Equipar para beberlo.", e.Short, AlchemyCatalog.ELIXIR_SECONDS // 60),
+		}
+	end
+end
 
 -- Botín nuevo: equipo por sets de clase, joyas, emblemas de facción, mascotas y materiales (se generan por fórmulas)
 do
