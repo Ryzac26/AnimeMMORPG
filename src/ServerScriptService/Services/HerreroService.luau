@@ -7,7 +7,7 @@
       - Acercarse y usar el botón "Hablar" abre la ventana del herrero (SmithClient).
       - El cliente pide ("Enhance", "Equip", "Arma") o ("Enhance", "Bag", 7); el SERVIDOR valida todo:
         cerca del herrero, la pieza existe y es mejorable, oro y gemas suficientes, y tira el dado.
-      - Éxito: +1 al objeto. Fallo: se pierde el costo; en +8 y +9 el objeto baja 1 nivel. Nunca se rompe.
+      - Éxito: +1 al objeto. Fallo: se pierde el costo; en +7, +8 y +9 el objeto baja 1 nivel (salvo que uses un Pergamino de Protección: entonces se queda igual y se gasta el pergamino). Nunca se rompe.
       - Remotes: SmithOpen (servidor -> cliente: abrir ventana) · SmithAction (cliente -> servidor) · SmithResult (servidor -> cliente)
 ]]
 local CollectionService = game:GetService("CollectionService")
@@ -198,7 +198,7 @@ local function reply(player: Player, ok: boolean, text: string, plus: number?)
 	ResultRemote:FireClient(player, ok, text, plus or 0)
 end
 
-local function enhance(player: Player, kind: any, key: any)
+local function enhance(player: Player, kind: any, key: any, useScroll: any)
 	if typeof(kind) ~= "string" or (typeof(key) ~= "string" and typeof(key) ~= "number") then
 		return
 	end
@@ -264,6 +264,12 @@ local function enhance(player: Player, kind: any, key: any)
 		reply(player, true, string.format("¡Éxito! %s", EnhanceCatalog.PlusName(name, target)), target)
 	else
 		local drop = EnhanceCatalog.FailDrop[target] or 0
+		if drop > 0 and useScroll == true and Inventory.Consume(player, EnhanceCatalog.ScrollItem, 1) then
+			drop = 0
+			reply(player, false, string.format("Falló, pero el Pergamino de Protección salvó tu pieza: %s se mantiene en +%d.", name, plus), plus)
+			PlayerData.Save(player)
+			return
+		end
 		local newPlus = math.max(0, plus - drop)
 		if newPlus ~= plus then
 			Inventory.SetPlus(player, kind, key, newPlus)
@@ -275,9 +281,9 @@ local function enhance(player: Player, kind: any, key: any)
 	PlayerData.Save(player) -- la mejora cuesta oro y gemas: no se pierde por un cierre inesperado
 end
 
-ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, kind: any, key: any)
+ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, kind: any, key: any, useScroll: any)
 	if action == "Enhance" then
-		enhance(player, kind, key)
+		enhance(player, kind, key, useScroll)
 	end
 end)
 

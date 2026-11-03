@@ -20,6 +20,8 @@ local ProductCatalog = require(ReplicatedStorage.Modules.ProductCatalog)
 local Net = require(ServerScriptService.Services.Net)
 local PlayerData = require(ServerScriptService.Services.PlayerData)
 local LevelService = require(ServerScriptService.Services.LevelService)
+local Inventory = require(ServerScriptService.Services.InventoryService)
+local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
 
 local StateRemote = Net.Get("TiendaState")
 local ActionRemote = Net.Get("TiendaAction")
@@ -167,6 +169,21 @@ end)
 -- Entrega el producto (ya pagado o de prueba). Devuelve true si quedó entregado.
 local function grant(player: Player, s: Shop, p: ProductCatalog.Product): boolean
 	rollDay(s)
+	-- objetos: primero se meten en la mochila; si no caben, NO se entrega (la compra se reintenta / se pide liberar espacio)
+	local gotItems: { { string | number } } = {}
+	if p.Items then
+		for id, n in pairs(p.Items) do
+			if Inventory.Add(player, id, n) then
+				table.insert(gotItems, { id, n })
+			else
+				for _, g in ipairs(gotItems) do
+					Inventory.Consume(player, g[1] :: string, g[2] :: number)
+				end
+				reply(player, false, "Mochila llena: libera espacio y vuelve a intentarlo (la compra queda pendiente).")
+				return false
+			end
+		end
+	end
 	s.Bought[p.Key] = (s.Bought[p.Key] or 0) + 1
 	if p.Lane == "Horas" and not s.Path then
 		s.Path = p.Key
@@ -182,6 +199,10 @@ local function grant(player: Player, s: Shop, p: ProductCatalog.Product): boolea
 		local xp = ProductCatalog.HoursXp(GB, p.Hours, level, LevelService.GetXp(player))
 		LevelService.AddXp(player, xp)
 		table.insert(msgs, string.format("+%d XP (nivel %d → %d).", xp, level, levelOf(player)))
+	end
+	for _, g in ipairs(gotItems) do
+		local it: any = (ItemCatalog.Items :: any)[g[1] :: string]
+		table.insert(msgs, string.format("+%d %s en tu mochila.", g[2] :: number, if it then it.Name else g[1] :: string))
 	end
 	reply(player, true, string.format("¡%s! %s", p.Name, table.concat(msgs, " ")))
 	return true
@@ -256,7 +277,9 @@ MarketplaceService.ProcessReceipt = function(info: any)
 		warn("[PurchaseService] Compra de un producto desconocido: " .. tostring(info.ProductId))
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
-	grant(player, s, product)
+	if not grant(player, s, product) then
+		return Enum.ProductPurchaseDecision.NotProcessedYet -- mochila llena: Roblox reintenta (al liberar espacio / reconectar)
+	end
 	table.insert(s.Receipts, pid)
 	while #s.Receipts > 100 do
 		table.remove(s.Receipts, 1)

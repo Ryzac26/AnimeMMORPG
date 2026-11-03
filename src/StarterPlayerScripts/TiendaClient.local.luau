@@ -47,10 +47,11 @@ local ACCENT: { [string]: Color3 } = {
 	Hours = Color3.fromRGB(80, 150, 255),
 	Combo = Color3.fromRGB(235, 100, 190),
 	Pass = Color3.fromRGB(255, 190, 60),
+	Item = Color3.fromRGB(165, 105, 235),
 }
 local FALLBACK_TEXT: { [string]: string } = {
 	Boost4h = "+50%", Horas3 = "3 H", Horas5 = "5 H", Horas8 = "8 H", Horas12 = "12 H",
-	ComboDespegue = "COMBO", ComboMaraton = "COMBO",
+	ComboDespegue = "COMBO", ComboMaraton = "COMBO", Pergamino1 = "🛡 x1", Pergamino5 = "🛡 x5",
 }
 
 -- Iconos: el de cada Developer Product (el que subiste en Creator Hub) o ProductCatalog.Icon si lo pones a mano.
@@ -239,6 +240,8 @@ local function render()
 			local xp, lvls, capped = ProductCatalog.HoursXp(GB, p.Hours, level(), 0)
 			local chip = UITheme.Text(f, string.format("Hoy te daría +%s XP  ≈ %.1f niveles%s", thousands(xp), lvls, if capped then "  (tope por compra)" else ""), 12, Color3.fromRGB(150, 220, 255), UDim2.fromOffset(106, 62), UDim2.fromOffset(300, 16))
 			chip.TextWrapped = false
+		elseif p.Items then
+			UITheme.Text(f, "Se entrega directo en tu mochila", 12, Color3.fromRGB(200, 170, 255), UDim2.fromOffset(106, 62), UDim2.fromOffset(300, 16))
 		elseif p.Seconds then
 			UITheme.Text(f, "Se suma al tiempo que ya tengas (máx. 12 h)", 12, Color3.fromRGB(150, 235, 170), UDim2.fromOffset(106, 62), UDim2.fromOffset(300, 16))
 		end
@@ -313,6 +316,13 @@ local function render()
 	section("COMBOS", "Boost + paquete en una sola compra, más barato que por separado.", ACCENT.Combo)
 	for _, p in ipairs(ProductCatalog.Products) do
 		if p.Kind == "Combo" then
+			card(p)
+		end
+	end
+
+	section("OBJETOS", "Pergaminos de Protección: tu equipo no baja al fallar +7, +8 o +9.", ACCENT.Item)
+	for _, p in ipairs(ProductCatalog.Products) do
+		if p.Kind == "Item" then
 			card(p)
 		end
 	end

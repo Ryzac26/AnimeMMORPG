@@ -42,6 +42,8 @@ local listScroll: ScrollingFrame
 local detail: TextLabel
 local resultLabel: TextLabel
 local goButton: TextButton
+local scrollButton: TextButton
+local useScroll = false
 local forgeSlot: Frame
 local forgeStroke: UIStroke
 local forgeName: TextLabel
@@ -64,6 +66,16 @@ local function gemsOwned(): number
 	local n = 0
 	for _, st in pairs(Store.Bag) do
 		if st.Id == EnhanceCatalog.GemItem then
+			n += st.Count
+		end
+	end
+	return n
+end
+
+local function scrollsOwned(): number
+	local n = 0
+	for _, st in pairs(Store.Bag) do
+		if st.Id == EnhanceCatalog.ScrollItem then
 			n += st.Count
 		end
 	end
@@ -114,6 +126,7 @@ local function refreshDetail()
 		forgeStroke.Color = theme.Secondary
 		detail.Text = "Las piezas que llevas puestas y las de tu mochila aparecen en la lista. Elige una para ver cuánto mejora y cuánto cuesta."
 		goButton.Visible = false
+		scrollButton.Visible = false
 		return
 	end
 	local item: any = (ItemCatalog.Items :: any)[e.Id]
@@ -126,6 +139,7 @@ local function refreshDetail()
 		table.insert(lines, string.format('<font color="%s">Esta pieza ya está al máximo (+%d).</font>', GREEN, EnhanceCatalog.MaxPlus))
 		detail.Text = table.concat(lines, "\n")
 		goButton.Visible = false
+		scrollButton.Visible = false
 		return
 	end
 	local target = e.Plus + 1
@@ -157,6 +171,19 @@ local function refreshDetail()
 	detail.Text = table.concat(lines, "\n")
 	goButton.Visible = true
 	goButton.Text = if rate >= 1 then "Mejorar" else "Intentar mejora"
+	-- Pergamino de Protección: solo tiene sentido si fallar baja la pieza (+8 y +9)
+	local scrolls = scrollsOwned()
+	scrollButton.Visible = drop > 0
+	goButton.Size = if drop > 0 then UDim2.fromOffset(196, 38) else UDim2.fromOffset(318, 38)
+	if drop > 0 then
+		if scrolls < 1 then
+			useScroll = false
+		end
+		scrollButton.Text = if useScroll then "🛡 Pergamino: SÍ" else string.format("🛡 Pergamino (%d)", scrolls)
+		scrollButton.BackgroundColor3 = if useScroll then Color3.fromRGB(150, 90, 190) elseif scrolls > 0 then Color3.fromRGB(70, 70, 100) else Color3.fromRGB(60, 55, 60)
+		table.insert(lines, string.format('<font size="12" color="%s">Pergamino de Protección: si falla, la pieza no baja (tienes %d). Se gasta solo si de verdad iba a bajar.</font>', GRAY, scrolls))
+		detail.Text = table.concat(lines, "\n")
+	end
 end
 
 local function refreshList()
@@ -360,8 +387,27 @@ local function build()
 	goButton.Activated:Connect(function()
 		local e = currentEntry()
 		if e and actionRemote then
-			actionRemote:FireServer("Enhance", e.Kind, e.Key)
+			actionRemote:FireServer("Enhance", e.Kind, e.Key, useScroll)
 		end
+	end)
+	scrollButton = Instance.new("TextButton")
+	scrollButton.Position = UDim2.fromOffset(218, 336)
+	scrollButton.Size = UDim2.fromOffset(114, 38)
+	scrollButton.BackgroundColor3 = Color3.fromRGB(70, 70, 100)
+	scrollButton.TextColor3 = Color3.new(1, 1, 1)
+	scrollButton.Font = UITheme.Font
+	scrollButton.TextSize = 12
+	scrollButton.TextWrapped = true
+	scrollButton.Visible = false
+	scrollButton.Parent = box
+	Instance.new("UICorner", scrollButton)
+	scrollButton.Activated:Connect(function()
+		if scrollsOwned() < 1 then
+			resultLabel.Text = string.format('<font color="%s">No tienes Pergaminos de Protección (Tienda > Objetos).</font>', RED)
+			return
+		end
+		useScroll = not useScroll
+		refreshDetail()
 	end)
 end
 

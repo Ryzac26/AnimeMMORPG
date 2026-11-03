@@ -37,6 +37,7 @@ export type Product = {
 	Seconds: number?,
 	Mult: number?,
 	Hours: number?,
+	Items: { [string]: number }?, -- Kind "Item": objetos que se entregan en la mochila (id -> cantidad)
 }
 
 ProductCatalog.MIN_LEVEL_HOURS = 20
@@ -105,6 +106,18 @@ ProductCatalog.Products = {
 		Name = "Combo Maratón",
 		Desc = "Boost de XP +50% (4 h) y paquete de 8 horas en una sola compra.",
 		ProductId = 2063900141, PriceText = "169 R$", DailyLimit = 1, MinLevel = 20, Seconds = 4 * 3600, Mult = 1.5, Hours = 8,
+	},
+	-- OBJETOS (sin bloqueo entre sí ni con los paquetes): se entregan en la mochila
+	{
+		Key = "2067307786", Group = "Objetos", Kind = "Item", Lane = "Objetos", Price = 25, Name = "Pergamino de Protección",
+		Desc = "Evita que tu equipo baje de nivel al fallar una mejora +7, +8 o +9 en el Herrero.",
+		ProductId = 0, PriceText = "25 R$", DailyLimit = 20, MinLevel = 1, Items = { Pergamino_Proteccion = 1 },
+	},
+	{
+		Key = "2067373763", Group = "Objetos", Kind = "Item", Lane = "Objetos", Price = 99, Components = { "Pergamino1", "Pergamino1", "Pergamino1", "Pergamino1", "Pergamino1" },
+		Name = "Pack x5 Pergaminos de Protección",
+		Desc = "5 Pergaminos de Protección en una sola compra, más barato que por separado.",
+		ProductId = 0, PriceText = "99 R$", DailyLimit = 10, MinLevel = 1, Items = { Pergamino_Proteccion = 5 },
 	},
 } :: { Product }
 

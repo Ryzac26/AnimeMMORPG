@@ -29,6 +29,7 @@ LootTables.Materials = {
 	Mat_Nucleo = { Name = "Núcleo de Poder", Rarity = "Raro", Stack = 99, Desc = "Material de la Franja 4." },
 	Mat_FragArmadura = { Name = "Fragmento de Armadura", Rarity = "Comun", Stack = 99, Desc = "Material de mejora de armaduras." },
 	Mat_Gema = { Name = "Gema de Mejora", Rarity = "Raro", Stack = 99, Desc = "Sirve para mejorar el equipo (+1 a +9)." },
+	Pergamino_Proteccion = { Name = "Pergamino de Protección", Rarity = "Epico", Stack = 99, Desc = "Úsalo en el Herrero al intentar +7, +8 o +9: si la mejora falla, la pieza NO baja de nivel (solo se gasta si de verdad iba a bajar). Solo se consigue en la Tienda." },
 	Mat_Escama = { Name = "Escama del Titán", Rarity = "Epico", Stack = 99, Desc = "Material de crafteo avanzado del jefe mundial." },
 	-- Recursos de recolección (nodos del mapa). Sirven para la Ofrenda del altar y para cocinar pociones en el campamento.
 	Rec_1 = { Name = "Hierba Espiritual", Rarity = "Comun", Stack = 99, Desc = "Se recolecta en la Franja 1. Sirve para cocinar pociones en el campamento y para la Ofrenda del altar." },
