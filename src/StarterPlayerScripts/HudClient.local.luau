@@ -23,6 +23,7 @@ local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 local Modules = ReplicatedStorage:WaitForChild("Modules", 10) :: Folder
 local PlayerClass = require(Modules:WaitForChild("PlayerClass", 10))
+local ItemCatalog = require(Modules:WaitForChild("ItemCatalog", 10))
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local PortraitKit = require(script.Parent:WaitForChild("PortraitKit", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
@@ -392,25 +393,109 @@ fragChip.Visible = false
 eventChip.Text = "Evento: --"
 arenaChip.Text = "Vidas de arena: 3"
 
-local notice = Instance.new("TextLabel")
-notice.AnchorPoint = Vector2.new(0.5, 0)
-notice.Position = if MOBILE then UDim2.new(0.5, 0, 0.3, 0) else UDim2.new(0.5, 0, 0, 84)
-notice.Size = UDim2.fromOffset(460, 34)
-notice.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
-notice.BackgroundTransparency = 0.2
-notice.TextColor3 = Color3.new(1, 1, 1)
-notice.Font = UITheme.Font
-notice.TextSize = 16
-notice.Visible = false
-notice.Parent = gui
-Instance.new("UICorner", notice)
+-- AVISOS: pila de mensajes (hasta 4 a la vez). Los repetidos se juntan con "x2". Los de equipo Épico o mejor duran más y llevan su color.
+local noticeStack = Instance.new("Frame")
+noticeStack.AnchorPoint = Vector2.new(0.5, 0)
+noticeStack.Position = if MOBILE then UDim2.new(0.5, 0, 0.3, 0) else UDim2.new(0.5, 0, 0, 84)
+noticeStack.Size = UDim2.fromOffset(if MOBILE then 340 else 480, 10)
+noticeStack.AutomaticSize = Enum.AutomaticSize.Y
+noticeStack.BackgroundTransparency = 1
+noticeStack.Parent = gui
+local noticeList = Instance.new("UIListLayout")
+noticeList.Padding = UDim.new(0, 4)
+noticeList.SortOrder = Enum.SortOrder.LayoutOrder
+noticeList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+noticeList.Parent = noticeStack
+
+local NOTICE_MAX = 4
+local noticeOrder = 0
+local liveNotices: { { Label: TextLabel, Base: string, Count: number, Token: number } } = {}
+
+-- Color del aviso según lo que dice (rareza del objeto, llaves, cofres, nivel)
+local function noticeAccent(text: string): (Color3?, number)
+	for _, rarity in ipairs({ "Mitico", "Legendario", "Epico" }) do
+		local shown = ({ Mitico = "Mítico", Legendario = "Legendario", Epico = "Épico" })[rarity]
+		if string.find(text, "[" .. shown .. "]", 1, true) then
+			return (ItemCatalog.RarityColor :: any)[rarity], 7
+		end
+	end
+	if string.find(text, "Llave", 1, true) or string.find(text, "MEJORADO", 1, true) then
+		return Color3.fromRGB(255, 215, 90), 6
+	end
+	if string.find(text, "Subiste", 1, true) then
+		return Color3.fromRGB(120, 230, 140), 5
+	end
+	if string.find(text, "[Raro]", 1, true) then
+		return (ItemCatalog.RarityColor :: any).Raro, 5
+	end
+	return nil, 4
+end
+
+local function dropNotice(entry: { Label: TextLabel, Base: string, Count: number, Token: number })
+	local i = table.find(liveNotices, entry)
+	if i then
+		table.remove(liveNotices, i)
+	end
+	local lbl = entry.Label
+	if lbl.Parent then
+		TweenService:Create(lbl, TweenInfo.new(0.25), { BackgroundTransparency = 1, TextTransparency = 1 }):Play()
+		task.delay(0.28, function()
+			lbl:Destroy()
+		end)
+	end
+end
 
 say = function(text: string)
-	notice.Text = text
-	notice.Visible = true
-	task.delay(4, function()
-		if notice.Text == text then
-			notice.Visible = false
+	-- repetido: se suma y se renueva el tiempo
+	for _, e in ipairs(liveNotices) do
+		if e.Base == text then
+			e.Count += 1
+			e.Token += 1
+			e.Label.Text = string.format("%s  (x%d)", text, e.Count)
+			local mine = e.Token
+			local _, secs = noticeAccent(text)
+			task.delay(secs, function()
+				if e.Token == mine then
+					dropNotice(e)
+				end
+			end)
+			return
+		end
+	end
+	local accent, secs = noticeAccent(text)
+	noticeOrder += 1
+	local lbl = Instance.new("TextLabel")
+	lbl.LayoutOrder = noticeOrder
+	lbl.AutomaticSize = Enum.AutomaticSize.X
+	lbl.Size = UDim2.fromOffset(0, if MOBILE then 28 else 32)
+	lbl.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+	lbl.BackgroundTransparency = 0.2
+	lbl.TextColor3 = Color3.new(1, 1, 1)
+	lbl.Font = UITheme.Font
+	lbl.TextSize = if MOBILE then 14 else 16
+	lbl.Text = text
+	lbl.TextWrapped = false
+	lbl.Parent = noticeStack
+	Instance.new("UICorner", lbl).CornerRadius = UDim.new(0, 8)
+	local pad = Instance.new("UIPadding")
+	pad.PaddingLeft = UDim.new(0, 14)
+	pad.PaddingRight = UDim.new(0, 14)
+	pad.Parent = lbl
+	if accent then
+		local st = Instance.new("UIStroke")
+		st.Color = accent
+		st.Thickness = 2
+		st.Parent = lbl
+		lbl.TextColor3 = accent:Lerp(Color3.new(1, 1, 1), 0.35)
+	end
+	local entry = { Label = lbl, Base = text, Count = 1, Token = 0 }
+	table.insert(liveNotices, entry)
+	while #liveNotices > NOTICE_MAX do
+		dropNotice(liveNotices[1])
+	end
+	task.delay(secs, function()
+		if entry.Token == 0 then
+			dropNotice(entry)
 		end
 	end)
 end
@@ -436,20 +521,24 @@ listen("LevelUp", function(level: number)
 	say("¡Subiste al nivel " .. level .. "!")
 end)
 listen("Floating", function(pos: Vector3, text: string, color: Color3)
+	-- pequeña dispersión para que los golpes seguidos no se encimen
+	local jitter = Vector3.new((math.random() - 0.5) * 3, 0, (math.random() - 0.5) * 3)
 	local p = Instance.new("Part")
 	p.Anchored = true
 	p.CanCollide = false
 	p.CanQuery = false
 	p.Transparency = 1
 	p.Size = Vector3.one
-	p.Position = pos
+	p.Position = pos + jitter
 	p.Parent = Workspace
 	local b = Instance.new("BillboardGui")
 	b.Size = UDim2.fromOffset(110, 40)
 	b.AlwaysOnTop = true
 	b.Parent = p
 	local t = Instance.new("TextLabel")
-	t.Size = UDim2.fromScale(1, 1)
+	t.Size = UDim2.fromScale(0.6, 0.6)
+	t.AnchorPoint = Vector2.new(0.5, 0.5)
+	t.Position = UDim2.fromScale(0.5, 0.5)
 	t.BackgroundTransparency = 1
 	t.Text = text
 	t.TextColor3 = color
@@ -457,8 +546,20 @@ listen("Floating", function(pos: Vector3, text: string, color: Color3)
 	t.Font = Enum.Font.GothamBlack
 	t.TextScaled = true
 	t.Parent = b
-	TweenService:Create(p, TweenInfo.new(0.9), { Position = pos + Vector3.new(0, 4, 0) }):Play()
-	Debris:AddItem(p, 0.9)
+	-- "pop": crece de golpe y se asienta; luego sube y se desvanece
+	TweenService:Create(t, TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromScale(1.1, 1.1) }):Play()
+	task.delay(0.12, function()
+		if t.Parent then
+			TweenService:Create(t, TweenInfo.new(0.15), { Size = UDim2.fromScale(1, 1) }):Play()
+		end
+	end)
+	TweenService:Create(p, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = pos + jitter + Vector3.new(0, 4.5, 0) }):Play()
+	task.delay(0.55, function()
+		if t.Parent then
+			TweenService:Create(t, TweenInfo.new(0.45), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+		end
+	end)
+	Debris:AddItem(p, 1.05)
 end)
 
 local sync = ClientNet.Get("RequestSync")
