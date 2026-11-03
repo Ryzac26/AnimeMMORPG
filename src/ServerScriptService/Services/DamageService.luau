@@ -40,6 +40,12 @@ function DamageService.SetDamageListener(fn: (Model, Player, number) -> ())
 	damageListener = fn
 end
 
+-- Oyentes extra del daño de jugadores a mobs (DamageRankService: ranking de daño en jefes y Metin)
+local extraListeners: { (Model, Player, number) -> () } = {}
+function DamageService.AddDamageListener(fn: (Model, Player, number) -> ())
+	table.insert(extraListeners, fn)
+end
+
 -- Compuerta de ataque (PveZoneService): decide si un jugador puede dañar a un mob (campamento = zona segura, mini jefe agotado)
 local attackGate: ((Player, Model) -> boolean)? = nil
 function DamageService.SetAttackGate(fn: (Player, Model) -> boolean)
@@ -366,8 +372,13 @@ function DamageService.Deal(attacker: Model, victim: Model, base: number, opts: 
 		if root then
 			FloatingRemote:FireAllClients(root.Position + Vector3.new(0, 5, 0), tostring(damage), if vPlayer then Color3.fromRGB(255, 90, 90) else Color3.fromRGB(255, 230, 120))
 		end
-		if aPlayer and vMob and damageListener then
-			damageListener(victim, aPlayer, damage)
+		if aPlayer and vMob then
+			if damageListener then
+				damageListener(victim, aPlayer, damage)
+			end
+			for _, fn in ipairs(extraListeners) do
+				fn(victim, aPlayer, damage)
+			end
 		end
 		-- Robo de vida (Modo Kurama)
 		local ls = attacker:GetAttribute("Lifesteal")

@@ -44,6 +44,7 @@ require(Services:WaitForChild("ArenaStyler")) -- Arena: campamentos, altares, sa
 require(Services:WaitForChild("BiomeStyler")) -- biomas PvE de las 4 franjas de cada facción (suelo, muros, ríos, árboles, escenografía)
 require(Services:WaitForChild("PveZoneService")) -- campamentos, altares de ofrenda y desafío, cofres, mini jefes y recolección de las 16 franjas
 require(Services:WaitForChild("BiomeDetails")) -- detalles de suelo (senderos, charcos, grietas, flores) y partículas de ambiente por franja
+require(Services:WaitForChild("DamageRankService")) -- ranking de daño en pantalla para jefes, mini jefes y Metin
 require(Services:WaitForChild("StreamService")) -- pide al cliente que cargue el mapa donde aparece (Roblox web)
 require(Services:WaitForChild("WorldReadyService")) -- mundo listo: espera mapa + estilos y mantiene quieto al jugador hasta que su pantalla cargue
 -- CombatService: se carga aquí por si nadie más lo requiere (require repetido devuelve el mismo módulo, no se duplica)
