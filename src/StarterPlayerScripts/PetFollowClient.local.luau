@@ -7,6 +7,8 @@
       - La rareza cambia tamaño y brillo: Común sencilla · Raro chispas · Épico luz · Legendario luz y más grande · Mítico halo.
       - Las que vuelan flotan y aletean; las de tierra caminan pegadas al suelo y saltan al correr.
       - Al subir de nivel el dueño ve a su mascota dar una vuelta de celebración.
+      - Al atacar el dueño, la mascota da un saltito; si el dueño se queda quieto ~15 s, se duerme ("zZz") y despierta al moverse.
+      - Ajuste "Mostrar mascotas" (SettingsClient, atributo Setting_PetsMode): Todas · Solo la mía · Ninguna.
       - Solo es visual (se crea en cada cliente); los bonus los sigue dando GearService.
     No tiene ScreenGui, no va en RELOAD.
 ]]
@@ -19,6 +21,8 @@ local localPlayer = Players.LocalPlayer
 local PetCatalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PetCatalog"))
 
 local VIEW_RANGE = 150
+local SLEEP_AFTER = 15 -- segundos quieto para dormirse
+local JUMP_TIME = 0.45
 local RARITY = {
 	Comun = { Scale = 0.85, Color = Color3.fromRGB(200, 200, 200) },
 	Raro = { Scale = 0.95, Color = Color3.fromRGB(80, 160, 255) },
@@ -52,6 +56,9 @@ type Pet = {
 	Phase: number,
 	SpinUntil: number,
 	Tag: BillboardGui?,
+	IdleSince: number,
+	JumpAt: number,
+	Zzz: BillboardGui?,
 }
 local pets: { [Player]: Pet } = {}
 
@@ -209,6 +216,7 @@ local function build(pl: Player, id: string, family: string, rarity: string, cha
 	return {
 		Player = pl, Id = id, Char = char, Root = root, Model = model, Look = look, Rarity = rarity, Scale = s,
 		Wings = wings, Halo = halo, Cf = start, Vel = Vector3.zero, Phase = math.random() * 6, SpinUntil = 0, Tag = tag,
+		IdleSince = os.clock(), JumpAt = -100, Zzz = nil,
 	}
 end
 
@@ -229,6 +237,10 @@ local function reconcile()
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
 		local family, rarity = parse(pl:GetAttribute("Equip_Accesorio2"))
 		local want = family ~= nil and rarity ~= nil and hrp ~= nil and hrp:IsA("BasePart") and hum ~= nil and hum.Health > 0
+		local mode = localPlayer:GetAttribute("Setting_PetsMode")
+		if mode == "none" or (mode == "mine" and pl ~= localPlayer) then
+			want = false
+		end
 		if want and pl ~= localPlayer and cam and hrp and (cam.CFrame.Position - hrp.Position).Magnitude > VIEW_RANGE then
 			want = false
 		end
@@ -267,17 +279,47 @@ RunService.RenderStepped:Connect(function(dt)
 		end
 		local flies: boolean = p.Look.Flies == true
 		local s = p.Scale
+		-- dormir: dueño quieto mucho rato y sin pelear; despierta al moverse o al atacar
+		local moving = hrp.AssemblyLinearVelocity.Magnitude > 2
+		if moving then
+			p.IdleSince = t
+		elseif p.JumpAt > p.IdleSince then
+			p.IdleSince = p.JumpAt
+		end
+		local sleeping = t - p.IdleSince > SLEEP_AFTER
+		if sleeping and not p.Zzz then
+			local bb = Instance.new("BillboardGui")
+			bb.Size = UDim2.fromOffset(60, 24)
+			bb.StudsOffset = Vector3.new(0, 2.4 * s, 0)
+			bb.AlwaysOnTop = false
+			bb.MaxDistance = 60
+			bb.Adornee = p.Root
+			bb.Parent = p.Root
+			local z = Instance.new("TextLabel")
+			z.Size = UDim2.fromScale(1, 1)
+			z.BackgroundTransparency = 1
+			z.Font = Enum.Font.GothamBold
+			z.TextSize = 16
+			z.TextColor3 = Color3.fromRGB(200, 220, 255)
+			z.TextStrokeTransparency = 0.5
+			z.Text = "zZz"
+			z.Parent = bb
+			p.Zzz = bb
+		elseif not sleeping and p.Zzz then
+			p.Zzz:Destroy()
+			p.Zzz = nil
+		end
 		-- punto donde "debería" estar: detrás y a la derecha del dueño
 		local anchorCf = hrp.CFrame * CFrame.new(3.0, 0, 3.6)
 		local target = anchorCf.Position
 		local bob = 0
 		local speed = p.Vel.Magnitude
 		if flies then
-			bob = 3.3 + math.sin(t * 2.2 + p.Phase) * 0.4
+			bob = if sleeping then 1.4 + math.sin(t * 1.0 + p.Phase) * 0.1 else 3.3 + math.sin(t * 2.2 + p.Phase) * 0.4
 		else
 			local hit = Workspace:Raycast(target + Vector3.new(0, 6, 0), Vector3.new(0, -30, 0), rayParams)
 			target = Vector3.new(target.X, if hit then hit.Position.Y else hrp.Position.Y - 3, target.Z)
-			bob = 0.75 * s + (if speed > 3 then math.abs(math.sin(t * 9 + p.Phase)) * 0.55 else 0)
+			bob = (if sleeping then 0.42 else 0.75) * s + (if speed > 3 then math.abs(math.sin(t * 9 + p.Phase)) * 0.55 else 0)
 		end
 		target += Vector3.new(0, bob, 0)
 
@@ -303,6 +345,11 @@ RunService.RenderStepped:Connect(function(dt)
 			local k = 1 - (p.SpinUntil - t) / 1.2
 			cf = baseCf * CFrame.Angles(0, k * math.pi * 4, 0) + Vector3.new(0, math.sin(k * math.pi) * 2.2, 0)
 		end
+		-- saltito al atacar el dueño
+		local jt = (t - p.JumpAt) / JUMP_TIME
+		if jt >= 0 and jt < 1 then
+			cf += Vector3.new(0, math.sin(jt * math.pi) * 1.7, 0)
+		end
 		p.Root.CFrame = cf
 		-- aleteo y halo
 		for _, w in ipairs(p.Wings) do
@@ -322,6 +369,12 @@ local function watch(pl: Player)
 	if typeof(v) == "number" then
 		lastLevel[pl] = v
 	end
+	pl:GetAttributeChangedSignal("PetHit"):Connect(function()
+		local pet = pets[pl]
+		if pet then
+			pet.JumpAt = os.clock()
+		end
+	end)
 	pl:GetAttributeChangedSignal("Level"):Connect(function()
 		local n = pl:GetAttribute("Level")
 		if typeof(n) ~= "number" then
