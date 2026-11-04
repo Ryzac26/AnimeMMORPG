@@ -14,6 +14,7 @@ Store.Equip = {} :: { [string]: string }
 Store.EquipPlus = {} :: { [string]: number }
 Store.Capacity = 70
 Store.Pages = 0 -- páginas de pago desbloqueadas (0..3)
+Store.RoleGear = {} :: { [string]: { [string]: { Id: string, Plus: number } } } -- equipo guardado de los otros roles (Maestría Multiclase)
 
 local changed = Instance.new("BindableEvent")
 Store.Changed = changed.Event :: RBXScriptSignal
@@ -22,7 +23,7 @@ local updateRemote = ClientNet.Get("InventoryUpdate")
 local actionRemote = ClientNet.Get("InventoryAction")
 
 if updateRemote then
-	updateRemote.OnClientEvent:Connect(function(list: any, equip: any, capacity: number, equipPlus: any, pages: any)
+	updateRemote.OnClientEvent:Connect(function(list: any, equip: any, capacity: number, equipPlus: any, pages: any, roleGear: any)
 		local bag = {}
 		for _, e in ipairs(list) do
 			bag[e.Slot] = { Id = e.Id, Count = e.Count, Plus = e.Plus or 0, Locked = e.Locked == true }
@@ -32,6 +33,7 @@ if updateRemote then
 		Store.EquipPlus = if typeof(equipPlus) == "table" then equipPlus else {}
 		Store.Capacity = capacity
 		Store.Pages = if typeof(pages) == "number" then pages else 0
+		Store.RoleGear = if typeof(roleGear) == "table" then roleGear else {}
 		changed:Fire()
 	end)
 end

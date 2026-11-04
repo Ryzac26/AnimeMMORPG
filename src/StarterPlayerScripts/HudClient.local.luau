@@ -169,7 +169,7 @@ menuLayout.Padding = UDim.new(0, 6)
 menuLayout.Parent = menuRow
 local MENU = {
 	{ "Perfil", "C", "Character" }, { "Mochila", "B", "Inventory" }, { "Tienda", "", "Tienda" }, { "Habilidades", "", "" }, { "Misiones", "", "" },
-	{ "Mapa", "", "" }, { "Facción", "", "" }, { "Ajustes", "", "Settings" },
+	{ "Mapa", "", "" }, { "Facción", "G", "Guild" }, { "Ajustes", "", "Settings" },
 }
 for _, m in ipairs(MENU) do
 	local b = Instance.new("TextButton")

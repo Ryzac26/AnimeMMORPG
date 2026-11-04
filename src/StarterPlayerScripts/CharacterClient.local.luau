@@ -22,6 +22,9 @@ local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
 local GearView = require(script.Parent:WaitForChild("GearView", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
+local GearCatalog = require(Modules:WaitForChild("GearCatalog", 10))
+local MasteryCatalog = require(Modules:WaitForChild("MasteryCatalog", 10))
+local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "CharacterGui"
@@ -35,6 +38,9 @@ local viewport: ViewportFrame
 local statsScroll: ScrollingFrame
 local title: TextLabel
 local slotButtons: { [string]: TextButton } = {}
+local viewRole: string? = nil -- pestaña de rol que se está viendo (nil = el rol actual)
+local tabButtons: { [string]: TextButton } = {}
+local switchHint: TextLabel? = nil
 local angle = 0
 local dragging = false
 local clone: Model? = nil
@@ -60,7 +66,8 @@ local function makeSlot(slotName: string, pos: UDim2, size: UDim2)
 	label.Name = "Label"
 	label.TextWrapped = true
 	b.Activated:Connect(function()
-		if Store.Equip[slotName] then
+		local cur = PlayerClass.Get(player).Role
+		if (viewRole == nil or viewRole == cur) and Store.Equip[slotName] then
 			Store.Action("Unequip", slotName)
 		end
 	end)
@@ -68,14 +75,34 @@ local function makeSlot(slotName: string, pos: UDim2, size: UDim2)
 end
 
 local function refreshSlots()
+	local cls = PlayerClass.Get(player)
+	local showing = viewRole or cls.Role
+	local other = showing ~= cls.Role
+	local level = player:GetAttribute("Level")
 	for name, b in pairs(slotButtons) do
 		local id = Store.Equip[name]
+		local plus = Store.EquipPlus[name]
+		local shared = false
+		if other then
+			-- pestaña de otro rol: su pieza guardada; si no tiene, lo que llevas puesto solo se ve si ese rol también lo puede usar (compartido)
+			local rec = Store.RoleGear[showing] and Store.RoleGear[showing][name]
+			if rec then
+				id, plus = rec.Id, rec.Plus
+			else
+				local curItem: any = if id then ItemCatalog.Items[id] else nil
+				if curItem and curItem.Gear and not curItem.Pet and GearCatalog.CanUse(curItem, cls.Faction, showing, if typeof(level) == "number" then level else 1) then
+					shared = true
+				else
+					id, plus = nil, nil
+				end
+			end
+		end
 		local item = id and ItemCatalog.Items[id]
 		local label = b:FindFirstChild("Label") :: TextLabel
 		local stroke = b:FindFirstChildOfClass("UIStroke") :: UIStroke
 		if item then
 			local col = ItemCatalog.RarityColor[item.Rarity] or Color3.new(1, 1, 1)
-			label.Text = GearView.DisplayName(item, Store.EquipPlus[name])
+			label.Text = GearView.DisplayName(item, plus) .. (if shared then "\n(compartido)" else "")
 			label.TextColor3 = col
 			stroke.Color = col
 			b.BackgroundColor3 = col:Lerp(Color3.new(0, 0, 0), 0.75)
@@ -85,6 +112,11 @@ local function refreshSlots()
 			stroke.Color = theme.Secondary
 			b.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
 		end
+	end
+	local sh = switchHint
+	if sh then
+		sh.Visible = other and player:GetAttribute("Pass_Multiclass") == true
+		sh.Text = "Cambiar a " .. showing
 	end
 end
 
@@ -319,7 +351,7 @@ local function build()
 	end
 	win = UITheme.Frame(gui, theme, UDim2.fromOffset(700, 700), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
 	WindowDrag.Attach(win, "Character", 40, 50)
-	title = UITheme.Text(win, "PERFIL DEL PERSONAJE", 20, theme.Primary, UDim2.fromOffset(18, 8), UDim2.fromOffset(300, 28))
+	title = UITheme.Text(win, "PERFIL", 20, theme.Primary, UDim2.fromOffset(18, 8), UDim2.fromOffset(240, 28))
 	local close = Instance.new("TextButton")
 	close.Position = UDim2.new(1, -38, 0, 8)
 	close.Size = UDim2.fromOffset(28, 28)
@@ -332,6 +364,62 @@ local function build()
 	close.Activated:Connect(function()
 		gui.Enabled = false
 	end)
+
+	-- pestañas de ROL (equipo propio por rol; el cambio de rol lo hace la Maestría Multiclase y cada rol conserva su set)
+	table.clear(tabButtons)
+	local curRole = PlayerClass.Get(player).Role
+	if viewRole == nil then
+		viewRole = curRole
+	end
+	for i, role in ipairs(MasteryCatalog.ROLES) do
+		local tb = Instance.new("TextButton")
+		tb.Position = UDim2.fromOffset(268 + (i - 1) * 64, 10)
+		tb.Size = UDim2.fromOffset(60, 24)
+		tb.Font = UITheme.Font
+		tb.TextSize = 11
+		tb.Text = role
+		tb.TextColor3 = Color3.new(1, 1, 1)
+		tb.BackgroundColor3 = if role == viewRole then theme.Primary else Color3.fromRGB(40, 40, 54)
+		tb.Parent = win
+		Instance.new("UICorner", tb)
+		if role == curRole then
+			local dot = Instance.new("Frame")
+			dot.Size = UDim2.fromOffset(6, 6)
+			dot.Position = UDim2.new(1, -9, 0, 3)
+			dot.BackgroundColor3 = Color3.fromRGB(111, 220, 127)
+			dot.BorderSizePixel = 0
+			dot.Parent = tb
+			Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
+		end
+		tb.Activated:Connect(function()
+			viewRole = role
+			for r, other in pairs(tabButtons) do
+				other.BackgroundColor3 = if r == role then theme.Primary else Color3.fromRGB(40, 40, 54)
+			end
+			refreshSlots()
+		end)
+		tabButtons[role] = tb
+	end
+	local cambiar = Instance.new("TextButton")
+	cambiar.Position = UDim2.fromOffset(396, 466)
+	cambiar.Size = UDim2.fromOffset(286, 22)
+	cambiar.Font = UITheme.Font
+	cambiar.TextSize = 12
+	cambiar.TextColor3 = Color3.new(1, 1, 1)
+	cambiar.BackgroundColor3 = Color3.fromRGB(50, 130, 70)
+	cambiar.Text = ""
+	cambiar.Visible = false
+	cambiar.Parent = win
+	Instance.new("UICorner", cambiar)
+	cambiar.Activated:Connect(function()
+		if viewRole and viewRole ~= PlayerClass.Get(player).Role and player:GetAttribute("Pass_Multiclass") == true then
+			local remote = ClientNet.Get("MasteryAction")
+			if remote then
+				remote:FireServer("Switch", viewRole)
+			end
+		end
+	end)
+	switchHint = cambiar
 
 	-- ranuras izquierda / derecha (6 c/u)
 	for i, n in ipairs(LEFT) do
@@ -397,7 +485,7 @@ local function build()
 	statsList.SortOrder = Enum.SortOrder.LayoutOrder
 	statsList.Padding = UDim.new(0, 2)
 	statsList.Parent = statsScroll
-	UITheme.Text(win, "Clic en una ranura para desequiparla.  Equipa desde la mochila (B).  Arrastra el título para mover la ventana.", 12, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(18, 466), UDim2.fromOffset(660, 20))
+	UITheme.Text(win, "Clic en una ranura para desequiparla (rol actual).  Cada rol guarda su equipo.  Equipa desde la mochila (B).", 12, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(18, 466), UDim2.fromOffset(372, 20))
 
 	-- descripción del personaje y pasivas
 	local pBox = Instance.new("Frame")
@@ -434,6 +522,7 @@ end
 
 local function open()
 	gui.Enabled = true
+	viewRole = nil
 	build()
 	refreshModel()
 end
@@ -448,6 +537,14 @@ end)
 player.CharacterAdded:Connect(function()
 	if gui.Enabled then
 		task.wait(1)
+		refreshModel()
+	end
+end)
+player:GetAttributeChangedSignal("Role"):Connect(function()
+	if gui.Enabled then
+		task.wait(1.5) -- deja que termine el cambio de rol (reaparece el personaje)
+		viewRole = nil
+		build()
 		refreshModel()
 	end
 end)

@@ -463,6 +463,10 @@ do
 	sync()
 	player:GetAttributeChangedSignal("Pass_Merchant"):Connect(sync)
 	local function openPortable()
+		if gui.Enabled then
+			gui.Enabled = false -- el mismo botón/tecla cierra la ventana
+			return
+		end
 		if player:GetAttribute("Pass_Merchant") == true then
 			actionRemote:FireServer("OpenPortable")
 		end

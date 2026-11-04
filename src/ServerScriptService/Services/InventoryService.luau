@@ -35,7 +35,7 @@ local ActionRemote = Net.Get("InventoryAction")
 local MAX_SLOT = 1000 -- tope de seguridad al cargar datos (evita una mochila gigante por datos corruptos)
 
 type Stack = { Id: string, Count: number, Plus: number?, Locked: boolean? }
-type State = { Bag: { [number]: Stack }, Equip: { [string]: string }, EquipPlus: { [string]: number }, EquipLocked: { [string]: boolean }, Orphans: { Stack }, Pages: number }
+type State = { Bag: { [number]: Stack }, Equip: { [string]: string }, EquipPlus: { [string]: number }, EquipLocked: { [string]: boolean }, Orphans: { Stack }, Pages: number, RoleGear: { [string]: { [string]: { Id: string, Plus: number, Locked: boolean? } } } }
 local MAX_PLUS = 9
 
 local function cleanPlus(item: any, plus: any): number
@@ -69,7 +69,16 @@ local function push(player: Player)
 		for i, stack in pairs(st.Bag) do
 			table.insert(list, { Slot = i, Id = stack.Id, Count = stack.Count, Plus = stack.Plus or 0, Locked = stack.Locked == true })
 		end
-		UpdateRemote:FireClient(player, list, st.Equip, capacity(st), st.EquipPlus, st.Pages)
+		-- equipo guardado de los OTROS roles (Maestría Multiclase): { rol -> { ranura -> { Id, Plus } } }
+		local roleGear = {}
+		for role, set in pairs(st.RoleGear) do
+			local out = {}
+			for slotName, rec in pairs(set) do
+				out[slotName] = { Id = rec.Id, Plus = rec.Plus }
+			end
+			roleGear[role] = out
+		end
+		UpdateRemote:FireClient(player, list, st.Equip, capacity(st), st.EquipPlus, st.Pages, roleGear)
 	end
 end
 
@@ -145,11 +154,21 @@ local function serialize(st: State): any
 			equipLocked[slotName] = true
 		end
 	end
-	return { Bag = bag, Equip = equip, EquipPlus = equipPlus, EquipLocked = equipLocked, Orphans = orphans, Pages = st.Pages }
+	local roleGear = {}
+	for role, set in pairs(st.RoleGear) do
+		local out = {}
+		for slotName, rec in pairs(set) do
+			out[slotName] = { Id = rec.Id, Plus = rec.Plus, Locked = if rec.Locked then true else nil }
+		end
+		if next(out) then
+			roleGear[role] = out
+		end
+	end
+	return { Bag = bag, Equip = equip, EquipPlus = equipPlus, EquipLocked = equipLocked, Orphans = orphans, Pages = st.Pages, RoleGear = roleGear }
 end
 
 local function deserialize(saved: any): State
-	local st: State = { Bag = {}, Equip = {}, EquipPlus = {}, EquipLocked = {}, Orphans = {}, Pages = 0 }
+	local st: State = { Bag = {}, Equip = {}, EquipPlus = {}, EquipLocked = {}, Orphans = {}, Pages = 0, RoleGear = {} }
 	if typeof(saved) ~= "table" then
 		return st
 	end
@@ -208,6 +227,27 @@ local function deserialize(saved: any): State
 				else
 					st.Bag[firstFree(st)] = { Id = id, Count = 1 } -- cambió la ranura del objeto en el catálogo: vuelve a la mochila
 				end
+			end
+		end
+	end
+	local rg: any = saved.RoleGear
+	if typeof(rg) == "table" then
+		for role, set in pairs(rg) do
+			if typeof(role) == "string" and typeof(set) == "table" then
+				local clean: { [string]: { Id: string, Plus: number, Locked: boolean? } } = {}
+				for slotName, rec in pairs(set) do
+					if typeof(slotName) == "string" and typeof(rec) == "table" and typeof(rec.Id) == "string" then
+						local item: any = (ItemCatalog.Items :: any)[rec.Id]
+						if not item then
+							table.insert(st.Orphans, { Id = rec.Id, Count = 1 })
+						elseif item.Slot == slotName and item.Gear then
+							clean[slotName] = { Id = rec.Id, Plus = cleanPlus(item, rec.Plus), Locked = if rec.Locked == true then true else nil }
+						else
+							st.Bag[firstFree(st)] = { Id = rec.Id, Count = 1 }
+						end
+					end
+				end
+				st.RoleGear[role] = clean
 			end
 		end
 	end
@@ -517,6 +557,74 @@ function Inventory.ApplyLoadout(player: Player, saved: { [string]: { Id: string,
 		end
 	end
 	if not any then
+		equipBest(player, st)
+	end
+	push(player)
+end
+
+-- CAMBIO DE ROL con equipo propio por rol (Maestría Multiclase). Cada rol tiene su set GUARDADO APARTE (no pasa por la mochila):
+--   · si el rol nuevo tiene una pieza guardada para una ranura, entra ahí y la que llevabas se guarda para el rol anterior;
+--   · si no tiene, y lo que llevas puesto sirve a todos los roles (joyas, capas...), se queda puesto (compartido);
+--   · si no tiene y lo que llevas no lo puede usar el rol nuevo, se guarda para el rol anterior.
+-- Primera vez en un rol (sin set guardado): se completa solo con lo mejor de la mochila.
+function Inventory.SwapRoleGear(player: Player, oldRole: string, newRole: string)
+	local st = states[player]
+	if not st or oldRole == newRole then
+		return
+	end
+	local newSet = st.RoleGear[newRole]
+	local oldSet = st.RoleGear[oldRole]
+	if not oldSet then
+		oldSet = {}
+		st.RoleGear[oldRole] = oldSet
+	end
+	local hadSaved = newSet ~= nil and next(newSet) ~= nil
+	for _, slotName in ipairs(ItemCatalog.EquipSlots) do
+		local curId = st.Equip[slotName]
+		local curItem: any = if curId then (ItemCatalog.Items :: any)[curId] else nil
+		local isGear = curItem ~= nil and curItem.Gear ~= nil and not curItem.Pet
+		local rec = if newSet then newSet[slotName] else nil
+		local usable = rec ~= nil and GearService.CanEquip(player, rec.Id)
+		local keepsCurrent = false
+		if curId and isGear then
+			if usable then
+				keepsCurrent = false
+			else
+				keepsCurrent = GearService.CanEquip(player, curId)
+			end
+		elseif curId then
+			keepsCurrent = true -- mascota u otro objeto no ligado a un rol
+		end
+		if not keepsCurrent and curId and isGear then
+			-- guarda lo puesto para el rol anterior
+			if oldSet[slotName] then
+				-- ya había algo guardado en esa ranura: no se pierde nada, va a la mochila (si no cabe, se queda puesto)
+				if canFit(st, curId, 1, st.EquipPlus[slotName] or 0, st.EquipLocked[slotName]) then
+					local plus, wasLocked = st.EquipPlus[slotName], st.EquipLocked[slotName]
+					st.Equip[slotName] = nil
+					st.EquipPlus[slotName] = nil
+					st.EquipLocked[slotName] = nil
+					Inventory.Add(player, curId, 1, plus, wasLocked)
+				end
+			else
+				oldSet[slotName] = { Id = curId, Plus = st.EquipPlus[slotName] or 0, Locked = if st.EquipLocked[slotName] then true else nil }
+				st.Equip[slotName] = nil
+				st.EquipPlus[slotName] = nil
+				st.EquipLocked[slotName] = nil
+			end
+		end
+		if usable and rec and not st.Equip[slotName] then
+			st.Equip[slotName] = rec.Id
+			st.EquipPlus[slotName] = if rec.Plus > 0 then rec.Plus else nil
+			st.EquipLocked[slotName] = if rec.Locked then true else nil
+			if newSet then
+				newSet[slotName] = nil
+			end
+		end
+		player:SetAttribute("Equip_" .. slotName, st.Equip[slotName])
+		player:SetAttribute("EquipPlus_" .. slotName, st.EquipPlus[slotName])
+	end
+	if not hadSaved then
 		equipBest(player, st)
 	end
 	push(player)

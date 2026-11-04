@@ -1,7 +1,7 @@
 --!strict
 --[[
     GuildClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > GuildClient
-    Ventana del GREMIO DE FACCIÓN (tecla G o botón "🏰 Gremio [G]" a la izquierda). Pestañas:
+    Ventana del GREMIO DE FACCIÓN (botón "Facción [G]" de la barra de menú, o tecla G; la misma tecla/botón la cierra). Pestañas:
       Resumen · Bendiciones (aportar oro/materiales) · Ranking (semanal / total) · Registro.
     Datos: GuildState (servidor). Acciones: GuildAction ("State" | "Donate", bendición, "Gold"|idMaterial, cantidad). Resultado: GuildResult.
     IMPORTANTE: está en la lista RELOAD de UIReloadClient.
@@ -16,6 +16,7 @@ local GuildCatalog = require(Modules:WaitForChild("GuildCatalog", 10))
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
+local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 
 local stateRemote = ClientNet.Get("GuildState")
 local actionRemote = ClientNet.Get("GuildAction")
@@ -31,12 +32,6 @@ gui.ResetOnSpawn = false
 gui.Enabled = false
 gui.DisplayOrder = 12
 gui.Parent = player:WaitForChild("PlayerGui", 10)
-
-local launcherGui = Instance.new("ScreenGui")
-launcherGui.Name = "GuildLauncher"
-launcherGui.ResetOnSpawn = false
-launcherGui.DisplayOrder = 8
-launcherGui.Parent = player:WaitForChild("PlayerGui", 10)
 
 local state: any = nil
 local tab = "Resumen"
@@ -366,18 +361,12 @@ if resultRemote then
 	end)
 end
 
-local btn = Instance.new("TextButton")
-btn.AnchorPoint = Vector2.new(0, 0.5)
-btn.Position = UDim2.new(0, 10, 0.78, 0)
-btn.Size = UDim2.fromOffset(112, 34)
-btn.BackgroundColor3 = Color3.fromRGB(120, 80, 40)
-btn.TextColor3 = Color3.new(1, 1, 1)
-btn.Font = UITheme.Font
-btn.TextSize = 13
-btn.Text = "🏰 Gremio [G]"
-btn.Parent = launcherGui
-Instance.new("UICorner", btn)
-btn.Activated:Connect(open)
+-- se abre/cierra desde el botón "Facción [G]" de la barra de menú (MenuBus "Guild") y con la tecla G
+MenuBus.Event:Connect(function(name: string)
+	if name == "Guild" then
+		open()
+	end
+end)
 UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
 	if not processed and input.KeyCode == Enum.KeyCode.G then
 		open()

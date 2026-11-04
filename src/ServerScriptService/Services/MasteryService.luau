@@ -154,10 +154,8 @@ local function switchRole(player: Player, role: any)
 	lastSwitch[player] = now
 	local cf = root.CFrame
 	-- guarda el equipo del rol actual (antes de que el rol cambie)
-	d.Loadouts[oldRole] = Inventory.GetLoadout(player)
-	local saved = d.Loadouts[newRole]
 	local ok = ClassSelect.SwitchRole(player, newRole, function()
-		Inventory.ApplyLoadout(player, saved) -- rol nuevo ya puesto: equipa lo suyo antes de reaparecer
+		Inventory.SwapRoleGear(player, oldRole, newRole) -- rol nuevo ya puesto: cada rol conserva su set (sin pasar por la mochila)
 		applyBonus(player)
 	end)
 	if not ok then
@@ -165,21 +163,29 @@ local function switchRole(player: Player, role: any)
 		reply(player, false, "No se pudo cambiar de rol ahora.")
 		return
 	end
-	-- LoadCharacter reaparece en la ciudad: se te devuelve al mismo sitio
+	-- LoadCharacter reaparece en la ciudad: se te devuelve al mismo sitio. Otros sistemas (ciudad, campamento, ropa) pueden mover
+	-- al personaje justo después de nacer, así que se comprueba varias veces durante ~3,5 s y se corrige si estás lejos del punto.
 	task.spawn(function()
-		local newChar = player.Character
-		local deadline = os.clock() + 5
+		local target = cf + Vector3.new(0, 3, 0)
+		local deadline = os.clock() + 3.5
+		local stable = 0
+		task.wait(0.3)
 		while player.Parent and os.clock() < deadline do
-			newChar = player.Character
-			local r = newChar and newChar:FindFirstChild("HumanoidRootPart")
-			if newChar and r and r:IsA("BasePart") then
-				task.wait(0.5)
-				if player.Character == newChar then
-					newChar:PivotTo(cf + Vector3.new(0, 3, 0))
+			local c = player.Character
+			local r = c and c:FindFirstChild("HumanoidRootPart")
+			local h = c and c:FindFirstChildOfClass("Humanoid")
+			if c and r and r:IsA("BasePart") and h and h.Health > 0 then
+				if (r.Position - target.Position).Magnitude > 12 then
+					c:PivotTo(target)
+					stable = 0
+				else
+					stable += 1
+					if stable >= 6 then
+						break -- ~1,5 s seguidos en su sitio
+					end
 				end
-				break
 			end
-			task.wait(0.2)
+			task.wait(0.25)
 		end
 		switching[player] = nil
 		if player.Parent then
