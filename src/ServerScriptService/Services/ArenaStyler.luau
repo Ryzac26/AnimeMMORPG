@@ -539,6 +539,19 @@ local function buildStands(parent: Instance)
 		local bp = out * 800 + along * 36 + Vector3.new(0, FLOOR_TOP + 0.3, 0)
 		makePad(lf, "Portal_Puente", bp, l.Glow, "GRADA " .. l.Name, "Ir a la grada", Enum.KeyCode.E, l.Faction, goToGrada)
 	end
+	-- ESQUINAS: entre el extremo de una grada y el de la vecina quedaba un cuadro abierto hacia afuera (los muros separadores no se tocan).
+	-- Se rellena con un bloque macizo del suelo al techo de los muros, así no hay hueco ni por donde salir de las gradas.
+	local cornerFrom = WING_OUT + 2 -- desde el muro separador del extremo (se pisan 1-2 studs, sin hueco)
+	local cornerSize = (STAND_START + totalDepth + 8) - cornerFrom
+	local cornerCenter = cornerFrom + cornerSize / 2
+	local cornerH = STAND_TOP + 30 + 6 -- hasta la altura de los muros (STAND_TOP + 30) más el fondo enterrado
+	for _, sx in ipairs({ -1, 1 }) do
+		for _, sz in ipairs({ -1, 1 }) do
+			local cp = Vector3.new(sx * cornerCenter, (STAND_TOP + 30 - 6) / 2, sz * cornerCenter)
+			part(gradaFolder, "Esquina_Maciza", Vector3.new(cornerSize, cornerH, cornerSize), CFrame.new(cp), C(176, 172, 164), Enum.Material.Marble, true)
+			part(gradaFolder, "Esquina_Franja", Vector3.new(cornerSize + 0.4, 1.2, cornerSize + 0.4), CFrame.new(cp.X, STAND_TOP + 30 - 0.6, cp.Z), C(224, 176, 74), Enum.Material.Metal, false)
+		end
+	end
 end
 
 local function lanterns(parent: Instance, rng: Random, count: number, radius: number, y0: number, y1: number)

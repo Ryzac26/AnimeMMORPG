@@ -686,21 +686,7 @@ local function buildSide(lane: Lane, faction: string, strip: number, s: number, 
 
 	-- ESCENOGRAFÍA lejana, afuera del muro (sin colisión)
 	local far: Ctx = { Barrier = lane.Barrier, Deco = lane.Deco, Far = true }
-	local backFn = BACK[th.Back]
-	if backFn then
-		local ext = BACK_EXT[th.Back] or 40
-		local bu = ua + 30
-		while bu < ub - 20 do
-			local out = -(ext + 18 + rng:NextNumber() * 25)
-			local pos = edgePoint(lane, s, bu, out, n)
-			-- al alejarse en diagonal la pieza también retrocede en u: se descarta si llegaría a la ciudad (u < 800)
-			local uc = (pos - lane.Start):Dot(lane.Dir)
-			if uc - ext >= CITY_SIZE + 10 then
-				backFn(far, pos, n, rng, th)
-			end
-			bu += (if th.Back == "hills" or th.Back == "statues" then 120 else 70) + rng:NextNumber() * 60
-		end
-	end
+	-- (la escenografía lejana de los costados y del fondo la hace buildFarLine: una sola línea continua por carril)
 
 	-- Valle del Fin: dos estatuas gigantes frente a frente, una a cada lado, a la mitad de la franja 4
 	if th.Back == "statues" then
@@ -1246,6 +1232,98 @@ local function buildBackWall(lane: Lane, faction: string)
 	end
 end
 
+-- LÍNEA CONTINUA de montañas lejanas de un carril: costado izquierdo -> esquina del fondo -> fondo -> esquina -> costado derecho.
+-- Antes cada franja ponía las suyas con huecos en las puertas, el fondo iba aparte y la esquina quedaba cortada.
+-- Ahora: sin huecos en los muros entre franjas, el estilo se mezcla ~110 studs a cada lado del cambio de franja,
+-- la distancia al muro es la misma en todo el recorrido y en las esquinas del fondo las piezas giran en arco.
+local FAR_BLEND = 110
+local function farSpacing(th: Theme): number
+	return (if th.Back == "hills" or th.Back == "statues" then 120 else 70)
+end
+
+local function buildFarLine(lane: Lane, faction: string, laneIdx: number)
+	local far: Ctx = { Barrier = lane.Barrier, Deco = lane.Deco, Far = true }
+	local uEnd = CITY_SIZE + STRIP_DEPTH * STRIP_COUNT
+	local th4 = THEMES[faction .. "_" .. STRIP_COUNT]
+	if not th4 then
+		return
+	end
+
+	-- tema que corresponde a la distancia u (mezclando con la franja vecina cerca de cada cambio)
+	local function themeAt(u: number, rng: Random): Theme
+		local k = math.clamp(math.floor((u - CITY_SIZE) / STRIP_DEPTH) + 1, 1, STRIP_COUNT)
+		local base = THEMES[faction .. "_" .. k] or th4
+		local lo = CITY_SIZE + (k - 1) * STRIP_DEPTH
+		local hi = lo + STRIP_DEPTH
+		if k > 1 and u - lo < FAR_BLEND then
+			local other = THEMES[faction .. "_" .. (k - 1)]
+			if other and rng:NextNumber() < 0.5 * (1 - (u - lo) / FAR_BLEND) then
+				return other
+			end
+		elseif k < STRIP_COUNT and hi - u < FAR_BLEND then
+			local other = THEMES[faction .. "_" .. (k + 1)]
+			if other and rng:NextNumber() < 0.5 * (1 - (hi - u) / FAR_BLEND) then
+				return other
+			end
+		end
+		return base
+	end
+
+	for _, s in ipairs({ -1, 1 }) do
+		local rng = Random.new(5151 + laneIdx * 31 + (if s > 0 then 17 else 3))
+		local _, n = edgeFrame(lane, s) -- n = normal hacia adentro de la franja
+
+		-- costado: de la ciudad hasta el fondo, sin saltarse las puertas
+		local bu = CITY_SIZE + 30 + rng:NextNumber() * 40
+		while bu < uEnd - 10 do
+			local th = themeAt(bu, rng)
+			local backFn = BACK[th.Back]
+			if backFn then
+				local ext = BACK_EXT[th.Back] or 40
+				local pos = edgePoint(lane, s, bu, -(ext + 18 + rng:NextNumber() * 25), n)
+				-- al alejarse en diagonal la pieza también retrocede en u: se descarta si llegaría a la ciudad (u < 800)
+				local uc = (pos - lane.Start):Dot(lane.Dir)
+				if uc - ext >= CITY_SIZE + 10 then
+					backFn(far, pos, n, rng, th)
+				end
+			end
+			bu += farSpacing(th) + rng:NextNumber() * 60
+		end
+
+		-- esquina del fondo: las piezas giran en arco desde la normal exterior del costado hasta la dirección del fondo
+		local backFn = BACK[th4.Back]
+		if backFn then
+			local ext = BACK_EXT[th4.Back] or 40
+			local corner = lp(lane, uEnd, s * hw(lane, uEnd), FLOOR_TOP)
+			local on = -n
+			local a0 = math.atan2(on.X, on.Z)
+			local a1 = math.atan2(lane.Dir.X, lane.Dir.Z)
+			local delta = (a1 - a0 + math.pi) % (2 * math.pi) - math.pi
+			local r = ext + 30
+			local steps = math.max(1, math.floor(r * math.abs(delta) / 90))
+			for k = 1, steps do
+				local a = a0 + delta * (k / (steps + 1))
+				local d = Vector3.new(math.sin(a), 0, math.cos(a))
+				backFn(far, corner + d * (ext + 18 + rng:NextNumber() * 25), -d, rng, th4)
+			end
+		end
+	end
+
+	-- fondo: misma distancia al muro que los costados, de una esquina a la otra
+	local backFn = BACK[th4.Back]
+	if backFn then
+		local rng = Random.new(777 + laneIdx)
+		local ext = BACK_EXT[th4.Back] or 40
+		local half = hw(lane, uEnd)
+		local v = -half + rng:NextNumber() * 40
+		while v <= half do
+			local pos = lp(lane, uEnd + ext + 18 + rng:NextNumber() * 25, v, FLOOR_TOP)
+			backFn(far, pos, -lane.Dir, rng, th4)
+			v += farSpacing(th4) + rng:NextNumber() * 60
+		end
+	end
+end
+
 -- Suelo exterior (un nivel más abajo, solo se ve afuera de las franjas) y paisaje lejano detrás de la muralla del fondo
 local function buildExterior(lane: Lane, faction: string, laneIdx: number)
 	local deco: Ctx = { Barrier = lane.Barrier, Deco = lane.Deco, Far = true }
@@ -1278,19 +1356,7 @@ local function buildExterior(lane: Lane, faction: string, laneIdx: number)
 			end
 		end
 	end
-	local th4 = THEMES[faction .. "_4"]
-	local backFn = th4 and BACK[th4.Back]
-	if th4 and backFn then
-		local rng = Random.new(777 + laneIdx)
-		local ext = BACK_EXT[th4.Back] or 40
-		local halfW = hw(lane, uEnd) + 300
-		local v = -halfW
-		while v < halfW do
-			local pos = lp(lane, uEnd + ext + 90 + rng:NextNumber() * 120, v, FLOOR_TOP)
-			backFn(deco, pos, lane.Dir, rng, th4)
-			v += 200 + rng:NextNumber() * 80
-		end
-	end
+	buildFarLine(lane, faction, laneIdx)
 end
 
 ---------------------------------------------------------------------
