@@ -188,8 +188,20 @@ function PassiveService.Incoming(attacker: Model, victim: Model, damage: number)
 	return damage
 end
 
+-- Gancho extra (PetPowerService: Renacer del Fénix). Recibe el mismo (víctima, daño, humanoide) y devuelve el daño final.
+local petLethalHook: ((Model, number, Humanoid) -> number)? = nil
+function PassiveService.SetPetLethalHook(fn: (Model, number, Humanoid) -> number)
+	petLethalHook = fn
+end
+
 -- Antes de aplicar el daño: ¿es mortal? (Voluntad del tanque). Devuelve el daño final.
 function PassiveService.PreLethal(victim: Model, damage: number, hum: Humanoid): number
+	if petLethalHook and damage >= hum.Health then
+		damage = petLethalHook(victim, damage, hum)
+		if damage <= 0 then
+			return 0
+		end
+	end
 	if damage < hum.Health or roleOf(victim) ~= "Tanque" then
 		return damage
 	end

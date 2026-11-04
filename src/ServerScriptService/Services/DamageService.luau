@@ -246,6 +246,40 @@ end
 ---------------------------------------------------------------------
 -- DAÑO
 ---------------------------------------------------------------------
+-- Daño extra DIRECTO de un jugador a un mob (poderes de mascota: Zarpazo, Aliento de fuego, Instinto cazador).
+-- No vuelve a aplicar equipo ni pasivas (ya vienen en el golpe que lo originó), pero respeta compuertas e inmunidades,
+-- cuenta para el ranking de daño y el reparto de botín, y muestra su número. Devuelve el daño hecho.
+function DamageService.TrueDamage(attacker: Model, victim: Model, amount: number): number
+	local aPlayer = Players:GetPlayerFromCharacter(attacker)
+	local vHum = humanoidOf(victim)
+	if not aPlayer or not vHum or not isMob(victim) or victim:FindFirstChildOfClass("ForceField") or victim:GetAttribute("Immune") == true then
+		return 0
+	end
+	if victim:GetAttribute("ShrineField") == true or (attackGate and not attackGate(aPlayer, victim)) then
+		return 0
+	end
+	local red = victim:GetAttribute("DamageReduction")
+	local damage = math.floor(amount * (if typeof(red) == "number" then (1 - red) else 1))
+	if damage <= 0 then
+		return 0
+	end
+	victim:SetAttribute("LastHitBy", attacker.Name)
+	victim:SetAttribute("LastHitByPlayer", true)
+	victim:SetAttribute("LastHitAt", os.clock())
+	vHum:TakeDamage(damage)
+	local root = rootOf(victim)
+	if root then
+		FloatingRemote:FireAllClients(root.Position + Vector3.new(0, 5, 0), tostring(damage), Color3.fromRGB(255, 170, 80))
+	end
+	if damageListener then
+		damageListener(victim, aPlayer, damage)
+	end
+	for _, fn in ipairs(extraListeners) do
+		fn(victim, aPlayer, damage)
+	end
+	return damage
+end
+
 function DamageService.Deal(attacker: Model, victim: Model, base: number, opts: Opts?): number
 	local vHum = humanoidOf(victim)
 	if not vHum or attacker == victim or victim:FindFirstChildOfClass("ForceField") or victim:GetAttribute("Immune") == true then

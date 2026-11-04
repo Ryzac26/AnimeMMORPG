@@ -175,6 +175,12 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 end)
 
+-- Miembros del grupo de un jugador (si no tiene grupo, solo él)
+function PartyService.MembersOf(p: Player): { Player }
+	local party = partyOf[p]
+	return if party then table.clone(party.Members) else { p }
+end
+
 function PartyService.SameParty(a: Player, b: Player): boolean
 	return partyOf[a] ~= nil and partyOf[a] == partyOf[b]
 end

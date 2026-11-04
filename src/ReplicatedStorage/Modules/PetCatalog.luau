@@ -136,6 +136,39 @@ local EFFECT_TEXT: { [string]: string } = {
 }
 local EFFECT_ORDER = { "Ataque", "Critico", "Defensa", "Vida", "Curacion", "Suerte", "Oro", "Xp", "Regen", "Energia" }
 PetCatalog.EffectText = EFFECT_TEXT
+
+-- PODERES (Épico, Legendario, Mítico; las Comunes y Raras no tienen). Los ejecuta PetPowerService; aquí están los números y el texto.
+-- Cada lista tiene 3 valores: Épico, Legendario, Mítico. En Desc: {cd} enfriamiento (s) · {every} cada cuántos golpes/monstruos · {pct} porcentaje · {v} multiplicador.
+PetCatalog.Powers = {
+	Suerte = { Name = "Olfato del Zorro", Cooldown = { 30, 22, 15 }, Desc = "Cada {cd} s, el siguiente monstruo que mates te da una segunda tirada de botín." },
+	Fortuna = { Name = "Lluvia de monedas", Every = { 12, 9, 6 }, Value = { 5, 8, 12 }, Desc = "Cada {every} monstruos que mates, una lluvia de oro extra (x{v} del oro de un monstruo)." },
+	Sabiduria = { Name = "Mente clara", Every = { 10, 8, 6 }, Value = { 0.06, 0.09, 0.12 }, Desc = "Cada {every} golpes, recuperas {pct}% de tu energía máxima (Ki, Chakra, Haki o Reiatsu)." },
+	Guardian = { Name = "Caparazón", Cooldown = { 60, 50, 40 }, Value = { 0.20, 0.30, 0.40 }, Desc = "Si tu vida baja del 30%, un escudo de {pct}% de tu vida máxima durante 8 s. Se recarga en {cd} s." },
+	Furia = { Name = "Zarpazo", Every = { 8, 7, 6 }, Value = { 0.6, 0.9, 1.3 }, Desc = "Cada {every} golpes, un zarpazo extra de {pct}% del daño del golpe." },
+	Fenix = { Name = "Renacer", Cooldown = { 600, 480, 360 }, Value = { 0.15, 0.25, 0.40 }, Desc = "Si recibes un golpe mortal, revives con {pct}% de vida y 3 s de inmunidad. Se recarga en {cd} s." },
+	Dragon = { Name = "Aliento de fuego", Cooldown = { 8, 6, 4 }, Value = { 0.5, 0.8, 1.2 }, Desc = "Cada {cd} s, al atacar, un aliento de fuego daña a los enemigos cercanos ({pct}% del golpe)." },
+	Hada = { Name = "Brisa curativa", Cooldown = { 24, 18, 12 }, Value = { 0.08, 0.12, 0.16 }, Desc = "Cada {cd} s cura {pct}% de la vida máxima a ti y a tu grupo cercano." },
+	Lobo = { Name = "Instinto cazador", Value = { 0.12, 0.20, 0.30 }, Desc = "+{pct}% de daño extra contra jefes, mini jefes y Metin." },
+} :: { [string]: { Name: string, Cooldown: { number }?, Every: { number }?, Value: { number }?, Desc: string } }
+
+-- Poder de una mascota: nombre, texto con sus números, y el nivel del poder (1..3). nil si no tiene (Común, Raro o mascota de facción).
+function PetCatalog.PowerInfo(family: string, rarity: string): (string?, string?, number?)
+	local cfg = PetCatalog.Powers[family]
+	local tier = (table.find(PetCatalog.Rarities, rarity) or 0) - 2
+	if not cfg or tier < 1 then
+		return nil, nil, nil
+	end
+	local function n(list: { number }?): number
+		return if list then list[tier] else 0
+	end
+	local text = cfg.Desc
+	text = string.gsub(text, "{cd}", tostring(n(cfg.Cooldown)))
+	text = string.gsub(text, "{every}", tostring(n(cfg.Every)))
+	local v = n(cfg.Value)
+	text = string.gsub(text, "{pct}", string.format("%g", math.floor(v * 1000 + 0.5) / 10))
+	text = string.gsub(text, "{v}", tostring(v))
+	return cfg.Name, text, tier
+end
 PetCatalog.EffectOrder = EFFECT_ORDER
 
 function PetCatalog.Id(family: string, rarity: string): string

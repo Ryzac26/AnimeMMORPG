@@ -1,4 +1,4 @@
---!strict
+¿--!strict
 --[[
     PetClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > PetClient
     Ventana de MASCOTAS (botón "Mascota" del menú): elige una mascota (la puesta o las de la mochila) y ALIMÉNTALA para subirla de nivel (1..10).
@@ -96,7 +96,7 @@ local function build()
 		win:Destroy()
 	end
 	local theme = UITheme.For(player:GetAttribute("Faction"))
-	local w = UITheme.Frame(gui, theme, UDim2.fromOffset(400, 520), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
+	local w = UITheme.Frame(gui, theme, UDim2.fromOffset(400, 590), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
 	win = w
 	WindowDrag.Attach(w, "Pets", 52, 50)
 	UITheme.Text(w, "MASCOTAS", 20, theme.Primary, UDim2.fromOffset(18, 6), UDim2.fromOffset(300, 26))
@@ -217,9 +217,22 @@ local function build()
 	local evoText = if nextEvo then string.format("Evoluciona en el nivel %d: más brillo y tamaño.", nextEvo) else "¡Forma final! Brilla con halo."
 	UITheme.Text(w, evoText, 12, Color3.fromRGB(190, 190, 205), UDim2.fromOffset(18, 362), UDim2.fromOffset(364, 18))
 
+	-- poder (desde Épico)
+	local family: string = item.Pet.Family
+	local pName, pText, pTier = PetCatalog.PowerInfo(family, item.Rarity)
+	if pName and pText then
+		UITheme.Text(w, string.format("PODER  ·  %s  (%d/3)", pName, pTier :: number), 14, theme.Primary, UDim2.fromOffset(18, 388), UDim2.fromOffset(364, 18))
+		local pt = UITheme.Text(w, pText, 12, Color3.fromRGB(215, 218, 230), UDim2.fromOffset(18, 408), UDim2.fromOffset(364, 44))
+		pt.TextWrapped = true
+		pt.TextYAlignment = Enum.TextYAlignment.Top
+	else
+		local why = if item.Faction then "Esta mascota de facción da energía; no tiene poder." else "El poder se desbloquea desde la rareza Épica."
+		UITheme.Text(w, why, 12, Color3.fromRGB(150, 150, 165), UDim2.fromOffset(18, 388), UDim2.fromOffset(364, 18))
+	end
+
 	-- costo y botón
 	local feedBtn = Instance.new("TextButton")
-	feedBtn.Position = UDim2.fromOffset(18, 452)
+	feedBtn.Position = UDim2.fromOffset(18, 524)
 	feedBtn.Size = UDim2.fromOffset(364, 44)
 	feedBtn.Font = UITheme.Font
 	feedBtn.TextSize = 16
@@ -235,9 +248,9 @@ local function build()
 		local have = haveOf(res)
 		local resName = (LootTables.Materials :: any)[res].Name
 		local ok = have >= count
-		local costLabel = UITheme.Text(w, string.format("Alimento: %d × %s  (tienes %d)", count, resName, have), 14, if ok then Color3.fromRGB(150, 235, 150) else Color3.fromRGB(255, 130, 130), UDim2.fromOffset(18, 400), UDim2.fromOffset(364, 20))
+		local costLabel = UITheme.Text(w, string.format("Alimento: %d × %s  (tienes %d)", count, resName, have), 14, if ok then Color3.fromRGB(150, 235, 150) else Color3.fromRGB(255, 130, 130), UDim2.fromOffset(18, 468), UDim2.fromOffset(364, 20))
 		costLabel.TextXAlignment = Enum.TextXAlignment.Left
-		UITheme.Text(w, "Los recursos se recolectan en los nodos de cada franja.", 11, Color3.fromRGB(150, 150, 165), UDim2.fromOffset(18, 422), UDim2.fromOffset(364, 16))
+		UITheme.Text(w, "Los recursos se recolectan en los nodos de cada franja.", 11, Color3.fromRGB(150, 150, 165), UDim2.fromOffset(18, 490), UDim2.fromOffset(364, 16))
 		feedBtn.Text = "ALIMENTAR  →  Nivel " .. (level + 1)
 		feedBtn.BackgroundColor3 = if ok then Color3.fromRGB(50, 130, 70) else Color3.fromRGB(70, 70, 80)
 		feedBtn.TextColor3 = if ok then Color3.new(1, 1, 1) else Color3.fromRGB(190, 190, 200)
