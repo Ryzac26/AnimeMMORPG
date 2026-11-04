@@ -1,4 +1,4 @@
-¿--!strict
+--!strict
 --[[
     PetClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > PetClient
     Ventana de MASCOTAS (botón "Mascota" del menú): elige una mascota (la puesta o las de la mochila) y ALIMÉNTALA para subirla de nivel (1..10).
