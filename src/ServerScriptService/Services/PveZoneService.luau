@@ -1000,6 +1000,12 @@ local function build()
 	if token ~= buildToken then
 		return
 	end
+	-- copias viejas guardadas en el lugar (si alguna vez se generó en Edit y se guardó): se borran para no duplicar
+	for _, stale in ipairs(Workspace:GetChildren()) do
+		if stale.Name == "PuntosDeInteres" then
+			stale:Destroy()
+		end
+	end
 	local root = Instance.new("Folder")
 	root.Name = "PuntosDeInteres"
 	root.Parent = Workspace

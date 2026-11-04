@@ -521,6 +521,12 @@ local function build()
 		folder:Destroy()
 		folder = nil
 	end
+	-- copias viejas guardadas en el lugar (si alguna vez se generó en Edit y se guardó): se borran para no duplicar
+	for _, stale in ipairs(Workspace:GetChildren()) do
+		if stale.Name == "HitosZona" then
+			stale:Destroy()
+		end
+	end
 	local root = Instance.new("Folder")
 	root.Name = "HitosZona"
 	root.Parent = Workspace
