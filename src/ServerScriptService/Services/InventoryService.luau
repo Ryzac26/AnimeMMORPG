@@ -39,7 +39,7 @@ type State = { Bag: { [number]: Stack }, Equip: { [string]: string }, EquipPlus:
 local MAX_PLUS = 9
 
 local function cleanPlus(item: any, plus: any): number
-	if item and item.Gear and typeof(plus) == "number" then
+	if item and (item.Gear or item.Pet) and typeof(plus) == "number" then -- mascota: Plus = nivel - 1 (PetCatalog.LevelOf)
 		return math.clamp(math.floor(plus), 0, MAX_PLUS)
 	end
 	return 0

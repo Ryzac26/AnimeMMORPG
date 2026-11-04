@@ -20,6 +20,7 @@ local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local GearView = require(script.Parent:WaitForChild("GearView", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
+local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 local RarityPicker = require(script.Parent:WaitForChild("RarityPicker", 10))
 
 local CLOSE_DISTANCE = 32
@@ -35,6 +36,9 @@ gui.DisplayOrder = 12
 gui.Parent = player:WaitForChild("PlayerGui", 10)
 
 local GREEN, RED, GRAY, GOLD = "#6fdc7f", "#ff6b6b", "#aaaab8", "#ffd45e"
+local TEXT = Color3.new(1, 1, 1) -- color de texto principal según el material del panel (oscuro sobre pergamino)
+local shelfInner: Frame? = nil -- estantes que se desplazan con la lista
+local SHELF_PITCH = 84 -- alto de una fila de casillas + su estante
 
 local theme = UITheme.For(player:GetAttribute("Faction"))
 local win: Frame
@@ -114,17 +118,9 @@ local function refreshDetail()
 		end
 	end
 	local function button(text: string, x: number, w: number, color: Color3, fn: () -> ())
-		local b = Instance.new("TextButton")
-		b.Position = UDim2.fromOffset(x, 0)
-		b.Size = UDim2.fromOffset(w, 38)
-		b.BackgroundColor3 = color
-		b.TextColor3 = Color3.new(1, 1, 1)
-		b.Font = UITheme.Font
-		b.TextSize = 14
-		b.Text = text
-		b.Parent = actionBox
-		Instance.new("UICorner", b)
-		b.Activated:Connect(fn)
+		local kind = if color == Color3.fromRGB(50, 130, 70) then "buy" elseif color == Color3.fromRGB(190, 70, 50) then "danger" elseif color == Color3.fromRGB(60, 100, 150) then "action" else "neutral"
+		local b = NpcKit.Button(actionBox, theme, text, UDim2.fromOffset(w, 38), UDim2.fromOffset(x, 0), if mode == "Sell" and kind == "buy" then "sell" else kind, fn)
+		b.TextSize = 13
 	end
 	commonsButton.Visible = mode == "Sell"
 	if picker then
@@ -206,24 +202,31 @@ local function refreshList()
 		end
 	end
 	local order = 0
+	local COLS = 3
 	local function entry(id: string, plus: number, subText: string, selected: boolean, onClick: () -> ())
 		local item: any = (ItemCatalog.Items :: any)[id]
 		local col = ItemCatalog.RarityColor[item.Rarity] or Color3.new(1, 1, 1)
 		order += 1
 		local b = Instance.new("TextButton")
 		b.LayoutOrder = order
-		b.Size = UDim2.new(1, -6, 0, 38)
+		b.ZIndex = 3
 		b.BackgroundColor3 = col:Lerp(Color3.new(0, 0, 0), 0.75)
 		b.Text = ""
+		b.AutoButtonColor = true
+		b.BorderSizePixel = 0
 		b.Parent = listScroll
-		Instance.new("UICorner", b)
+		Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
 		local st = Instance.new("UIStroke")
 		st.Color = if selected then theme.Primary else col
 		st.Thickness = if selected then 3 else 1
 		st.Parent = b
-		local name = UITheme.Text(b, GearView.DisplayName(item, plus), 12, col, UDim2.fromOffset(8, 2), UDim2.new(1, -16, 0, 18))
-		name.TextTruncate = Enum.TextTruncate.AtEnd
-		UITheme.Text(b, subText, 10, Color3.fromRGB(160, 160, 175), UDim2.fromOffset(8, 20), UDim2.new(1, -16, 0, 14))
+		local name = UITheme.Text(b, GearView.DisplayName(item, plus), 11, col, UDim2.fromOffset(5, 3), UDim2.new(1, -10, 0, 44))
+		name.TextWrapped = true
+		name.TextYAlignment = Enum.TextYAlignment.Top
+		name.ZIndex = 4
+		local sub = UITheme.Text(b, subText, 10, Color3.fromRGB(235, 220, 160), UDim2.new(0, 5, 1, -18), UDim2.new(1, -10, 0, 14))
+		sub.ZIndex = 4
+		sub.TextTruncate = Enum.TextTruncate.AtEnd
 		b.Activated:Connect(onClick)
 	end
 	if mode == "Buy" then
@@ -244,8 +247,8 @@ local function refreshList()
 			t.Size = UDim2.new(1, -6, 0, 60)
 			t.TextWrapped = true
 			t.Font = Enum.Font.Gotham
-			t.TextSize = 13
-			t.TextColor3 = Color3.fromRGB(170, 170, 185)
+			t.TextSize = 11
+			t.TextColor3 = TEXT
 			t.Text = "No tienes nada que el mercader compre."
 			t.Parent = listScroll
 		end
@@ -259,6 +262,15 @@ local function refreshList()
 			end)
 		end
 	end
+	-- estantes: una tabla bajo cada fila de casillas (van detrás de la lista y se mueven con ella)
+	if shelfInner then
+		shelfInner:ClearAllChildren()
+		local rows = math.max(1, math.ceil(order / COLS))
+		for r = 0, rows - 1 do
+			NpcKit.Shelf(shelfInner, theme, UDim2.fromOffset(4, 6 + r * SHELF_PITCH + 68), 326)
+		end
+		shelfInner.Size = UDim2.fromOffset(340, rows * SHELF_PITCH + 12)
+	end
 end
 
 local function refreshAll()
@@ -266,8 +278,22 @@ local function refreshAll()
 		return
 	end
 	goldLabel.Text = string.format('Oro: <font color="%s">%s</font>', GOLD, withCommas(myGold()))
-	tabBuy.BackgroundColor3 = if mode == "Buy" then Color3.fromRGB(70, 90, 140) else Color3.fromRGB(34, 34, 46)
-	tabSell.BackgroundColor3 = if mode == "Sell" then Color3.fromRGB(70, 90, 140) else Color3.fromRGB(34, 34, 46)
+	-- pestañas: se recrean para marcar la activa
+	for _, t in ipairs({ tabBuy, tabSell }) do
+		if t then
+			t:Destroy()
+		end
+	end
+	local function tab(text: string, x: number, m: string): TextButton
+		return NpcKit.Tab(win, theme, text, UDim2.fromOffset(122, 28), UDim2.fromOffset(x, 68), mode == m, function()
+			mode = m
+			confirmSlot = nil
+			resultLabel.Text = ""
+			refreshAll()
+		end)
+	end
+	tabBuy = tab("Comprar", 16, "Buy")
+	tabSell = tab("Vender", 144, "Sell")
 	refreshList()
 	refreshDetail()
 end
@@ -277,103 +303,104 @@ local function build()
 	if win then
 		win:Destroy()
 	end
-	win = UITheme.Frame(gui, theme, UDim2.fromOffset(640, 460), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
-	WindowDrag.Attach(win, "Shop", 52, 50)
-	UITheme.Text(win, npcName, 20, theme.Primary, UDim2.fromOffset(18, 6), UDim2.fromOffset(400, 26))
-	UITheme.Text(win, npcTitle .. "  ·  arrastra el título para mover", 12, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(18, 30), UDim2.fromOffset(500, 16))
-	goldLabel = UITheme.Text(win, "", 15, Color3.new(1, 1, 1), UDim2.fromOffset(440, 10), UDim2.fromOffset(150, 22))
+	local W = 730
+	win = UITheme.Frame(gui, theme, UDim2.fromOffset(W, 500), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
+	WindowDrag.Attach(win, "Shop", 66, 50)
+	local pal = NpcKit.Palette(theme)
+	local shinobi = NpcKit.Key(theme) == "Shinobi"
+	TEXT = if shinobi then pal.Text else Color3.new(1, 1, 1)
+	if shinobi then -- sobre pergamino los colores claros no se leen
+		GREEN, RED, GRAY, GOLD = "#2f7a3a", "#a82020", "#6a5434", "#8a4b00"
+	else
+		GREEN, RED, GRAY, GOLD = "#6fdc7f", "#ff6b6b", "#aaaab8", "#ffd45e"
+	end
+	NpcKit.Header(win, theme, W, npcName, if npcTitle ~= "" then npcTitle else "Mercader", "🛒")
+	goldLabel = UITheme.Text(win, "", 15, Color3.fromRGB(255, 226, 140), UDim2.fromOffset(W - 260, 20), UDim2.fromOffset(190, 22))
 	goldLabel.RichText = true
 	goldLabel.TextXAlignment = Enum.TextXAlignment.Right
+	goldLabel.ZIndex = 8
+	if shinobi then
+		goldLabel.TextColor3 = Color3.fromRGB(40, 28, 14)
+	end
 
 	local close = Instance.new("TextButton")
-	close.Position = UDim2.new(1, -38, 0, 8)
+	close.Position = UDim2.new(1, -38, 0, 18)
 	close.Size = UDim2.fromOffset(28, 28)
 	close.Text = "X"
 	close.BackgroundTransparency = 1
-	close.TextColor3 = Color3.fromRGB(255, 120, 120)
+	close.TextColor3 = if shinobi then Color3.fromRGB(150, 30, 30) else Color3.fromRGB(255, 120, 120)
 	close.Font = UITheme.Font
 	close.TextSize = 18
+	close.ZIndex = 30
 	close.Parent = win
 	close.Activated:Connect(function()
 		gui.Enabled = false
 	end)
 
-	local function tab(text: string, x: number, m: string): TextButton
-		local b = Instance.new("TextButton")
-		b.Position = UDim2.fromOffset(x, 56)
-		b.Size = UDim2.fromOffset(122, 28)
-		b.Text = text
-		b.TextColor3 = Color3.new(1, 1, 1)
-		b.Font = UITheme.Font
-		b.TextSize = 14
-		b.Parent = win
-		Instance.new("UICorner", b)
-		b.Activated:Connect(function()
-			mode = m
-			confirmSlot = nil
-			resultLabel.Text = ""
-			refreshAll()
-		end)
-		return b
-	end
-	tabBuy = tab("Comprar", 16, "Buy")
-	tabSell = tab("Vender", 144, "Sell")
+	-- (las pestañas Comprar/Vender las crea refreshAll para marcar la activa)
+
+	-- estantería (panel hundido con las casillas encima de los estantes)
+	local shelfPanel = NpcKit.Panel(win, theme, UDim2.fromOffset(340, 394), UDim2.fromOffset(16, 102), "inset")
+	local clip = Instance.new("Frame")
+	clip.BackgroundTransparency = 1
+	clip.Size = UDim2.fromScale(1, 1)
+	clip.ClipsDescendants = true
+	clip.ZIndex = 1
+	clip.Parent = shelfPanel
+	local si = Instance.new("Frame")
+	si.BackgroundTransparency = 1
+	si.Size = UDim2.fromOffset(340, 400)
+	si.Parent = clip
+	shelfInner = si
 
 	listScroll = Instance.new("ScrollingFrame")
-	listScroll.Position = UDim2.fromOffset(16, 92)
-	listScroll.Size = UDim2.fromOffset(250, 354)
-	listScroll.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
+	listScroll.Size = UDim2.fromScale(1, 1)
+	listScroll.BackgroundTransparency = 1
 	listScroll.BorderSizePixel = 0
 	listScroll.ScrollBarThickness = 5
 	listScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	listScroll.CanvasSize = UDim2.fromOffset(0, 0)
-	listScroll.Parent = win
-	Instance.new("UICorner", listScroll)
+	listScroll.ZIndex = 2
+	listScroll.Parent = shelfPanel
 	local pad = Instance.new("UIPadding")
-	pad.PaddingTop, pad.PaddingLeft = UDim.new(0, 6), UDim.new(0, 6)
+	pad.PaddingTop, pad.PaddingLeft = UDim.new(0, 6), UDim.new(0, 8)
 	pad.Parent = listScroll
-	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0, 5)
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Parent = listScroll
+	local grid = Instance.new("UIGridLayout")
+	grid.CellSize = UDim2.fromOffset(100, 72)
+	grid.CellPadding = UDim2.fromOffset(6, SHELF_PITCH - 72)
+	grid.SortOrder = Enum.SortOrder.LayoutOrder
+	grid.Parent = listScroll
+	listScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+		si.Position = UDim2.fromOffset(0, -listScroll.CanvasPosition.Y)
+	end)
 
-	local box = Instance.new("Frame")
-	box.Position = UDim2.fromOffset(278, 92)
-	box.Size = UDim2.fromOffset(346, 354)
-	box.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
-	box.BorderSizePixel = 0
-	box.Parent = win
-	Instance.new("UICorner", box)
-	UITheme.Border(box, theme, 2)
+	-- panel de detalle (cartel del mostrador)
+	local box = NpcKit.Panel(win, theme, UDim2.fromOffset(346, 394), UDim2.fromOffset(368, 102), "card")
 
-	detail = UITheme.Text(box, "", 14, nil, UDim2.fromOffset(14, 8), UDim2.fromOffset(318, 120))
+	detail = UITheme.Text(box, "", 14, TEXT, UDim2.fromOffset(14, 10), UDim2.fromOffset(318, 120))
 	detail.TextWrapped = true
 	detail.RichText = true
 	detail.TextYAlignment = Enum.TextYAlignment.Top
+	detail.TextStrokeTransparency = 1
+	detail.ZIndex = 5
 
-	resultLabel = UITheme.Text(box, "", 13, nil, UDim2.fromOffset(14, 128), UDim2.fromOffset(318, 40))
+	resultLabel = UITheme.Text(box, "", 13, TEXT, UDim2.fromOffset(14, 132), UDim2.fromOffset(318, 40))
 	resultLabel.TextWrapped = true
 	resultLabel.RichText = true
 	resultLabel.TextYAlignment = Enum.TextYAlignment.Top
+	resultLabel.TextStrokeTransparency = 1
+	resultLabel.ZIndex = 5
 
 	actionBox = Instance.new("Frame")
 	actionBox.BackgroundTransparency = 1
-	actionBox.Position = UDim2.fromOffset(14, 170)
+	actionBox.Position = UDim2.fromOffset(14, 178)
 	actionBox.Size = UDim2.fromOffset(318, 38)
+	actionBox.ZIndex = 5
 	actionBox.Parent = box
 
-	commonsButton = Instance.new("TextButton")
-	commonsButton.Position = UDim2.fromOffset(14, 318)
-	commonsButton.Size = UDim2.fromOffset(318, 30)
-	commonsButton.BackgroundColor3 = Color3.fromRGB(140, 100, 40)
-	commonsButton.TextColor3 = Color3.new(1, 1, 1)
-	commonsButton.Font = UITheme.Font
-	commonsButton.TextSize = 14
-	commonsButton.Text = "Vender"
+	commonsButton = NpcKit.Button(box, theme, "Vender", UDim2.fromOffset(318, 30), UDim2.fromOffset(14, 352), "sell", nil)
 	commonsButton.Visible = false
-	commonsButton.Parent = box
-	Instance.new("UICorner", commonsButton)
-	picker = RarityPicker.new(box, UDim2.fromOffset(14, 248), function()
+	picker = RarityPicker.new(box, UDim2.fromOffset(14, 262), function()
 		confirmBulk = false
 		refreshDetail()
 	end)

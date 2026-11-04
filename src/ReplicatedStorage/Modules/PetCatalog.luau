@@ -16,8 +16,49 @@
       Lobo      Lobo Sombra          +% Crítico y +% Suerte de botín
     Las claves de Effects son las de GearService.Get(): Ataque, Defensa, Vida, Critico, Curacion, Suerte, Oro, Xp, Regen.
     Ids: Pet_<Familia>_<Rareza>
+
+    MASCOTAS DE FACCIÓN (solo las puede equipar y encontrar esa facción; efecto "Energia" = % de regeneración de Ki/Chakra/Haki/Reiatsu):
+      Mono (Saiyan: energía + Ataque) · Sapo (Shinobi: energía + Crítico) · Loro (Pirata: energía + Oro) · Mariposa (Shinigami: energía + Xp)
+
+    CRECIMIENTO: cada mascota sube de nivel 1 a 10 alimentándola (PetService). El nivel se guarda en "Plus" de la mascota (nivel = Plus+1).
+      Cada nivel suma LEVEL_BONUS a sus efectos y LEVEL_SIZE a su tamaño. Evoluciones visuales en los niveles de EVOLVE_AT.
+      Alimentar cuesta recursos de franja: los primeros niveles Hierba, luego Cristal, Reliquia y Corazón (FeedCost).
 ]]
 local PetCatalog = {}
+
+PetCatalog.MaxLevel = 10
+PetCatalog.LEVEL_BONUS = 0.10 -- +10% de los efectos por nivel (nivel 10 = x1.9)
+PetCatalog.LEVEL_SIZE = 0.04 -- +4% de tamaño por nivel
+PetCatalog.EVOLVE_AT = { 4, 7, 10 } -- niveles en los que cambia el aspecto (más brillo, luz y halo)
+PetCatalog.FeedRarityMult = { Comun = 1, Raro = 1.25, Epico = 1.6, Legendario = 2.1, Mitico = 2.8 } :: { [string]: number }
+
+-- Multiplicador de efectos según el Plus guardado (nivel = Plus + 1)
+function PetCatalog.LevelMult(plus: number?): number
+	local lvl = math.clamp((plus or 0) + 1, 1, PetCatalog.MaxLevel)
+	return 1 + PetCatalog.LEVEL_BONUS * (lvl - 1)
+end
+
+function PetCatalog.LevelOf(plus: number?): number
+	return math.clamp((plus or 0) + 1, 1, PetCatalog.MaxLevel)
+end
+
+-- Etapa de evolución (0..3) de un nivel
+function PetCatalog.Stage(level: number): number
+	local n = 0
+	for _, at in ipairs(PetCatalog.EVOLVE_AT) do
+		if level >= at then
+			n += 1
+		end
+	end
+	return n
+end
+
+-- Costo de subir a `targetLevel` (2..10): { recurso, cantidad }
+function PetCatalog.FeedCost(rarity: string, targetLevel: number): (string, number)
+	local res = if targetLevel <= 3 then "Rec_1" elseif targetLevel <= 5 then "Rec_2" elseif targetLevel <= 7 then "Rec_3" else "Rec_4"
+	local base = 5 + 3 * (targetLevel - 2)
+	return res, math.ceil(base * (PetCatalog.FeedRarityMult[rarity] or 1))
+end
 
 PetCatalog.Rarities = { "Comun", "Raro", "Epico", "Legendario", "Mitico" }
 PetCatalog.RarityName = { Comun = "Común", Raro = "Raro", Epico = "Épico", Legendario = "Legendario", Mitico = "Mítico" }
@@ -47,8 +88,27 @@ PetCatalog.Families = {
 		Name = "Lobo Sombra",
 		Effects = { Critico = { 0.015, 0.025, 0.04, 0.06, 0.09 }, Suerte = { 0.01, 0.02, 0.03, 0.05, 0.07 } },
 	},
-} :: { [string]: { Name: string, Effects: { [string]: { number } } } }
+	-- De facción (solo esa facción)
+	Mono = {
+		Name = "Mono Saiyan", Faction = "Saiyan",
+		Effects = { Energia = { 0.10, 0.16, 0.24, 0.34, 0.48 }, Ataque = { 0.01, 0.02, 0.03, 0.05, 0.08 } },
+	},
+	Sapo = {
+		Name = "Sapo Sabio", Faction = "Shinobi",
+		Effects = { Energia = { 0.10, 0.16, 0.24, 0.34, 0.48 }, Critico = { 0.01, 0.015, 0.025, 0.04, 0.06 } },
+	},
+	Loro = {
+		Name = "Loro Pirata", Faction = "Pirate",
+		Effects = { Energia = { 0.10, 0.16, 0.24, 0.34, 0.48 }, Oro = { 0.03, 0.05, 0.08, 0.12, 0.18 } },
+	},
+	Mariposa = {
+		Name = "Mariposa Infernal", Faction = "Shinigami",
+		Effects = { Energia = { 0.10, 0.16, 0.24, 0.34, 0.48 }, Xp = { 0.02, 0.03, 0.05, 0.08, 0.12 } },
+	},
+} :: { [string]: { Name: string, Faction: string?, Effects: { [string]: { number } } } }
 PetCatalog.FamilyOrder = { "Suerte", "Fortuna", "Sabiduria", "Guardian", "Furia", "Fenix", "Dragon", "Hada", "Lobo" }
+PetCatalog.FactionFamily = { Saiyan = "Mono", Shinobi = "Sapo", Pirate = "Loro", Shinigami = "Mariposa" } :: { [string]: string }
+PetCatalog.AllFamilies = { "Suerte", "Fortuna", "Sabiduria", "Guardian", "Furia", "Fenix", "Dragon", "Hada", "Lobo", "Mono", "Sapo", "Loro", "Mariposa" }
 
 -- Aspecto del cuerpo que te sigue (PetFollowClient): colores y forma por familia.
 --   Species: forma propia que dibuja PetFollowClient · Body/Accent/Belly: colores (cuerpo, detalles, panza)
@@ -64,13 +124,19 @@ PetCatalog.Looks = {
 	Dragon = { Species = "Dragon", Body = Color3.fromRGB(120, 70, 190), Accent = Color3.fromRGB(255, 200, 80), Belly = Color3.fromRGB(255, 200, 80), Flies = true, Wings = true, Horns = true, Tail = true, Snout = true },
 	Hada = { Species = "Hada", Body = Color3.fromRGB(255, 170, 220), Accent = Color3.fromRGB(190, 240, 255), Belly = Color3.fromRGB(255, 230, 245), Flies = true, Wings = true, Sparkle = true },
 	Lobo = { Species = "Lobo", Body = Color3.fromRGB(70, 75, 100), Accent = Color3.fromRGB(150, 190, 255), Belly = Color3.fromRGB(150, 160, 190), Flies = false, Ears = true, Tail = true, Snout = true },
+	Mono = { Species = "Mono", Body = Color3.fromRGB(150, 95, 55), Accent = Color3.fromRGB(255, 190, 70), Belly = Color3.fromRGB(235, 200, 150), Flies = false, Ears = true, Tail = true, Snout = true },
+	Sapo = { Species = "Sapo", Body = Color3.fromRGB(95, 170, 90), Accent = Color3.fromRGB(235, 220, 120), Belly = Color3.fromRGB(220, 235, 160), Flies = false, Snout = true },
+	Loro = { Species = "Loro", Body = Color3.fromRGB(225, 60, 60), Accent = Color3.fromRGB(70, 150, 235), Belly = Color3.fromRGB(255, 220, 90), Flies = true, Wings = true, Tail = true },
+	Mariposa = { Species = "Mariposa", Body = Color3.fromRGB(60, 40, 90), Accent = Color3.fromRGB(190, 150, 255), Belly = Color3.fromRGB(150, 230, 255), Flies = true, Wings = true, Sparkle = true },
 } :: { [string]: { [string]: any } }
 
 local EFFECT_TEXT: { [string]: string } = {
 	Ataque = "Ataque", Defensa = "Defensa", Vida = "Vida", Critico = "Crítico", Curacion = "Curación",
-	Suerte = "Suerte de botín", Oro = "Oro", Xp = "Experiencia", Regen = "Vida/s fuera de combate",
+	Suerte = "Suerte de botín", Oro = "Oro", Xp = "Experiencia", Regen = "Vida/s fuera de combate", Energia = "Regeneración de energía",
 }
-local EFFECT_ORDER = { "Ataque", "Critico", "Defensa", "Vida", "Curacion", "Suerte", "Oro", "Xp", "Regen" }
+local EFFECT_ORDER = { "Ataque", "Critico", "Defensa", "Vida", "Curacion", "Suerte", "Oro", "Xp", "Regen", "Energia" }
+PetCatalog.EffectText = EFFECT_TEXT
+PetCatalog.EffectOrder = EFFECT_ORDER
 
 function PetCatalog.Id(family: string, rarity: string): string
 	return string.format("Pet_%s_%s", family, rarity)
@@ -78,14 +144,14 @@ end
 
 PetCatalog.Items = {} :: { [string]: { [string]: any } }
 
-for _, family in ipairs(PetCatalog.FamilyOrder) do
+for _, family in ipairs(PetCatalog.AllFamilies) do
 	local def = PetCatalog.Families[family]
 	for index, rarity in ipairs(PetCatalog.Rarities) do
 		local effects: { [string]: number } = {}
 		for effect, values in pairs(def.Effects) do
 			effects[effect] = values[index]
 		end
-		local parts: { string } = { "Mascota · Todas las clases" }
+		local parts: { string } = { if def.Faction then "Mascota de facción" else "Mascota · Todas las clases" }
 		for _, key in ipairs(EFFECT_ORDER) do
 			local v = effects[key]
 			if v then
@@ -96,6 +162,7 @@ for _, family in ipairs(PetCatalog.FamilyOrder) do
 			Name = string.format("%s (%s)", def.Name, PetCatalog.RarityName[rarity]),
 			Slot = "Accesorio2",
 			Rarity = rarity,
+			Faction = def.Faction,
 			Pet = { Family = family, Effects = effects },
 			Kind = "Pet",
 			Desc = table.concat(parts, " · "),

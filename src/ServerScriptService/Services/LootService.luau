@@ -210,7 +210,7 @@ local function onMob(level: number, strip: number, participants: { Player }, sha
 				addItem(h, LootTables.RollGear(faction, role, level, M.GearRarityByStrip[strip] or M.GearRarityByStrip[1], rng), 1, true)
 			end
 			if rng:NextNumber() < chance(M.PetChance, luck) then
-				addItem(h, LootTables.RollPet(M.PetRarity, rng), 1, true)
+				addItem(h, LootTables.RollPet(M.PetRarity, rng, faction), 1, true)
 			end
 			deliver(pl, h, "Botín", false, "Monstruos")
 			tryKey(pl, strip, LootTables.KeyDrop.Mob)
@@ -232,7 +232,7 @@ local function onBoss(cfg: any, level: number, strip: number?, participants: { P
 				addItem(h, "Mat_Escama", LootTables.Count(cfg.ScaleCount, rng), false)
 			end
 			if rng:NextNumber() < chance(cfg.PetChance, luck) then
-				addItem(h, LootTables.RollPet(cfg.PetRarity, rng), 1, true)
+				addItem(h, LootTables.RollPet(cfg.PetRarity, rng, (classOf(pl))), 1, true)
 			end
 			deliver(pl, h, "Jefe derrotado", true, "Jefes")
 			if strip then
@@ -267,7 +267,7 @@ local function onMetin(rarityId: string, level: number, participants: { Player }
 				addItem(h, LootTables.RollEmblem(faction, level, R.EmblemRarity, rng), 1, true)
 			end
 			if rng:NextNumber() < chance(X.PetChance, luck) then
-				addItem(h, LootTables.RollPet(R.PetRarity, rng), 1, true)
+				addItem(h, LootTables.RollPet(R.PetRarity, rng, faction), 1, true)
 			end
 			deliver(pl, h, "Metin destruido", true, "Metin")
 		end
@@ -299,7 +299,7 @@ local function onMini(strip: number, level: number, participants: { Player }, sh
 				addItem(h, LootTables.RollGear(faction, role, strip * 25, X.GearRarity[strip], rng), 1, true)
 			end
 			if rng:NextNumber() < chance(X.PetChance, luck) then
-				addItem(h, LootTables.RollPet(X.PetRarity, rng), 1, true)
+				addItem(h, LootTables.RollPet(X.PetRarity, rng, faction), 1, true)
 			end
 			deliver(pl, h, "Mini jefe derrotado", true, "Jefes")
 			tryKey(pl, strip, LootTables.KeyDrop.Mini)
@@ -359,7 +359,7 @@ local function grant(player: Player, kind: string, strip: number): boolean
 			addItem(h, LootTables.RollGear(faction, role, level, X.GearRarity[strip], rng), 1, true)
 		end
 		if rng:NextNumber() < chance(X.PetChance, luck) then
-			addItem(h, LootTables.RollPet(X.PetRarity, rng), 1, true)
+			addItem(h, LootTables.RollPet(X.PetRarity, rng, faction), 1, true)
 		end
 	end
 	return deliver(player, h, header, true, if kind == "Challenge" then "Jefes" else "Cofres")

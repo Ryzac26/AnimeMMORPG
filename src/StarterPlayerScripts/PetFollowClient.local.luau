@@ -9,6 +9,9 @@
       - Al subir de nivel el dueño ve a su mascota dar una vuelta de celebración.
       - Al atacar el dueño, la mascota da un saltito; si el dueño se queda quieto ~15 s, se duerme ("zZz") y despierta al moverse.
       - Ajuste "Mostrar mascotas" (SettingsClient, atributo Setting_PetsMode): Todas · Solo la mía · Ninguna.
+      - Nivel de la mascota (1..10, atributo EquipPlus_Accesorio2 = nivel-1): cada nivel la hace un poco más grande y en los niveles 4, 7 y 10
+        evoluciona (más chispas, luz y halo).
+      - Mascotas de facción: Mono (Saiyan), Sapo (Shinobi), Loro (Pirata), Mariposa (Shinigami).
       - Solo es visual (se crea en cada cliente); los bonus los sigue dando GearService.
     No tiene ScreenGui, no va en RELOAD.
 ]]
@@ -48,6 +51,7 @@ type Pet = {
 	Model: Model,
 	Look: { [string]: any },
 	Rarity: string,
+	Level: number,
 	Scale: number,
 	Wings: { { Weld: Weld, Side: number, Base: CFrame } },
 	Wag: { { Weld: Weld, Base: CFrame, Amp: number } },
@@ -96,11 +100,11 @@ local function part(model: Model, root: Part, shape: Enum.PartType, size: Vector
 	return p, w
 end
 
-local function build(pl: Player, id: string, family: string, rarity: string, char: Model): Pet?
+local function build(pl: Player, id: string, family: string, rarity: string, char: Model, level: number): Pet?
 	local look = PetCatalog.Looks[family]
 	local rr = RARITY[rarity]
-	local s = rr.Scale
-	local idx = RARITY_INDEX[rarity]
+	local s = rr.Scale * (1 + PetCatalog.LEVEL_SIZE * (level - 1))
+	local idx = math.min(5, RARITY_INDEX[rarity] + PetCatalog.Stage(level)) -- la evolución suma brillo, luz y halo
 	local sp = (look.Species :: string?) or ""
 	local model = Instance.new("Model")
 	model.Name = "Pet_" .. pl.Name
@@ -143,8 +147,8 @@ local function build(pl: Player, id: string, family: string, rarity: string, cha
 	end
 
 	-- proporciones por especie
-	local bs = ({ Zorro = 1.4, Tanuki = 1.7, Buho = 1.5, Tortuga = 1.3, Tigre = 1.5, Fenix = 1.3, Dragon = 1.5, Hada = 1.1, Lobo = 1.5 } :: { [string]: number })[sp] or 1.5
-	local hs = ({ Zorro = 1.0, Tanuki = 1.05, Buho = 1.25, Tortuga = 0.8, Tigre = 1.0, Fenix = 0.9, Dragon = 1.0, Hada = 1.1, Lobo = 1.0 } :: { [string]: number })[sp] or 1.0
+	local bs = ({ Zorro = 1.4, Tanuki = 1.7, Buho = 1.5, Tortuga = 1.3, Tigre = 1.5, Fenix = 1.3, Dragon = 1.5, Hada = 1.1, Lobo = 1.5, Mono = 1.5, Sapo = 1.7, Loro = 1.2, Mariposa = 0.9 } :: { [string]: number })[sp] or 1.5
+	local hs = ({ Zorro = 1.0, Tanuki = 1.05, Buho = 1.25, Tortuga = 0.8, Tigre = 1.0, Fenix = 0.9, Dragon = 1.0, Hada = 1.1, Lobo = 1.0, Mono = 1.05, Sapo = 1.1, Loro = 0.9, Mariposa = 0.7 } :: { [string]: number })[sp] or 1.0
 	local hp = ({ Buho = V(0, 0.65, -0.35), Tortuga = V(0, 0.3, -1.0), Hada = V(0, 0.8, -0.35) } :: { [string]: Vector3 })[sp] or V(0, 0.75, -0.55)
 
 	-- cuerpo, cabeza y panza
@@ -258,6 +262,47 @@ local function build(pl: Player, id: string, family: string, rarity: string, cha
 		ball(1.15, body:Lerp(accent, 0.2), hp + V(0, -0.3, 0.4))
 	end
 
+	-- mono: cara clara y mejillas
+	if sp == "Mono" then
+		ball(0.75, belly, hp + V(0, -0.05, -0.28))
+		for _, sx in ipairs({ -1, 1 }) do
+			ball(0.18, accent, hp + V(sx * 0.42, 0.05, -0.1), Enum.Material.Neon)
+		end
+	end
+
+	-- sapo: ojos saltones, boca ancha y manchas en el lomo
+	if sp == "Sapo" then
+		for _, sx in ipairs({ -1, 1 }) do
+			ball(0.42, belly, hp + V(sx * 0.3, 0.5, -0.2))
+			ball(0.2, dark, hp + V(sx * 0.3, 0.52, -0.38))
+		end
+		add(K, V(0.8, 0.07, 0.3), dark, hp + V(0, -0.2, -0.5))
+		for _, o in ipairs({ V(-0.35, 0.8, 0.0), V(0.3, 0.85, 0.5), V(-0.1, 0.8, 0.9) }) do
+			ball(0.3, accent, o)
+		end
+	end
+
+	-- loro: pico curvo y cresta
+	if sp == "Loro" then
+		add(K, V(0.2, 0.2, 0.34), Color3.fromRGB(255, 205, 70), hp + V(0, -0.05, -0.55), CFrame.Angles(0.25, 0, 0))
+		add(K, V(0.12, 0.12, 0.2), dark, hp + V(0, -0.2, -0.62))
+		for i = -1, 1 do
+			add(K, V(0.12, 0.4, 0.14), accent, hp + V(i * 0.14, 0.5, 0.05), CFrame.Angles(-0.2, 0, i * -0.3))
+		end
+		for _, sx in ipairs({ -1, 1 }) do
+			ball(0.32, Color3.fromRGB(250, 250, 245), hp + V(sx * 0.24, 0.08, -0.35))
+			ball(0.16, dark, hp + V(sx * 0.24, 0.08, -0.5))
+		end
+	end
+
+	-- mariposa: antenas
+	if sp == "Mariposa" then
+		for _, sx in ipairs({ -1, 1 }) do
+			add(K, V(0.06, 0.6, 0.06), dark, hp + V(sx * 0.2, 0.6, -0.1), CFrame.Angles(0.2, 0, -sx * 0.35))
+			ball(0.14, accent, hp + V(sx * 0.42, 0.9, -0.15), Enum.Material.Neon)
+		end
+	end
+
 	-- adornos de familia: hoja y saco (tanuki), trébol (zorro)
 	if look.Charm == "Leaf" then
 		add(K, V(0.7, 0.05, 0.5), Color3.fromRGB(90, 190, 90), hp + V(0, 0.55 * hs, 0), CFrame.Angles(0.1, 0.6, 0.25))
@@ -282,6 +327,11 @@ local function build(pl: Player, id: string, family: string, rarity: string, cha
 				wing(side, V(0.8, 0.06, 0.6), V(0.6, 0.2, 0.55), accent)
 			elseif sp == "Buho" then
 				wing(side, V(1.2, 0.1, 0.9), V(0.8, 0.35, 0.35), body:Lerp(accent, 0.3))
+			elseif sp == "Mariposa" then
+				wing(side, V(1.9, 0.06, 1.3), V(0.95, 0.5, 0.0), accent)
+				wing(side, V(1.3, 0.06, 0.9), V(0.8, 0.3, 0.8), belly)
+			elseif sp == "Loro" then
+				wing(side, V(1.1, 0.1, 0.9), V(0.7, 0.3, 0.3), accent)
 			else
 				wing(side, V(1.3, 0.1, 0.85), V(0.8, 0.4, 0.35), accent)
 			end
@@ -317,6 +367,14 @@ local function build(pl: Player, id: string, family: string, rarity: string, cha
 			end
 		elseif sp == "Tortuga" then
 			tail(B, Vector3.one * 0.3, body, V(0, -0.1, 1.35), 0.2)
+		elseif sp == "Mono" then
+			for i = 0, 4 do
+				tail(B, Vector3.one * (0.3 - i * 0.02), if i == 4 then accent else body, V(0, 0.2 + i * 0.28, 1.2 + math.sin(i * 0.9) * 0.3), 0.08 + i * 0.07)
+			end
+		elseif sp == "Loro" then
+			tail(K, V(0.2, 0.08, 1.2), body, V(0, 0.15, 1.6), 0.06)
+			tail(K, V(0.2, 0.08, 1.0), accent, V(0.25, 0.1, 1.5), 0.08, CFrame.Angles(0, 0.25, 0))
+			tail(K, V(0.2, 0.08, 1.0), Color3.fromRGB(255, 205, 70), V(-0.25, 0.1, 1.5), 0.08, CFrame.Angles(0, -0.25, 0))
 		else
 			tail(B, Vector3.one * 0.5, accent, V(0, 0.2, 1.15), 0.1)
 			tail(B, Vector3.one * 0.38, body, V(0, 0.5, 1.5), 0.2)
@@ -384,7 +442,7 @@ local function build(pl: Player, id: string, family: string, rarity: string, cha
 	local hrp = char:FindFirstChild("HumanoidRootPart")
 	local start = if hrp and hrp:IsA("BasePart") then hrp.CFrame * CFrame.new(3, 0, 3) else CFrame.new()
 	return {
-		Player = pl, Id = id, Char = char, Root = root, Model = model, Look = look, Rarity = rarity, Scale = s,
+		Player = pl, Id = id, Char = char, Root = root, Model = model, Look = look, Rarity = rarity, Level = level, Scale = s,
 		Wings = wings, Wag = wag, Halo = halo, Cf = start, Vel = Vector3.zero, Phase = math.random() * 6, SpinUntil = 0, Tag = tag,
 		IdleSince = os.clock(), JumpAt = -100, Zzz = nil,
 	}
@@ -421,9 +479,11 @@ local function reconcile()
 			end
 		else
 			local id = pl:GetAttribute("Equip_Accesorio2") :: string
-			if not cur or cur.Id ~= id or cur.Char ~= char then
+			local plus = pl:GetAttribute("EquipPlus_Accesorio2")
+			local level = PetCatalog.LevelOf(if typeof(plus) == "number" then plus else 0)
+			if not cur or cur.Id ~= id or cur.Char ~= char or cur.Level ~= level then
 				remove(pl)
-				local made = build(pl, id, family :: string, rarity :: string, char :: Model)
+				local made = build(pl, id, family :: string, rarity :: string, char :: Model, level)
 				if made then
 					pets[pl] = made
 				end

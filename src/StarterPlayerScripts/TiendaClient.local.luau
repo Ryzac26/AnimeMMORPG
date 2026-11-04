@@ -18,6 +18,7 @@ local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
+local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 
 local stateRemote = ClientNet.Get("TiendaState")
 local actionRemote = ClientNet.Get("TiendaAction")
@@ -140,6 +141,17 @@ local function gradient(obj: GuiObject, a: Color3, b: Color3, rot: number?)
 	g.Parent = obj
 end
 
+local activeTab = "Progreso"
+local tabNote: TextLabel
+local tabButtons: { [string]: TextButton } = {}
+local grid: UIGridLayout
+
+local TABS = {
+	{ Id = "Progreso", Text = "⚡ Progreso", Note = "Boost de XP (+50%), paquetes de horas y combos. Elige UNO por día entre paquetes y combos; el boost se combina con todo." },
+	{ Id = "Objetos", Text = "🎒 Objetos", Note = "Pergaminos de Protección: tu equipo no baja ni se rompe al fallar +7, +8 o +9. Llegan directo a tu mochila." },
+	{ Id = "Pases", Text = "👑 Pases", Note = "Se compran una sola vez y son tuyos para siempre." },
+}
+
 local function render()
 	if not win or not gui.Enabled then
 		return
@@ -151,44 +163,47 @@ local function render()
 	end
 	table.clear(iconTargets)
 	updateTexts()
+	local pal = NpcKit.Palette(theme)
+	for _, t in ipairs(TABS) do
+		if t.Id == activeTab then
+			tabNote.Text = t.Note
+		end
+	end
 	local order = 0
 
-	local function section(title: string, sub: string, color: Color3)
-		order += 1
-		local f = Instance.new("Frame")
-		f.LayoutOrder = order
-		f.Size = UDim2.new(1, -8, 0, 34)
-		f.BackgroundTransparency = 1
-		f.Parent = scroll
-		local bar = Instance.new("Frame")
-		bar.Size = UDim2.fromOffset(4, 26)
-		bar.Position = UDim2.fromOffset(2, 4)
-		bar.BackgroundColor3 = color
-		bar.BorderSizePixel = 0
-		bar.Parent = f
-		Instance.new("UICorner", bar)
-		UITheme.Text(f, title, 16, color, UDim2.fromOffset(14, 0), UDim2.fromOffset(300, 18))
-		local t = UITheme.Text(f, sub, 11, Color3.fromRGB(165, 165, 180), UDim2.fromOffset(14, 18), UDim2.new(1, -20, 0, 14))
-		t.TextTruncate = Enum.TextTruncate.AtEnd
+	local function iconBox(parent: Instance, pos: UDim2, size: number, accent: Color3, fbText: string, fbSize: number, cacheKey: string, assetId: number, override: string?, infoType: Enum.InfoType)
+		local box = Instance.new("Frame")
+		box.Position = pos
+		box.Size = UDim2.fromOffset(size, size)
+		box.BackgroundColor3 = accent
+		box.BorderSizePixel = 0
+		box.Parent = parent
+		Instance.new("UICorner", box).CornerRadius = UDim.new(0, 12)
+		gradient(box, accent:Lerp(Color3.new(1, 1, 1), 0.25), accent:Lerp(Color3.new(0, 0, 0), 0.45))
+		local bst = Instance.new("UIStroke")
+		bst.Color = accent:Lerp(Color3.new(1, 1, 1), 0.4)
+		bst.Thickness = 2
+		bst.Parent = box
+		local fb = UITheme.Text(box, fbText, fbSize, Color3.new(1, 1, 1), UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
+		fb.TextStrokeTransparency = 0.3
+		local img = Instance.new("ImageLabel")
+		img.Size = UDim2.fromScale(1, 1)
+		img.BackgroundTransparency = 1
+		img.ScaleType = Enum.ScaleType.Fit
+		img.Visible = false
+		img.Parent = box
+		Instance.new("UICorner", img).CornerRadius = UDim.new(0, 12)
+		iconTargets[cacheKey] = { Image = img, Fallback = fb }
+		loadIcon(cacheKey, assetId, override, infoType)
 	end
 
-	local function notice(text: string)
-		order += 1
-		local f = Instance.new("Frame")
-		f.LayoutOrder = order
-		f.Size = UDim2.new(1, -8, 0, 44)
-		f.BackgroundColor3 = Color3.fromRGB(44, 36, 14)
-		f.BorderSizePixel = 0
-		f.Parent = scroll
-		Instance.new("UICorner", f)
-		local st = Instance.new("UIStroke")
-		st.Color = Color3.fromRGB(255, 212, 94)
-		st.Transparency = 0.35
-		st.Parent = f
-		local t = UITheme.Text(f, text, 12, Color3.fromRGB(255, 232, 160), UDim2.fromOffset(12, 3), UDim2.new(1, -24, 1, -6))
+	local function textLine(parent: Instance, text: string, size: number, color: Color3, pos: UDim2, dim: UDim2, wrap: boolean?): TextLabel
+		local t = UITheme.Text(parent, text, size, color, pos, dim, Enum.TextXAlignment.Center)
+		t.TextStrokeTransparency = 1
+		t.TextWrapped = wrap == true
+		t.TextYAlignment = Enum.TextYAlignment.Top
 		t.RichText = true
-		t.TextWrapped = true
-		t.TextYAlignment = Enum.TextYAlignment.Center
+		return t
 	end
 
 	local function card(p: ProductCatalog.Product)
@@ -198,202 +213,104 @@ local function render()
 		local ok = info ~= nil and info.Ok == true
 		local chosen = state ~= nil and state.Path == p.Key
 		local accent = ACCENT[p.Kind] or theme.Primary
-		local f = Instance.new("Frame")
+		local f = NpcKit.Panel(scroll, theme, UDim2.fromOffset(170, 238), UDim2.fromOffset(0, 0), "card")
 		f.LayoutOrder = order
-		f.Size = UDim2.new(1, -8, 0, 112)
-		f.BackgroundColor3 = Color3.fromRGB(24, 24, 34)
-		f.BorderSizePixel = 0
-		f.Parent = scroll
-		Instance.new("UICorner", f)
-		gradient(f, Color3.fromRGB(34, 34, 48), Color3.fromRGB(20, 20, 28), 0)
-		local st = Instance.new("UIStroke")
-		st.Thickness = if chosen then 2 else 1
-		st.Color = if chosen then Color3.fromRGB(255, 212, 94) elseif ok then accent else Color3.fromRGB(70, 70, 85)
-		st.Parent = f
-
-		-- caja del icono
-		local box = Instance.new("Frame")
-		box.Position = UDim2.fromOffset(10, 14)
-		box.Size = UDim2.fromOffset(84, 84)
-		box.BackgroundColor3 = accent
-		box.BorderSizePixel = 0
-		box.Parent = f
-		Instance.new("UICorner", box).CornerRadius = UDim.new(0, 12)
-		gradient(box, accent:Lerp(Color3.new(1, 1, 1), 0.25), accent:Lerp(Color3.new(0, 0, 0), 0.45))
-		local bst = Instance.new("UIStroke")
-		bst.Color = accent:Lerp(Color3.new(1, 1, 1), 0.4)
-		bst.Thickness = 2
-		bst.Parent = box
-		local fb = UITheme.Text(box, FALLBACK_TEXT[p.Key] or "★", 24, Color3.new(1, 1, 1), UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
-		fb.TextStrokeTransparency = 0.3
-		local img = Instance.new("ImageLabel")
-		img.Size = UDim2.fromScale(1, 1)
-		img.BackgroundTransparency = 1
-		img.ScaleType = Enum.ScaleType.Fit
-		img.Visible = false
-		img.Parent = box
-		Instance.new("UICorner", img).CornerRadius = UDim.new(0, 12)
-		iconTargets[p.Key] = { Image = img, Fallback = fb }
-		loadIcon(p.Key, p.ProductId, p.Icon, Enum.InfoType.Product)
-
-		-- textos
-		UITheme.Text(f, p.Name, 16, if ok or chosen then Color3.new(1, 1, 1) else Color3.fromRGB(160, 160, 175), UDim2.fromOffset(106, 8), UDim2.fromOffset(300, 20))
-		local d = UITheme.Text(f, p.Desc, 12, Color3.fromRGB(180, 180, 195), UDim2.fromOffset(106, 30), UDim2.fromOffset(290, 30))
-		d.TextWrapped = true
-		d.TextYAlignment = Enum.TextYAlignment.Top
+		local st = f:FindFirstChildOfClass("UIStroke")
+		if st and chosen then
+			st.Color = Color3.fromRGB(255, 212, 94)
+			st.Thickness = 2.5
+			st.Transparency = 0
+		elseif st and ok then
+			st.Color = accent
+			st.Transparency = 0.2
+		end
+		iconBox(f, UDim2.fromOffset(45, 14), 80, accent, FALLBACK_TEXT[p.Key] or "★", 22, p.Key, p.ProductId, p.Icon, Enum.InfoType.Product)
+		local nameColor = if ok or chosen then pal.Text else pal.Muted
+		textLine(f, p.Name, 13, nameColor, UDim2.fromOffset(6, 98), UDim2.new(1, -12, 0, 34), true)
+		textLine(f, p.Desc, 10, pal.Muted, UDim2.fromOffset(8, 132), UDim2.new(1, -16, 0, 40), true)
+		local extra = ""
 		if p.Hours then
 			local xp, lvls, capped = ProductCatalog.HoursXp(GB, p.Hours, level(), 0)
-			local chip = UITheme.Text(f, string.format("Hoy te daría +%s XP  ≈ %.1f niveles%s", thousands(xp), lvls, if capped then "  (tope por compra)" else ""), 12, Color3.fromRGB(150, 220, 255), UDim2.fromOffset(106, 62), UDim2.fromOffset(300, 16))
-			chip.TextWrapped = false
+			extra = string.format("Hoy: +%s XP ≈ %.1f niv.%s", thousands(xp), lvls, if capped then " (tope)" else "")
 		elseif p.Items then
-			UITheme.Text(f, "Se entrega directo en tu mochila", 12, Color3.fromRGB(200, 170, 255), UDim2.fromOffset(106, 62), UDim2.fromOffset(300, 16))
+			extra = "Directo a tu mochila"
 		elseif p.Seconds then
-			UITheme.Text(f, "Se suma al tiempo que ya tengas (máx. 12 h)", 12, Color3.fromRGB(150, 235, 170), UDim2.fromOffset(106, 62), UDim2.fromOffset(300, 16))
+			extra = "Se suma al tiempo (máx. 12 h)"
 		end
+		textLine(f, extra, 10, Color3.fromRGB(110, 190, 235), UDim2.fromOffset(6, 174), UDim2.new(1, -12, 0, 14))
 		local why = if info and info.Why then info.Why else ""
-		local line = UITheme.Text(f, string.format("Hoy: %d/%d%s", bought, p.DailyLimit, if why ~= "" then "  ·  🔒 " .. why else ""), 11, if ok or chosen then Color3.fromRGB(150, 150, 165) else Color3.fromRGB(255, 140, 120), UDim2.fromOffset(106, 88), UDim2.fromOffset(300, 16))
-		line.TextWrapped = false
-
-		-- precio / comprar
+		local line = textLine(f, string.format("Hoy %d/%d%s", bought, p.DailyLimit, if why ~= "" then "  🔒 " .. why else ""), 10, if ok or chosen then pal.Muted else Color3.fromRGB(235, 120, 100), UDim2.fromOffset(6, 189), UDim2.new(1, -12, 0, 14))
+		line.TextTruncate = Enum.TextTruncate.AtEnd
 		local original, saved = ProductCatalog.Savings(p)
-		local buy = Instance.new("TextButton")
-		buy.AnchorPoint = Vector2.new(1, 0)
-		buy.Position = UDim2.new(1, -10, 0, if saved > 0 then 30 else 38)
-		buy.Size = UDim2.fromOffset(104, 38)
-		buy.BackgroundColor3 = if ok then Color3.fromRGB(60, 160, 85) else Color3.fromRGB(60, 60, 72)
-		buy.TextColor3 = Color3.new(1, 1, 1)
-		buy.Font = UITheme.Font
-		buy.TextSize = 15
-		buy.Text = if ok then p.PriceText else "🔒 " .. p.PriceText
-		buy.AutoButtonColor = ok
-		buy.Parent = f
-		Instance.new("UICorner", buy)
-		if ok then
-			gradient(buy, Color3.fromRGB(95, 205, 120), Color3.fromRGB(40, 125, 65))
-		end
-		buy.Activated:Connect(function()
+		local buy = NpcKit.Button(f, theme, if ok then p.PriceText else "🔒 " .. p.PriceText, UDim2.new(1, -20, 0, 28), UDim2.fromOffset(10, 204), if ok then "buy" else "neutral", function()
 			if ok and actionRemote then
 				actionRemote:FireServer("Buy", p.Key)
 			end
 		end)
+		buy.AutoButtonColor = ok
 		if saved > 0 then
-			local old = UITheme.Text(f, string.format("<s>%d R$</s>", original), 12, Color3.fromRGB(160, 160, 175), UDim2.new(1, -114, 0, 72), UDim2.fromOffset(104, 14), Enum.TextXAlignment.Center)
+			NpcKit.Chip(f, string.format("¡AHORRAS %d R$!", saved), Color3.fromRGB(255, 200, 60), UDim2.fromOffset(6, 5), UDim2.fromOffset(86, 16)).TextSize = 10
+			local old = UITheme.Text(f, string.format("<s>%d R$</s>", original), 11, pal.Muted, UDim2.fromOffset(100, 6), UDim2.fromOffset(64, 14), Enum.TextXAlignment.Right)
 			old.RichText = true
-			local tag = Instance.new("TextLabel")
-			tag.AnchorPoint = Vector2.new(1, 0)
-			tag.Position = UDim2.new(1, -10, 0, 8)
-			tag.Size = UDim2.fromOffset(104, 18)
-			tag.BackgroundColor3 = Color3.fromRGB(255, 200, 60)
-			tag.TextColor3 = Color3.fromRGB(60, 35, 0)
-			tag.Font = UITheme.Font
-			tag.TextSize = 12
-			tag.Text = string.format("¡AHORRAS %d R$!", saved)
-			tag.Parent = f
-			Instance.new("UICorner", tag).CornerRadius = UDim.new(0, 9)
+			old.TextStrokeTransparency = 1
 		end
 		if chosen then
-			local c = Instance.new("TextLabel")
-			c.Size = UDim2.fromOffset(84, 16)
-			c.Position = UDim2.fromOffset(10, 96)
-			c.BackgroundColor3 = Color3.fromRGB(255, 212, 94)
-			c.TextColor3 = Color3.fromRGB(60, 35, 0)
-			c.Font = UITheme.Font
-			c.TextSize = 11
-			c.Text = "✔ ELEGIDO HOY"
-			c.Parent = f
-			Instance.new("UICorner", c).CornerRadius = UDim.new(0, 8)
+			NpcKit.Chip(f, "✔ ELEGIDO HOY", Color3.fromRGB(255, 212, 94), UDim2.new(1, -92, 0, 5), UDim2.fromOffset(86, 16)).TextSize = 10
 		end
 	end
 
-	section("BOOST DE XP", "+50% de experiencia mientras juegas. Se combina con cualquier paquete.", ACCENT.Boost)
-	for _, p in ipairs(ProductCatalog.Products) do
-		if p.Lane == "Boost" then
-			card(p)
-		end
-	end
-	section("PAQUETES DE HORAS", "Recibes la XP que ganarías jugando esas horas, sin jugarlas (desde nivel 20).", ACCENT.Hours)
-	notice('<b>Elige UNO por día:</b> al comprar un paquete o combo, los demás se bloquean hasta mañana. Puedes repetir el que elegiste hasta su límite diario.')
-	for _, p in ipairs(ProductCatalog.Products) do
-		if p.Lane == "Horas" and p.Kind == "Hours" then
-			card(p)
-		end
-	end
-	section("COMBOS", "Boost + paquete en una sola compra, más barato que por separado.", ACCENT.Combo)
-	for _, p in ipairs(ProductCatalog.Products) do
-		if p.Kind == "Combo" then
-			card(p)
-		end
-	end
-
-	section("OBJETOS", "Pergaminos de Protección: tu equipo no baja ni se rompe al fallar +7, +8 o +9.", ACCENT.Item)
-	for _, p in ipairs(ProductCatalog.Products) do
-		if p.Kind == "Item" then
-			card(p)
-		end
-	end
-
-	-- PASES de una sola compra
-	section("PASES", "Se compran una sola vez y son tuyos para siempre.", ACCENT.Pass)
-	for _, ps in ipairs(ProductCatalog.Passes) do
+	local function passCard(ps: any)
 		order += 1
 		local has = state ~= nil and state.Passes ~= nil and state.Passes[ps.Key] == true
-		local f = Instance.new("Frame")
+		local f = NpcKit.Panel(scroll, theme, UDim2.fromOffset(280, 250), UDim2.fromOffset(0, 0), "plate")
 		f.LayoutOrder = order
-		f.Size = UDim2.new(1, -8, 0, 128)
-		f.BackgroundColor3 = Color3.fromRGB(24, 24, 34)
-		f.BorderSizePixel = 0
-		f.Parent = scroll
-		Instance.new("UICorner", f)
-		gradient(f, Color3.fromRGB(44, 38, 20), Color3.fromRGB(22, 20, 16), 0)
-		local st = Instance.new("UIStroke")
-		st.Thickness = 2
-		st.Color = if has then Color3.fromRGB(111, 220, 127) else Color3.fromRGB(255, 212, 94)
-		st.Parent = f
-		local box = Instance.new("Frame")
-		box.Position = UDim2.fromOffset(10, 22)
-		box.Size = UDim2.fromOffset(84, 84)
-		box.BackgroundColor3 = ACCENT.Pass
-		box.BorderSizePixel = 0
-		box.Parent = f
-		Instance.new("UICorner", box).CornerRadius = UDim.new(0, 12)
-		gradient(box, ACCENT.Pass:Lerp(Color3.new(1, 1, 1), 0.25), ACCENT.Pass:Lerp(Color3.new(0, 0, 0), 0.45))
-		local fb = UITheme.Text(box, "🧪", 34, Color3.new(1, 1, 1), UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
-		local img = Instance.new("ImageLabel")
-		img.Size = UDim2.fromScale(1, 1)
-		img.BackgroundTransparency = 1
-		img.ScaleType = Enum.ScaleType.Fit
-		img.Visible = false
-		img.Parent = box
-		Instance.new("UICorner", img).CornerRadius = UDim.new(0, 12)
-		iconTargets["pass_" .. ps.Key] = { Image = img, Fallback = fb }
-		loadIcon("pass_" .. ps.Key, ps.PassId, ps.Icon, Enum.InfoType.GamePass)
-		UITheme.Text(f, ps.Name, 17, Color3.fromRGB(255, 226, 140), UDim2.fromOffset(106, 8), UDim2.fromOffset(300, 22))
-		local d = UITheme.Text(f, ps.Desc, 12, Color3.fromRGB(200, 200, 212), UDim2.fromOffset(106, 30), UDim2.fromOffset(290, 30))
+		local st = f:FindFirstChildOfClass("UIStroke")
+		if st then
+			st.Color = if has then Color3.fromRGB(111, 220, 127) else Color3.fromRGB(255, 212, 94)
+			st.Transparency = 0
+			st.Thickness = 2
+		end
+		iconBox(f, UDim2.fromOffset(12, 14), 72, ACCENT.Pass, "👑", 30, "pass_" .. ps.Key, ps.PassId, ps.Icon, Enum.InfoType.GamePass)
+		local nm = UITheme.Text(f, ps.Name, 15, if has then Color3.fromRGB(150, 235, 170) else Color3.fromRGB(255, 214, 110), UDim2.fromOffset(96, 12), UDim2.new(1, -106, 0, 40))
+		nm.TextWrapped = true
+		nm.TextYAlignment = Enum.TextYAlignment.Top
+		nm.TextStrokeTransparency = 1
+		local d = UITheme.Text(f, ps.Desc, 11, pal.Muted, UDim2.fromOffset(96, 52), UDim2.new(1, -106, 0, 44))
 		d.TextWrapped = true
 		d.TextYAlignment = Enum.TextYAlignment.Top
-		local perks = UITheme.Text(f, "• " .. table.concat(ps.Perks, "\n• "), 11, Color3.fromRGB(150, 235, 170), UDim2.fromOffset(106, 62), UDim2.fromOffset(290, 60))
+		d.TextStrokeTransparency = 1
+		local perks = UITheme.Text(f, "• " .. table.concat(ps.Perks, "\n• "), 11, Color3.fromRGB(110, 200, 140), UDim2.fromOffset(14, 100), UDim2.new(1, -28, 0, 100))
 		perks.TextWrapped = true
 		perks.TextYAlignment = Enum.TextYAlignment.Top
-		local buy = Instance.new("TextButton")
-		buy.AnchorPoint = Vector2.new(1, 0)
-		buy.Position = UDim2.new(1, -10, 0, 40)
-		buy.Size = UDim2.fromOffset(104, 38)
-		buy.BackgroundColor3 = if has then Color3.fromRGB(60, 60, 72) else Color3.fromRGB(60, 160, 85)
-		buy.TextColor3 = Color3.new(1, 1, 1)
-		buy.Font = UITheme.Font
-		buy.TextSize = if has then 13 else 15
-		buy.Text = if has then "✔ ADQUIRIDO" else ps.PriceText
-		buy.AutoButtonColor = not has
-		buy.Parent = f
-		Instance.new("UICorner", buy)
-		if not has then
-			gradient(buy, Color3.fromRGB(95, 205, 120), Color3.fromRGB(40, 125, 65))
-		end
-		buy.Activated:Connect(function()
+		perks.TextStrokeTransparency = 1
+		NpcKit.Button(f, theme, if has then "✔ ADQUIRIDO" else ps.PriceText, UDim2.new(1, -28, 0, 34), UDim2.fromOffset(14, 206), if has then "neutral" else "buy", function()
 			if not has and actionRemote then
 				actionRemote:FireServer("BuyPass", ps.Key)
 			end
-		end)
+		end).AutoButtonColor = not has
+	end
+
+	if activeTab == "Progreso" then
+		grid.CellSize = UDim2.fromOffset(170, 238)
+		for _, kind in ipairs({ "Boost", "Hours", "Combo" }) do
+			for _, p in ipairs(ProductCatalog.Products) do
+				if p.Kind == kind and (kind ~= "Hours" or p.Lane == "Horas") then
+					card(p)
+				end
+			end
+		end
+	elseif activeTab == "Objetos" then
+		grid.CellSize = UDim2.fromOffset(170, 238)
+		for _, p in ipairs(ProductCatalog.Products) do
+			if p.Kind == "Item" then
+				card(p)
+			end
+		end
+	else
+		grid.CellSize = UDim2.fromOffset(280, 250)
+		for _, ps in ipairs(ProductCatalog.Passes) do
+			passCard(ps)
+		end
 	end
 end
 
@@ -402,11 +319,13 @@ local function build()
 	if win then
 		win:Destroy()
 	end
-	win = UITheme.Frame(gui, theme, UDim2.fromOffset(600, 590), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
+	local W = 760
+	win = UITheme.Frame(gui, theme, UDim2.fromOffset(W, 610), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
 	WindowDrag.Attach(win, "Tienda", 40, 50)
-	UITheme.Text(win, "TIENDA", 22, theme.Primary, UDim2.fromOffset(18, 8), UDim2.fromOffset(200, 28))
+	NpcKit.Header(win, theme, W, "Tienda", "Boosts, paquetes, objetos y pases", "🛒")
+	NpcKit.Awning(win, theme, W, 60)
 	local close = Instance.new("TextButton")
-	close.Position = UDim2.new(1, -38, 0, 8)
+	close.Position = UDim2.new(1, -40, 0, 14)
 	close.Size = UDim2.fromOffset(28, 28)
 	close.Text = "X"
 	close.BackgroundTransparency = 1
@@ -418,39 +337,50 @@ local function build()
 	close.Activated:Connect(function()
 		gui.Enabled = false
 	end)
+	-- columna de secciones (como los pasillos de la tienda)
+	table.clear(tabButtons)
+	for i, t in ipairs(TABS) do
+		tabButtons[t.Id] = NpcKit.Tab(win, theme, t.Text, UDim2.fromOffset(126, 40), UDim2.fromOffset(14, 96 + (i - 1) * 48), t.Id == activeTab, function()
+			activeTab = t.Id
+			build()
+			render()
+		end)
+	end
 	-- barra de estado: boost activo + reinicio
-	local bar = Instance.new("Frame")
-	bar.Position = UDim2.fromOffset(14, 44)
-	bar.Size = UDim2.fromOffset(572, 28)
-	bar.BackgroundColor3 = Color3.fromRGB(20, 22, 30)
-	bar.BorderSizePixel = 0
-	bar.Parent = win
-	Instance.new("UICorner", bar)
-	boostPill = UITheme.Text(bar, "", 13, Color3.new(1, 1, 1), UDim2.fromOffset(12, 0), UDim2.fromOffset(380, 28))
+	local bar = NpcKit.Panel(win, theme, UDim2.fromOffset(594, 28), UDim2.fromOffset(154, 94), "inset")
+	local pal = NpcKit.Palette(theme)
+	boostPill = UITheme.Text(bar, "", 13, pal.Text, UDim2.fromOffset(12, 0), UDim2.fromOffset(390, 28))
 	boostPill.RichText = true
-	resetLabel = UITheme.Text(bar, "", 12, Color3.fromRGB(170, 170, 185), UDim2.new(1, -180, 0, 0), UDim2.fromOffset(170, 28), Enum.TextXAlignment.Right)
+	boostPill.TextStrokeTransparency = 1
+	resetLabel = UITheme.Text(bar, "", 12, pal.Muted, UDim2.new(1, -190, 0, 0), UDim2.fromOffset(180, 28), Enum.TextXAlignment.Right)
+	resetLabel.TextStrokeTransparency = 1
+	tabNote = UITheme.Text(win, "", 11, pal.Muted, UDim2.fromOffset(156, 126), UDim2.fromOffset(590, 30))
+	tabNote.TextWrapped = true
+	tabNote.TextYAlignment = Enum.TextYAlignment.Top
+	tabNote.TextStrokeTransparency = 1
+	local showcase = NpcKit.Panel(win, theme, UDim2.fromOffset(594, 380), UDim2.fromOffset(154, 158), "inset")
 	scroll = Instance.new("ScrollingFrame")
-	scroll.Position = UDim2.fromOffset(14, 80)
-	scroll.Size = UDim2.fromOffset(572, 410)
-	scroll.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
+	scroll.Position = UDim2.fromOffset(0, 0)
+	scroll.Size = UDim2.fromScale(1, 1)
+	scroll.BackgroundTransparency = 1
 	scroll.BorderSizePixel = 0
 	scroll.ScrollBarThickness = 5
 	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	scroll.CanvasSize = UDim2.fromOffset(0, 0)
-	scroll.Parent = win
-	Instance.new("UICorner", scroll)
+	scroll.Parent = showcase
 	local pad = Instance.new("UIPadding")
-	pad.PaddingTop, pad.PaddingLeft, pad.PaddingBottom = UDim.new(0, 6), UDim.new(0, 6), UDim.new(0, 8)
+	pad.PaddingTop, pad.PaddingLeft, pad.PaddingBottom, pad.PaddingRight = UDim.new(0, 8), UDim.new(0, 8), UDim.new(0, 8), UDim.new(0, 8)
 	pad.Parent = scroll
-	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0, 8)
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Parent = scroll
-	resultLabel = UITheme.Text(win, "", 13, Color3.new(1, 1, 1), UDim2.fromOffset(18, 496), UDim2.fromOffset(564, 36))
+	grid = Instance.new("UIGridLayout")
+	grid.CellSize = UDim2.fromOffset(170, 238)
+	grid.CellPadding = UDim2.fromOffset(8, 8)
+	grid.SortOrder = Enum.SortOrder.LayoutOrder
+	grid.Parent = scroll
+	resultLabel = UITheme.Text(win, "", 13, Color3.new(1, 1, 1), UDim2.fromOffset(154, 542), UDim2.fromOffset(594, 22))
 	resultLabel.RichText = true
 	resultLabel.TextWrapped = true
 	resultLabel.TextYAlignment = Enum.TextYAlignment.Top
-	footer = UITheme.Text(win, "Los precios son en Robux. Los paquetes y combos se bloquean entre sí: elige UNO por día. El boost se combina con todo.", 11, Color3.fromRGB(150, 150, 165), UDim2.fromOffset(18, 538), UDim2.fromOffset(564, 40))
+	footer = UITheme.Text(win, "Precios en Robux. El boost se combina con todo.", 11, Color3.fromRGB(150, 150, 165), UDim2.fromOffset(154, 574), UDim2.fromOffset(594, 24))
 	footer.TextWrapped = true
 	footer.TextYAlignment = Enum.TextYAlignment.Top
 end

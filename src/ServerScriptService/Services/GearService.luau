@@ -22,12 +22,13 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
+local PetCatalog = require(ReplicatedStorage.Modules.PetCatalog)
 local GearCatalog = require(ReplicatedStorage.Modules.GearCatalog)
 local PlayerClass = require(ReplicatedStorage.Modules.PlayerClass)
 
 export type Stats = {
 	Ataque: number, Defensa: number, Vida: number, Critico: number, Curacion: number,
-	Suerte: number, Oro: number, Xp: number, Regen: number, CritDmg: number,
+	Suerte: number, Oro: number, Xp: number, Regen: number, CritDmg: number, Energia: number,
 }
 
 local OUT_OF_COMBAT = 6 -- s sin recibir golpes para que el Fénix regenere
@@ -44,7 +45,7 @@ local temp: { [Player]: { [string]: { [string]: number } } } = {} -- bonos extra
 local rng = Random.new()
 
 local function zero(): Stats
-	return { Ataque = 0, Defensa = 0, Vida = 0, Critico = 0, Curacion = 0, Suerte = 0, Oro = 0, Xp = 0, Regen = 0, CritDmg = 0 }
+	return { Ataque = 0, Defensa = 0, Vida = 0, Critico = 0, Curacion = 0, Suerte = 0, Oro = 0, Xp = 0, Regen = 0, CritDmg = 0, Energia = 0 }
 end
 
 local function levelOf(player: Player): number
@@ -75,8 +76,14 @@ local function compute(player: Player): Stats
 					end
 				end
 			elseif item.Pet then
-				for effect, v in pairs(item.Pet.Effects) do
-					pet[effect] = (pet[effect] or 0) + v
+				-- la mascota de facción solo vale para su facción; el nivel (Plus) multiplica los efectos
+				local fOk = typeof(item.Faction) ~= "string" or item.Faction == faction
+				if fOk then
+					local plus = player:GetAttribute("EquipPlus_" .. slot)
+					local mult = PetCatalog.LevelMult(if typeof(plus) == "number" then plus else 0)
+					for effect, v in pairs(item.Pet.Effects) do
+						pet[effect] = (pet[effect] or 0) + v * mult
+					end
 				end
 			end
 		end

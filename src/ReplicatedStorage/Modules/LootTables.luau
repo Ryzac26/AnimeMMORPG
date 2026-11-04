@@ -342,8 +342,13 @@ function LootTables.RollEmblem(faction: string, level: number, rarityWeights: { 
 	return nil
 end
 
-function LootTables.RollPet(rarityWeights: { [string]: number }, rng: RNG): string?
+-- faction (opcional): 1 de cada 5 mascotas que caen es la de TU facción (Mono / Sapo / Loro / Mariposa); las de otras facciones nunca caen
+function LootTables.RollPet(rarityWeights: { [string]: number }, rng: RNG, faction: string?): string?
 	local family = PetCatalog.FamilyOrder[rng:NextInteger(1, #PetCatalog.FamilyOrder)]
+	local own = if faction then PetCatalog.FactionFamily[faction] else nil
+	if own and rng:NextNumber() < 0.2 then
+		family = own
+	end
 	local id = PetCatalog.Id(family, LootTables.Pick(rarityWeights, rng))
 	if PetCatalog.Items[id] then
 		return id

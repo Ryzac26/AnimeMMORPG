@@ -16,6 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PlayerClass = require(ReplicatedStorage.Modules.PlayerClass)
 local GB = require(ReplicatedStorage.Modules.GameBalance)
+local GearService = require(script.Parent.GearService) -- mascota de facción: +% de regeneración de energía
 
 local REGEN_PCT_PER_SEC = 0.05
 
@@ -120,7 +121,7 @@ RunService.Heartbeat:Connect(function(dt)
 		if c < m then
 			local mult = p:GetAttribute("EnergyRegenMult")
 			local shrine = p:GetAttribute("ShrineEnergy") -- santuario de Aliento (ArenaStyler)
-			current[p] = math.min(m, c + m * REGEN_PCT_PER_SEC * (if typeof(mult) == "number" then mult else 1) * (if typeof(shrine) == "number" then shrine else 1) * step)
+			current[p] = math.min(m, c + m * REGEN_PCT_PER_SEC * (if typeof(mult) == "number" then mult else 1) * (if typeof(shrine) == "number" then shrine else 1) * (1 + GearService.Get(p).Energia) * step)
 			publish(p)
 		end
 	end

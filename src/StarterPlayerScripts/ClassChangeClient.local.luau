@@ -15,6 +15,7 @@ local FactionClasses = require(Modules:WaitForChild("FactionClassesModule", 10))
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
+local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 
 local ROLES = { "Tanque", "Guerrero", "Asesino", "Tirador", "Mago", "Curador" }
 local HINT: { [string]: string } = {
@@ -25,6 +26,7 @@ local HINT: { [string]: string } = {
 	Mago = "Daño en área",
 	Curador = "Cura y apoya al equipo",
 }
+local ICON: { [string]: string } = { Tanque = "🛡", Guerrero = "⚔", Asesino = "🗡", Tirador = "🏹", Mago = "🔮", Curador = "✚" }
 local CLOSE_DISTANCE = 32
 
 local openRemote = ClientNet.Get("ClassChangeOpen")
@@ -48,66 +50,83 @@ local function build(name: string, title: string)
 	local theme = UITheme.For(player:GetAttribute("Faction"))
 	local faction = player:GetAttribute("Faction")
 	local current = player:GetAttribute("Role")
-	local w = UITheme.Frame(gui, theme, UDim2.fromOffset(420, 470), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
+	local W = 436
+	local w = UITheme.Frame(gui, theme, UDim2.fromOffset(W, 500), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
 	win = w
 	WindowDrag.Attach(w, "ClassChange", 52, 50)
-	UITheme.Text(w, name, 20, theme.Primary, UDim2.fromOffset(18, 6), UDim2.fromOffset(340, 26))
-	UITheme.Text(w, title .. "  ·  cambio de clase GRATIS", 12, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(18, 30), UDim2.fromOffset(380, 16))
+	NpcKit.Header(w, theme, W, name, title .. "  ·  cambio de clase GRATIS", "🎓")
 	local close = Instance.new("TextButton")
-	close.Position = UDim2.new(1, -38, 0, 8)
+	close.Position = UDim2.new(1, -40, 0, 14)
 	close.Size = UDim2.fromOffset(28, 28)
 	close.Text = "X"
 	close.BackgroundTransparency = 1
 	close.TextColor3 = Color3.fromRGB(255, 120, 120)
 	close.Font = UITheme.Font
 	close.TextSize = 18
+	close.ZIndex = 30
 	close.Parent = w
 	close.Activated:Connect(function()
 		gui.Enabled = false
 	end)
+	local pal = NpcKit.Palette(theme)
 
-	local confirm = Instance.new("TextButton")
-	confirm.Position = UDim2.fromOffset(18, 418)
-	confirm.Size = UDim2.fromOffset(384, 40)
-	confirm.BackgroundColor3 = Color3.fromRGB(50, 130, 70)
-	confirm.TextColor3 = Color3.new(1, 1, 1)
-	confirm.Font = UITheme.Font
+	local confirm = NpcKit.Button(w, theme, "Elige un rol", UDim2.fromOffset(W - 32, 40), UDim2.fromOffset(16, 450), "buy", nil)
 	confirm.TextSize = 16
-	confirm.Text = "Elige un rol"
 	confirm.AutoButtonColor = false
-	confirm.Parent = w
-	Instance.new("UICorner", confirm)
 
 	local buttons: { [string]: TextButton } = {}
 	local function paint()
 		for role, b in pairs(buttons) do
 			local st = b:FindFirstChildOfClass("UIStroke")
 			if st then
-				st.Color = if role == picked then theme.Primary else Color3.fromRGB(70, 70, 85)
+				st.Color = if role == picked then theme.Primary else pal.Edge
 				st.Thickness = if role == picked then 3 else 1
+				st.Transparency = if role == picked then 0 else 0.5
 			end
 		end
 		confirm.Text = if picked then "Cambiar a " .. picked else "Elige un rol"
-		confirm.BackgroundColor3 = if picked then Color3.fromRGB(50, 130, 70) else Color3.fromRGB(60, 60, 70)
+		confirm.AutoButtonColor = picked ~= nil
 	end
+	-- tarjetas de rol 2 x 3 (retrato = emblema del rol)
 	for i, role in ipairs(ROLES) do
 		local data = if typeof(faction) == "string" then FactionClasses.FindClass(faction, role) else nil
+		local col, row = (i - 1) % 2, math.floor((i - 1) / 2)
+		local card = NpcKit.Panel(w, theme, UDim2.fromOffset(196, 124), UDim2.fromOffset(16 + col * 208, 72 + row * 126), "card")
 		local b = Instance.new("TextButton")
-		b.Position = UDim2.fromOffset(18, 58 + (i - 1) * 59)
-		b.Size = UDim2.fromOffset(384, 54)
-		b.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
+		b.Size = UDim2.fromScale(1, 1)
+		b.BackgroundTransparency = 1
 		b.Text = ""
-		b.AutoButtonColor = true
-		b.Parent = w
-		Instance.new("UICorner", b)
+		b.ZIndex = 12
+		b.Parent = card
 		local st = Instance.new("UIStroke")
-		st.Color = Color3.fromRGB(70, 70, 85)
+		st.Color = pal.Edge
+		st.Transparency = 0.5
 		st.Parent = b
 		local isCurrent = role == current
-		UITheme.Text(b, string.format("%s  ·  %s", role, if data then data.CharacterName else "?"), 15, if isCurrent then Color3.fromRGB(255, 214, 90) else Color3.new(1, 1, 1), UDim2.fromOffset(10, 5), UDim2.fromOffset(300, 22))
-		UITheme.Text(b, HINT[role] or "", 12, Color3.fromRGB(165, 165, 180), UDim2.fromOffset(10, 28), UDim2.fromOffset(364, 18))
+		local medal = Instance.new("Frame")
+		medal.Position = UDim2.fromOffset(10, 10)
+		medal.Size = UDim2.fromOffset(46, 46)
+		medal.BackgroundColor3 = theme.Primary
+		medal.BorderSizePixel = 0
+		medal.Parent = card
+		Instance.new("UICorner", medal).CornerRadius = UDim.new(1, 0)
+		local ms = Instance.new("UIStroke")
+		ms.Color = pal.Edge
+		ms.Thickness = 2
+		ms.Parent = medal
+		local ic = UITheme.Text(medal, ICON[role] or "★", 24, Color3.new(1, 1, 1), UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
+		ic.TextStrokeTransparency = 0.4
+		local n1 = UITheme.Text(card, role, 16, if isCurrent then Color3.fromRGB(255, 200, 70) else pal.Text, UDim2.fromOffset(64, 10), UDim2.fromOffset(126, 20))
+		n1.TextStrokeTransparency = 1
+		local n2 = UITheme.Text(card, if data then data.CharacterName else "?", 12, pal.Muted, UDim2.fromOffset(64, 32), UDim2.fromOffset(126, 16))
+		n2.TextStrokeTransparency = 1
+		n2.TextTruncate = Enum.TextTruncate.AtEnd
+		local hint = UITheme.Text(card, HINT[role] or "", 11, pal.Muted, UDim2.fromOffset(10, 66), UDim2.fromOffset(176, 36))
+		hint.TextWrapped = true
+		hint.TextYAlignment = Enum.TextYAlignment.Top
+		hint.TextStrokeTransparency = 1
 		if isCurrent then
-			UITheme.Text(b, "ACTUAL", 11, Color3.fromRGB(255, 214, 90), UDim2.fromOffset(300, 7), UDim2.fromOffset(74, 16), Enum.TextXAlignment.Right)
+			NpcKit.Chip(card, "ACTUAL", Color3.fromRGB(255, 200, 70), UDim2.fromOffset(122, 100), UDim2.fromOffset(66, 16))
 		else
 			b.Activated:Connect(function()
 				picked = role

@@ -23,6 +23,7 @@ local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local GearView = require(script.Parent:WaitForChild("GearView", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
 local RarityPicker = require(script.Parent:WaitForChild("RarityPicker", 10))
+local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 
 local CLOSE_DISTANCE = 32
 local openRemote = ClientNet.Get("AlquimiaOpen")
@@ -39,7 +40,12 @@ gui.Parent = player:WaitForChild("PlayerGui", 10)
 local GREEN, RED, GRAY, GOLD = "#6fdc7f", "#ff6b6b", "#aaaab8", "#ffd45e"
 
 local theme = UITheme.For(player:GetAttribute("Faction"))
+local pal = NpcKit.Palette(theme)
 local win: Frame
+local ingBox: Frame -- caldero: casillas de ingredientes de la receta elegida
+local canLine: TextLabel
+local prepLabel: TextLabel
+local tabsHolder: Frame
 local listScroll: ScrollingFrame
 local detail: TextLabel
 local resultLabel: TextLabel
@@ -57,6 +63,16 @@ local selectedSlot: number? = nil
 local confirmSlot: number? = nil
 local npcName, npcTitle = "Alquimista", ""
 local openPosition: Vector3? = nil
+
+-- colores de texto legibles según el material de la facción (el pergamino Shinobi es claro)
+local function applyPalette()
+	pal = NpcKit.Palette(theme)
+	if NpcKit.Key(theme) == "Shinobi" then
+		GREEN, RED, GRAY, GOLD = "#1f6e2c", "#9a1c1c", "#6a5638", "#8a5a00"
+	else
+		GREEN, RED, GRAY, GOLD = "#6fdc7f", "#ff6b6b", "#aaaab8", "#ffd45e"
+	end
+end
 
 local function withCommas(n: number): string
 	local s = tostring(math.floor(n))
@@ -135,18 +151,17 @@ local function refreshDetail()
 			c:Destroy()
 		end
 	end
-	local function button(text: string, x: number, w: number, color: Color3, fn: () -> (), y: number?)
-		local b = Instance.new("TextButton")
-		b.Position = UDim2.fromOffset(x, y or 0)
-		b.Size = UDim2.fromOffset(w, 38)
-		b.BackgroundColor3 = color
-		b.TextColor3 = Color3.new(1, 1, 1)
-		b.Font = UITheme.Font
-		b.TextSize = 14
-		b.Text = text
-		b.Parent = actionBox
-		Instance.new("UICorner", b)
-		b.Activated:Connect(fn)
+	local function button(text: string, x: number, w: number, kind: string, fn: () -> (), y: number?)
+		NpcKit.Button(actionBox, theme, text, UDim2.fromOffset(w, 38), UDim2.fromOffset(x, y or 0), kind, fn)
+	end
+	ingBox.Visible = false
+	prepLabel.Visible = false
+	canLine.Text = ""
+	detail.Size = UDim2.fromOffset(318, 190)
+	for _, c in ipairs(ingBox:GetChildren()) do
+		if c:IsA("Frame") then
+			c:Destroy()
+		end
 	end
 	commonsButton.Visible = mode == "Dismantle"
 	actionBox.Position = if mode ~= "Dismantle" then UDim2.fromOffset(14, 262) else UDim2.fromOffset(14, 164)
@@ -182,34 +197,61 @@ local function refreshDetail()
 			return
 		end
 		local item: any = (ItemCatalog.Items :: any)[r.Id]
-		local lines = { string.format('<b>%s</b>\n<font size="12" color="%s">%s</font>\n\nCuesta por %s:', item.Name, GRAY, if r.Kind == "Elixir" then AlchemyCatalog.Elixirs[r.Id].Short .. " · 30 min" else (item.Desc or ""), if r.Kind == "Elixir" then "elixir" else "poción") }
+		detail.Size = UDim2.fromOffset(318, 74)
+		local lines = { string.format('<b>%s</b>\n<font size="12" color="%s">%s</font>', item.Name, GRAY, if r.Kind == "Elixir" then AlchemyCatalog.Elixirs[r.Id].Short .. " · 30 min" else (item.Desc or "")) }
 		local mats: { string } = {}
 		for id in pairs(r.Cost) do
 			table.insert(mats, id)
 		end
 		table.sort(mats)
-		for _, id in ipairs(mats) do
+		-- caldero: una casilla por ingrediente (tienes / necesitas) + el oro
+		ingBox.Visible = true
+		local nSlots = #mats + 1
+		local sw = math.min(60, math.floor((306 - (nSlots - 1) * 4) / nSlots))
+		local function socket(index: number, top: string, mid: string, midColor: Color3, bottom: string)
+			local f = Instance.new("Frame")
+			f.Position = UDim2.fromOffset(6 + (index - 1) * (sw + 4), 18)
+			f.Size = UDim2.fromOffset(sw, 62)
+			f.BackgroundColor3 = Color3.fromRGB(20, 16, 14)
+			f.BorderSizePixel = 0
+			f.ZIndex = 5
+			f.Parent = ingBox
+			Instance.new("UICorner", f).CornerRadius = UDim.new(0, 6)
+			local st = Instance.new("UIStroke")
+			st.Color = midColor
+			st.Thickness = 1.5
+			st.Transparency = 0.25
+			st.Parent = f
+			local t = UITheme.Text(f, top, 9, Color3.fromRGB(215, 205, 190), UDim2.fromOffset(1, 2), UDim2.new(1, -2, 0, 22), Enum.TextXAlignment.Center)
+			t.TextWrapped = true
+			t.ZIndex = 6
+			local m = UITheme.Text(f, mid, 15, midColor, UDim2.fromOffset(0, 24), UDim2.new(1, 0, 0, 18), Enum.TextXAlignment.Center)
+			m.ZIndex = 6
+			local b = UITheme.Text(f, bottom, 9, Color3.fromRGB(170, 160, 150), UDim2.fromOffset(0, 45), UDim2.new(1, 0, 0, 14), Enum.TextXAlignment.Center)
+			b.ZIndex = 6
+		end
+		local OKC, BADC = Color3.fromRGB(111, 220, 127), Color3.fromRGB(255, 107, 107)
+		for k2, id in ipairs(mats) do
 			local need, have = r.Cost[id], owned(id)
-			table.insert(lines, string.format('  %d %s  <font color="%s">(tienes %d)</font>', need, itemName(id), if have >= need then GREEN else RED, have))
+			socket(k2, itemName(id), tostring(need), if have >= need then OKC else BADC, string.format("tienes %d", have))
 		end
-		table.insert(lines, string.format('  <font color="%s">%s</font> de oro  <font color="%s">(tienes %s)</font>', GOLD, withCommas(r.Gold), GOLD, withCommas(myGold())))
+		socket(nSlots, "Oro 💰", withCommas(r.Gold), if myGold() >= r.Gold then Color3.fromRGB(255, 212, 94) else BADC, "tienes " .. withCommas(myGold()))
 		local locked = not AlchemyCatalog.CanCraft(r, hasBelt())
-		if locked then
-			table.insert(lines, string.format('\n<font color="%s">🔒 Requiere el pase Cinturón de Pociones (Tienda > Pases)</font>', RED))
-		end
 		local most = maxCraft(r)
-		table.insert(lines, string.format('\nAhora puedes fabricar: <font color="%s"><b>%d</b></font>', if most > 0 then GREEN else RED, most))
+		canLine.Text = if locked then string.format('<font color="%s">🔒 Requiere el pase Cinturón de Pociones (Tienda > Pases)</font>', RED) else string.format('Ahora puedes fabricar: <font color="%s"><b>%d</b></font>', if most > 0 then GREEN else RED, most)
+		prepLabel.Visible = true
+		prepLabel.Text = if r.Kind == "Elixir" then "FABRICAR / BEBER" else "PREPARAR"
 		detail.Text = table.concat(lines, "\n")
 		local opts: { number } = {}
 		for _, n in ipairs(AlchemyCatalog.QTY_OPTIONS) do
 			table.insert(opts, n)
 		end
 		for k, n in ipairs(opts) do
-			button("x" .. n, (k - 1) * 65, 58, if most >= n then Color3.fromRGB(50, 130, 70) else Color3.fromRGB(80, 60, 60), function()
+			button("x" .. n, (k - 1) * 65, 58, if most >= n then "buy" else "neutral", function()
 				actionRemote:FireServer("Craft", r.Id, n)
 			end)
 		end
-		button("Máx", #opts * 65, 58, if most > 0 then Color3.fromRGB(60, 100, 160) else Color3.fromRGB(80, 60, 60), function()
+		button("Máx", #opts * 65, 58, if most > 0 then "action" else "neutral", function()
 			actionRemote:FireServer("Craft", r.Id, "max")
 		end)
 		if r.Kind == "Elixir" then
@@ -217,8 +259,8 @@ local function refreshDetail()
 			local aid = player:GetAttribute("ElixirId")
 			local aleft = player:GetAttribute("ElixirLeft")
 			local cur = if typeof(aid) == "string" and typeof(aleft) == "number" and AlchemyCatalog.Elixirs[aid] then string.format('<font color="%s">Activo: %s (%d:%02d)</font>', GREEN, AlchemyCatalog.Elixirs[aid].Name, aleft // 60, aleft % 60) else "Ningún elixir activo."
-			detail.Text ..= string.format('\n%s  <font color="%s">(tienes %d)</font>', cur, GRAY, have)
-			button(if have > 0 then "Beber (30 min)" else "No tienes este elixir", 0, 318, if have > 0 then Color3.fromRGB(150, 90, 190) else Color3.fromRGB(70, 60, 60), function()
+			canLine.Text = string.format('%s  <font color="%s">(tienes %d)</font>\nPuedes fabricar: <font color="%s"><b>%d</b></font>', cur, GRAY, have, if most > 0 then GREEN else RED, most)
+			button(if have > 0 then "Beber (30 min)" else "No tienes este elixir", 0, 318, if have > 0 then "action" else "neutral", function()
 				actionRemote:FireServer("Drink", r.Id)
 			end, 46)
 		end
@@ -238,7 +280,7 @@ local function refreshDetail()
 		detail.Text = string.format('<b>%s</b>\n\nAl desmontarla recibes:\n<font color="%s">%s</font>', GearView.DisplayName(item, row.Plus), GREEN, yieldText(item, row.Plus))
 		local needs = ShopCatalog.NeedsConfirm(item, row.Plus)
 		local asking = needs and confirmSlot == row.Slot
-		button(if asking then "¿Seguro? Desmontar" else "Desmontar", 0, 318, if asking then Color3.fromRGB(190, 70, 50) else Color3.fromRGB(50, 130, 70), function()
+		button(if asking then "¿Seguro? Desmontar" else "Desmontar", 0, 318, if asking then "danger" else "buy", function()
 			if needs and confirmSlot ~= row.Slot then
 				confirmSlot = row.Slot
 				refreshDetail()
@@ -315,30 +357,50 @@ local function refreshList()
 	end
 end
 
-local function refreshAll()
+local refreshAll: () -> ()
+
+local function buildTabs()
+	for _, c in ipairs(tabsHolder:GetChildren()) do
+		c:Destroy()
+	end
+	local function tab(text: string, x: number, m: string): TextButton
+		return NpcKit.Tab(tabsHolder, theme, text, UDim2.fromOffset(124, 28), UDim2.fromOffset(x, 0), mode == m, function()
+			mode = m
+			selectedRecipe = nil
+			confirmSlot = nil
+			resultLabel.Text = ""
+			refreshAll()
+		end)
+	end
+	tabCraft = tab("🧪 Pociones", 0, "Craft")
+	tabElixir = tab("✨ Elixires", 130, "Elixir")
+	tabDismantle = tab("🔨 Desmontar", 260, "Dismantle")
+end
+
+refreshAll = function()
 	if not gui.Enabled or not win then
 		return
 	end
 	goldLabel.Text = string.format('Oro: <font color="%s">%s</font>', GOLD, withCommas(myGold()))
-	tabCraft.BackgroundColor3 = if mode == "Craft" then Color3.fromRGB(70, 90, 140) else Color3.fromRGB(34, 34, 46)
-	tabElixir.BackgroundColor3 = if mode == "Elixir" then Color3.fromRGB(70, 90, 140) else Color3.fromRGB(34, 34, 46)
-	tabDismantle.BackgroundColor3 = if mode == "Dismantle" then Color3.fromRGB(70, 90, 140) else Color3.fromRGB(34, 34, 46)
+	buildTabs()
 	refreshList()
 	refreshDetail()
 end
 
 local function build()
 	theme = UITheme.For(player:GetAttribute("Faction"))
+	applyPalette()
 	if win then
 		win:Destroy()
 	end
-	win = UITheme.Frame(gui, theme, UDim2.fromOffset(640, 460), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
+	win = UITheme.Frame(gui, theme, UDim2.fromOffset(640, 486), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
 	WindowDrag.Attach(win, "Alquimia", 52, 50)
-	UITheme.Text(win, npcName, 20, theme.Primary, UDim2.fromOffset(18, 6), UDim2.fromOffset(400, 26))
-	UITheme.Text(win, npcTitle .. "  ·  arrastra el título para mover", 12, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(18, 30), UDim2.fromOffset(500, 16))
-	goldLabel = UITheme.Text(win, "", 15, Color3.new(1, 1, 1), UDim2.fromOffset(440, 10), UDim2.fromOffset(150, 22))
+	NpcKit.Header(win, theme, 640, npcName, if npcTitle ~= "" then npcTitle .. "  ·  mesa de alquimia" else "Mesa de alquimia", "⚗")
+	goldLabel = UITheme.Text(win, "", 15, Color3.new(1, 1, 1), UDim2.fromOffset(420, 24), UDim2.fromOffset(170, 22))
 	goldLabel.RichText = true
 	goldLabel.TextXAlignment = Enum.TextXAlignment.Right
+	goldLabel.ZIndex = 30
+	goldLabel.TextColor3 = if NpcKit.Key(theme) == "Shinobi" then Color3.fromRGB(255, 232, 170) else Color3.new(1, 1, 1)
 
 	local close = Instance.new("TextButton")
 	close.Position = UDim2.new(1, -38, 0, 8)
@@ -354,40 +416,25 @@ local function build()
 		gui.Enabled = false
 	end)
 
-	local function tab(text: string, x: number, m: string): TextButton
-		local b = Instance.new("TextButton")
-		b.Position = UDim2.fromOffset(x, 56)
-		b.Size = UDim2.fromOffset(122, 28)
-		b.Text = text
-		b.TextColor3 = Color3.new(1, 1, 1)
-		b.Font = UITheme.Font
-		b.TextSize = 14
-		b.ZIndex = 30
-		b.Parent = win
-		Instance.new("UICorner", b)
-		b.Activated:Connect(function()
-			mode = m
-			selectedRecipe = nil
-			confirmSlot = nil
-			resultLabel.Text = ""
-			refreshAll()
-		end)
-		return b
-	end
-	tabCraft = tab("Pociones", 16, "Craft")
-	tabElixir = tab("Elixires", 144, "Elixir")
-	tabDismantle = tab("Desmontar", 272, "Dismantle")
+	tabsHolder = Instance.new("Frame")
+	tabsHolder.BackgroundTransparency = 1
+	tabsHolder.Position = UDim2.fromOffset(16, 68)
+	tabsHolder.Size = UDim2.fromOffset(400, 28)
+	tabsHolder.ZIndex = 30
+	tabsHolder.Parent = win
 
+	-- libro de recetas (izquierda)
+	NpcKit.Panel(win, theme, UDim2.fromOffset(250, 372), UDim2.fromOffset(16, 104), "inset")
 	listScroll = Instance.new("ScrollingFrame")
-	listScroll.Position = UDim2.fromOffset(16, 92)
-	listScroll.Size = UDim2.fromOffset(250, 354)
-	listScroll.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
+	listScroll.Position = UDim2.fromOffset(16, 104)
+	listScroll.Size = UDim2.fromOffset(250, 372)
+	listScroll.BackgroundTransparency = 1
 	listScroll.BorderSizePixel = 0
 	listScroll.ScrollBarThickness = 5
 	listScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	listScroll.CanvasSize = UDim2.fromOffset(0, 0)
+	listScroll.ZIndex = 3
 	listScroll.Parent = win
-	Instance.new("UICorner", listScroll)
 	local pad = Instance.new("UIPadding")
 	pad.PaddingTop, pad.PaddingLeft = UDim.new(0, 6), UDim.new(0, 6)
 	pad.Parent = listScroll
@@ -396,29 +443,49 @@ local function build()
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Parent = listScroll
 
-	local box = Instance.new("Frame")
-	box.Position = UDim2.fromOffset(278, 92)
-	box.Size = UDim2.fromOffset(346, 354)
-	box.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
-	box.BorderSizePixel = 0
-	box.Parent = win
-	Instance.new("UICorner", box)
-	UITheme.Border(box, theme, 2)
+	-- mesa / caldero (derecha)
+	local box = NpcKit.Panel(win, theme, UDim2.fromOffset(346, 372), UDim2.fromOffset(278, 104), "card")
+	local textColor = pal.Text
 
-	detail = UITheme.Text(box, "", 14, nil, UDim2.fromOffset(14, 8), UDim2.fromOffset(318, 190))
+	detail = UITheme.Text(box, "", 14, textColor, UDim2.fromOffset(14, 8), UDim2.fromOffset(318, 190))
 	detail.TextWrapped = true
 	detail.RichText = true
 	detail.TextYAlignment = Enum.TextYAlignment.Top
+	detail.TextStrokeTransparency = 1
+	detail.ZIndex = 4
 
-	resultLabel = UITheme.Text(box, "", 13, nil, UDim2.fromOffset(14, 208), UDim2.fromOffset(318, 38))
+	-- caldero con las casillas de ingredientes
+	ingBox = NpcKit.Panel(box, theme, UDim2.fromOffset(318, 86), UDim2.fromOffset(14, 84), "inset")
+	ingBox.Visible = false
+	ingBox.ZIndex = 4
+	local ingTitle = UITheme.Text(ingBox, "⚗ CALDERO · INGREDIENTES", 10, pal.Muted, UDim2.fromOffset(8, 2), UDim2.fromOffset(300, 14))
+	ingTitle.TextStrokeTransparency = 1
+	ingTitle.ZIndex = 6
+
+	canLine = UITheme.Text(box, "", 12, textColor, UDim2.fromOffset(14, 174), UDim2.fromOffset(318, 34))
+	canLine.TextWrapped = true
+	canLine.RichText = true
+	canLine.TextYAlignment = Enum.TextYAlignment.Top
+	canLine.TextStrokeTransparency = 1
+	canLine.ZIndex = 4
+
+	resultLabel = UITheme.Text(box, "", 13, textColor, UDim2.fromOffset(14, 210), UDim2.fromOffset(318, 34))
 	resultLabel.TextWrapped = true
 	resultLabel.RichText = true
 	resultLabel.TextYAlignment = Enum.TextYAlignment.Top
+	resultLabel.TextStrokeTransparency = 1
+	resultLabel.ZIndex = 4
+
+	prepLabel = UITheme.Text(box, "PREPARAR", 10, pal.Muted, UDim2.fromOffset(14, 246), UDim2.fromOffset(318, 14))
+	prepLabel.TextStrokeTransparency = 1
+	prepLabel.Visible = false
+	prepLabel.ZIndex = 4
 
 	actionBox = Instance.new("Frame")
 	actionBox.BackgroundTransparency = 1
 	actionBox.Position = UDim2.fromOffset(14, 262)
 	actionBox.Size = UDim2.fromOffset(318, 38)
+	actionBox.ZIndex = 4
 	actionBox.Parent = box
 
 	commonsButton = Instance.new("TextButton")
@@ -430,6 +497,7 @@ local function build()
 	commonsButton.TextSize = 14
 	commonsButton.Text = "Desmontar"
 	commonsButton.Visible = false
+	commonsButton.ZIndex = 10
 	commonsButton.Parent = box
 	Instance.new("UICorner", commonsButton)
 	picker = RarityPicker.new(box, UDim2.fromOffset(14, 248), function()

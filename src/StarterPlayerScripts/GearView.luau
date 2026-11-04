@@ -14,6 +14,7 @@ local Modules = ReplicatedStorage:WaitForChild("Modules", 10)
 local ItemCatalog = require(Modules:WaitForChild("ItemCatalog", 10))
 local GearCatalog = require(Modules:WaitForChild("GearCatalog", 10))
 local PlayerClass = require(Modules:WaitForChild("PlayerClass", 10))
+local PetCatalog = require(Modules:WaitForChild("PetCatalog", 10))
 local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
 
 local player = Players.LocalPlayer
@@ -21,10 +22,10 @@ local Items = ItemCatalog.Items :: { [string]: any }
 
 local GearView = {}
 
-GearView.StatOrder = { "Ataque", "Critico", "Defensa", "Vida", "Curacion", "Suerte", "Oro", "Xp", "Regen" }
+GearView.StatOrder = { "Ataque", "Critico", "Defensa", "Vida", "Curacion", "Suerte", "Oro", "Xp", "Regen", "Energia" }
 GearView.StatName = {
 	Ataque = "Ataque", Critico = "Crítico", Defensa = "Defensa", Vida = "Vida", Curacion = "Curación",
-	Suerte = "Suerte de botín", Oro = "Oro", Xp = "Experiencia", Regen = "Regeneración",
+	Suerte = "Suerte de botín", Oro = "Oro", Xp = "Experiencia", Regen = "Regeneración", Energia = "Regen. de energía",
 } :: { [string]: string }
 
 function GearView.Format(stat: string, v: number): string
@@ -52,6 +53,9 @@ end
 -- Nombre con el nivel de mejora: "+3 Casco de Acero"
 function GearView.DisplayName(item: any, plus: number?): string
 	local n = plus or 0
+	if item.Pet then
+		return if n > 0 then string.format("Nv.%d %s", n + 1, item.Name) else item.Name -- mascota: Plus = nivel - 1
+	end
 	if n >= 9 then
 		return string.format("★ +%d %s", n, item.Name) -- +9: al máximo
 	end
@@ -68,8 +72,9 @@ function GearView.Effects(item: any, plus: number?): { [string]: number }?
 		end
 		return out
 	elseif item.Pet then
+		local mult = PetCatalog.LevelMult(plus or 0)
 		for stat, v in pairs(item.Pet.Effects) do
-			out[stat] = v
+			out[stat] = v * mult
 		end
 		return out
 	end

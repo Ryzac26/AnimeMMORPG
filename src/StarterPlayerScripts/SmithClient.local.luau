@@ -2,8 +2,9 @@
 --[[
     SmithClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > SmithClient
     Ventana del HERRERO. Se abre al hablar con el herrero de tu ciudad (botón "Hablar").
-      Izquierda: tu equipo mejorable (lo que llevas puesto primero, luego lo de la mochila).
-      Derecha: estadísticas ahora -> después de la mejora, probabilidad, costo en oro y gemas, y el botón "Mejorar".
+      Izquierda: estantes con tu equipo mejorable (lo que llevas puesto primero, luego lo de la mochila).
+      Derecha: YUNQUE con la pieza elegida (+N), huecos de gema y pergamino, estadísticas antes -> después, barra de probabilidad,
+      avisos de caída/rotura, costo en oro y el botón "Mejorar". Estilo por facción: NpcKit.
     Todo lo decide el servidor (HerreroService); esta ventana solo muestra y pide. Se puede mover arrastrando el título.
     Se cierra sola si te alejas del herrero.
 ]]
@@ -19,6 +20,7 @@ local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local GearView = require(script.Parent:WaitForChild("GearView", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
+local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 
 local CLOSE_DISTANCE = 32 -- studs: más lejos del herrero y la ventana se cierra
 
@@ -47,11 +49,42 @@ local useScroll = false
 local forgeSlot: Frame
 local forgeStroke: UIStroke
 local forgeName: TextLabel
-local titleLabel: TextLabel
-local subtitleLabel: TextLabel
+local plusLabel: TextLabel
+local whereLabel: TextLabel
+local rateFill: Frame
+local rateText: TextLabel
+local rateBack: Frame
+local warnLabel: TextLabel
+local costLabel: TextLabel
+local gemCount: TextLabel
+local gemStroke: UIStroke
+local scrollCount: TextLabel
+local scrollStroke: UIStroke
 local selected: { Kind: string, Key: any }? = nil
 local smithPosition: Vector3? = nil
 local smithName, smithTitle = "Herrero", ""
+
+-- colores de texto sobre los paneles claros (pergamino Shinobi) u oscuros del resto
+local function tone(name: string): string
+	if NpcKit.Key(theme) == "Shinobi" then
+		if name == "green" then
+			return "#1f6b2e"
+		elseif name == "red" then
+			return "#a01818"
+		elseif name == "gold" then
+			return "#7a4e00"
+		end
+		return "#5c4a30"
+	end
+	if name == "green" then
+		return GREEN
+	elseif name == "red" then
+		return RED
+	elseif name == "gold" then
+		return GOLD
+	end
+	return GRAY
+end
 
 local function withCommas(n: number): string
 	local s = tostring(math.floor(n))
@@ -119,12 +152,28 @@ local function currentEntry(): Entry?
 end
 
 local function refreshDetail()
+	local pal = NpcKit.Palette(theme)
 	local e = currentEntry()
+	local gemsHave = gemsOwned()
+	local scrolls = scrollsOwned()
+	detail.TextColor3 = pal.Text
+	warnLabel.TextColor3 = pal.Muted
 	if not e then
-		forgeName.Text = "Elige una pieza a la izquierda"
+		forgeName.Text = "Elige una pieza"
 		forgeName.TextColor3 = Color3.fromRGB(170, 170, 185)
+		plusLabel.Text = ""
+		whereLabel.Text = "Pon una pieza sobre el yunque"
 		forgeStroke.Color = theme.Secondary
-		detail.Text = "Las piezas que llevas puestas y las de tu mochila aparecen en la lista. Elige una para ver cuánto mejora y cuánto cuesta."
+		detail.Text = "Las piezas que llevas puestas y las de tu mochila aparecen en los estantes. Elige una para ver cuánto mejora y cuánto cuesta."
+		warnLabel.Text = ""
+		costLabel.Text = ""
+		rateBack.Visible = false
+		gemCount.Text = string.format("x%d", gemsHave)
+		gemCount.TextColor3 = Color3.fromRGB(170, 170, 185)
+		gemStroke.Color = Color3.fromRGB(90, 90, 110)
+		scrollCount.Text = string.format("x%d", scrolls)
+		scrollCount.TextColor3 = Color3.fromRGB(170, 170, 185)
+		scrollStroke.Color = Color3.fromRGB(90, 90, 110)
 		goButton.Visible = false
 		scrollButton.Visible = false
 		return
@@ -134,61 +183,79 @@ local function refreshDetail()
 	forgeName.Text = GearView.DisplayName(item, e.Plus)
 	forgeName.TextColor3 = col
 	forgeStroke.Color = col
-	local lines = { string.format('<font size="12" color="%s">%s</font>', GRAY, if e.Worn then "Puesto en " .. (ItemCatalog.SlotDisplay[item.Slot] or item.Slot) else "En la mochila") }
+	plusLabel.Text = if e.Plus > 0 then string.format("+%d", e.Plus) else "+0"
+	plusLabel.TextColor3 = if e.Plus >= EnhanceCatalog.MaxPlus then Color3.fromRGB(255, 214, 90) else Color3.new(1, 1, 1)
+	whereLabel.Text = if e.Worn then "Puesto en " .. (ItemCatalog.SlotDisplay[item.Slot] or item.Slot) else "En la mochila · " .. (ItemCatalog.SlotDisplay[item.Slot] or item.Slot)
 	if e.Plus >= EnhanceCatalog.MaxPlus then
-		table.insert(lines, string.format('<font color="%s">Esta pieza ya está al máximo (+%d).</font>', GREEN, EnhanceCatalog.MaxPlus))
-		detail.Text = table.concat(lines, "\n")
+		detail.Text = string.format('<font color="%s">Esta pieza ya está al máximo (+%d).</font>', tone("green"), EnhanceCatalog.MaxPlus)
+		warnLabel.Text = ""
+		costLabel.Text = ""
+		rateBack.Visible = false
+		gemCount.Text = string.format("x%d", gemsHave)
+		gemCount.TextColor3 = Color3.fromRGB(170, 170, 185)
+		gemStroke.Color = Color3.fromRGB(90, 90, 110)
+		scrollCount.Text = string.format("x%d", scrolls)
+		scrollCount.TextColor3 = Color3.fromRGB(170, 170, 185)
+		scrollStroke.Color = Color3.fromRGB(90, 90, 110)
 		goButton.Visible = false
 		scrollButton.Visible = false
 		return
 	end
 	local target = e.Plus + 1
-	table.insert(lines, string.format('<font color="%s">+%d  →  +%d</font>', GOLD, e.Plus, target))
-	table.insert(lines, "")
+	local lines = { string.format('<font color="%s">+%d  →  +%d</font>', tone("gold"), e.Plus, target) }
 	local now = GearView.Effects(item, e.Plus) or {}
 	local after = GearView.Effects(item, target) or {}
 	for _, stat in ipairs(GearView.StatOrder) do
 		if now[stat] then
-			table.insert(lines, string.format('%s: %s  <font color="%s">→ %s</font>', GearView.StatName[stat], GearView.Format(stat, now[stat]), GREEN, GearView.Format(stat, after[stat] or 0)))
+			table.insert(lines, string.format('%s: %s  <font color="%s">→ %s</font>', GearView.StatName[stat], GearView.Format(stat, now[stat]), tone("green"), GearView.Format(stat, after[stat] or 0)))
 		end
 	end
-	table.insert(lines, "")
+	detail.Text = table.concat(lines, "\n")
+
+	-- probabilidad: barra de color + avisos de caída / rotura
 	local rate = EnhanceCatalog.SuccessRate[target] or 0
-	table.insert(lines, string.format("Probabilidad de éxito: <b>%d%%</b>", math.floor(rate * 100 + 0.5)))
+	local pct = math.floor(rate * 100 + 0.5)
 	local drop = EnhanceCatalog.FailDrop[target] or 0
+	rateBack.Visible = true
+	rateFill.Size = UDim2.fromScale(math.clamp(rate, 0.02, 1), 1)
+	rateFill.BackgroundColor3 = if rate >= 0.9 then Color3.fromRGB(80, 200, 100) elseif rate >= 0.4 then Color3.fromRGB(230, 200, 60) elseif rate >= 0.15 then Color3.fromRGB(235, 140, 50) else Color3.fromRGB(220, 60, 60)
+	rateText.Text = string.format("Éxito %d%%", pct)
+	local notes: { string } = {}
 	if rate < 1 then
 		local brk = EnhanceCatalog.BreakChance[target] or 0
-		local failText = if drop > 0 then string.format("si falla, baja a +%d", math.max(0, e.Plus - drop)) else "si falla, no pierdes el nivel"
+		local failText = if drop > 0 then string.format("Si falla, baja a +%d", math.max(0, e.Plus - drop)) else "Si falla, no pierdes el nivel"
 		if brk > 0 then
-			table.insert(lines, string.format('<font size="12" color="%s">%s, o <font color="%s">SE ROMPE (%d%% de los fallos)</font></font>', GRAY, failText, RED, math.floor(brk * 100 + 0.5)))
+			table.insert(notes, string.format('%s, o <font color="%s">SE ROMPE (%d%% de los fallos)</font>', failText, tone("red"), math.floor(brk * 100 + 0.5)))
 		else
-			table.insert(lines, string.format('<font size="12" color="%s">%s (el objeto no se rompe)</font>', GRAY, failText))
+			table.insert(notes, failText .. " (el objeto no se rompe)")
 		end
 	end
-	table.insert(lines, "")
-	local goldCost = EnhanceCatalog.GoldCost(item, target)
-	local gems = EnhanceCatalog.Gems[target]
-	local goldNow = player:GetAttribute("Gold")
-	local haveGold = if typeof(goldNow) == "number" then goldNow else 0
-	local haveGems = gemsOwned()
-	table.insert(lines, string.format('Oro: <font color="%s">%s</font> / %s', if haveGold >= goldCost then GREEN else RED, withCommas(haveGold), withCommas(goldCost)))
-	table.insert(lines, string.format('Gemas de Mejora: <font color="%s">%d</font> / %d', if haveGems >= gems then GREEN else RED, haveGems, gems))
-	detail.Text = table.concat(lines, "\n")
-	goButton.Visible = true
-	goButton.Text = if rate >= 1 then "Mejorar" else "Intentar mejora"
-	-- Pergamino de Protección: solo tiene sentido si fallar baja la pieza (+8 y +9)
-	local scrolls = scrollsOwned()
 	scrollButton.Visible = drop > 0
-	goButton.Size = if drop > 0 then UDim2.fromOffset(196, 38) else UDim2.fromOffset(318, 38)
+	goButton.Size = if drop > 0 then UDim2.fromOffset(286, 40) else UDim2.fromOffset(416, 40)
 	if drop > 0 then
 		if scrolls < 1 then
 			useScroll = false
 		end
 		scrollButton.Text = if useScroll then "🛡 Pergamino: SÍ" else string.format("🛡 Pergamino (%d)", scrolls)
 		scrollButton.BackgroundColor3 = if useScroll then Color3.fromRGB(150, 90, 190) elseif scrolls > 0 then Color3.fromRGB(70, 70, 100) else Color3.fromRGB(60, 55, 60)
-		table.insert(lines, string.format('<font size="12" color="%s">Pergamino de Protección: si falla, la pieza NO baja ni se rompe (tienes %d). Solo se gasta si el intento falla.</font>', GRAY, scrolls))
-		detail.Text = table.concat(lines, "\n")
+		table.insert(notes, "Pergamino: si falla, la pieza NO baja ni se rompe. Solo se gasta si falla.")
 	end
+	warnLabel.Text = table.concat(notes, "\n")
+
+	-- coste: oro (en la barra de abajo) y gemas (en su casilla)
+	local goldCost = EnhanceCatalog.GoldCost(item, target)
+	local gems = EnhanceCatalog.Gems[target]
+	local goldNow = player:GetAttribute("Gold")
+	local haveGold = if typeof(goldNow) == "number" then goldNow else 0
+	costLabel.Text = string.format('Oro: <font color="%s">%s</font> / %s', if haveGold >= goldCost then GREEN else RED, withCommas(haveGold), withCommas(goldCost))
+	gemCount.Text = string.format("%d / %d", gemsHave, gems)
+	gemCount.TextColor3 = if gemsHave >= gems then Color3.fromRGB(111, 220, 127) else Color3.fromRGB(255, 107, 107)
+	gemStroke.Color = if gemsHave >= gems then Color3.fromRGB(111, 220, 127) else Color3.fromRGB(255, 107, 107)
+	scrollCount.Text = if drop > 0 then (if useScroll then "ACTIVO" else string.format("x%d", scrolls)) else "—"
+	scrollCount.TextColor3 = if useScroll and drop > 0 then Color3.fromRGB(200, 150, 255) else Color3.fromRGB(170, 170, 185)
+	scrollStroke.Color = if useScroll and drop > 0 then Color3.fromRGB(200, 150, 255) else Color3.fromRGB(90, 90, 110)
+	goButton.Visible = true
+	goButton.Text = if rate >= 1 then "Mejorar" else "Intentar mejora"
 end
 
 local function refreshList()
@@ -205,7 +272,7 @@ local function refreshList()
 		t.TextWrapped = true
 		t.Font = Enum.Font.Gotham
 		t.TextSize = 13
-		t.TextColor3 = Color3.fromRGB(170, 170, 185)
+		t.TextColor3 = NpcKit.Palette(theme).Muted
 		t.Text = "EQUIPADOS (0)\nEN LA MOCHILA (0)\n\nNo tienes equipo para mejorar. Consigue armas, armaduras o joyas y vuelve."
 		t.Parent = listScroll
 		return
@@ -219,7 +286,7 @@ local function refreshList()
 		h.BackgroundTransparency = 1
 		h.Font = UITheme.Font
 		h.TextSize = 13
-		h.TextColor3 = theme.Primary
+		h.TextColor3 = if NpcKit.Key(theme) == "Shinobi" then NpcKit.Palette(theme).Edge else theme.Primary
 		h.TextXAlignment = Enum.TextXAlignment.Left
 		h.Text = string.format("%s (%d)", text, count)
 		h.Parent = listScroll
@@ -231,7 +298,7 @@ local function refreshList()
 			none.BackgroundTransparency = 1
 			none.Font = Enum.Font.Gotham
 			none.TextSize = 11
-			none.TextColor3 = Color3.fromRGB(130, 130, 145)
+			none.TextColor3 = NpcKit.Palette(theme).Muted
 			none.TextXAlignment = Enum.TextXAlignment.Left
 			none.Text = "  (nada mejorable aquí)"
 			none.Parent = listScroll
@@ -307,105 +374,155 @@ local function build()
 	if win then
 		win:Destroy()
 	end
-	win = UITheme.Frame(gui, theme, UDim2.fromOffset(640, 460), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
-	WindowDrag.Attach(win, "Smith", 52, 50)
-	titleLabel = UITheme.Text(win, smithName, 20, theme.Primary, UDim2.fromOffset(18, 6), UDim2.fromOffset(500, 26))
-	subtitleLabel = UITheme.Text(win, smithTitle .. "  ·  arrastra el título para mover", 12, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(18, 30), UDim2.fromOffset(580, 16))
+	local W = 700
+	win = UITheme.Frame(gui, theme, UDim2.fromOffset(W, 520), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
+	WindowDrag.Attach(win, "Smith", 60, 50)
+	NpcKit.Header(win, theme, W, smithName, (if smithTitle ~= "" then smithTitle .. "  ·  " else "") .. "Fragua de mejoras  ·  arrastra el rótulo para mover", "⚒")
 
 	local close = Instance.new("TextButton")
-	close.Position = UDim2.new(1, -38, 0, 8)
+	close.Position = UDim2.new(1, -40, 0, 14)
 	close.Size = UDim2.fromOffset(28, 28)
 	close.Text = "X"
 	close.BackgroundTransparency = 1
 	close.TextColor3 = Color3.fromRGB(255, 120, 120)
 	close.Font = UITheme.Font
 	close.TextSize = 18
+	close.ZIndex = 30
 	close.Parent = win
 	close.Activated:Connect(function()
 		gui.Enabled = false
 	end)
 
+	-- ESTANTES (izquierda): tu equipo mejorable
+	local shelves = NpcKit.Panel(win, theme, UDim2.fromOffset(240, 430), UDim2.fromOffset(16, 70), "inset")
 	listScroll = Instance.new("ScrollingFrame")
-	listScroll.Position = UDim2.fromOffset(16, 62)
-	listScroll.Size = UDim2.fromOffset(250, 384)
-	listScroll.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
+	listScroll.Position = UDim2.fromOffset(4, 4)
+	listScroll.Size = UDim2.fromOffset(232, 422)
+	listScroll.BackgroundTransparency = 1
 	listScroll.BorderSizePixel = 0
 	listScroll.ScrollBarThickness = 5
 	listScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	listScroll.CanvasSize = UDim2.fromOffset(0, 0)
-	listScroll.Parent = win
-	Instance.new("UICorner", listScroll)
+	listScroll.ZIndex = 3
+	listScroll.Parent = shelves
 	local pad = Instance.new("UIPadding")
-	pad.PaddingTop, pad.PaddingLeft = UDim.new(0, 6), UDim.new(0, 6)
+	pad.PaddingTop, pad.PaddingLeft = UDim.new(0, 6), UDim.new(0, 4)
 	pad.Parent = listScroll
 	local layout = Instance.new("UIListLayout")
 	layout.Padding = UDim.new(0, 5)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Parent = listScroll
 
-	local box = Instance.new("Frame")
-	box.Position = UDim2.fromOffset(278, 62)
-	box.Size = UDim2.fromOffset(346, 384)
-	box.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
-	box.BorderSizePixel = 0
-	box.Parent = win
-	Instance.new("UICorner", box)
-	UITheme.Border(box, theme, 2)
+	-- YUNQUE (derecha, arriba): pieza elegida al centro, gemas a la izquierda, pergamino a la derecha
+	local stage = NpcKit.Panel(win, theme, UDim2.fromOffset(416, 180), UDim2.fromOffset(268, 70), "plate")
+	local function slotBox(x: number, caption: string, icon: string): (TextLabel, UIStroke)
+		UITheme.Text(stage, caption, 10, NpcKit.Palette(theme).Muted, UDim2.fromOffset(x, 8), UDim2.fromOffset(84, 12), Enum.TextXAlignment.Center)
+		local sb = Instance.new("Frame")
+		sb.Position = UDim2.fromOffset(x, 24)
+		sb.Size = UDim2.fromOffset(84, 84)
+		sb.BackgroundColor3 = Color3.fromRGB(18, 16, 24)
+		sb.BorderSizePixel = 0
+		sb.Parent = stage
+		Instance.new("UICorner", sb).CornerRadius = UDim.new(0, if NpcKit.Key(theme) == "Saiyan" then 3 else 10)
+		local st = Instance.new("UIStroke")
+		st.Thickness = 2
+		st.Color = Color3.fromRGB(90, 90, 110)
+		st.Parent = sb
+		UITheme.Text(sb, icon, 30, Color3.new(1, 1, 1), UDim2.fromOffset(0, 8), UDim2.fromOffset(84, 38), Enum.TextXAlignment.Center)
+		local cnt = UITheme.Text(sb, "", 14, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(0, 56), UDim2.fromOffset(84, 20), Enum.TextXAlignment.Center)
+		return cnt, st
+	end
+	gemCount, gemStroke = slotBox(14, "GEMAS", "💎")
+	scrollCount, scrollStroke = slotBox(318, "PERGAMINO", "🛡")
 
-	-- RANURA DE FORJA: aquí queda la pieza elegida
 	forgeSlot = Instance.new("Frame")
-	forgeSlot.Position = UDim2.fromOffset(14, 10)
-	forgeSlot.Size = UDim2.fromOffset(318, 50)
-	forgeSlot.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+	forgeSlot.Position = UDim2.fromOffset(108, 10)
+	forgeSlot.Size = UDim2.fromOffset(200, 98)
+	forgeSlot.BackgroundColor3 = Color3.fromRGB(20, 18, 26)
 	forgeSlot.BorderSizePixel = 0
-	forgeSlot.Parent = box
-	Instance.new("UICorner", forgeSlot)
+	forgeSlot.Parent = stage
+	Instance.new("UICorner", forgeSlot).CornerRadius = UDim.new(0, if NpcKit.Key(theme) == "Saiyan" then 3 else 8)
 	forgeStroke = Instance.new("UIStroke")
 	forgeStroke.Thickness = 2
 	forgeStroke.Color = theme.Secondary
 	forgeStroke.Parent = forgeSlot
-	UITheme.Text(forgeSlot, "FORJA", 10, Color3.fromRGB(140, 140, 155), UDim2.fromOffset(10, 3), UDim2.fromOffset(100, 12))
-	forgeName = UITheme.Text(forgeSlot, "Elige una pieza a la izquierda", 15, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(10, 18), UDim2.fromOffset(298, 28))
+	forgeName = UITheme.Text(forgeSlot, "Elige una pieza", 13, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(8, 4), UDim2.fromOffset(184, 34), Enum.TextXAlignment.Center)
+	forgeName.TextWrapped = true
 	forgeName.TextTruncate = Enum.TextTruncate.AtEnd
+	plusLabel = UITheme.Text(forgeSlot, "", 38, Color3.new(1, 1, 1), UDim2.fromOffset(0, 40), UDim2.fromOffset(200, 52), Enum.TextXAlignment.Center)
+	plusLabel.TextStrokeTransparency = 0.2
+	-- el yunque (hierro): cara, cintura y base
+	local function iron(x: number, y: number, w: number, h: number, c1: Color3, c2: Color3)
+		local f = Instance.new("Frame")
+		f.Position = UDim2.fromOffset(x, y)
+		f.Size = UDim2.fromOffset(w, h)
+		f.BackgroundColor3 = c1
+		f.BorderSizePixel = 0
+		f.Parent = stage
+		Instance.new("UICorner", f).CornerRadius = UDim.new(0, 3)
+		local g = Instance.new("UIGradient")
+		g.Color = ColorSequence.new(c1, c2)
+		g.Rotation = 90
+		g.Parent = f
+	end
+	iron(78, 114, 260, 12, Color3.fromRGB(150, 150, 168), Color3.fromRGB(70, 70, 84)) -- cara
+	iron(58, 114, 28, 8, Color3.fromRGB(130, 130, 148), Color3.fromRGB(70, 70, 84)) -- cuerno
+	iron(140, 126, 136, 12, Color3.fromRGB(86, 86, 100), Color3.fromRGB(52, 52, 64)) -- cintura
+	iron(112, 138, 192, 12, Color3.fromRGB(70, 70, 84), Color3.fromRGB(40, 40, 50)) -- base
+	whereLabel = UITheme.Text(stage, "", 12, NpcKit.Palette(theme).Muted, UDim2.fromOffset(0, 156), UDim2.fromOffset(416, 16), Enum.TextXAlignment.Center)
 
-	detail = UITheme.Text(box, "", 14, nil, UDim2.fromOffset(14, 70), UDim2.fromOffset(318, 216))
+	-- DATOS: estadísticas antes -> después, barra de éxito y avisos
+	local info = NpcKit.Panel(win, theme, UDim2.fromOffset(416, 144), UDim2.fromOffset(268, 254), "inset")
+	detail = UITheme.Text(info, "", 13, nil, UDim2.fromOffset(12, 6), UDim2.fromOffset(392, 80))
 	detail.TextWrapped = true
 	detail.RichText = true
 	detail.TextYAlignment = Enum.TextYAlignment.Top
+	rateBack = Instance.new("Frame")
+	rateBack.Position = UDim2.fromOffset(12, 90)
+	rateBack.Size = UDim2.fromOffset(392, 16)
+	rateBack.BackgroundColor3 = Color3.fromRGB(14, 12, 18)
+	rateBack.BorderSizePixel = 0
+	rateBack.Visible = false
+	rateBack.Parent = info
+	Instance.new("UICorner", rateBack).CornerRadius = UDim.new(0, 6)
+	rateFill = Instance.new("Frame")
+	rateFill.Size = UDim2.fromScale(0, 1)
+	rateFill.BackgroundColor3 = Color3.fromRGB(80, 200, 100)
+	rateFill.BorderSizePixel = 0
+	rateFill.Parent = rateBack
+	Instance.new("UICorner", rateFill).CornerRadius = UDim.new(0, 6)
+	rateText = UITheme.Text(rateBack, "", 11, Color3.new(1, 1, 1), UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
+	rateText.ZIndex = 3
+	warnLabel = UITheme.Text(info, "", 11, nil, UDim2.fromOffset(12, 110), UDim2.fromOffset(392, 32))
+	warnLabel.TextWrapped = true
+	warnLabel.RichText = true
+	warnLabel.TextYAlignment = Enum.TextYAlignment.Top
 
-	resultLabel = UITheme.Text(box, "", 14, nil, UDim2.fromOffset(14, 290), UDim2.fromOffset(318, 42))
+	costLabel = UITheme.Text(win, "", 14, nil, UDim2.fromOffset(268, 402), UDim2.fromOffset(416, 18), Enum.TextXAlignment.Center)
+	costLabel.RichText = true
+	resultLabel = UITheme.Text(win, "", 14, nil, UDim2.fromOffset(268, 422), UDim2.fromOffset(416, 34))
 	resultLabel.TextWrapped = true
 	resultLabel.RichText = true
 	resultLabel.TextYAlignment = Enum.TextYAlignment.Top
+	resultLabel.TextXAlignment = Enum.TextXAlignment.Center
 
-	goButton = Instance.new("TextButton")
-	goButton.Position = UDim2.fromOffset(14, 336)
-	goButton.Size = UDim2.fromOffset(318, 38)
-	goButton.BackgroundColor3 = Color3.fromRGB(50, 130, 70)
-	goButton.TextColor3 = Color3.new(1, 1, 1)
-	goButton.Font = UITheme.Font
+	goButton = NpcKit.Button(win, theme, "Mejorar", UDim2.fromOffset(416, 40), UDim2.fromOffset(268, 460), "action", nil)
 	goButton.TextSize = 16
-	goButton.Text = "Mejorar"
 	goButton.Visible = false
-	goButton.Parent = box
-	Instance.new("UICorner", goButton)
 	goButton.Activated:Connect(function()
 		local e = currentEntry()
 		if e and actionRemote then
 			actionRemote:FireServer("Enhance", e.Kind, e.Key, useScroll)
 		end
 	end)
-	scrollButton = Instance.new("TextButton")
-	scrollButton.Position = UDim2.fromOffset(218, 336)
-	scrollButton.Size = UDim2.fromOffset(114, 38)
-	scrollButton.BackgroundColor3 = Color3.fromRGB(70, 70, 100)
-	scrollButton.TextColor3 = Color3.new(1, 1, 1)
-	scrollButton.Font = UITheme.Font
+	scrollButton = NpcKit.Button(win, theme, "", UDim2.fromOffset(124, 40), UDim2.fromOffset(560, 460), "neutral", nil)
 	scrollButton.TextSize = 12
-	scrollButton.TextWrapped = true
+	local sg = scrollButton:FindFirstChildOfClass("UIGradient")
+	if sg then
+		sg:Destroy() -- el color del botón lo cambia refreshDetail
+	end
+	scrollButton.BackgroundColor3 = Color3.fromRGB(70, 70, 100)
 	scrollButton.Visible = false
-	scrollButton.Parent = box
-	Instance.new("UICorner", scrollButton)
 	scrollButton.Activated:Connect(function()
 		if scrollsOwned() < 1 then
 			resultLabel.Text = string.format('<font color="%s">No tienes Pergaminos de Protección (Tienda > Objetos).</font>', RED)
