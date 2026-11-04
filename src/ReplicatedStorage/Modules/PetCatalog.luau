@@ -51,17 +51,19 @@ PetCatalog.Families = {
 PetCatalog.FamilyOrder = { "Suerte", "Fortuna", "Sabiduria", "Guardian", "Furia", "Fenix", "Dragon", "Hada", "Lobo" }
 
 -- Aspecto del cuerpo que te sigue (PetFollowClient): colores y forma por familia.
---   Body/Accent: colores principales · Flies: flota en el aire (si no, camina/salta) · Ears/Tail/Wings/Horns/Shell/Stripes: rasgos
+--   Species: forma propia que dibuja PetFollowClient · Body/Accent/Belly: colores (cuerpo, detalles, panza)
+--   Flies: flota en el aire (si no, camina/salta) · Ears/Tail/Wings/Horns/Shell/Stripes/Snout: rasgos
+--   Fire/Sparkle: efectos · Charm: adorno propio (Clover = trébol, Leaf = hoja y saco)
 PetCatalog.Looks = {
-	Suerte = { Body = Color3.fromRGB(240, 140, 60), Accent = Color3.fromRGB(255, 245, 230), Flies = false, Ears = true, Tail = true },
-	Fortuna = { Body = Color3.fromRGB(150, 110, 75), Accent = Color3.fromRGB(235, 215, 170), Flies = false, Ears = true, Tail = true },
-	Sabiduria = { Body = Color3.fromRGB(165, 130, 90), Accent = Color3.fromRGB(240, 225, 190), Flies = true, Wings = true, Horns = true },
-	Guardian = { Body = Color3.fromRGB(80, 160, 100), Accent = Color3.fromRGB(150, 110, 60), Flies = false, Shell = true },
-	Furia = { Body = Color3.fromRGB(245, 170, 50), Accent = Color3.fromRGB(40, 30, 25), Flies = false, Ears = true, Tail = true, Stripes = true },
-	Fenix = { Body = Color3.fromRGB(255, 110, 40), Accent = Color3.fromRGB(255, 215, 90), Flies = true, Wings = true, Tail = true, Fire = true },
-	Dragon = { Body = Color3.fromRGB(120, 70, 190), Accent = Color3.fromRGB(255, 200, 80), Flies = true, Wings = true, Horns = true, Tail = true },
-	Hada = { Body = Color3.fromRGB(255, 170, 220), Accent = Color3.fromRGB(190, 240, 255), Flies = true, Wings = true, Sparkle = true },
-	Lobo = { Body = Color3.fromRGB(70, 75, 100), Accent = Color3.fromRGB(150, 190, 255), Flies = false, Ears = true, Tail = true },
+	Suerte = { Species = "Zorro", Body = Color3.fromRGB(240, 140, 60), Accent = Color3.fromRGB(255, 245, 230), Belly = Color3.fromRGB(255, 245, 230), Flies = false, Ears = true, Tail = true, Snout = true, Charm = "Clover" },
+	Fortuna = { Species = "Tanuki", Body = Color3.fromRGB(150, 110, 75), Accent = Color3.fromRGB(235, 215, 170), Belly = Color3.fromRGB(235, 215, 170), Flies = false, Ears = true, Tail = true, Snout = true, Charm = "Leaf" },
+	Sabiduria = { Species = "Buho", Body = Color3.fromRGB(165, 130, 90), Accent = Color3.fromRGB(240, 225, 190), Belly = Color3.fromRGB(240, 225, 190), Flies = true, Wings = true, Horns = true },
+	Guardian = { Species = "Tortuga", Body = Color3.fromRGB(80, 160, 100), Accent = Color3.fromRGB(150, 110, 60), Belly = Color3.fromRGB(170, 210, 140), Flies = false, Shell = true, Tail = true },
+	Furia = { Species = "Tigre", Body = Color3.fromRGB(245, 170, 50), Accent = Color3.fromRGB(40, 30, 25), Belly = Color3.fromRGB(255, 240, 220), Flies = false, Ears = true, Tail = true, Stripes = true, Snout = true },
+	Fenix = { Species = "Fenix", Body = Color3.fromRGB(255, 110, 40), Accent = Color3.fromRGB(255, 215, 90), Belly = Color3.fromRGB(255, 215, 90), Flies = true, Wings = true, Tail = true, Fire = true },
+	Dragon = { Species = "Dragon", Body = Color3.fromRGB(120, 70, 190), Accent = Color3.fromRGB(255, 200, 80), Belly = Color3.fromRGB(255, 200, 80), Flies = true, Wings = true, Horns = true, Tail = true, Snout = true },
+	Hada = { Species = "Hada", Body = Color3.fromRGB(255, 170, 220), Accent = Color3.fromRGB(190, 240, 255), Belly = Color3.fromRGB(255, 230, 245), Flies = true, Wings = true, Sparkle = true },
+	Lobo = { Species = "Lobo", Body = Color3.fromRGB(70, 75, 100), Accent = Color3.fromRGB(150, 190, 255), Belly = Color3.fromRGB(150, 160, 190), Flies = false, Ears = true, Tail = true, Snout = true },
 } :: { [string]: { [string]: any } }
 
 local EFFECT_TEXT: { [string]: string } = {
