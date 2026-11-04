@@ -321,6 +321,27 @@ function Inventory.GetPlus(player: Player, kind: string, key: any): (string?, nu
 	return nil, 0
 end
 
+-- Destruye una pieza (se rompió al mejorar). kind/key como GetPlus. Devuelve true si existía.
+function Inventory.RemovePiece(player: Player, kind: string, key: any): boolean
+	local st = states[player]
+	if not st then
+		return false
+	end
+	if kind == "Equip" and typeof(key) == "string" and st.Equip[key] then
+		st.Equip[key] = nil
+		st.EquipPlus[key] = nil
+		st.EquipLocked[key] = nil
+		player:SetAttribute("Equip_" .. key, nil)
+		player:SetAttribute("EquipPlus_" .. key, nil)
+	elseif kind == "Bag" and typeof(key) == "number" and st.Bag[math.floor(key)] then
+		st.Bag[math.floor(key)] = nil
+	else
+		return false
+	end
+	push(player)
+	return true
+end
+
 function Inventory.SetPlus(player: Player, kind: string, key: any, plus: number): boolean
 	local st = states[player]
 	if not st then
@@ -440,6 +461,65 @@ local function equipBest(player: Player, st: State)
 		end
 	end
 	Net.Get("Notify"):FireClient(player, if changed > 0 then string.format("Mejor set: %d pieza(s) cambiadas", changed) else "Ya llevas lo mejor que puedes usar")
+end
+
+-- EQUIPO POR ROL (pase Maestría Multiclase): foto de lo que llevas puesto ({ ranura -> { Id, Plus } }) para guardarla por rol
+function Inventory.GetLoadout(player: Player): { [string]: { Id: string, Plus: number } }
+	local out: { [string]: { Id: string, Plus: number } } = {}
+	local st = states[player]
+	if st then
+		for slotName, id in pairs(st.Equip) do
+			local item: any = (ItemCatalog.Items :: any)[id]
+			if item and item.Gear and not item.Pet then
+				out[slotName] = { Id = id, Plus = st.EquipPlus[slotName] or 0 }
+			end
+		end
+	end
+	return out
+end
+
+-- Pone el equipo guardado de un rol (tras cambiar de rol): lo que ya no puedes usar vuelve a la mochila y se equipan las piezas
+-- guardadas que sigan en la mochila. Sin equipo guardado (primera vez en ese rol) usa "mejor set".
+function Inventory.ApplyLoadout(player: Player, saved: { [string]: { Id: string, Plus: number } }?)
+	local st = states[player]
+	if not st then
+		return
+	end
+	-- 1) fuera lo que el rol nuevo no puede usar
+	for _, slotName in ipairs(ItemCatalog.EquipSlots) do
+		local curId = st.Equip[slotName]
+		if curId and not GearService.CanEquip(player, curId) then
+			local plus = st.EquipPlus[slotName] or 0
+			if canFit(st, curId, 1, plus, st.EquipLocked[slotName]) then
+				local wasLocked = st.EquipLocked[slotName]
+				st.Equip[slotName] = nil
+				st.EquipPlus[slotName] = nil
+				st.EquipLocked[slotName] = nil
+				player:SetAttribute("Equip_" .. slotName, nil)
+				player:SetAttribute("EquipPlus_" .. slotName, nil)
+				Inventory.Add(player, curId, 1, if plus > 0 then plus else nil, wasLocked)
+			end
+		end
+	end
+	-- 2) dentro lo guardado (si sigue en la mochila)
+	local any = false
+	if saved then
+		for slotName, rec in pairs(saved) do
+			any = true
+			if not (st.Equip[slotName] == rec.Id and (st.EquipPlus[slotName] or 0) == rec.Plus) then
+				for i, stack in pairs(st.Bag) do
+					if stack.Id == rec.Id and (stack.Plus or 0) == rec.Plus and GearService.CanEquip(player, stack.Id) then
+						equip(player, st, i)
+						break
+					end
+				end
+			end
+		end
+	end
+	if not any then
+		equipBest(player, st)
+	end
+	push(player)
 end
 
 -- ORDENAR: junta lo apilable (pociones, materiales) y ordena todo por rareza (Mítico primero), luego equipo antes que materiales

@@ -7,7 +7,7 @@
       - Acercarse y usar el botón "Hablar" abre la ventana del herrero (SmithClient).
       - El cliente pide ("Enhance", "Equip", "Arma") o ("Enhance", "Bag", 7); el SERVIDOR valida todo:
         cerca del herrero, la pieza existe y es mejorable, oro y gemas suficientes, y tira el dado.
-      - Éxito: +1 al objeto. Fallo: se pierde el costo; en +7, +8 y +9 el objeto baja 1 nivel (salvo que uses un Pergamino de Protección: entonces se queda igual y se gasta el pergamino). Nunca se rompe.
+      - Éxito: +1 al objeto. Fallo: se pierde el costo; en +7, +8 y +9 el objeto baja 1 nivel o SE ROMPE (EnhanceCatalog.BreakChance), salvo que uses un Pergamino de Protección: entonces se queda igual y se gasta el pergamino. Al forjar un +9 ganas el título "Maestro Forjador" (se ve en el Perfil) y se anuncia al servidor.
       - Remotes: SmithOpen (servidor -> cliente: abrir ventana) · SmithAction (cliente -> servidor) · SmithResult (servidor -> cliente)
 ]]
 local CollectionService = game:GetService("CollectionService")
@@ -22,6 +22,33 @@ local Net = require(ServerScriptService.Services.Net)
 local PlayerData = require(ServerScriptService.Services.PlayerData)
 local Inventory = require(ServerScriptService.Services.InventoryService)
 local Wallet = require(ServerScriptService.Services.WalletService)
+
+local forged9: { [Player]: number } = {} -- cuántas piezas +9 ha forjado (da el título EnhanceCatalog.TitlePlus9)
+PlayerData.RegisterSerializer("Forja", function(player: Player): any?
+	local n = forged9[player]
+	return if n and n > 0 then { Plus9 = n } else nil
+end)
+local function loadForja(player: Player)
+	local data = PlayerData.WaitForData(player)
+	if not data or player.Parent == nil then
+		return
+	end
+	local raw: any = (data :: any).Forja
+	if typeof(raw) == "table" and typeof(raw.Plus9) == "number" and raw.Plus9 > 0 then
+		forged9[player] = math.floor(raw.Plus9)
+		player:SetAttribute("Forja9", forged9[player])
+		player:SetAttribute("TitleForja", EnhanceCatalog.TitlePlus9)
+	end
+end
+Players.PlayerAdded:Connect(function(pl)
+	task.spawn(loadForja, pl)
+end)
+for _, pl in ipairs(Players:GetPlayers()) do
+	task.spawn(loadForja, pl)
+end
+Players.PlayerRemoving:Connect(function(pl)
+	forged9[pl] = nil
+end)
 
 local OpenRemote = Net.Get("SmithOpen")
 local ActionRemote = Net.Get("SmithAction")
@@ -263,14 +290,23 @@ local function enhance(player: Player, kind: any, key: any, useScroll: any)
 		Inventory.SetPlus(player, kind, key, target)
 		reply(player, true, string.format("¡Éxito! %s", EnhanceCatalog.PlusName(name, target)), target)
 		if target >= EnhanceCatalog.MaxPlus then
+			forged9[player] = (forged9[player] or 0) + 1
+			player:SetAttribute("Forja9", forged9[player])
+			player:SetAttribute("TitleForja", EnhanceCatalog.TitlePlus9)
 			-- +9: hazaña anunciada a todo el servidor
 			Net.Get("Notify"):FireAllClients(string.format("★ ¡%s forjó %s al máximo!", player.DisplayName, EnhanceCatalog.PlusName(name, target)))
 		end
 	else
 		local drop = EnhanceCatalog.FailDrop[target] or 0
-		if drop > 0 and useScroll == true and Inventory.Consume(player, EnhanceCatalog.ScrollItem, 1) then
-			drop = 0
+		local breakChance = EnhanceCatalog.BreakChance[target] or 0
+		if (drop > 0 or breakChance > 0) and useScroll == true and Inventory.Consume(player, EnhanceCatalog.ScrollItem, 1) then
 			reply(player, false, string.format("Falló, pero el Pergamino de Protección salvó tu pieza: %s se mantiene en +%d.", name, plus), plus)
+			PlayerData.Save(player)
+			return
+		end
+		if breakChance > 0 and rng:NextNumber() < breakChance then
+			Inventory.RemovePiece(player, kind, key)
+			reply(player, false, string.format("¡%s SE ROMPIÓ! (Un Pergamino de Protección la habría salvado.)", EnhanceCatalog.PlusName(name, plus)), 0)
 			PlayerData.Save(player)
 			return
 		end

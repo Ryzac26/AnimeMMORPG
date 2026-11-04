@@ -157,8 +157,13 @@ local function refreshDetail()
 	table.insert(lines, string.format("Probabilidad de éxito: <b>%d%%</b>", math.floor(rate * 100 + 0.5)))
 	local drop = EnhanceCatalog.FailDrop[target] or 0
 	if rate < 1 then
+		local brk = EnhanceCatalog.BreakChance[target] or 0
 		local failText = if drop > 0 then string.format("si falla, baja a +%d", math.max(0, e.Plus - drop)) else "si falla, no pierdes el nivel"
-		table.insert(lines, string.format('<font size="12" color="%s">%s (el objeto nunca se rompe)</font>', GRAY, failText))
+		if brk > 0 then
+			table.insert(lines, string.format('<font size="12" color="%s">%s, o <font color="%s">SE ROMPE (%d%% de los fallos)</font></font>', GRAY, failText, RED, math.floor(brk * 100 + 0.5)))
+		else
+			table.insert(lines, string.format('<font size="12" color="%s">%s (el objeto no se rompe)</font>', GRAY, failText))
+		end
 	end
 	table.insert(lines, "")
 	local goldCost = EnhanceCatalog.GoldCost(item, target)
@@ -181,7 +186,7 @@ local function refreshDetail()
 		end
 		scrollButton.Text = if useScroll then "🛡 Pergamino: SÍ" else string.format("🛡 Pergamino (%d)", scrolls)
 		scrollButton.BackgroundColor3 = if useScroll then Color3.fromRGB(150, 90, 190) elseif scrolls > 0 then Color3.fromRGB(70, 70, 100) else Color3.fromRGB(60, 55, 60)
-		table.insert(lines, string.format('<font size="12" color="%s">Pergamino de Protección: si falla, la pieza no baja (tienes %d). Se gasta solo si de verdad iba a bajar.</font>', GRAY, scrolls))
+		table.insert(lines, string.format('<font size="12" color="%s">Pergamino de Protección: si falla, la pieza NO baja ni se rompe (tienes %d). Solo se gasta si el intento falla.</font>', GRAY, scrolls))
 		detail.Text = table.concat(lines, "\n")
 	end
 end

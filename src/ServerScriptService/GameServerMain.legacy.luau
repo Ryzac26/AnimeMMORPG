@@ -32,6 +32,7 @@ require(Services:WaitForChild("HerreroService")) -- herrero de cada ciudad: mejo
 require(Services:WaitForChild("PurchaseService")) -- compras repetibles: boost de XP y paquetes de horas (Tienda)
 require(Services:WaitForChild("InstructorService")) -- instructor de cada ciudad: cambio de clase gratis
 require(Services:WaitForChild("MercaderService")) -- mercader de cada ciudad: compra pociones, vende botín
+require(Services:WaitForChild("MasteryService")) -- maestría de rol + pase Multiclase (cambio de rol en cualquier lugar, equipo por rol)
 require(Services:WaitForChild("AlquimistaService")) -- alquimista de cada ciudad: fabrica pociones y desmonta equipo
 require(Services:WaitForChild("Mobs"):WaitForChild("MobService"))
 require(Services:WaitForChild("DevCommands"))

@@ -38,6 +38,28 @@ local function applyChoice(player: Player, faction: string, role: string)
 	player:SetAttribute("ClassChosen", true)
 end
 
+-- Cambio de rol SIN ir al Instructor (pase Maestría Multiclase; lo llama MasteryService, que ya validó todo).
+-- beforeSpawn se ejecuta con el rol nuevo ya puesto y antes de reaparecer (p. ej. para cambiar el equipo y que la vida salga bien).
+function ClassSelect.SwitchRole(player: Player, role: string, beforeSpawn: (() -> ())?): boolean
+	local faction = player:GetAttribute("Faction")
+	if not loaded[player] or busy[player] or typeof(faction) ~= "string" or not FactionClasses.FindClass(faction, role) then
+		return false
+	end
+	busy[player] = true
+	applyChoice(player, faction, role)
+	if beforeSpawn then
+		beforeSpawn()
+	end
+	PlayerData.Save(player)
+	task.wait(0.25)
+	if player.Parent then
+		player:LoadCharacter()
+	end
+	busy[player] = nil
+	return true
+end
+
+
 local function load(player: Player)
 	local data = PlayerData.WaitForData(player)
 	if not data or player.Parent == nil then

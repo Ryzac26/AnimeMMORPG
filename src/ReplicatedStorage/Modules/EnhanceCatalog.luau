@@ -6,7 +6,7 @@
       - Cada +n multiplica las estadísticas del objeto: GearCatalog.EnhanceMult(n) = 1 + 0.05n + 0.01n²  (+9 = x2.26)
       - Costo: oro (crece con n y con el nivel del objeto) + Gemas de Mejora (Mat_Gema, las sueltan los Metin).
       - Éxito: +1..+3 siempre salen. Desde +4 hay riesgo.
-      - Fallo: el objeto NUNCA se rompe. +4..+6: no pasa nada (pierdes el costo). +7, +8 y +9: baja 1 nivel (se evita con Pergamino de Protección).
+      - Fallo: el objeto NUNCA se rompe. +4..+6: no pasa nada (pierdes el costo). +7, +8 y +9: baja 1 nivel o SE ROMPE (BreakChance); el Pergamino de Protección evita las dos.
       - Llegar de +0 a +9 cuesta en promedio ~31 intentos, ~99 gemas y ~450.000 de oro en una pieza de nivel 100 (~45.000 en nivel 10).
 ]]
 local EnhanceCatalog = {}
@@ -15,13 +15,20 @@ EnhanceCatalog.MaxPlus = 9
 EnhanceCatalog.GemItem = "Mat_Gema"
 
 -- Probabilidad de éxito al intentar llegar a +n
--- Hasta +5 es fácil (≈5 intentos); de ahí en adelante se complica: +9 es el máximo y cuesta (≈100 intentos sin pergaminos, ≈14 con ellos desde +5)
-EnhanceCatalog.SuccessRate = { [1] = 1.00, [2] = 1.00, [3] = 1.00, [4] = 0.95, [5] = 0.90, [6] = 0.65, [7] = 0.45, [8] = 0.30, [9] = 0.15 } :: { [number]: number }
+-- Hasta +5 es fácil (≈5 intentos); de ahí en adelante es MUY duro: +9 es un gran mérito (≈29 intentos solo en el último tramo, ≈47 pergaminos de +6 a +9; sin pergaminos casi imposible)
+EnhanceCatalog.SuccessRate = { [1] = 1.00, [2] = 1.00, [3] = 1.00, [4] = 0.95, [5] = 0.90, [6] = 0.40, [7] = 0.15, [8] = 0.075, [9] = 0.035 } :: { [number]: number }
 
 -- Si falla el intento a +n: cuántos niveles baja el objeto (0 = se queda igual)
 EnhanceCatalog.FailDrop = { [1] = 0, [2] = 0, [3] = 0, [4] = 0, [5] = 0, [6] = 0, [7] = 1, [8] = 1, [9] = 1 } :: { [number]: number }
 
 EnhanceCatalog.ScrollItem = "Pergamino_Proteccion" -- evita que la pieza baje al fallar (solo importa en +7, +8 y +9)
+
+-- Al FALLAR el intento a +n: probabilidad de que la pieza SE ROMPA (desaparece). Si no se rompe, baja según FailDrop.
+-- El Pergamino de Protección evita ambas cosas: la pieza se queda igual (mismo nivel) y se gasta el pergamino.
+EnhanceCatalog.BreakChance = { [1] = 0, [2] = 0, [3] = 0, [4] = 0, [5] = 0, [6] = 0, [7] = 0.10, [8] = 0.20, [9] = 0.30 } :: { [number]: number }
+
+-- Título que se gana al forjar un +9
+EnhanceCatalog.TitlePlus9 = "Maestro Forjador"
 
 -- Gemas necesarias para intentar llegar a +n
 EnhanceCatalog.Gems = { [1] = 1, [2] = 1, [3] = 1, [4] = 2, [5] = 2, [6] = 3, [7] = 3, [8] = 4, [9] = 5 } :: { [number]: number }

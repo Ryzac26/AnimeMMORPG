@@ -110,7 +110,7 @@ ProductCatalog.Products = {
 	-- OBJETOS (sin bloqueo entre sí ni con los paquetes): se entregan en la mochila
 	{
 		Key = "Pergamino1", Group = "Objetos", Kind = "Item", Lane = "Objetos", Price = 25, Name = "Pergamino de Protección",
-		Desc = "Evita que tu equipo baje de nivel al fallar una mejora +7, +8 o +9 en el Herrero.",
+		Desc = "Evita que tu equipo baje de nivel o se ROMPA al fallar una mejora +7, +8 o +9 en el Herrero.",
 		ProductId = 2067307786, PriceText = "25 R$", DailyLimit = 20, MinLevel = 1, Items = { Pergamino_Proteccion = 1 },
 	},
 	{
@@ -137,7 +137,7 @@ export type Pass = {
 	Icon: string?,
 }
 -- Solo Studio: pases que TU cuenta tendrá "comprados" para probar. false = como un jugador sin el pase.
-ProductCatalog.DevOwnPasses = { Belt = false, Merchant = false } :: { [string]: boolean }
+ProductCatalog.DevOwnPasses = { Belt = false, Merchant = false, Multiclass = false } :: { [string]: boolean }
 
 ProductCatalog.Passes = {
 	{
@@ -160,6 +160,17 @@ ProductCatalog.Passes = {
 			"Ideal para el Auto-farm largo: vacía la mochila y repón pociones sin viajar",
 		},
 		PassId = 2068735719, PriceText = "99 R$",
+	},
+	{
+		Key = "Multiclass", Attr = "Pass_Multiclass", Name = "Maestría Multiclase",
+		Desc = "Cambia de rol en cualquier lugar, guarda tu equipo por rol y sube la maestría más rápido.",
+		Perks = {
+			"Cambia de rol donde estés (sin ir al Instructor), volviendo al mismo sitio",
+			"Tu equipo se guarda por rol: al cambiar se pone lo último que usaste con él",
+			"La maestría de cada rol sube un 25% más rápido",
+			"Sin el pase: la maestría y el cambio gratis con el Instructor siguen funcionando",
+		},
+		PassId = 2068231801, PriceText = "149 R$",
 	},
 } :: { Pass }
 

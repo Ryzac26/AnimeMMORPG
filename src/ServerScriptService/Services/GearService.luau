@@ -40,7 +40,7 @@ GearService.Changed = changedEvent.Event :: RBXScriptSignal -- (player) cuando c
 local cache: { [Player]: Stats } = {}
 local setEffects: { [Player]: { [string]: any }? } = {} -- efecto especial del set completo (alcance, radio, robo de vida, reflejo)
 local pending: { [Player]: boolean } = {}
-local temp: { [Player]: { [string]: number } } = {} -- bonos temporales (elixires): se suman a las estadísticas
+local temp: { [Player]: { [string]: { [string]: number } } } = {} -- bonos extra por FUENTE ("Elixir", "Mastery"...): se suman a las estadísticas
 local rng = Random.new()
 
 local function zero(): Stats
@@ -91,10 +91,12 @@ local function compute(player: Player): Stats
 	for effect, v in pairs(pet) do
 		out[effect] = (out[effect] or 0) + v
 	end
-	local extra = temp[player]
-	if extra then
-		for stat, v in pairs(extra) do
-			out[stat] = (out[stat] or 0) + v
+	local sources = temp[player]
+	if sources then
+		for _, extra in pairs(sources) do
+			for stat, v in pairs(extra) do
+				out[stat] = (out[stat] or 0) + v
+			end
 		end
 	end
 	-- bono de set COMPLETO (4/4): efecto propio del rol
@@ -140,8 +142,13 @@ function GearService.ApplySetAttributes(player: Player)
 end
 
 -- Bonos temporales (elixires). stats = { Oro = 0.2, ... } o nil para quitarlos. Recalcula y avisa (StatService ajusta la vida máxima).
-function GearService.SetTemp(player: Player, stats: { [string]: number }?)
-	temp[player] = stats
+function GearService.SetTemp(player: Player, stats: { [string]: number }?, source: string?)
+	local t = temp[player]
+	if not t then
+		t = {}
+		temp[player] = t
+	end
+	(t :: any)[source or "Elixir"] = stats
 	refresh(player)
 end
 

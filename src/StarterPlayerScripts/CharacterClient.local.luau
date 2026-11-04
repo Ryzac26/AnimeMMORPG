@@ -197,6 +197,11 @@ local function refreshStats()
 
 	addHeader(string.format("%s  ·  Nivel %d", class.CharacterName, level))
 	addNote(string.format("%s · %s", theme.Faction, class.Role))
+	local forgeTitle = player:GetAttribute("TitleForja")
+	if typeof(forgeTitle) == "string" then
+		local n = player:GetAttribute("Forja9")
+		addNote(string.format("★ Título: %s%s", forgeTitle, if typeof(n) == "number" and n > 1 then string.format(" (x%d piezas +9)", n) else ""), Color3.fromRGB(255, 205, 80))
+	end
 
 	addHeader("Atributos")
 	addStat("Vida", tostring(if hum then math.floor(hum.MaxHealth) else 0), if total.Vida then GearView.Format("Vida", total.Vida) else nil)

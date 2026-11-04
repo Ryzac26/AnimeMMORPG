@@ -325,7 +325,7 @@ local function render()
 		end
 	end
 
-	section("OBJETOS", "Pergaminos de Protección: tu equipo no baja al fallar +7, +8 o +9.", ACCENT.Item)
+	section("OBJETOS", "Pergaminos de Protección: tu equipo no baja ni se rompe al fallar +7, +8 o +9.", ACCENT.Item)
 	for _, p in ipairs(ProductCatalog.Products) do
 		if p.Kind == "Item" then
 			card(p)
