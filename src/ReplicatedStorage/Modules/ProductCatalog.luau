@@ -139,32 +139,32 @@ ProductCatalog.Products = {
 	{
 		Key = "BlessXp3", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 449, Name = "Sabiduría 3 h",
 		Desc = "+50% de XP para toda tu facción en este servidor durante 3 horas.",
-		ProductId = 0, PriceText = "449 R$", DailyLimit = 8, MinLevel = 1, BlessGroup = "Xp", BlessSeconds = 3 * 3600,
+		ProductId = 2073006411, PriceText = "449 R$", DailyLimit = 8, MinLevel = 1, BlessGroup = "Xp", BlessSeconds = 3 * 3600,
 	},
 	{
 		Key = "BlessXp5", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 699, Name = "Sabiduría 5 h",
 		Desc = "+50% de XP para toda tu facción durante 5 horas.",
-		ProductId = 0, PriceText = "699 R$", DailyLimit = 5, MinLevel = 1, BlessGroup = "Xp", BlessSeconds = 5 * 3600,
+		ProductId = 2068058795, PriceText = "699 R$", DailyLimit = 5, MinLevel = 1, BlessGroup = "Xp", BlessSeconds = 5 * 3600,
 	},
 	{
 		Key = "BlessXp8", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 999, Name = "Sabiduría 8 h",
 		Desc = "+50% de XP para toda tu facción durante 8 horas.",
-		ProductId = 0, PriceText = "999 R$", DailyLimit = 3, MinLevel = 1, BlessGroup = "Xp", BlessSeconds = 8 * 3600,
+		ProductId = 2071285111, PriceText = "999 R$", DailyLimit = 3, MinLevel = 1, BlessGroup = "Xp", BlessSeconds = 8 * 3600,
 	},
 	{
 		Key = "BlessOro4", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 249, Name = "Fortuna 4 h",
 		Desc = "+20% de oro para toda tu facción durante 4 horas.",
-		ProductId = 0, PriceText = "249 R$", DailyLimit = 6, MinLevel = 1, BlessGroup = "Oro", BlessSeconds = 4 * 3600,
+		ProductId = 2073384365, PriceText = "249 R$", DailyLimit = 6, MinLevel = 1, BlessGroup = "Oro", BlessSeconds = 4 * 3600,
 	},
 	{
 		Key = "BlessSuerte4", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 249, Name = "Hallazgo 4 h",
 		Desc = "+20% de suerte con el botín para toda tu facción durante 4 horas.",
-		ProductId = 0, PriceText = "249 R$", DailyLimit = 6, MinLevel = 1, BlessGroup = "Suerte", BlessSeconds = 4 * 3600,
+		ProductId = 2073920260, PriceText = "249 R$", DailyLimit = 6, MinLevel = 1, BlessGroup = "Suerte", BlessSeconds = 4 * 3600,
 	},
 	{
 		Key = "BlessTotal4", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 799, Name = "Bendición Total 4 h",
 		Desc = "XP +50%, oro +20% y suerte +20% para toda tu facción durante 4 horas.",
-		ProductId = 0, PriceText = "799 R$", DailyLimit = 4, MinLevel = 1, BlessGroup = "Total", BlessSeconds = 4 * 3600,
+		ProductId = 2068052819, PriceText = "799 R$", DailyLimit = 4, MinLevel = 1, BlessGroup = "Total", BlessSeconds = 4 * 3600,
 	},
 } :: { Product }
 
