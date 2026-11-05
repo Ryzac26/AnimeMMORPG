@@ -18,6 +18,7 @@ local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
 local GearView = require(script.Parent:WaitForChild("GearView", 10))
 local BagCatalog = require(ReplicatedStorage.Modules.BagCatalog)
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
+local ItemIcon = require(script.Parent:WaitForChild("ItemIcon", 10))
 local BagDock = require(script.Parent:WaitForChild("BagDock", 10))
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 
@@ -377,8 +378,12 @@ local function render()
 			local col = ItemCatalog.RarityColor[item.Rarity] or Color3.new(1, 1, 1)
 			b.BackgroundColor3 = col:Lerp(Color3.new(0, 0, 0), 0.7)
 			st.Color = col
-			local t = UITheme.Text(b, GearView.DisplayName(item, stack.Plus), 11, col, UDim2.fromScale(0, 0.1), UDim2.fromScale(1, 0.8), Enum.TextXAlignment.Center)
+			ItemIcon.Build(b, item, 30, col)
+			local t = UITheme.Text(b, GearView.DisplayName(item, stack.Plus), 9, col, UDim2.fromOffset(1, 35), UDim2.new(1, -2, 0, 20), Enum.TextXAlignment.Center)
 			t.TextWrapped = true
+			t.TextYAlignment = Enum.TextYAlignment.Top
+			t.TextTruncate = Enum.TextTruncate.AtEnd
+			t.ZIndex = 8
 			if stack.Locked then
 				UITheme.Text(b, "🔒", 12, nil, UDim2.fromScale(0.02, 0.02), UDim2.fromScale(0.5, 0.3), Enum.TextXAlignment.Left)
 			end

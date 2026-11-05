@@ -28,6 +28,7 @@ local LootTables = require(Modules:WaitForChild("LootTables", 10))
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
+local ItemIcon = require(script.Parent:WaitForChild("ItemIcon", 10))
 local BagDock = require(script.Parent:WaitForChild("BagDock", 10))
 
 local gui = Instance.new("ScreenGui")
@@ -116,10 +117,29 @@ local function refreshSlots()
 			local col = ItemCatalog.RarityColor[item.Rarity] or Color3.new(1, 1, 1)
 			label.Text = GearView.DisplayName(item, plus) .. (if shared then "\n(compartido)" else "")
 			label.TextColor3 = if light then pal.Text else col
+			label.Position = UDim2.new(0, 0, 1, -22)
+			label.Size = UDim2.new(1, 0, 0, 20)
+			label.TextSize = 8
+			label.TextTruncate = Enum.TextTruncate.AtEnd
+			label.ZIndex = 9
+			local oldIcon = b:FindFirstChild("ItemIcon")
+			if oldIcon then
+				oldIcon:Destroy()
+			end
+			local ic = ItemIcon.Build(b, item, 24, col)
+			ic.Position = UDim2.new(0.5, 0, 0, 2)
 			stroke.Color = col
 			b.BackgroundColor3 = col:Lerp(pal.Slot, if light then 0.8 else 0.75)
 		else
 			label.Text = ItemCatalog.SlotDisplay[name] or name
+			label.Position = UDim2.fromScale(0, 0.06)
+			label.Size = UDim2.fromScale(1, 0.88)
+			label.TextSize = 10
+			label.ZIndex = 6
+			local oldIcon = b:FindFirstChild("ItemIcon")
+			if oldIcon then
+				oldIcon:Destroy()
+			end
 			local passAttr = ItemCatalog.SlotPass[name]
 			if passAttr and player:GetAttribute(passAttr) ~= true then
 				label.Text ..= "\n🔒 Pase"
