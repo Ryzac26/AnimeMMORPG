@@ -46,7 +46,12 @@ GearCatalog.CRIT_CAP = 0.60
 GearCatalog.PVP_GEAR_FACTOR = 0.50 -- en PvP el equipo cuenta la mitad (el PvP no se decide por el equipo)
 
 GearCatalog.PieceShare = { Arma = 0.40, Armadura = 0.25, Casco = 0.20, Zapatos = 0.15 } :: { [string]: number } -- suman 1
-GearCatalog.JewelryShare = { Collar = 0.10, Anillo = 0.10, Brazalete = 0.10 } :: { [string]: number } -- extra sobre el set
+GearCatalog.JewelryShare = { Collar = 0.10, Anillo = 0.10, Brazalete = 0.10, Pendientes = 0.10 } :: { [string]: number } -- extra sobre el set (el Anillo también va en la ranura Anillo 2)
+-- Piezas de CLASE extra (Escudo, Cinturón, Capa): solo para el rol, con las estadísticas de su rol. No cuentan para el bono de set (que sigue siendo de 4 piezas).
+GearCatalog.ClassExtraShare = { Escudo = 0.12, Cinturon = 0.08, Capa = 0.08 } :: { [string]: number }
+GearCatalog.ClassExtraOrder = { "Escudo", "Cinturon", "Capa" }
+GearCatalog.ShieldNames = { Tanque = "Escudo Torre", Guerrero = "Escudo de Guerra", Asesino = "Daga Gemela", Tirador = "Carcaj", Mago = "Orbe", Curador = "Libro Sagrado" } :: { [string]: string }
+GearCatalog.ExtraNames = { Cinturon = "Cinturón", Capa = "Capa" } :: { [string]: string }
 GearCatalog.EmblemShare = 0.10 -- Emblema de facción (ranura Accesorio1)
 -- BONUS DE SET COMPLETO (4/4 piezas del set de TU rol): se suma al +15% a todo el equipo. Un efecto propio por rol.
 -- Claves: Range (x alcance) · Radius (x radio de áreas) · Lifesteal · Reflect · Critico (+) · CritDmg (+ al multiplicador crítico) · Curacion (+)
@@ -85,7 +90,7 @@ GearCatalog.RoleScale = { Tanque = 0.704, Guerrero = 1.079, Asesino = 1.061, Tir
 GearCatalog.JewelFocus = { "Ataque", "Defensa", "Vida", "Critico", "Curacion" }
 GearCatalog.FocusMult = { Ataque = 1, Defensa = 1, Vida = 1, Critico = 1.6, Curacion = 1 } :: { [string]: number }
 GearCatalog.JewelFocusName = { Ataque = "Fuerza", Defensa = "Muralla", Vida = "Vitalidad", Critico = "Precisión", Curacion = "Sanación" } :: { [string]: string }
-GearCatalog.JewelNames = { Collar = "Collar", Anillo = "Anillo", Brazalete = "Brazalete" } :: { [string]: string }
+GearCatalog.JewelNames = { Collar = "Collar", Anillo = "Anillo", Brazalete = "Brazalete", Pendientes = "Pendientes" } :: { [string]: string }
 
 GearCatalog.EmblemWeights = { Ataque = 0.40, Vida = 0.30, Defensa = 0.30 } :: { [string]: number }
 GearCatalog.EmblemRarities = { "Epico", "Legendario", "Mitico" }
@@ -164,7 +169,7 @@ local function budget(tier: number, rarity: string): number
 end
 
 function GearCatalog.SetPieceGear(role: string, slot: string, tier: number, rarity: string): Gear
-	local base = budget(tier, rarity) * GearCatalog.RoleScale[role] * GearCatalog.PieceShare[slot]
+	local base = budget(tier, rarity) * GearCatalog.RoleScale[role] * (GearCatalog.PieceShare[slot] or GearCatalog.ClassExtraShare[slot])
 	local gear: Gear = {}
 	for stat, w in pairs(GearCatalog.RoleWeights[role]) do
 		gear[stat] = round4(base * w)
@@ -309,6 +314,25 @@ for tier, req in ipairs(GearCatalog.TierLevels) do
 						Desc = describe(string.format("Nv %d · Solo %s", req, role), gear),
 					}
 				end
+			end
+		end
+		-- Piezas de clase extra: Escudo, Cinturón, Capa (solo su rol; no cuentan para el bono de set)
+		for _, role in ipairs(GearCatalog.Roles) do
+			local set = GearCatalog.SetNames[role]
+			for _, slot in ipairs(GearCatalog.ClassExtraOrder) do
+				local gear = GearCatalog.SetPieceGear(role, slot, tier, rarity)
+				local pieceName = if slot == "Escudo" then GearCatalog.ShieldNames[role] else GearCatalog.ExtraNames[slot]
+				Items[GearCatalog.SetPieceId(role, slot, nil, tier, rarity)] = {
+					Name = string.format("%s %s de %s", pieceName, set, tierName),
+					Slot = slot,
+					Rarity = rarity,
+					Gear = gear,
+					ReqLevel = req,
+					Role = role,
+					Tier = tier,
+					Kind = "ClassPiece",
+					Desc = describe(string.format("Nv %d · Solo %s", req, role), gear),
+				}
 			end
 		end
 		-- Joyas universales

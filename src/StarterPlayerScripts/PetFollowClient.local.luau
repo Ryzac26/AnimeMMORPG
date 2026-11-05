@@ -11,6 +11,7 @@
       - Ajuste "Mostrar mascotas" (SettingsClient, atributo Setting_PetsMode): Todas · Solo la mía · Ninguna.
       - Nivel de la mascota (1..10, atributo EquipPlus_Accesorio2 = nivel-1): cada nivel la hace un poco más grande y en los niveles 4, 7 y 10
         evoluciona (más chispas, luz y halo).
+      - Segunda mascota (ranura "Mascota 2" = Equip_Accesorio3, con el pase Pass_PetSlot): camina al otro lado del personaje.
       - Mascotas de facción: Mono (Saiyan), Sapo (Shinobi), Loro (Pirata), Mariposa (Shinigami).
       - Solo es visual (se crea en cada cliente); los bonus los sigue dando GearService.
     No tiene ScreenGui, no va en RELOAD.
@@ -52,6 +53,7 @@ type Pet = {
 	Look: { [string]: any },
 	Rarity: string,
 	Level: number,
+	Slot: number,
 	Scale: number,
 	Wings: { { Weld: Weld, Side: number, Base: CFrame } },
 	Wag: { { Weld: Weld, Base: CFrame, Amp: number } },
@@ -65,7 +67,11 @@ type Pet = {
 	JumpAt: number,
 	Zzz: BillboardGui?,
 }
-local pets: { [Player]: Pet } = {}
+local pets: { [number]: Pet } = {} -- clave = UserId*2 + (ranura-1)
+local SLOTS = { "Accesorio2", "Accesorio3" }
+local function keyOf(pl: Player, slotIndex: number): number
+	return pl.UserId * 2 + (slotIndex - 1)
+end
 
 local function parse(id: any): (string?, string?)
 	if typeof(id) ~= "string" then
@@ -100,7 +106,7 @@ local function part(model: Model, root: Part, shape: Enum.PartType, size: Vector
 	return p, w
 end
 
-local function build(pl: Player, id: string, family: string, rarity: string, char: Model, level: number): Pet?
+local function build(pl: Player, id: string, family: string, rarity: string, char: Model, level: number, slotIndex: number): Pet?
 	local look = PetCatalog.Looks[family]
 	local rr = RARITY[rarity]
 	local s = rr.Scale * (1 + PetCatalog.LEVEL_SIZE * (level - 1))
@@ -442,50 +448,55 @@ local function build(pl: Player, id: string, family: string, rarity: string, cha
 	local hrp = char:FindFirstChild("HumanoidRootPart")
 	local start = if hrp and hrp:IsA("BasePart") then hrp.CFrame * CFrame.new(3, 0, 3) else CFrame.new()
 	return {
-		Player = pl, Id = id, Char = char, Root = root, Model = model, Look = look, Rarity = rarity, Level = level, Scale = s,
+		Player = pl, Id = id, Char = char, Root = root, Model = model, Look = look, Rarity = rarity, Level = level, Slot = slotIndex, Scale = s,
 		Wings = wings, Wag = wag, Halo = halo, Cf = start, Vel = Vector3.zero, Phase = math.random() * 6, SpinUntil = 0, Tag = tag,
 		IdleSince = os.clock(), JumpAt = -100, Zzz = nil,
 	}
 end
 
-local function remove(pl: Player)
-	local p = pets[pl]
+local function remove(key: number)
+	local p = pets[key]
 	if p then
 		p.Model:Destroy()
-		pets[pl] = nil
+		pets[key] = nil
 	end
 end
 
--- cada medio segundo: ¿qué mascota debería tener cada jugador?
+-- cada medio segundo: ¿qué mascotas debería tener cada jugador? (ranura 1: siempre; ranura 2: con el pase)
 local function reconcile()
 	local cam = Workspace.CurrentCamera
+	local mode = localPlayer:GetAttribute("Setting_PetsMode")
 	for _, pl in ipairs(Players:GetPlayers()) do
 		local char = pl.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart")
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
-		local family, rarity = parse(pl:GetAttribute("Equip_Accesorio2"))
-		local want = family ~= nil and rarity ~= nil and hrp ~= nil and hrp:IsA("BasePart") and hum ~= nil and hum.Health > 0
-		local mode = localPlayer:GetAttribute("Setting_PetsMode")
-		if mode == "none" or (mode == "mine" and pl ~= localPlayer) then
-			want = false
+		local alive = hrp ~= nil and hrp:IsA("BasePart") and hum ~= nil and hum.Health > 0
+		local visible = alive and not (mode == "none" or (mode == "mine" and pl ~= localPlayer))
+		if visible and pl ~= localPlayer and cam and hrp and (cam.CFrame.Position - hrp.Position).Magnitude > VIEW_RANGE then
+			visible = false
 		end
-		if want and pl ~= localPlayer and cam and hrp and (cam.CFrame.Position - hrp.Position).Magnitude > VIEW_RANGE then
-			want = false
-		end
-		local cur = pets[pl]
-		if not want then
-			if cur then
-				remove(pl)
+		for i, slotName in ipairs(SLOTS) do
+			local key = keyOf(pl, i)
+			local family, rarity = parse(pl:GetAttribute("Equip_" .. slotName))
+			local want = visible and family ~= nil and rarity ~= nil
+			if want and i == 2 and pl:GetAttribute("Pass_PetSlot") ~= true then
+				want = false
 			end
-		else
-			local id = pl:GetAttribute("Equip_Accesorio2") :: string
-			local plus = pl:GetAttribute("EquipPlus_Accesorio2")
-			local level = PetCatalog.LevelOf(if typeof(plus) == "number" then plus else 0)
-			if not cur or cur.Id ~= id or cur.Char ~= char or cur.Level ~= level then
-				remove(pl)
-				local made = build(pl, id, family :: string, rarity :: string, char :: Model, level)
-				if made then
-					pets[pl] = made
+			local cur = pets[key]
+			if not want then
+				if cur then
+					remove(key)
+				end
+			else
+				local id = pl:GetAttribute("Equip_" .. slotName) :: string
+				local plus = pl:GetAttribute("EquipPlus_" .. slotName)
+				local level = PetCatalog.LevelOf(if typeof(plus) == "number" then plus else 0)
+				if not cur or cur.Id ~= id or cur.Char ~= char or cur.Level ~= level then
+					remove(key)
+					local made = build(pl, id, family :: string, rarity :: string, char :: Model, level, i)
+					if made then
+						pets[key] = made
+					end
 				end
 			end
 		end
@@ -501,10 +512,10 @@ RunService.RenderStepped:Connect(function(dt)
 		reconcile()
 	end
 	local t = os.clock()
-	for pl, p in pairs(pets) do
+	for key, p in pairs(pets) do
 		local hrp = p.Char:FindFirstChild("HumanoidRootPart")
 		if not hrp or not hrp:IsA("BasePart") or not p.Char.Parent then
-			remove(pl)
+			remove(key)
 			continue
 		end
 		local flies: boolean = p.Look.Flies == true
@@ -540,7 +551,7 @@ RunService.RenderStepped:Connect(function(dt)
 			p.Zzz = nil
 		end
 		-- punto donde "debería" estar: detrás y a la derecha del dueño
-		local anchorCf = hrp.CFrame * CFrame.new(3.0, 0, 3.6)
+		local anchorCf = if p.Slot == 2 then hrp.CFrame * CFrame.new(-3.0, 0, 4.6) else hrp.CFrame * CFrame.new(3.0, 0, 3.6)
 		local target = anchorCf.Position
 		local bob = 0
 		local speed = p.Vel.Magnitude
@@ -604,9 +615,11 @@ local function watch(pl: Player)
 		lastLevel[pl] = v
 	end
 	pl:GetAttributeChangedSignal("PetHit"):Connect(function()
-		local pet = pets[pl]
-		if pet then
-			pet.JumpAt = os.clock()
+		for i = 1, #SLOTS do
+			local pet = pets[keyOf(pl, i)]
+			if pet then
+				pet.JumpAt = os.clock()
+			end
 		end
 	end)
 	pl:GetAttributeChangedSignal("Level"):Connect(function()
@@ -616,8 +629,13 @@ local function watch(pl: Player)
 		end
 		local prev = lastLevel[pl]
 		lastLevel[pl] = n
-		if prev and n > prev and pets[pl] then
-			(pets[pl] :: Pet).SpinUntil = os.clock() + 1.2
+		if prev and n > prev then
+			for i = 1, #SLOTS do
+				local pet = pets[keyOf(pl, i)]
+				if pet then
+					pet.SpinUntil = os.clock() + 1.2
+				end
+			end
 		end
 	end)
 end
@@ -626,6 +644,8 @@ for _, pl in ipairs(Players:GetPlayers()) do
 	watch(pl)
 end
 Players.PlayerRemoving:Connect(function(pl)
-	remove(pl)
+	for i = 1, #SLOTS do
+		remove(keyOf(pl, i))
+	end
 	lastLevel[pl] = nil
 end)

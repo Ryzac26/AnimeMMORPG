@@ -214,7 +214,7 @@ local function deserialize(saved: any): State
 				local item = (ItemCatalog.Items :: any)[id]
 				if not item then
 					table.insert(st.Orphans, { Id = id, Count = 1 })
-				elseif item.Slot == slotName then
+				elseif ItemCatalog.FitsSlot(item.Slot, slotName) then
 					st.Equip[slotName] = id
 					local savedPlus: any = if typeof(saved.EquipPlus) == "table" then saved.EquipPlus[slotName] else nil
 					local plus = cleanPlus(item, savedPlus)
@@ -240,7 +240,7 @@ local function deserialize(saved: any): State
 						local item: any = (ItemCatalog.Items :: any)[rec.Id]
 						if not item then
 							table.insert(st.Orphans, { Id = rec.Id, Count = 1 })
-						elseif item.Slot == slotName and item.Gear then
+						elseif ItemCatalog.FitsSlot(item.Slot, slotName) and item.Gear then
 							clean[slotName] = { Id = rec.Id, Plus = cleanPlus(item, rec.Plus), Locked = if rec.Locked == true then true else nil }
 						else
 							st.Bag[firstFree(st)] = { Id = rec.Id, Count = 1 }
@@ -404,7 +404,37 @@ function Inventory.SetPlus(player: Player, kind: string, key: any, plus: number)
 	return true
 end
 
-local function equip(player: Player, st: State, bagIndex: number)
+local function petFamilyOf(id: string?): string?
+	local it: any = if id then (ItemCatalog.Items :: any)[id] else nil
+	return if it and it.Pet then it.Pet.Family else nil
+end
+
+-- Ranura donde va un objeto. Con ranura gemela (Anillo 2, Mascota 2): usa la libre; si las dos están ocupadas reemplaza la principal.
+-- La ranura de pase (Mascota 2) solo se usa con el pase. Dos mascotas de la MISMA familia no se pueden llevar a la vez.
+local function targetSlot(player: Player, st: State, item: any): (string?, string?)
+	local base = item.Slot :: string
+	local alt = ItemCatalog.SlotAlt[base]
+	local slot = base
+	if alt then
+		local passAttr = ItemCatalog.SlotPass[alt]
+		local altOpen = passAttr == nil or player:GetAttribute(passAttr) == true
+		if altOpen and st.Equip[base] and not st.Equip[alt] then
+			slot = alt
+			if item.Pet and petFamilyOf(st.Equip[base]) == item.Pet.Family then
+				slot = base -- misma familia que la que ya llevas: la reemplaza
+			end
+		end
+		if item.Pet then
+			local other = if slot == base then alt else base
+			if petFamilyOf(st.Equip[other]) == item.Pet.Family then
+				return nil, "Ya llevas una mascota de esa familia en la otra ranura"
+			end
+		end
+	end
+	return slot, nil
+end
+
+local function equip(player: Player, st: State, bagIndex: number, forceSlot: string?)
 	local stack = st.Bag[bagIndex]
 	local item = stack and ItemCatalog.Items[stack.Id]
 	if stack and item and item.Elixir then
@@ -426,12 +456,21 @@ local function equip(player: Player, st: State, bagIndex: number)
 		Net.Get("Notify"):FireClient(player, reason or "No puedes equipar esto")
 		return
 	end
-	if stack.Count > 1 and st.Equip[item.Slot :: string] and not firstFreeInside(st) then
+	local slot: string
+	if forceSlot and ItemCatalog.FitsSlot(item.Slot, forceSlot) then
+		slot = forceSlot
+	else
+		local picked, why = targetSlot(player, st, item)
+		if not picked then
+			Net.Get("Notify"):FireClient(player, why or "No puedes equipar esto")
+			return
+		end
+		slot = picked
+	end
+	if stack.Count > 1 and st.Equip[slot] and not firstFreeInside(st) then
 		Net.Get("Notify"):FireClient(player, "Mochila llena: no hay dónde dejar la pieza que llevas puesta")
 		return
 	end
-	local slot = item.Slot :: string
-	-- Accesorio: usa Accesorio1 y, si está ocupado, Accesorio2
 	local previous = st.Equip[slot]
 	local previousPlus = st.EquipPlus[slot]
 	local previousLocked = st.EquipLocked[slot]
@@ -478,7 +517,7 @@ local function equipBest(player: Player, st: State)
 		local bestIndex: number? = nil
 		for i, stack in pairs(st.Bag) do
 			local item: any = (ItemCatalog.Items :: any)[stack.Id]
-			if item and item.Slot == slotName and item.Gear and not item.Pet and GearService.CanEquip(player, stack.Id) then
+			if item and ItemCatalog.FitsSlot(item.Slot, slotName) and item.Gear and not item.Pet and GearService.CanEquip(player, stack.Id) then
 				local p = powerOf(player, item, stack.Plus or 0)
 				if p > bestPower + 1e-9 then
 					bestPower, bestIndex = p, i
@@ -486,7 +525,7 @@ local function equipBest(player: Player, st: State)
 			end
 		end
 		if bestIndex then
-			equip(player, st, bestIndex)
+			equip(player, st, bestIndex, slotName)
 			changed += 1
 		elseif curItem and not curUsable and canFit(st, curId :: string, 1, st.EquipPlus[slotName] or 0) then
 			local plus = st.EquipPlus[slotName]

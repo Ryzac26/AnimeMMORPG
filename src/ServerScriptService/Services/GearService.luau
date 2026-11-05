@@ -60,9 +60,15 @@ local function compute(player: Player): Stats
 	local pet: { [string]: number } = {}
 	local setPieces = 0
 
+	local petFamilies: { [string]: boolean } = {}
 	for _, slot in ipairs(ItemCatalog.EquipSlots) do
 		local id = player:GetAttribute("Equip_" .. slot)
 		local item: any = if typeof(id) == "string" then (ItemCatalog.Items :: any)[id] else nil
+		-- ranura de pase (Mascota 2): sin el pase no cuenta
+		local needPass = ItemCatalog.SlotPass[slot]
+		if item and needPass and player:GetAttribute(needPass) ~= true then
+			item = nil
+		end
 		if item then
 			if item.Gear then
 				if GearCatalog.CanUse(item, faction, role, level) then
@@ -78,7 +84,11 @@ local function compute(player: Player): Stats
 			elseif item.Pet then
 				-- la mascota de facción solo vale para su facción; el nivel (Plus) multiplica los efectos
 				local fOk = typeof(item.Faction) ~= "string" or item.Faction == faction
+				if fOk and petFamilies[item.Pet.Family] then
+					fOk = false -- dos mascotas de la misma familia no se suman
+				end
 				if fOk then
+					petFamilies[item.Pet.Family] = true
 					local plus = player:GetAttribute("EquipPlus_" .. slot)
 					local mult = PetCatalog.LevelMult(if typeof(plus) == "number" then plus else 0)
 					for effect, v in pairs(item.Pet.Effects) do
@@ -214,7 +224,7 @@ end
 
 local function watch(player: Player)
 	player.AttributeChanged:Connect(function(name: string)
-		if string.sub(name, 1, 6) == "Equip_" or string.sub(name, 1, 10) == "EquipPlus_" or name == "Faction" or name == "Role" or name == "Level" then
+		if string.sub(name, 1, 6) == "Equip_" or string.sub(name, 1, 10) == "EquipPlus_" or name == "Faction" or name == "Role" or name == "Level" or name == "Pass_PetSlot" then
 			refresh(player)
 		end
 	end)

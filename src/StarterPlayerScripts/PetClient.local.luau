@@ -39,14 +39,16 @@ local selectedKey: string? = nil -- "Equip" o "Bag:<casilla>"
 local lastFeed = 0
 
 local function keyOf(t: Target): string
-	return if t.Kind == "Equip" then "Equip" else "Bag:" .. tostring(t.Key)
+	return (if t.Kind == "Equip" then "Equip:" else "Bag:") .. tostring(t.Key)
 end
 
 local function listTargets(): { Target }
 	local out: { Target } = {}
-	local eq = Store.Equip["Accesorio2"]
-	if eq and (ItemCatalog.Items :: any)[eq] and (ItemCatalog.Items :: any)[eq].Pet then
-		table.insert(out, { Kind = "Equip", Key = "Accesorio2", Id = eq, Plus = Store.EquipPlus["Accesorio2"] or 0 })
+	for _, slotName in ipairs({ "Accesorio2", "Accesorio3" }) do
+		local eq = Store.Equip[slotName]
+		if eq and (ItemCatalog.Items :: any)[eq] and (ItemCatalog.Items :: any)[eq].Pet then
+			table.insert(out, { Kind = "Equip", Key = slotName, Id = eq, Plus = Store.EquipPlus[slotName] or 0 })
+		end
 	end
 	local slots: { number } = {}
 	for slot in pairs(Store.Bag) do
@@ -167,7 +169,7 @@ local function build()
 		b.Font = UITheme.Font
 		b.TextSize = 12
 		b.TextXAlignment = Enum.TextXAlignment.Left
-		b.Text = string.format("  Nv.%d  %s%s", PetCatalog.LevelOf(t.Plus), item.Name, if t.Kind == "Equip" then "   [puesta]" else "")
+		b.Text = string.format("  Nv.%d  %s%s", PetCatalog.LevelOf(t.Plus), item.Name, if t.Kind == "Equip" then (if t.Key == "Accesorio3" then "   [puesta 2]" else "   [puesta]") else "")
 		b.Parent = listFrame
 		Instance.new("UICorner", b).CornerRadius = UDim.new(0, 5)
 		b.Activated:Connect(function()

@@ -44,12 +44,23 @@ ItemCatalog.RarityColor = {
 ItemCatalog.EquipSlots = {
 	"Casco", "Armadura", "Arma", "Escudo", "Zapatos", "Brazalete", "Collar", "Pendientes", "Anillo", "Cinturon",
 	"Capa", "Alas", "Montura", "Traje", "Accesorio1", "Accesorio2",
+	"Anillo2", "Accesorio3", -- ranuras extra: segundo anillo y segunda mascota (esta última pide el pase Pass_PetSlot)
 }
+
+-- Ranuras gemelas: un objeto de la ranura clave también cabe en la ranura valor (segundo anillo, segunda mascota)
+ItemCatalog.SlotAlt = { Anillo = "Anillo2", Accesorio2 = "Accesorio3" } :: { [string]: string }
+-- Ranuras que piden un pase (atributo del jugador que debe ser true)
+ItemCatalog.SlotPass = { Accesorio3 = "Pass_PetSlot" } :: { [string]: string }
+
+-- ¿Un objeto cuya ranura es `itemSlot` cabe en la ranura `slotName`?
+function ItemCatalog.FitsSlot(itemSlot: string?, slotName: string): boolean
+	return itemSlot ~= nil and (itemSlot == slotName or ItemCatalog.SlotAlt[itemSlot] == slotName)
+end
 
 ItemCatalog.SlotDisplay = {
 	Casco = "Casco", Armadura = "Armadura", Arma = "Arma", Escudo = "Escudo", Zapatos = "Zapatos", Brazalete = "Brazalete",
 	Collar = "Collar", Pendientes = "Pendientes", Anillo = "Anillo", Cinturon = "Cinturón", Capa = "Capa", Alas = "Alas",
-	Montura = "Montura", Traje = "Traje (skin)", Accesorio1 = "Emblema", Accesorio2 = "Mascota",
+	Montura = "Montura", Traje = "Traje (skin)", Accesorio1 = "Emblema", Accesorio2 = "Mascota", Anillo2 = "Anillo 2", Accesorio3 = "Mascota 2",
 }
 
 ItemCatalog.Items = {

@@ -12,6 +12,7 @@
       Hada                Brisa curativa     cada X s cura a ti y al grupo cercano
       Lobo                Instinto cazador   daño extra contra jefes, mini jefes y Metin
     Las mascotas de facción (Mono, Sapo, Loro, Mariposa) no tienen poder: su efecto es la energía.
+    Con el pase de Segunda Mascota (Pass_PetSlot) valen los poderes de las DOS mascotas (familias distintas).
     Se engancha a: DamageService.AddDamageListener / TrueDamage, RewardService.MobKilled, PassiveService.SetPetLethalHook.
 ]]
 local Players = game:GetService("Players")
@@ -52,18 +53,27 @@ local function stateOf(player: Player): State
 	return st
 end
 
--- poder activo del jugador: familia, config, nivel del poder (1..3) o nil
-local function powerOf(player: Player): (string?, any?, number?)
-	local id = player:GetAttribute("Equip_Accesorio2")
-	local item: any = if typeof(id) == "string" then (ItemCatalog.Items :: any)[id] else nil
-	if not item or not item.Pet then
-		return nil, nil, nil
+type Power = { Family: string, Cfg: any, Tier: number }
+
+-- poderes activos del jugador (mascota 1 y, con el pase, mascota 2; dos familias iguales no se suman)
+local function powersOf(player: Player): { Power }
+	local out: { Power } = {}
+	local seen: { [string]: boolean } = {}
+	for _, slot in ipairs({ "Accesorio2", "Accesorio3" }) do
+		local needPass = ItemCatalog.SlotPass[slot]
+		if not needPass or player:GetAttribute(needPass) == true then
+			local id = player:GetAttribute("Equip_" .. slot)
+			local item: any = if typeof(id) == "string" then (ItemCatalog.Items :: any)[id] else nil
+			if item and item.Pet and not seen[item.Pet.Family] then
+				local name, _, tier = PetCatalog.PowerInfo(item.Pet.Family, item.Rarity)
+				if name and tier then
+					seen[item.Pet.Family] = true
+					table.insert(out, { Family = item.Pet.Family, Cfg = PetCatalog.Powers[item.Pet.Family], Tier = tier })
+				end
+			end
+		end
 	end
-	local name, _, tier = PetCatalog.PowerInfo(item.Pet.Family, item.Rarity)
-	if not name or not tier then
-		return nil, nil, nil
-	end
-	return item.Pet.Family, PetCatalog.Powers[item.Pet.Family], tier
+	return out
 end
 
 local function say(player: Player, text: string, color: Color3)
@@ -130,51 +140,54 @@ DamageService.AddDamageListener(function(mob: Model, player: Player, damage: num
 	if inPower or damage <= 0 then
 		return
 	end
-	local family, cfg, tier = powerOf(player)
+	local powers = powersOf(player)
 	local char = player.Character
-	if not family or not cfg or not tier or not char then
+	if #powers == 0 or not char then
 		return
 	end
 	inPower = true
 	local ok, err = pcall(function()
-		if family == "Furia" then
-			if every(player, "Furia", cfg.Every[tier]) then
-				if DamageService.TrueDamage(char, mob, damage * cfg.Value[tier]) > 0 then
-					say(player, "¡Zarpazo!", Color3.fromRGB(255, 190, 80))
-				end
-			end
-		elseif family == "Sabiduria" then
-			if every(player, "Sabiduria", cfg.Every[tier]) then
-				local _, maxEnergy = EnergyRegenService.GetEnergy(player)
-				if maxEnergy > 0 then
-					EnergyRegenService.Gain(player, maxEnergy * cfg.Value[tier])
-					say(player, "¡Mente clara!", Color3.fromRGB(150, 190, 255))
-				end
-			end
-		elseif family == "Lobo" then
-			if mob:GetAttribute("Boss") == true or mob:GetAttribute("WorldBoss") == true or mob:GetAttribute("Mini") == true or mob:GetAttribute("Metin") == true then
-				DamageService.TrueDamage(char, mob, damage * cfg.Value[tier])
-			end
-		elseif family == "Dragon" then
-			local root = mob:FindFirstChild("HumanoidRootPart")
-			if root and root:IsA("BasePart") and ready(player, "Dragon", cfg.Cooldown[tier]) then
-				local params = OverlapParams.new()
-				params.FilterType = Enum.RaycastFilterType.Exclude
-				params.FilterDescendantsInstances = { char }
-				local seen: { [Model]: boolean } = {}
-				local hits = 0
-				for _, part in ipairs(Workspace:GetPartBoundsInRadius(root.Position, 12, params)) do
-					local m = part:FindFirstAncestorOfClass("Model")
-					if m and not seen[m] and m:GetAttribute("IsMob") == true and aliveHumanoid(m) then
-						seen[m] = true
-						if hits < 6 then
-							hits += 1
-							DamageService.TrueDamage(char, m, damage * cfg.Value[tier])
-						end
+		for _, pw in ipairs(powers) do
+			local family, cfg, tier = pw.Family, pw.Cfg, pw.Tier
+			if family == "Furia" then
+				if every(player, "Furia", cfg.Every[tier]) then
+					if DamageService.TrueDamage(char, mob, damage * cfg.Value[tier]) > 0 then
+						say(player, "¡Zarpazo!", Color3.fromRGB(255, 190, 80))
 					end
 				end
-				fireBurst(root.Position + Vector3.new(0, 2, 0))
-				say(player, "¡Aliento de fuego!", Color3.fromRGB(255, 120, 50))
+			elseif family == "Sabiduria" then
+				if every(player, "Sabiduria", cfg.Every[tier]) then
+					local _, maxEnergy = EnergyRegenService.GetEnergy(player)
+					if maxEnergy > 0 then
+						EnergyRegenService.Gain(player, maxEnergy * cfg.Value[tier])
+						say(player, "¡Mente clara!", Color3.fromRGB(150, 190, 255))
+					end
+				end
+			elseif family == "Lobo" then
+				if mob:GetAttribute("Boss") == true or mob:GetAttribute("WorldBoss") == true or mob:GetAttribute("Mini") == true or mob:GetAttribute("Metin") == true then
+					DamageService.TrueDamage(char, mob, damage * cfg.Value[tier])
+				end
+			elseif family == "Dragon" then
+				local root = mob:FindFirstChild("HumanoidRootPart")
+				if root and root:IsA("BasePart") and ready(player, "Dragon", cfg.Cooldown[tier]) then
+					local params = OverlapParams.new()
+					params.FilterType = Enum.RaycastFilterType.Exclude
+					params.FilterDescendantsInstances = { char }
+					local seen: { [Model]: boolean } = {}
+					local hits = 0
+					for _, part in ipairs(Workspace:GetPartBoundsInRadius(root.Position, 12, params)) do
+						local m = part:FindFirstAncestorOfClass("Model")
+						if m and not seen[m] and m:GetAttribute("IsMob") == true and aliveHumanoid(m) then
+							seen[m] = true
+							if hits < 6 then
+								hits += 1
+								DamageService.TrueDamage(char, m, damage * cfg.Value[tier])
+							end
+						end
+					end
+					fireBurst(root.Position + Vector3.new(0, 2, 0))
+					say(player, "¡Aliento de fuego!", Color3.fromRGB(255, 120, 50))
+				end
 			end
 		end
 	end)
@@ -201,8 +214,8 @@ RewardService.MobKilled:Connect(function(mobId: any, level: any, participants: a
 	end
 	for _, pl in ipairs(participants :: { Player }) do
 		if pl.Parent and (typeof(shares) ~= "table" or ((shares :: any)[pl] or 1) >= 0.05) then
-			local family, cfg, tier = powerOf(pl)
-			if family and cfg and tier then
+			for _, pw in ipairs(powersOf(pl)) do
+				local family, cfg, tier = pw.Family, pw.Cfg, pw.Tier
 				local ok, err = pcall(function()
 					if family == "Suerte" then
 						if isPlainMob(mobId) and ready(pl, "Suerte", cfg.Cooldown[tier]) then
@@ -235,10 +248,16 @@ PassiveService.SetPetLethalHook(function(victim: Model, damage: number, hum: Hum
 	if not player then
 		return damage
 	end
-	local family, cfg, tier = powerOf(player)
-	if family ~= "Fenix" or not cfg or not tier or not ready(player, "Fenix", cfg.Cooldown[tier]) then
+	local fenix: Power? = nil
+	for _, pw in ipairs(powersOf(player)) do
+		if pw.Family == "Fenix" then
+			fenix = pw
+		end
+	end
+	if not fenix or not ready(player, "Fenix", fenix.Cfg.Cooldown[fenix.Tier]) then
 		return damage
 	end
+	local cfg, tier = fenix.Cfg, fenix.Tier
 	hum.Health = math.max(1, hum.MaxHealth * cfg.Value[tier])
 	victim:SetAttribute("Immune", true)
 	task.delay(3, function()
@@ -255,42 +274,44 @@ task.spawn(function()
 	while true do
 		task.wait(0.5)
 		for _, player in ipairs(Players:GetPlayers()) do
-			local family, cfg, tier = powerOf(player)
 			local char = player.Character
 			local hum = aliveHumanoid(char)
 			local root = if char then char:FindFirstChild("HumanoidRootPart") else nil
-			if family and cfg and tier and char and hum and root and root:IsA("BasePart") then
-				if family == "Guardian" and hum.Health / hum.MaxHealth < 0.30 then
-					if ready(player, "Guardian", cfg.Cooldown[tier]) then
-						local token = os.clock()
-						char:SetAttribute("ShieldPoints", math.floor(hum.MaxHealth * cfg.Value[tier]))
-						char:SetAttribute("ShieldToken", token)
-						task.delay(8, function()
-							if char:GetAttribute("ShieldToken") == token then
-								char:SetAttribute("ShieldPoints", 0)
-							end
-						end)
-						say(player, "¡Caparazón!", Color3.fromRGB(120, 230, 150))
-					end
-				elseif family == "Hada" then
-					-- solo se gasta si alguien del grupo cercano está herido
-					local targets: { Humanoid } = {}
-					local hurt = false
-					for _, m in ipairs(PartyService.MembersOf(player)) do
-						local mh = aliveHumanoid(m.Character)
-						local mr = if m.Character then m.Character:FindFirstChild("HumanoidRootPart") else nil
-						if mh and mr and mr:IsA("BasePart") and (mr.Position - root.Position).Magnitude <= 40 then
-							table.insert(targets, mh)
-							if mh.Health < mh.MaxHealth * 0.9 then
-								hurt = true
+			if char and hum and root and root:IsA("BasePart") then
+				for _, pw in ipairs(powersOf(player)) do
+					local family, cfg, tier = pw.Family, pw.Cfg, pw.Tier
+					if family == "Guardian" and hum.Health / hum.MaxHealth < 0.30 then
+						if ready(player, "Guardian", cfg.Cooldown[tier]) then
+							local token = os.clock()
+							char:SetAttribute("ShieldPoints", math.floor(hum.MaxHealth * cfg.Value[tier]))
+							char:SetAttribute("ShieldToken", token)
+							task.delay(8, function()
+								if char:GetAttribute("ShieldToken") == token then
+									char:SetAttribute("ShieldPoints", 0)
+								end
+							end)
+							say(player, "¡Caparazón!", Color3.fromRGB(120, 230, 150))
+						end
+					elseif family == "Hada" then
+						-- solo se gasta si alguien del grupo cercano está herido
+						local targets: { Humanoid } = {}
+						local hurt = false
+						for _, m in ipairs(PartyService.MembersOf(player)) do
+							local mh = aliveHumanoid(m.Character)
+							local mr = if m.Character then m.Character:FindFirstChild("HumanoidRootPart") else nil
+							if mh and mr and mr:IsA("BasePart") and (mr.Position - root.Position).Magnitude <= 40 then
+								table.insert(targets, mh)
+								if mh.Health < mh.MaxHealth * 0.9 then
+									hurt = true
+								end
 							end
 						end
-					end
-					if hurt and ready(player, "Hada", cfg.Cooldown[tier]) then
-						for _, h in ipairs(targets) do
-							h.Health = math.min(h.MaxHealth, h.Health + h.MaxHealth * cfg.Value[tier])
+						if hurt and ready(player, "Hada", cfg.Cooldown[tier]) then
+							for _, h in ipairs(targets) do
+								h.Health = math.min(h.MaxHealth, h.Health + h.MaxHealth * cfg.Value[tier])
+							end
+							say(player, "¡Brisa curativa!", Color3.fromRGB(255, 170, 230))
 						end
-						say(player, "¡Brisa curativa!", Color3.fromRGB(255, 170, 230))
 					end
 				end
 			end

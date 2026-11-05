@@ -24,6 +24,8 @@ local GearView = require(script.Parent:WaitForChild("GearView", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
 local GearCatalog = require(Modules:WaitForChild("GearCatalog", 10))
 local MasteryCatalog = require(Modules:WaitForChild("MasteryCatalog", 10))
+local LootTables = require(Modules:WaitForChild("LootTables", 10))
+local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 
 local gui = Instance.new("ScreenGui")
@@ -47,7 +49,7 @@ local clone: Model? = nil
 
 local LEFT = { "Casco", "Armadura", "Arma", "Escudo", "Zapatos", "Cinturon" }
 local RIGHT = { "Collar", "Pendientes", "Brazalete", "Anillo", "Accesorio1", "Accesorio2" }
-local BOTTOM = { "Capa", "Alas", "Montura", "Traje" }
+local BOTTOM = { "Capa", "Alas", "Montura", "Traje", "Anillo2", "Accesorio3" }
 
 local function makeSlot(slotName: string, pos: UDim2, size: UDim2)
 	local b = Instance.new("TextButton")
@@ -69,6 +71,8 @@ local function makeSlot(slotName: string, pos: UDim2, size: UDim2)
 		local cur = PlayerClass.Get(player).Role
 		if (viewRole == nil or viewRole == cur) and Store.Equip[slotName] then
 			Store.Action("Unequip", slotName)
+		elseif slotName == "Accesorio3" and player:GetAttribute("Pass_PetSlot") ~= true then
+			MenuBus.Fire("Tienda") -- ranura de pase: lleva a la Tienda
 		end
 	end)
 	slotButtons[slotName] = b
@@ -108,6 +112,10 @@ local function refreshSlots()
 			b.BackgroundColor3 = col:Lerp(Color3.new(0, 0, 0), 0.75)
 		else
 			label.Text = ItemCatalog.SlotDisplay[name] or name
+			local passAttr = ItemCatalog.SlotPass[name]
+			if passAttr and player:GetAttribute(passAttr) ~= true then
+				label.Text ..= "\n🔒 Pase"
+			end
 			label.TextColor3 = Color3.fromRGB(140, 140, 155)
 			stroke.Color = theme.Secondary
 			b.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
@@ -147,6 +155,7 @@ local ROLE_INFO: { [string]: { Desc: string, Pasivas: { string } } } = {
 		"Última esperanza: +12% de cura a aliados con menos de 35% de vida." } },
 }
 local passiveLabel: TextLabel? = nil
+local keysResetLabel: TextLabel? = nil
 
 local GREEN, RED, GRAY = Color3.fromRGB(111, 220, 127), Color3.fromRGB(255, 107, 107), Color3.fromRGB(150, 150, 165)
 
@@ -183,7 +192,7 @@ local function addStat(name: string, value: string, bonus: string?, bonusColor: 
 	end
 end
 
-local function addNote(text: string, color: Color3?)
+local function addNote(text: string, color: Color3?): TextLabel
 	rowOrder += 1
 	local t = Instance.new("TextLabel")
 	t.LayoutOrder = rowOrder
@@ -198,6 +207,22 @@ local function addNote(text: string, color: Color3?)
 	t.TextYAlignment = Enum.TextYAlignment.Top
 	t.Text = text
 	t.Parent = statsScroll
+	return t
+end
+
+-- "Se reinician en 05:12:33": cuenta atrás hasta la medianoche del juego (DailyLimits publica DailyResetAt)
+local function updateKeysReset()
+	local lbl = keysResetLabel
+	if not lbl or not lbl.Parent then
+		return
+	end
+	local at = player:GetAttribute("DailyResetAt")
+	if typeof(at) ~= "number" then
+		lbl.Text = ""
+		return
+	end
+	local left = math.max(0, math.floor(at - workspace:GetServerTimeNow()))
+	lbl.Text = string.format("Tope diario de llaves por franja. Se reinicia en %02d:%02d:%02d y las llaves que sobren caducan.", left // 3600, (left % 3600) // 60, left % 60)
 end
 
 local function withCommas(n: number): string
@@ -272,6 +297,25 @@ local function refreshStats()
 		end
 		addNote(string.format("Total obtenido %s · gastado %s", withCommas(totalIn), withCommas(totalOut)))
 	end
+
+	-- LLAVES DEL DÍA: cuántas llaves de cofre cayeron hoy en cada franja (tope diario) y cuánto falta para el reinicio
+	addHeader("Llaves del día")
+	local keyLimits = LootTables.Daily.Keys
+	for strip = 1, 4 do
+		local used = player:GetAttribute("KeysUsed_" .. strip)
+		local lim = keyLimits[strip] or 0
+		local u = if typeof(used) == "number" then used else 0
+		local held = 0
+		for _, st in pairs(Store.Bag) do
+			if st.Id == "Key_" .. strip then
+				held += st.Count
+			end
+		end
+		addStat("Franja " .. strip, string.format("%d / %d", u, lim), if held > 0 then string.format("%d en mochila", held) else nil, if u >= lim then GRAY else nil)
+	end
+	local resetLabel = addNote("")
+	keysResetLabel = resetLabel
+	updateKeysReset()
 
 	addHeader("Bonos del equipo")
 	for _, stat in ipairs(GearView.StatOrder) do
@@ -555,7 +599,7 @@ player:GetAttributeChangedSignal("Level"):Connect(function()
 end)
 player.AttributeChanged:Connect(function(name: string)
 	local isGold = name == "Gold" or name == "FactionPoints" or string.sub(name, 1, 7) == "GoldIn_" or string.sub(name, 1, 8) == "GoldOut_"
-	if gui.Enabled and (isGold or string.sub(name, 1, 10) == "EquipPlus_") then
+	if gui.Enabled and (isGold or string.sub(name, 1, 10) == "EquipPlus_" or string.sub(name, 1, 9) == "KeysUsed_" or name == "Pass_PetSlot") then
 		refreshStats()
 	end
 end)
@@ -579,13 +623,22 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 -- Botón "Perfil" de la barra de menú
-local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 MenuBus.Event:Connect(function(name: string)
 	if name == "Character" then
 		if gui.Enabled then
 			gui.Enabled = false
 		else
 			open()
+		end
+	end
+end)
+
+-- reloj de las llaves: se actualiza cada segundo mientras el perfil está abierto
+task.spawn(function()
+	while true do
+		task.wait(1)
+		if gui.Enabled then
+			updateKeysReset()
 		end
 	end
 end)

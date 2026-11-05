@@ -4,7 +4,7 @@
     ALIMENTAR MASCOTAS: sube el nivel de una mascota (1..10) gastando recursos de franja (PetCatalog.FeedCost).
     El nivel se guarda en el "Plus" de la mascota (nivel = Plus + 1), igual que la mejora del equipo, así viaja con ella
     (mochila, puesta, Maestría) y el perfil ya lo guarda. GearService multiplica los efectos por PetCatalog.LevelMult.
-    Remote "PetFeed"(kind, key): kind "Equip" (key = "Accesorio2") o "Bag" (key = número de casilla).
+    Remote "PetFeed"(kind, key): kind "Equip" (key = "Accesorio2" o "Accesorio3" = Mascota 2) o "Bag" (key = número de casilla).
 ]]
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -35,7 +35,7 @@ local function feed(player: Player, kind: any, key: any)
 	if (kind ~= "Equip" and kind ~= "Bag") or not PlayerData.IsReady(player) then
 		return
 	end
-	if kind == "Equip" and key ~= "Accesorio2" then
+	if kind == "Equip" and key ~= "Accesorio2" and key ~= "Accesorio3" then
 		return
 	end
 	if kind == "Bag" and typeof(key) ~= "number" then

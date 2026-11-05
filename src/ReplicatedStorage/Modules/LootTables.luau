@@ -57,7 +57,7 @@ LootTables.GoldJitter = 0.20 -- ±20%
 LootTables.Lottery = { BaseTickets = 1, ShareTickets = 4, PityStep = 0.5, PityMax = 6 }
 
 -- Equipo: ranura de la pieza (80% set de clase) y reparto entre joyas (20%)
-LootTables.GearSlotWeights = { Arma = 30, Armadura = 25, Casco = 25, Zapatos = 20 }
+LootTables.GearSlotWeights = { Arma = 30, Armadura = 25, Casco = 25, Zapatos = 20, Escudo = 14, Cinturon = 12, Capa = 12 }
 LootTables.JewelryChance = 0.20
 
 -- Mob normal. El equipo mejora con la franja, pero Épico/Legendario siguen siendo raros (cada franja da más que la anterior).
@@ -319,7 +319,7 @@ function LootTables.RollGear(faction: string, role: string, level: number, rarit
 	end
 	local id: string
 	if rng:NextNumber() < (jewelryChance or LootTables.JewelryChance) then
-		local slots = { "Anillo", "Brazalete", "Collar" }
+		local slots = { "Anillo", "Brazalete", "Collar", "Pendientes" }
 		local slot = slots[rng:NextInteger(1, #slots)]
 		local focus = LootTables.Pick(GearCatalog.RoleWeights[role], rng)
 		id = GearCatalog.JewelId(slot, focus, tier, rarity)

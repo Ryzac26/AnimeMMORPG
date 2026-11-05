@@ -137,7 +137,7 @@ export type Pass = {
 	Icon: string?,
 }
 -- Solo Studio: pases que TU cuenta tendrá "comprados" para probar. false = como un jugador sin el pase.
-ProductCatalog.DevOwnPasses = { Belt = false, Merchant = false, Multiclass = false } :: { [string]: boolean }
+ProductCatalog.DevOwnPasses = { Belt = false, Merchant = false, Multiclass = false, PetSlot = false } :: { [string]: boolean }
 
 ProductCatalog.Passes = {
 	{
@@ -171,6 +171,16 @@ ProductCatalog.Passes = {
 			"Sin el pase: la maestría y el cambio gratis con el Instructor siguen funcionando",
 		},
 		PassId = 2068231801, PriceText = "149 R$",
+	},
+	{
+		Key = "PetSlot", Attr = "Pass_PetSlot", Name = "Segunda Mascota",
+		Desc = "Lleva dos mascotas a la vez: se suman sus efectos y poderes.",
+		Perks = {
+			"Desbloquea la ranura \"Mascota 2\" en el perfil (tecla C)",
+			"Las dos mascotas te siguen y suman sus bonos y poderes (deben ser de familias distintas)",
+			"Sin el pase: sigues con tu ranura de mascota normal",
+		},
+		PassId = 2068286395, PriceText = "249 R$", -- TODO: crea el Game Pass en el Creator Hub y pega aquí su ID
 	},
 } :: { Pass }
 

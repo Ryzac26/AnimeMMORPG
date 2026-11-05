@@ -36,6 +36,16 @@ local function emptyState(): State
 	return { Day = today(), Keys = {}, Challenge = {}, MiniBoss = {} }
 end
 
+-- Publica en el jugador lo que muestra el perfil: KeysUsed_<franja> (llaves que ya cayeron hoy) y DailyResetAt (hora del próximo reinicio, segundos Unix)
+local function publish(player: Player, st: State)
+	for strip = 1, 4 do
+		player:SetAttribute("KeysUsed_" .. strip, st.Keys[tostring(strip)] or 0)
+	end
+	local off = LootTables.Daily.ResetUtcOffsetHours * 3600
+	local localNow = os.time() + off
+	player:SetAttribute("DailyResetAt", localNow - (localNow % 86400) + 86400 - off)
+end
+
 -- Si cambió el día: contadores a 0 y caducan las llaves que sobraron
 local function refresh(player: Player): State?
 	local st = states[player]
@@ -58,6 +68,7 @@ local function refresh(player: Player): State?
 			Net.Get("Notify"):FireClient(player, "Nuevo día: tus llaves de cofre del día anterior caducaron")
 		end
 	end
+	publish(player, st)
 	return st
 end
 
@@ -88,6 +99,7 @@ function DailyLimits.Use(player: Player, kind: string, strip: number): boolean
 	local bucket = (st :: any)[kind] :: { [string]: number }
 	local key = tostring(strip)
 	bucket[key] = (bucket[key] or 0) + 1
+	publish(player, st)
 	return true
 end
 
