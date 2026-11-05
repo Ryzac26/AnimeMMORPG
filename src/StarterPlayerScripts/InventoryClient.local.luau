@@ -16,6 +16,7 @@ local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
 local GearView = require(script.Parent:WaitForChild("GearView", 10))
+local GearCatalog = require(ReplicatedStorage.Modules.GearCatalog)
 local BagCatalog = require(ReplicatedStorage.Modules.BagCatalog)
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 local ItemIcon = require(script.Parent:WaitForChild("ItemIcon", 10))
@@ -179,6 +180,12 @@ local function updateCompare(slotIndex: number?)
 	end
 	if c.Item.Set and c.Item.Set ~= "" then
 		body ..= string.format('\n\n<font size="11" color="%s">Set de %s: con 2 piezas +5%%, con 4 piezas +15%%.</font>', GRAY, tostring(c.Item.Set))
+	end
+	if c.Item.Theme then
+		local th = GearCatalog.ThemeById[c.Item.Theme]
+		if th then
+			body ..= string.format('\n<font size="11" color="%s">Tema %s (%s · %s): 2/4/7 piezas = +4%%/+10%%/+18%%.</font>', GRAY, th.Name, GearCatalog.WeightName[th.Weight] or "", th.Elem)
+		end
 	end
 	cmpBody.Text = body
 	cmp.Visible = true

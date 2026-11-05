@@ -108,6 +108,152 @@ GearCatalog.WeaponStyle = {
 	Shinigami = { Tanque = "Fist", Guerrero = "Sword", Asesino = "Fist", Tirador = "Bow", Mago = "Staff", Curador = "Staff" },
 } :: { [string]: { [string]: string } }
 
+---------------------------------------------------------------------
+-- TEMAS DE SET por PESO (Pesado: Tanque/Guerrero · Medio: Asesino/Tirador · Ligero: Mago/Curador)
+-- Cada tema es una identidad visual + elemento y cubre 2 tramos de nivel (el último, solo el 11). Los ids de los objetos NO cambian:
+-- el tema de una pieza sale de su tramo. Piezas temáticas (7 ranuras): Casco, Armadura, Zapatos, Arma, Escudo, Cinturón y Capa.
+-- Los iconos viven en GearIcons (ArtKey -> rbxassetid), se rellena cuando se suben las imágenes.
+---------------------------------------------------------------------
+GearCatalog.Weights = { Tanque = "pesado", Guerrero = "pesado", Asesino = "medio", Tirador = "medio", Mago = "ligero", Curador = "ligero" } :: { [string]: string }
+GearCatalog.WeightName = { pesado = "Pesado", medio = "Medio", ligero = "Ligero" } :: { [string]: string }
+GearCatalog.WeightOrder = { "pesado", "medio", "ligero" }
+GearCatalog.Themes = {
+	pesado = {
+		{ Id = "coloso_hierro", Name = "Coloso de Hierro", Elem = "Tierra", Base = "#7c8794", Acc = "#e0903a" },
+		{ Id = "centinela_granito", Name = "Centinela de Granito", Elem = "Hielo", Base = "#6b7f95", Acc = "#5ad0e0" },
+		{ Id = "vanguardia_carmesi", Name = "Vanguardia Carmesí", Elem = "Fuego", Base = "#a83a3a", Acc = "#f0c050" },
+		{ Id = "paladin_solar", Name = "Paladín Solar", Elem = "Luz", Base = "#d8c9a0", Acc = "#f2b632" },
+		{ Id = "titan_obsidiana", Name = "Titán de Obsidiana", Elem = "Sombra", Base = "#34303f", Acc = "#a65cff" },
+		{ Id = "behemoth_volcanico", Name = "Behemoth Volcánico", Elem = "Lava", Base = "#3a2a28", Acc = "#ff5a1f" },
+	},
+	medio = {
+		{ Id = "cazador_bosque", Name = "Cazador del Bosque", Elem = "Naturaleza", Base = "#5f8a4a", Acc = "#c9a064" },
+		{ Id = "nomada_desierto", Name = "Nómada del Desierto", Elem = "Viento", Base = "#c8a465", Acc = "#2fb7b0" },
+		{ Id = "corsario_abismo", Name = "Corsario del Abismo", Elem = "Agua", Base = "#26456e", Acc = "#e2b864" },
+		{ Id = "viboras_esmeralda", Name = "Víbora Esmeralda", Elem = "Veneno", Base = "#2f6b4f", Acc = "#9cf05a" },
+		{ Id = "ventisca_gelida", Name = "Ventisca Gélida", Elem = "Hielo", Base = "#9ec6dc", Acc = "#ffffff" },
+		{ Id = "sombra_nocturna", Name = "Sombra Nocturna", Elem = "Sombra", Base = "#2a2438", Acc = "#c86bff" },
+	},
+	ligero = {
+		{ Id = "aprendiz_celeste", Name = "Aprendiz Celeste", Elem = "Aire", Base = "#4f7fd0", Acc = "#f2d36b" },
+		{ Id = "bosque_mistico", Name = "Bosque Místico", Elem = "Naturaleza", Base = "#6fbf7a", Acc = "#ff9ad0" },
+		{ Id = "abismo_marino", Name = "Abismo Marino", Elem = "Agua", Base = "#1f8f9f", Acc = "#8ee8ff" },
+		{ Id = "ceniza_infernal", Name = "Ceniza Infernal", Elem = "Fuego", Base = "#a1352b", Acc = "#ff9a2e" },
+		{ Id = "santuario_luz", Name = "Santuario de Luz", Elem = "Luz", Base = "#efe9d8", Acc = "#e8b93a" },
+		{ Id = "eclipse_violeta", Name = "Eclipse Violeta", Elem = "Cosmos", Base = "#5b3c9b", Acc = "#ff6fd0" },
+	},
+} :: { [string]: { { Id: string, Name: string, Elem: string, Base: string, Acc: string } } }
+GearCatalog.ThemeById = {} :: { [string]: { Id: string, Name: string, Elem: string, Base: string, Acc: string, Weight: string } }
+for weight, list in pairs(GearCatalog.Themes) do
+	for _, t in ipairs(list) do
+		(t :: any).Weight = weight
+		GearCatalog.ThemeById[t.Id] = t :: any
+	end
+end
+
+function GearCatalog.ThemeOfTier(weight: string, tier: number): any
+	local list = GearCatalog.Themes[weight]
+	return list[math.clamp((tier + 1) // 2, 1, #list)]
+end
+
+-- Bonos de combinación (se suman al bono de set de rol)
+GearCatalog.ThemeMult = { [2] = 0.04, [4] = 0.10, [7] = 0.18 } :: { [number]: number } -- piezas del MISMO tema -> +% a todo el equipo
+GearCatalog.MestizoMult = 0.06 -- 3+ piezas de un tema y 3+ de otro (cualquier peso) -> +% a todo el equipo
+GearCatalog.WeightPieces = 5 -- piezas del mismo peso para su bono propio
+GearCatalog.WeightStat = { pesado = { Vida = 0.03 }, medio = { Critico = 0.03 }, ligero = { Ataque = 0.03 } } :: { [string]: { [string]: number } }
+-- Efecto del elemento: 4 piezas del tema = menor, 7 = mayor (suma plana a la estadística)
+GearCatalog.ElementStat = {
+	Fuego = "Ataque", Lava = "Ataque", Hielo = "Defensa", Tierra = "Defensa", Naturaleza = "Vida", Agua = "Vida",
+	Viento = "Critico", Aire = "Critico", Sombra = "Critico", Veneno = "CritDmg", Cosmos = "CritDmg", Luz = "Curacion",
+} :: { [string]: string }
+GearCatalog.ElementMinor = 0.02
+GearCatalog.ElementMajor = 0.04
+GearCatalog.StatShort = { Ataque = "ataque", Defensa = "defensa", Vida = "vida", Critico = "crítico", CritDmg = "daño crítico", Curacion = "curación" } :: { [string]: string }
+
+export type ThemeSummary = { Mult: number, Extra: { [string]: number }, Lines: { string }, Best: string?, BestCount: number }
+-- items: piezas equipadas que el jugador PUEDE usar (con campos Theme / Weight). Lo usan GearService (valor real) y GearView (ventana).
+function GearCatalog.ThemeSummary(items: { any }): ThemeSummary
+	local counts: { [string]: number } = {}
+	local weights: { [string]: number } = {}
+	for _, it in ipairs(items) do
+		if typeof(it.Theme) == "string" then
+			counts[it.Theme] = (counts[it.Theme] or 0) + 1
+			if typeof(it.Weight) == "string" then
+				weights[it.Weight] = (weights[it.Weight] or 0) + 1
+			end
+		end
+	end
+	local order: { string } = {}
+	for id in pairs(counts) do
+		table.insert(order, id)
+	end
+	table.sort(order, function(a, b)
+		if counts[a] ~= counts[b] then
+			return counts[a] > counts[b]
+		end
+		return a < b
+	end)
+	local out: ThemeSummary = { Mult = 0, Extra = {}, Lines = {}, Best = order[1], BestCount = if order[1] then counts[order[1]] else 0 }
+	local function add(stat: string, v: number)
+		out.Extra[stat] = (out.Extra[stat] or 0) + v
+	end
+	local n1 = out.BestCount
+	local themeMult = 0
+	for need, m in pairs(GearCatalog.ThemeMult) do
+		if n1 >= need and m > themeMult then
+			themeMult = m
+		end
+	end
+	local n2 = if order[2] then counts[order[2]] else 0
+	local mestizo = n1 >= 3 and n2 >= 3
+	if order[1] then
+		local t = GearCatalog.ThemeById[order[1]]
+		if t then
+			local stat = GearCatalog.ElementStat[t.Elem]
+			local line = string.format("Tema %s %d/7", t.Name, n1)
+			if n1 >= 7 then
+				add(stat, GearCatalog.ElementMajor)
+			elseif n1 >= 4 then
+				add(stat, GearCatalog.ElementMinor)
+			end
+			if themeMult > 0 then
+				line ..= string.format(": +%d%% al equipo", math.floor(themeMult * 100 + 0.5))
+			end
+			if n1 >= 4 and stat then
+				line ..= string.format(" · %s: +%d%% %s", t.Elem, math.floor((if n1 >= 7 then GearCatalog.ElementMajor else GearCatalog.ElementMinor) * 100 + 0.5), GearCatalog.StatShort[stat] or stat)
+			end
+			table.insert(out.Lines, line)
+		end
+	end
+	if mestizo and GearCatalog.MestizoMult > themeMult then
+		themeMult = GearCatalog.MestizoMult
+	end
+	if mestizo then
+		local t2 = GearCatalog.ThemeById[order[2]]
+		local t1 = GearCatalog.ThemeById[order[1]]
+		if t1 and t2 and t1.Id ~= t2.Id then
+			local s1, s2 = GearCatalog.ElementStat[t1.Elem], GearCatalog.ElementStat[t2.Elem]
+			if s1 then
+				add(s1, GearCatalog.ElementMinor / 2)
+			end
+			if s2 then
+				add(s2, GearCatalog.ElementMinor / 2)
+			end
+			table.insert(out.Lines, string.format("Mestizo %s + %s (%d+%d): +%d%% al equipo y mitad del efecto de cada elemento", t1.Elem, t2.Elem, n1, n2, math.floor(GearCatalog.MestizoMult * 100 + 0.5)))
+		end
+	end
+	out.Mult = themeMult
+	for w, n in pairs(weights) do
+		if n >= GearCatalog.WeightPieces then
+			for stat, v in pairs(GearCatalog.WeightStat[w]) do
+				add(stat, v)
+				table.insert(out.Lines, string.format("Peso %s %d piezas: +%d%% %s", GearCatalog.WeightName[w], n, math.floor(v * 100 + 0.5), GearCatalog.StatShort[stat] or stat))
+			end
+		end
+	end
+	return out
+end
+
 -- Mejora +0..+9: multiplica las estadísticas de la pieza. (Probabilidades sugeridas para cuando se implemente:
 -- +1..+3 100% · +4 85% · +5 70% · +6 55% · +7 40% · +8 30% · +9 20%)
 function GearCatalog.EnhanceMult(plus: number): number
@@ -294,14 +440,19 @@ for tier, req in ipairs(GearCatalog.TierLevels) do
 	for _, rarity in ipairs(GearCatalog.Rarities) do
 		-- Set de clase
 		for _, role in ipairs(GearCatalog.Roles) do
-			local set = GearCatalog.SetNames[role]
 			for slot in pairs(GearCatalog.PieceShare) do
 				for _, variant in ipairs(variantsFor(role, slot)) do
 					local styleName = variant.Style
 					local gear = GearCatalog.SetPieceGear(role, slot, tier, rarity)
 					local pieceName = if styleName then GearCatalog.WeaponNames[styleName] else GearCatalog.PieceNames[slot]
+					local weight = GearCatalog.Weights[role]
+					local theme = GearCatalog.ThemeOfTier(weight, tier)
+					local artPiece = if styleName then "arma_" .. string.lower(styleName) else string.lower(({ Armadura = "armadura", Casco = "casco", Zapatos = "botas" } :: any)[slot])
 					Items[GearCatalog.SetPieceId(role, slot, styleName, tier, rarity)] = {
-						Name = string.format("%s %s de %s", pieceName, set, tierName),
+						Name = string.format("%s %s [%s]", pieceName, theme.Name, tierName),
+						Theme = theme.Id,
+						Weight = weight,
+						ArtKey = string.format("%s/%s/%s", weight, theme.Id, artPiece),
 						Slot = slot,
 						Rarity = rarity,
 						Style = styleName,
@@ -318,12 +469,17 @@ for tier, req in ipairs(GearCatalog.TierLevels) do
 		end
 		-- Piezas de clase extra: Escudo, Cinturón, Capa (solo su rol; no cuentan para el bono de set)
 		for _, role in ipairs(GearCatalog.Roles) do
-			local set = GearCatalog.SetNames[role]
 			for _, slot in ipairs(GearCatalog.ClassExtraOrder) do
 				local gear = GearCatalog.SetPieceGear(role, slot, tier, rarity)
 				local pieceName = if slot == "Escudo" then GearCatalog.ShieldNames[role] else GearCatalog.ExtraNames[slot]
+				local weight = GearCatalog.Weights[role]
+				local theme = GearCatalog.ThemeOfTier(weight, tier)
+				local artPiece = if slot == "Escudo" then "escudo_" .. string.lower(role) elseif slot == "Cinturon" then "cinturon" else "capa"
 				Items[GearCatalog.SetPieceId(role, slot, nil, tier, rarity)] = {
-					Name = string.format("%s %s de %s", pieceName, set, tierName),
+					Name = string.format("%s %s [%s]", pieceName, theme.Name, tierName),
+					Theme = theme.Id,
+					Weight = weight,
+					ArtKey = string.format("%s/%s/%s", weight, theme.Id, artPiece),
 					Slot = slot,
 					Rarity = rarity,
 					Gear = gear,
@@ -347,6 +503,7 @@ for tier, req in ipairs(GearCatalog.TierLevels) do
 					ReqLevel = req,
 					Tier = tier,
 					Kind = "Jewel",
+					ArtKey = string.format("joyas/%s_%s", string.lower(slot), string.lower(focus)),
 					Desc = describe(string.format("Nv %d · Todas las clases", req), gear),
 				}
 			end
@@ -365,6 +522,7 @@ for tier, req in ipairs(GearCatalog.TierLevels) do
 				Faction = faction,
 				Tier = tier,
 				Kind = "Emblem",
+				ArtKey = "emblemas/emblema_" .. string.lower(faction),
 				Desc = describe(string.format("Nv %d · Solo %s", req, GearCatalog.FactionDisplay[faction]), gear),
 			}
 		end

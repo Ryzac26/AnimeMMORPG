@@ -309,6 +309,19 @@ local function refreshStats()
 		if full then
 			addNote((if br0.SetPieces >= 4 then "✔ Set completo: " else "Set completo (4/4): ") .. full.Text, if br0.SetPieces >= 4 then GREEN else GRAY)
 		end
+		addHeader("Temas y combinaciones")
+		local ts: any = br0.Theme
+		if ts and #ts.Lines > 0 then
+			for _, line in ipairs(ts.Lines) do
+				addNote("✔ " .. line, GREEN)
+			end
+		else
+			addNote("Sin bono de tema todavía: junta piezas del mismo tema.")
+		end
+		addStat("2 / 4 / 7 piezas del mismo tema", "", "+4% / +10% / +18%", GRAY)
+		addStat("3 + 3 de dos temas (Mestizo)", "", "+6%", GRAY)
+		addStat("5 piezas del mismo peso", "", "+3% propio del peso", GRAY)
+		addNote("Piezas de tema: Casco, Armadura, Botas, Arma, Escudo, Cinturón y Capa. Pesado: Tanque/Guerrero · Medio: Asesino/Tirador · Ligero: Mago/Curador.", GRAY)
 		local info2 = ROLE_INFO[role]
 		if info2 then
 			addHeader("Pasivas de " .. role)

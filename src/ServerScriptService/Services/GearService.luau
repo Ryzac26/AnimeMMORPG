@@ -59,6 +59,7 @@ local function compute(player: Player): Stats
 	local gear: { [string]: number } = {}
 	local pet: { [string]: number } = {}
 	local setPieces = 0
+	local themeItems: { any } = {}
 
 	local petFamilies: { [string]: boolean } = {}
 	for _, slot in ipairs(ItemCatalog.EquipSlots) do
@@ -80,6 +81,9 @@ local function compute(player: Player): Stats
 					if item.Set == role then
 						setPieces += 1
 					end
+					if item.Theme then
+						table.insert(themeItems, item)
+					end
 				end
 			elseif item.Pet then
 				-- la mascota de facción solo vale para su facción; el nivel (Plus) multiplica los efectos
@@ -99,7 +103,8 @@ local function compute(player: Player): Stats
 		end
 	end
 
-	local setMult = 1 + (GearCatalog.SetBonus[math.min(setPieces, 4)] or 0)
+	local themeSum = GearCatalog.ThemeSummary(themeItems)
+	local setMult = 1 + (GearCatalog.SetBonus[math.min(setPieces, 4)] or 0) + themeSum.Mult
 	local s = zero()
 	local out = s :: any
 	for stat, v in pairs(gear) do
@@ -107,6 +112,9 @@ local function compute(player: Player): Stats
 	end
 	for effect, v in pairs(pet) do
 		out[effect] = (out[effect] or 0) + v
+	end
+	for stat, v in pairs(themeSum.Extra) do
+		out[stat] = (out[stat] or 0) + v
 	end
 	local sources = temp[player]
 	if sources then

@@ -21,6 +21,10 @@ export type Item = {
 	Role: string?, -- solo ese rol puede equiparlo
 	Faction: string?, -- solo esa facción puede equiparlo
 	Set: string?,
+	Theme: string?, -- id del tema de set (GearCatalog.Themes)
+	Weight: string?, -- "pesado" | "medio" | "ligero"
+	ArtKey: string?, -- clave del arte (GearIcons)
+	Icon: string?, -- "rbxassetid://..." (se rellena desde GearIcons)
 	Tier: number?,
 	Kind: string?, -- "Set" | "Jewel" | "Emblem" | "Pet"
 	Pet: { Family: string, Effects: { [string]: number } }?,
@@ -123,6 +127,25 @@ do
 	end
 	for id, item in pairs(LootTables.Materials) do
 		items[id] = item
+	end
+	-- claves de arte de pociones y elixires
+	local potionKeys = {
+		Pocion_Vida = "pocion_vida_menor", Pocion_Vida_Mayor = "pocion_vida_mayor", Pocion_Vida_Suprema = "pocion_vida_suprema",
+		Pocion_Energia = "pocion_energia_menor", Pocion_Energia_Mayor = "pocion_energia_mayor", Pocion_Energia_Suprema = "pocion_energia_suprema",
+		Elixir_Oro = "elixir_oro", Elixir_Suerte = "elixir_suerte", Elixir_Poder = "elixir_poder", Elixir_Vigor = "elixir_vigor", Elixir_Regen = "elixir_regen",
+	}
+	for id, key in pairs(potionKeys) do
+		if items[id] then
+			items[id].ArtKey = "consumibles/" .. key
+		end
+	end
+	-- Iconos reales: GearIcons[ArtKey] = "rbxassetid://ID" (vacío hasta subir las imágenes)
+	local GearIcons = require(script.Parent.GearIcons)
+	for _, item in pairs(items) do
+		local key = item.ArtKey
+		if key and (GearIcons :: any)[key] then
+			item.Icon = (GearIcons :: any)[key]
+		end
 	end
 	-- Todo lo que NO es equipo ni mascota (pociones, materiales, fragmentos...) apila hasta 999 por casilla
 	for _, item in pairs(items) do

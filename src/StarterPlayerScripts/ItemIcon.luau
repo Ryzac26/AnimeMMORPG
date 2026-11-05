@@ -7,6 +7,8 @@
     Más adelante se puede cambiar por imágenes reales: basta con poner Icon = "rbxassetid://..." en el objeto (se usa si existe).
     ItemIcon.Build(parent, item, size, light?) -> Frame (centrado en el padre, no recibe clics)
 ]]
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local GearCatalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GearCatalog"))
 local ItemIcon = {}
 
 local WEIGHT = { Tanque = "H", Guerrero = "H", Asesino = "M", Tirador = "M", Mago = "L", Curador = "L" } :: { [string]: string }
@@ -62,6 +64,10 @@ function ItemIcon.Glyph(item: any): string
 end
 
 function ItemIcon.Tint(item: any, rarityColor: Color3): Color3
+	local th = if typeof(item.Theme) == "string" then GearCatalog.ThemeById[item.Theme] else nil
+	if th then
+		return Color3.fromHex(th.Base)
+	end
 	local role: string? = item.Role
 	if role and ItemIcon.RoleColor[role] then
 		return ItemIcon.RoleColor[role]
