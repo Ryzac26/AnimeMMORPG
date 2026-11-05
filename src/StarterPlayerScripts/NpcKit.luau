@@ -168,8 +168,7 @@ function NpcKit.Header(win: Frame, theme: any, width: number, title: string, sub
 			corner(box(h, UDim2.fromOffset(x, 39), UDim2.fromOffset(6, 6), p.Edge, 0, 4), 3)
 		end
 	else
-		box(h, UDim2.fromOffset(78, 0), UDim2.fromOffset(1, 52), p.Edge, 0.5, 3)
-		box(h, UDim2.fromOffset(0, 26), UDim2.new(1, 0, 0, 1), p.Edge, 0.82, 3)
+		box(h, UDim2.fromOffset(0, 50), UDim2.new(1, 0, 0, 2), p.Edge, 0.45, 3) -- subrayado inferior (sin líneas que crucen el título)
 	end
 	local medal = box(h, UDim2.fromOffset(if k == "Shinobi" then 18 else 12, 6), UDim2.fromOffset(40, 40), if k == "Shinobi" then c(150, 40, 36) else p.Accent, 0, 4)
 	corner(medal, if k == "Saiyan" then 4 else 20)

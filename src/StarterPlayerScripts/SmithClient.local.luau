@@ -20,6 +20,7 @@ local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local GearView = require(script.Parent:WaitForChild("GearView", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
+local ItemIcon = require(script.Parent:WaitForChild("ItemIcon", 10))
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 
 local CLOSE_DISTANCE = 32 -- studs: más lejos del herrero y la ventana se cierra
@@ -341,10 +342,13 @@ local function refreshList()
 		st.Color = if isSel then theme.Primary else col
 		st.Thickness = if isSel then 3 else 1
 		st.Parent = b
-		local name = UITheme.Text(b, GearView.DisplayName(item, e.Plus), 12, col, UDim2.fromOffset(8, 2), UDim2.new(1, -16, 0, 18))
+		local ic = ItemIcon.Build(b, item, 30, col)
+		ic.AnchorPoint = Vector2.zero
+		ic.Position = UDim2.fromOffset(4, 4)
+		local name = UITheme.Text(b, GearView.DisplayName(item, e.Plus), 12, col, UDim2.fromOffset(42, 2), UDim2.new(1, -50, 0, 18))
 		name.TextTruncate = Enum.TextTruncate.AtEnd
 		local sub = if e.Worn then "Puesto · " .. (ItemCatalog.SlotDisplay[item.Slot] or item.Slot) else "Mochila · " .. (ItemCatalog.SlotDisplay[item.Slot] or item.Slot)
-		UITheme.Text(b, sub, 10, NpcKit.Palette(theme).Muted, UDim2.fromOffset(8, 20), UDim2.new(1, -16, 0, 14))
+		UITheme.Text(b, sub, 10, NpcKit.Palette(theme).Muted, UDim2.fromOffset(42, 20), UDim2.new(1, -50, 0, 14))
 		b.Activated:Connect(function()
 			selected = { Kind = e.Kind, Key = e.Key }
 			resultLabel.Text = ""

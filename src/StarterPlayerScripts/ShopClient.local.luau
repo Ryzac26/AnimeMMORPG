@@ -20,6 +20,7 @@ local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local GearView = require(script.Parent:WaitForChild("GearView", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
+local ItemIcon = require(script.Parent:WaitForChild("ItemIcon", 10))
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 local RarityPicker = require(script.Parent:WaitForChild("RarityPicker", 10))
 
@@ -220,7 +221,10 @@ local function refreshList()
 		st.Color = if selected then theme.Primary else col
 		st.Thickness = if selected then 3 else 1
 		st.Parent = b
-		local name = UITheme.Text(b, GearView.DisplayName(item, plus), 11, col, UDim2.fromOffset(5, 3), UDim2.new(1, -10, 0, 44))
+		local ic = ItemIcon.Build(b, item, 28, col)
+		ic.AnchorPoint = Vector2.zero
+		ic.Position = UDim2.fromOffset(4, 4)
+		local name = UITheme.Text(b, GearView.DisplayName(item, plus), 10, col, UDim2.fromOffset(36, 3), UDim2.new(1, -40, 0, 40))
 		name.TextWrapped = true
 		name.TextYAlignment = Enum.TextYAlignment.Top
 		name.ZIndex = 4
