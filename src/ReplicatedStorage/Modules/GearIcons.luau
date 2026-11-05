@@ -163,6 +163,7 @@ local GearIcons: { [string]: string } = {
 	["pesado/centinela_granito/arma_sword"] = ID(104378722277731),
 	["pesado/centinela_granito/armadura"] = ID(110697024296430),
 	["pesado/centinela_granito/botas"] = ID(111697558649038),
+	["pesado/vanguardia_carmesi/capa"] = ID(98112404996152),
 	["pesado/centinela_granito/capa"] = ID(132756930078582),
 	["pesado/centinela_granito/casco"] = ID(129493679148889),
 	["pesado/centinela_granito/cinturon"] = ID(77553734791085),
