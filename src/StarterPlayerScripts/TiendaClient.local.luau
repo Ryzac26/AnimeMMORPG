@@ -49,10 +49,12 @@ local ACCENT: { [string]: Color3 } = {
 	Combo = Color3.fromRGB(235, 100, 190),
 	Pass = Color3.fromRGB(255, 190, 60),
 	Item = Color3.fromRGB(165, 105, 235),
+	Blessing = Color3.fromRGB(240, 190, 70),
 }
 local FALLBACK_TEXT: { [string]: string } = {
 	Boost4h = "+50%", Horas3 = "3 H", Horas5 = "5 H", Horas8 = "8 H", Horas12 = "12 H",
 	ComboDespegue = "COMBO", ComboMaraton = "COMBO", Pergamino1 = "🛡 x1", Pergamino5 = "🛡 x5",
+	BlessXp3 = "📖 3H", BlessXp5 = "📖 5H", BlessXp8 = "📖 8H", BlessOro4 = "💰 4H", BlessSuerte4 = "🔎 4H", BlessTotal4 = "✨ 4H",
 }
 
 -- Iconos: el de cada Developer Product (el que subiste en Creator Hub) o ProductCatalog.Icon si lo pones a mano.
@@ -149,6 +151,7 @@ local grid: UIGridLayout
 local TABS = {
 	{ Id = "Progreso", Text = "⚡ Progreso", Note = "Boost de XP (+50%), paquetes de horas y combos. Elige UNO por día entre paquetes y combos; el boost se combina con todo." },
 	{ Id = "Objetos", Text = "🎒 Objetos", Note = "Pergaminos de Protección: tu equipo no baja ni se rompe al fallar +7, +8 o +9. Llegan directo a tu mochila." },
+	{ Id = "Gremio", Text = "🏰 Bendiciones", Note = "Bendición para TODA tu facción en este servidor mientras haya jugadores de ella. Si el servidor se cierra con gente dentro, te devolvemos el tiempo sobrante como bendición personal." },
 	{ Id = "Pases", Text = "👑 Pases", Note = "Se compran una sola vez y son tuyos para siempre." },
 }
 
@@ -234,6 +237,9 @@ local function render()
 			extra = string.format("Hoy: +%s XP ≈ %.1f niv.%s", thousands(xp), lvls, if capped then " (tope)" else "")
 		elseif p.Items then
 			extra = "Directo a tu mochila"
+		elseif p.BlessGroup then
+			local g = ProductCatalog.BlessGroups[p.BlessGroup]
+			extra = if g then g.Short else ""
 		elseif p.Seconds then
 			extra = "Se suma al tiempo (máx. 12 h)"
 		end
@@ -297,6 +303,13 @@ local function render()
 				if p.Kind == kind and (kind ~= "Hours" or p.Lane == "Horas") then
 					card(p)
 				end
+			end
+		end
+	elseif activeTab == "Gremio" then
+		grid.CellSize = UDim2.fromOffset(170, 238)
+		for _, p in ipairs(ProductCatalog.Products) do
+			if p.Kind == "Blessing" then
+				card(p)
 			end
 		end
 	elseif activeTab == "Objetos" then

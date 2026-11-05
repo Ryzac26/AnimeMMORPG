@@ -37,6 +37,8 @@ export type Product = {
 	Seconds: number?,
 	Mult: number?,
 	Hours: number?,
+	BlessGroup: string?, -- Kind "Blessing": línea de tiempo de la Bendición de Facción (ProductCatalog.BlessGroups)
+	BlessSeconds: number?, -- Kind "Blessing": segundos que suma a esa línea
 	Items: { [string]: number }?, -- Kind "Item": objetos que se entregan en la mochila (id -> cantidad)
 }
 
@@ -66,6 +68,20 @@ function ProductCatalog.RateFactor(level: number): number
 	return pts[#pts][2]
 end
 ProductCatalog.MAX_BOOST_SECONDS = 12 * 3600
+
+-- BENDICIONES DE FACCIÓN (de pago): un jugador las compra y TODA su facción en ese servidor recibe el bono mientras dure.
+--   · El tiempo solo corre si hay jugadores de la facción en el servidor. Varias compras del mismo grupo SUMAN tiempo (no el bono).
+--   · Si dos grupos dan el mismo bono, vale el mayor (no se acumulan). Tope por facción y día en este servidor: BLESS_DAILY_SECONDS.
+--   · Si el servidor se cierra CON jugadores dentro (actualización, apagado), el tiempo sobrante se devuelve a quien lo compró
+--     como bendición PERSONAL (la recibe al volver a entrar). Si se cierra por quedar vacío, no se devuelve.
+ProductCatalog.BLESS_DAILY_SECONDS = 24 * 3600
+ProductCatalog.BLESS_MAX_PERSONAL = 24 * 3600
+ProductCatalog.BlessGroups = {
+	Xp = { Name = "Bendición de Sabiduría", Short = "XP +50%", Stats = { Xp = 0.5 } },
+	Oro = { Name = "Bendición de Fortuna", Short = "Oro +20%", Stats = { Oro = 0.2 } },
+	Suerte = { Name = "Bendición de Hallazgo", Short = "Suerte +20%", Stats = { Suerte = 0.2 } },
+	Total = { Name = "Bendición Total", Short = "XP +50% · Oro +20% · Suerte +20%", Stats = { Xp = 0.5, Oro = 0.2, Suerte = 0.2 } },
+} :: { [string]: { Name: string, Short: string, Stats: { [string]: number } } }
 
 ProductCatalog.Products = {
 	{
@@ -118,6 +134,37 @@ ProductCatalog.Products = {
 		Name = "Pack x5 Pergaminos de Protección",
 		Desc = "5 Pergaminos de Protección en una sola compra, más barato que por separado.",
 		ProductId = 2067373763, PriceText = "99 R$", DailyLimit = 10, MinLevel = 1, Items = { Pergamino_Proteccion = 5 },
+	},
+	-- BENDICIONES DE FACCIÓN (ver reglas arriba). Crea cada Developer Product y pega su ID; con ProductId 0 solo se prueba en Studio.
+	{
+		Key = "BlessXp3", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 449, Name = "Sabiduría 3 h",
+		Desc = "+50% de XP para toda tu facción en este servidor durante 3 horas.",
+		ProductId = 0, PriceText = "449 R$", DailyLimit = 8, MinLevel = 1, BlessGroup = "Xp", BlessSeconds = 3 * 3600,
+	},
+	{
+		Key = "BlessXp5", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 699, Name = "Sabiduría 5 h",
+		Desc = "+50% de XP para toda tu facción durante 5 horas.",
+		ProductId = 0, PriceText = "699 R$", DailyLimit = 5, MinLevel = 1, BlessGroup = "Xp", BlessSeconds = 5 * 3600,
+	},
+	{
+		Key = "BlessXp8", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 999, Name = "Sabiduría 8 h",
+		Desc = "+50% de XP para toda tu facción durante 8 horas.",
+		ProductId = 0, PriceText = "999 R$", DailyLimit = 3, MinLevel = 1, BlessGroup = "Xp", BlessSeconds = 8 * 3600,
+	},
+	{
+		Key = "BlessOro4", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 249, Name = "Fortuna 4 h",
+		Desc = "+20% de oro para toda tu facción durante 4 horas.",
+		ProductId = 0, PriceText = "249 R$", DailyLimit = 6, MinLevel = 1, BlessGroup = "Oro", BlessSeconds = 4 * 3600,
+	},
+	{
+		Key = "BlessSuerte4", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 249, Name = "Hallazgo 4 h",
+		Desc = "+20% de suerte con el botín para toda tu facción durante 4 horas.",
+		ProductId = 0, PriceText = "249 R$", DailyLimit = 6, MinLevel = 1, BlessGroup = "Suerte", BlessSeconds = 4 * 3600,
+	},
+	{
+		Key = "BlessTotal4", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 799, Name = "Bendición Total 4 h",
+		Desc = "XP +50%, oro +20% y suerte +20% para toda tu facción durante 4 horas.",
+		ProductId = 0, PriceText = "799 R$", DailyLimit = 4, MinLevel = 1, BlessGroup = "Total", BlessSeconds = 4 * 3600,
 	},
 } :: { Product }
 

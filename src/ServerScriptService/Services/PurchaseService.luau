@@ -18,6 +18,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local GB = require(ReplicatedStorage.Modules.GameBalance)
 local ProductCatalog = require(ReplicatedStorage.Modules.ProductCatalog)
 local Net = require(ServerScriptService.Services.Net)
+local BlessingService = require(ServerScriptService.Services.BlessingService)
 local PlayerData = require(ServerScriptService.Services.PlayerData)
 local LevelService = require(ServerScriptService.Services.LevelService)
 local Inventory = require(ServerScriptService.Services.InventoryService)
@@ -60,6 +61,12 @@ local function canBuy(player: Player, s: Shop, p: ProductCatalog.Product): (bool
 	end
 	if (p.Kind == "Hours" or p.Kind == "Combo") and level >= GB.MAX_LEVEL then
 		return false, "Ya estás en el nivel máximo"
+	end
+	if p.Kind == "Blessing" then
+		local why = BlessingService.Reason(player, p)
+		if why then
+			return false, why
+		end
 	end
 	if (s.Bought[p.Key] or 0) >= p.DailyLimit then
 		return false, "Límite de hoy alcanzado"
@@ -182,6 +189,12 @@ local function grant(player: Player, s: Shop, p: ProductCatalog.Product): boolea
 				reply(player, false, "Mochila llena: libera espacio y vuelve a intentarlo (la compra queda pendiente).")
 				return false
 			end
+		end
+	end
+	if p.Kind == "Blessing" then
+		if not BlessingService.Activate(player, p) then
+			reply(player, false, "No se pudo activar la bendición (elige tu facción primero).")
+			return false
 		end
 	end
 	s.Bought[p.Key] = (s.Bought[p.Key] or 0) + 1
