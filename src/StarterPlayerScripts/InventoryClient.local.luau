@@ -17,95 +17,86 @@ local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
 local GearView = require(script.Parent:WaitForChild("GearView", 10))
 local BagCatalog = require(ReplicatedStorage.Modules.BagCatalog)
-local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
+local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
+local BagDock = require(script.Parent:WaitForChild("BagDock", 10))
+local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 
-local gui = Instance.new("ScreenGui")
-gui.Name = "InventoryGui"
-gui.ResetOnSpawn = false
-gui.Enabled = false
-gui.Parent = player:WaitForChild("PlayerGui", 10)
+-- La mochila ya NO es una ventana propia: es un panel (528x594) que se acopla dentro de "Equipo y Mochila" (CharacterClient).
+local pgui = player:WaitForChild("PlayerGui", 10)
+local ghostGui = Instance.new("ScreenGui") -- solo para el objeto que arrastras
+ghostGui.Name = "InventoryGhost"
+ghostGui.ResetOnSpawn = false
+ghostGui.IgnoreGuiInset = true
+ghostGui.DisplayOrder = 200
+ghostGui.Parent = pgui
 
 local theme = UITheme.For(player:GetAttribute("Faction"))
+local pal = NpcKit.Palette(theme)
 local selected: number? = nil
 local currentPage = 1
 
-local win = UITheme.Frame(gui, theme, UDim2.fromOffset(380, 500), UDim2.new(1, -20, 0.5, 0), Vector2.new(1, 0.5))
-UITheme.Text(win, "MOCHILA", 20, theme.Primary, UDim2.fromOffset(16, 8), UDim2.fromOffset(200, 28))
-local capLabel = UITheme.Text(win, "", 12, Color3.fromRGB(200, 200, 210), UDim2.fromOffset(268, 12), UDim2.fromOffset(72, 20), Enum.TextXAlignment.Right)
-local bestBtn = Instance.new("TextButton")
-bestBtn.Position = UDim2.fromOffset(112, 9)
-bestBtn.Size = UDim2.fromOffset(84, 24)
-bestBtn.BackgroundColor3 = Color3.fromRGB(60, 100, 160)
-bestBtn.TextColor3 = Color3.new(1, 1, 1)
-bestBtn.Font = UITheme.Font
+local win = Instance.new("Frame") -- panel acoplable
+win.Name = "BagPanel"
+win.Size = UDim2.fromOffset(528, 594)
+win.BackgroundTransparency = 1
+win.BorderSizePixel = 0
+
+local DARK = Color3.fromRGB(22, 20, 28)
+local LIGHT = Color3.fromRGB(235, 232, 240)
+
+local capLabel = UITheme.Text(win, "", 12, pal.Muted, UDim2.fromOffset(448, 10), UDim2.fromOffset(78, 20), Enum.TextXAlignment.Right)
+capLabel.ZIndex = 5
+local bestBtn = NpcKit.Button(win, theme, "★ Mejor set", UDim2.fromOffset(84, 24), UDim2.fromOffset(268, 6), "action", function()
+	Store.Action("EquipBest")
+end)
 bestBtn.TextSize = 12
-bestBtn.Text = "★ Mejor set"
-bestBtn.ZIndex = 30 -- por encima de la barra de arrastre (ZIndex 20), si no se traga los clics
-bestBtn.Parent = win
-Instance.new("UICorner", bestBtn)
-local sortBtn = Instance.new("TextButton")
-sortBtn.Position = UDim2.fromOffset(200, 9)
-sortBtn.Size = UDim2.fromOffset(64, 24)
-sortBtn.BackgroundColor3 = Color3.fromRGB(90, 80, 130)
-sortBtn.TextColor3 = Color3.new(1, 1, 1)
-sortBtn.Font = UITheme.Font
-sortBtn.TextSize = 12
-sortBtn.Text = "Ordenar"
-sortBtn.ZIndex = 30 -- por encima de la barra de arrastre (ZIndex 20), si no se traga los clics
-sortBtn.Parent = win
-Instance.new("UICorner", sortBtn)
-sortBtn.Activated:Connect(function()
+local sortBtn = NpcKit.Button(win, theme, "Ordenar", UDim2.fromOffset(70, 24), UDim2.fromOffset(358, 6), "neutral", function()
 	selected = nil
 	Store.Action("Sort") -- junta lo apilable y ordena por rareza
 end)
-bestBtn.Activated:Connect(function()
-	Store.Action("EquipBest")
-end)
-local close = UITheme.Text(win, "X", 18, Color3.fromRGB(255, 120, 120), UDim2.new(1, -34, 0, 8), UDim2.fromOffset(24, 24), Enum.TextXAlignment.Center)
-local closeBtn = Instance.new("TextButton")
-closeBtn.Size = UDim2.fromScale(1, 1)
-closeBtn.BackgroundTransparency = 1
-closeBtn.Text = ""
-closeBtn.Parent = close
-closeBtn.Activated:Connect(function()
-	gui.Enabled = false
-end)
+sortBtn.TextSize = 12
 
+local gridBox = NpcKit.Panel(win, theme, UDim2.fromOffset(528, 304), UDim2.fromOffset(0, 36), "inset")
 local scroll = Instance.new("ScrollingFrame")
-scroll.Position = UDim2.fromOffset(14, 76)
-scroll.Size = UDim2.fromOffset(352, 308)
+scroll.Position = UDim2.fromOffset(8, 8)
+scroll.Size = UDim2.fromOffset(512, 288)
 scroll.BackgroundTransparency = 1
 scroll.BorderSizePixel = 0
-scroll.ScrollBarThickness = 6
+scroll.ScrollBarThickness = 5
+scroll.ZIndex = 3
 scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 scroll.CanvasSize = UDim2.fromOffset(0, 0)
-scroll.Parent = win
+scroll.Parent = gridBox
 local grid = Instance.new("UIGridLayout")
-grid.CellSize = UDim2.fromOffset(62, 62)
-grid.CellPadding = UDim2.fromOffset(8, 8)
+grid.CellSize = UDim2.fromOffset(56, 56)
+grid.CellPadding = UDim2.fromOffset(6, 6)
 grid.SortOrder = Enum.SortOrder.LayoutOrder
 grid.Parent = scroll
 
-WindowDrag.Attach(win, "Inventory", 40, 50) -- arrastra el título para mover la mochila
-UITheme.Text(win, "arrastra el título para mover", 10, Color3.fromRGB(130, 130, 145), UDim2.fromOffset(16, 487), UDim2.fromOffset(348, 12))
-
--- Panel de COMPARACIÓN (a un costado de la mochila): objeto seleccionado vs lo que llevas puesto
-local cmp = Instance.new("Frame")
+-- Panel de COMPARACIÓN: objeto seleccionado vs lo que llevas puesto (siempre oscuro para que se lea en todas las facciones)
+local cmp = Instance.new("ScrollingFrame")
 cmp.Name = "Compare"
-cmp.Size = UDim2.fromOffset(276, 10)
-cmp.AutomaticSize = Enum.AutomaticSize.Y
-cmp.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
+cmp.Position = UDim2.fromOffset(0, 392)
+cmp.Size = UDim2.fromOffset(528, 154)
+cmp.BackgroundColor3 = DARK
 cmp.BorderSizePixel = 0
+cmp.ScrollBarThickness = 4
+cmp.AutomaticCanvasSize = Enum.AutomaticSize.Y
+cmp.CanvasSize = UDim2.fromOffset(0, 0)
 cmp.Visible = false
+cmp.ZIndex = 3
 cmp.Parent = win
-Instance.new("UICorner", cmp)
-UITheme.Border(cmp, theme, 2)
+Instance.new("UICorner", cmp).CornerRadius = UDim.new(0, 6)
+local cmpStroke = Instance.new("UIStroke")
+cmpStroke.Color = pal.Edge2
+cmpStroke.Thickness = 1.5
+cmpStroke.Parent = cmp
 local cmpPad = Instance.new("UIPadding")
-cmpPad.PaddingTop, cmpPad.PaddingBottom = UDim.new(0, 10), UDim.new(0, 10)
+cmpPad.PaddingTop, cmpPad.PaddingBottom = UDim.new(0, 8), UDim.new(0, 8)
 cmpPad.PaddingLeft, cmpPad.PaddingRight = UDim.new(0, 12), UDim.new(0, 12)
 cmpPad.Parent = cmp
 local cmpList = Instance.new("UIListLayout")
-cmpList.Padding = UDim.new(0, 6)
+cmpList.Padding = UDim.new(0, 5)
 cmpList.SortOrder = Enum.SortOrder.LayoutOrder
 cmpList.Parent = cmp
 
@@ -117,17 +108,18 @@ local function cmpLabel(order: number, size: number): TextLabel
 	t.AutomaticSize = Enum.AutomaticSize.Y
 	t.Font = UITheme.Font
 	t.TextSize = size
-	t.TextColor3 = Color3.new(1, 1, 1)
+	t.TextColor3 = LIGHT
 	t.TextWrapped = true
 	t.RichText = true
 	t.TextXAlignment = Enum.TextXAlignment.Left
 	t.TextYAlignment = Enum.TextYAlignment.Top
 	t.Text = ""
+	t.ZIndex = 4
 	t.Parent = cmp
 	return t
 end
-local cmpVerdict = cmpLabel(1, 16)
-local cmpBody = cmpLabel(2, 13)
+local cmpVerdict = cmpLabel(1, 15)
+local cmpBody = cmpLabel(2, 12)
 
 local GREEN, RED, GRAY, YELLOW = "#6fdc7f", "#ff6b6b", "#aaaab8", "#ffd45e"
 
@@ -157,8 +149,6 @@ local function updateCompare(slotIndex: number?)
 		cmp.Visible = false
 		return
 	end
-	-- el panel va a la izquierda de la mochila; si no cabe, a la derecha
-	cmp.Position = if win.AbsolutePosition.X > 300 then UDim2.new(0, -284, 0, 0) else UDim2.new(1, 8, 0, 0)
 
 	local slotName = ItemCatalog.SlotDisplay[c.Slot] or c.Slot
 	local v = c.Verdict
@@ -193,60 +183,48 @@ local function updateCompare(slotIndex: number?)
 	cmp.Visible = true
 end
 
-local info = UITheme.Text(win, "Selecciona un objeto", 14, nil, UDim2.fromOffset(16, 392), UDim2.fromOffset(348, 56))
+local infoBox = Instance.new("Frame")
+infoBox.Position = UDim2.fromOffset(0, 346)
+infoBox.Size = UDim2.fromOffset(528, 42)
+infoBox.BackgroundColor3 = DARK
+infoBox.BorderSizePixel = 0
+infoBox.ZIndex = 3
+infoBox.Parent = win
+Instance.new("UICorner", infoBox).CornerRadius = UDim.new(0, 6)
+local infoStroke = Instance.new("UIStroke")
+infoStroke.Color = pal.Edge2
+infoStroke.Thickness = 1.5
+infoStroke.Parent = infoBox
+local info = UITheme.Text(infoBox, "Selecciona un objeto", 13, LIGHT, UDim2.fromOffset(10, 3), UDim2.fromOffset(450, 36))
 info.TextWrapped = true
-info.TextYAlignment = Enum.TextYAlignment.Top
+info.TextYAlignment = Enum.TextYAlignment.Center
 info.RichText = true
+info.ZIndex = 5
 
-local deselectBtn = Instance.new("TextButton")
-deselectBtn.Position = UDim2.fromOffset(342, 390)
-deselectBtn.Size = UDim2.fromOffset(24, 24)
-deselectBtn.BackgroundColor3 = Color3.fromRGB(70, 40, 40)
-deselectBtn.TextColor3 = Color3.fromRGB(255, 140, 140)
-deselectBtn.Font = UITheme.Font
-deselectBtn.TextSize = 14
-deselectBtn.Text = "X"
+local deselectBtn = NpcKit.Button(infoBox, theme, "X", UDim2.fromOffset(24, 24), UDim2.fromOffset(498, 9), "danger", function()
+	selected = nil
+	-- render/describe se asignan abajo
+	if _G.__bagRefresh then
+		_G.__bagRefresh()
+	end
+end)
 deselectBtn.Visible = false
-deselectBtn.Parent = win
-Instance.new("UICorner", deselectBtn)
-
-local lockBtn = Instance.new("TextButton")
-lockBtn.Position = UDim2.fromOffset(312, 390)
-lockBtn.Size = UDim2.fromOffset(26, 24)
-lockBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
-lockBtn.TextColor3 = Color3.new(1, 1, 1)
-lockBtn.Font = UITheme.Font
-lockBtn.TextSize = 13
-lockBtn.Text = "🔓"
-lockBtn.Visible = false
-lockBtn.Parent = win
-Instance.new("UICorner", lockBtn)
-lockBtn.Activated:Connect(function()
+deselectBtn.ZIndex = 6
+local lockBtn = NpcKit.Button(infoBox, theme, "🔓", UDim2.fromOffset(26, 24), UDim2.fromOffset(468, 9), "neutral", function()
 	if selected then
 		Store.Action("Lock", selected) -- candado: no se vende ni se tira
 	end
 end)
+lockBtn.Visible = false
+lockBtn.ZIndex = 6
 
-local function button(text: string, x: number, color: Color3, fn: () -> ())
-	local b = Instance.new("TextButton")
-	b.Position = UDim2.fromOffset(x, 456)
-	b.Size = UDim2.fromOffset(110, 30)
-	b.BackgroundColor3 = color
-	b.Text = text
-	b.TextColor3 = Color3.new(1, 1, 1)
-	b.Font = UITheme.Font
-	b.TextSize = 14
-	b.Parent = win
-	Instance.new("UICorner", b)
-	b.Activated:Connect(fn)
-end
-button("Equipar", 16, Color3.fromRGB(50, 130, 70), function()
+local equipBtn = NpcKit.Button(win, theme, "Equipar", UDim2.fromOffset(110, 30), UDim2.fromOffset(0, 556), "buy", function()
 	if selected then
 		Store.Action("Equip", selected)
 		selected = nil
 	end
 end)
-button("Tirar", 138, Color3.fromRGB(150, 50, 50), function()
+local dropBtn = NpcKit.Button(win, theme, "Tirar", UDim2.fromOffset(110, 30), UDim2.fromOffset(120, 556), "danger", function()
 	if selected and Store.Bag[selected] and Store.Bag[selected].Locked then
 		return -- bloqueado: no se tira (el servidor también lo rechaza)
 	end
@@ -256,19 +234,21 @@ button("Tirar", 138, Color3.fromRGB(150, 50, 50), function()
 	end
 end)
 
--- ORO acumulado (a la derecha de los botones). Cada vez que sube aparece un "+N" verde que se desvanece.
+-- ORO acumulado. Cada vez que sube aparece un "+N" verde que se desvanece.
+local goldBox = NpcKit.Panel(win, theme, UDim2.fromOffset(180, 30), UDim2.fromOffset(348, 556), "plate")
 local goldLabel = Instance.new("TextLabel")
 goldLabel.BackgroundTransparency = 1
-goldLabel.Position = UDim2.fromOffset(256, 454)
-goldLabel.Size = UDim2.fromOffset(110, 32)
+goldLabel.Position = UDim2.fromOffset(8, 0)
+goldLabel.Size = UDim2.fromOffset(164, 30)
 goldLabel.Font = UITheme.Font
-goldLabel.TextSize = 15
+goldLabel.TextSize = 14
 goldLabel.RichText = true
-goldLabel.TextColor3 = Color3.fromRGB(255, 214, 90)
+goldLabel.TextColor3 = pal.FText
 goldLabel.TextXAlignment = Enum.TextXAlignment.Right
-goldLabel.TextYAlignment = Enum.TextYAlignment.Center
-goldLabel.Parent = win
-local goldGain = UITheme.Text(win, "", 13, Color3.fromRGB(111, 220, 127), UDim2.fromOffset(258, 455), UDim2.fromOffset(70, 14), Enum.TextXAlignment.Left)
+goldLabel.ZIndex = 5
+goldLabel.Parent = goldBox
+local goldGain = UITheme.Text(goldBox, "", 13, Color3.fromRGB(60, 190, 90), UDim2.fromOffset(8, 0), UDim2.fromOffset(70, 30), Enum.TextXAlignment.Left)
+goldGain.ZIndex = 6
 local lastGold = -1
 
 local function withCommas(n: number): string
@@ -283,7 +263,7 @@ end
 local function updateGold()
 	local g = player:GetAttribute("Gold")
 	local gold = if typeof(g) == "number" then g else 0
-	goldLabel.Text = string.format('<font size="10" color="#aaaab8">ORO</font>\n%s', withCommas(gold))
+	goldLabel.Text = string.format('ORO  <b>%s</b>', withCommas(gold))
 	if lastGold >= 0 and gold > lastGold then
 		goldGain.Text = "+" .. withCommas(gold - lastGold)
 		goldGain.TextTransparency = 0
@@ -318,38 +298,20 @@ end
 
 local pageTabs: { TextButton } = {}
 for p = 1, #BagCatalog.PageSizes do
-	local t = Instance.new("TextButton")
-	t.Position = UDim2.fromOffset(14 + (p - 1) * 71, 46)
-	t.Size = UDim2.fromOffset(66, 24)
-	t.Font = UITheme.Font
-	t.TextSize = 13
-	t.Text = tostring(p)
-	t.Parent = win
-	Instance.new("UICorner", t)
+	local t = NpcKit.Tab(win, theme, tostring(p), UDim2.fromOffset(40, 24), UDim2.fromOffset((p - 1) * 44, 6), p == 1, nil)
+	t.TextSize = 12
 	pageTabs[p] = t
 end
-local buyBar = Instance.new("Frame")
-buyBar.Position = UDim2.fromOffset(14, 76)
-buyBar.Size = UDim2.fromOffset(352, 308)
-buyBar.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
-buyBar.BorderSizePixel = 0
+local buyBar = NpcKit.Panel(win, theme, UDim2.fromOffset(528, 304), UDim2.fromOffset(0, 36), "card")
 buyBar.Visible = false
-buyBar.Parent = win
-Instance.new("UICorner", buyBar)
-local buyText = UITheme.Text(buyBar, "", 16, Color3.new(1, 1, 1), UDim2.fromOffset(16, 90), UDim2.fromOffset(320, 60), Enum.TextXAlignment.Center)
+buyBar.ZIndex = 6
+local buyText = UITheme.Text(buyBar, "", 16, pal.Text, UDim2.fromOffset(24, 90), UDim2.fromOffset(480, 70), Enum.TextXAlignment.Center)
 buyText.TextWrapped = true
-local buyButton = Instance.new("TextButton")
-buyButton.Position = UDim2.fromOffset(76, 170)
-buyButton.Size = UDim2.fromOffset(200, 40)
-buyButton.BackgroundColor3 = Color3.fromRGB(50, 130, 70)
-buyButton.TextColor3 = Color3.new(1, 1, 1)
-buyButton.Font = UITheme.Font
-buyButton.TextSize = 16
-buyButton.Parent = buyBar
-Instance.new("UICorner", buyButton)
-buyButton.Activated:Connect(function()
+buyText.ZIndex = 7
+local buyButton = NpcKit.Button(buyBar, theme, "", UDim2.fromOffset(240, 40), UDim2.fromOffset(144, 180), "buy", function()
 	Store.Action("BuyPage")
 end)
+buyButton.ZIndex = 7
 
 -- arrastrar y soltar
 local slotButtons: { [number]: TextButton } = {}
@@ -359,7 +321,6 @@ local suppressUntil = 0
 
 local function render()
 	table.clear(slotButtons)
-	theme = UITheme.For(player:GetAttribute("Faction"))
 	for _, c in ipairs(scroll:GetChildren()) do
 		if c:IsA("TextButton") then
 			c:Destroy()
@@ -379,8 +340,9 @@ local function render()
 	for p, tab in ipairs(pageTabs) do
 		local open = p <= unlocked
 		tab.Text = if open then tostring(p) else "🔒" .. tostring(p)
-		tab.BackgroundColor3 = if p == currentPage then theme.Primary else (if open then Color3.fromRGB(40, 40, 54) else Color3.fromRGB(60, 40, 40))
-		tab.TextColor3 = if p == currentPage then Color3.new(0, 0, 0) else Color3.new(1, 1, 1)
+		tab.BackgroundColor3 = if p == currentPage then pal.TabOn else pal.TabOff
+		tab.TextColor3 = if p == currentPage then pal.TabOnText else pal.TabOffText
+		tab.TextTransparency = if open then 0 else 0.35
 	end
 	local lockedPage = currentPage > unlocked
 	buyBar.Visible = lockedPage
@@ -399,14 +361,15 @@ local function render()
 		local b = Instance.new("TextButton")
 		b.LayoutOrder = i
 		b.AutoButtonColor = true
-		b.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+		b.BackgroundColor3 = pal.Slot
 		b.Text = ""
+		b.ZIndex = 4
 		b.Parent = scroll
 		slotButtons[i] = b
 		Instance.new("UICorner", b)
 		local st = Instance.new("UIStroke")
 		st.Thickness = if selected == i then 3 else 1
-		st.Color = if selected == i then theme.Primary else Color3.fromRGB(70, 70, 85)
+		st.Color = if selected == i then pal.Accent else pal.Edge2
 		st.Parent = b
 		local stack = Store.Bag[i]
 		local item = stack and ItemCatalog.Items[stack.Id]
@@ -521,7 +484,7 @@ UserInputService.InputChanged:Connect(function(input)
 			ghost.BackgroundTransparency = 0.15
 			ghost.ZIndex = 50
 			ghost.Active = false
-			ghost.Parent = gui
+			ghost.Parent = ghostGui
 			Instance.new("UICorner", ghost)
 			local gs = Instance.new("UIStroke")
 			gs.Color = col
@@ -553,8 +516,8 @@ UserInputService.InputEnded:Connect(function(input)
 		pressed = nil
 	end
 end)
-gui:GetPropertyChangedSignal("Enabled"):Connect(function()
-	if not gui.Enabled then
+win.AncestryChanged:Connect(function()
+	if not win:IsDescendantOf(game) then
 		endDrag(nil)
 	end
 end)
@@ -572,16 +535,22 @@ Store.Changed:Connect(function()
 end)
 render()
 
+_G.__bagRefresh = function()
+	render()
+	describe(selected)
+end
+BagDock.Register(win)
+
+-- Tecla B y botón "Mochila": abren la ventana unida "Equipo y Mochila".
 local lastToggle = 0
 local function toggle()
 	if os.clock() - lastToggle < 0.2 then
 		return -- evita doble apertura si dos métodos detectan la misma pulsación
 	end
 	lastToggle = os.clock()
-	gui.Enabled = not gui.Enabled
+	MenuBus.Fire("Character")
 end
 
--- Tecla B. Prioridad ALTA para que ningún otro script o UI se la quede.
 ContextActionService:BindActionAtPriority("ToggleInventory", function(_, state)
 	if state == Enum.UserInputState.Begin then
 		toggle()
@@ -589,18 +558,9 @@ ContextActionService:BindActionAtPriority("ToggleInventory", function(_, state)
 	return Enum.ContextActionResult.Sink
 end, false, Enum.ContextActionPriority.High.Value + 100, Enum.KeyCode.B)
 
--- Respaldo: también por UserInputService (ignora "gameProcessed")
-UserInputService.InputBegan:Connect(function(input)
-	if input.KeyCode == Enum.KeyCode.B then
-		toggle()
-	end
-end)
-
--- Botón "Mochila" de la barra de menú
-local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 MenuBus.Event:Connect(function(name: string)
 	if name == "Inventory" then
 		toggle()
 	end
 end)
-print("[InventoryClient] listo (tecla B o botón Mochila)")
+print("[InventoryClient] listo (tecla B o botón Mochila abren Equipo y Mochila)")

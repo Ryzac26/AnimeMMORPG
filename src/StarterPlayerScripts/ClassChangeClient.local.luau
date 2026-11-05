@@ -51,26 +51,14 @@ local function build(name: string, title: string)
 	local faction = player:GetAttribute("Faction")
 	local current = player:GetAttribute("Role")
 	local W = 436
-	local w = UITheme.Frame(gui, theme, UDim2.fromOffset(W, 500), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
-	win = w
-	WindowDrag.Attach(w, "ClassChange", 52, 50)
-	NpcKit.Header(w, theme, W, name, title .. "  ·  cambio de clase GRATIS", "🎓")
-	local close = Instance.new("TextButton")
-	close.Position = UDim2.new(1, -40, 0, 14)
-	close.Size = UDim2.fromOffset(28, 28)
-	close.Text = "X"
-	close.BackgroundTransparency = 1
-	close.TextColor3 = Color3.fromRGB(255, 120, 120)
-	close.Font = UITheme.Font
-	close.TextSize = 18
-	close.ZIndex = 30
-	close.Parent = w
-	close.Activated:Connect(function()
+	local w = NpcKit.Window(gui, theme, UDim2.fromOffset(W, 504), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), name, title .. "  ·  cambio de clase GRATIS", "🎓", function()
 		gui.Enabled = false
 	end)
+	win = w
+	WindowDrag.Attach(w, "ClassChange", 40, 50)
 	local pal = NpcKit.Palette(theme)
 
-	local confirm = NpcKit.Button(w, theme, "Elige un rol", UDim2.fromOffset(W - 32, 40), UDim2.fromOffset(16, 450), "buy", nil)
+	local confirm = NpcKit.Button(w, theme, "Elige un rol", UDim2.fromOffset(W - 28, 40), UDim2.fromOffset(14, 452), "buy", nil)
 	confirm.TextSize = 16
 	confirm.AutoButtonColor = false
 
@@ -79,7 +67,7 @@ local function build(name: string, title: string)
 		for role, b in pairs(buttons) do
 			local st = b:FindFirstChildOfClass("UIStroke")
 			if st then
-				st.Color = if role == picked then theme.Primary else pal.Edge
+				st.Color = if role == picked then pal.Accent else pal.Edge
 				st.Thickness = if role == picked then 3 else 1
 				st.Transparency = if role == picked then 0 else 0.5
 			end
@@ -91,7 +79,7 @@ local function build(name: string, title: string)
 	for i, role in ipairs(ROLES) do
 		local data = if typeof(faction) == "string" then FactionClasses.FindClass(faction, role) else nil
 		local col, row = (i - 1) % 2, math.floor((i - 1) / 2)
-		local card = NpcKit.Panel(w, theme, UDim2.fromOffset(196, 124), UDim2.fromOffset(16 + col * 208, 72 + row * 126), "card")
+		local card = NpcKit.Panel(w, theme, UDim2.fromOffset(196, 124), UDim2.fromOffset(14 + col * 208, 74 + row * 126), "card")
 		local b = Instance.new("TextButton")
 		b.Size = UDim2.fromScale(1, 1)
 		b.BackgroundTransparency = 1
@@ -106,7 +94,7 @@ local function build(name: string, title: string)
 		local medal = Instance.new("Frame")
 		medal.Position = UDim2.fromOffset(10, 10)
 		medal.Size = UDim2.fromOffset(46, 46)
-		medal.BackgroundColor3 = theme.Primary
+		medal.BackgroundColor3 = pal.Accent
 		medal.BorderSizePixel = 0
 		medal.Parent = card
 		Instance.new("UICorner", medal).CornerRadius = UDim.new(1, 0)
@@ -114,9 +102,9 @@ local function build(name: string, title: string)
 		ms.Color = pal.Edge
 		ms.Thickness = 2
 		ms.Parent = medal
-		local ic = UITheme.Text(medal, ICON[role] or "★", 24, Color3.new(1, 1, 1), UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
-		ic.TextStrokeTransparency = 0.4
-		local n1 = UITheme.Text(card, role, 16, if isCurrent then Color3.fromRGB(255, 200, 70) else pal.Text, UDim2.fromOffset(64, 10), UDim2.fromOffset(126, 20))
+		local ic = UITheme.Text(medal, ICON[role] or "★", 24, pal.BtnText, UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
+		ic.TextStrokeTransparency = 1
+		local n1 = UITheme.Text(card, role, 16, if isCurrent then pal.Accent else pal.Text, UDim2.fromOffset(64, 10), UDim2.fromOffset(126, 20))
 		n1.TextStrokeTransparency = 1
 		local n2 = UITheme.Text(card, if data then data.CharacterName else "?", 12, pal.Muted, UDim2.fromOffset(64, 32), UDim2.fromOffset(126, 16))
 		n2.TextStrokeTransparency = 1
@@ -126,7 +114,7 @@ local function build(name: string, title: string)
 		hint.TextYAlignment = Enum.TextYAlignment.Top
 		hint.TextStrokeTransparency = 1
 		if isCurrent then
-			NpcKit.Chip(card, "ACTUAL", Color3.fromRGB(255, 200, 70), UDim2.fromOffset(122, 100), UDim2.fromOffset(66, 16))
+			NpcKit.Chip(card, "ACTUAL", pal.Accent, UDim2.fromOffset(122, 100), UDim2.fromOffset(66, 16))
 		else
 			b.Activated:Connect(function()
 				picked = role

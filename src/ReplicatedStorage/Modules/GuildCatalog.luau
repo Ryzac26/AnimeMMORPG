@@ -51,7 +51,7 @@ end
 export type PassiveState = { L: number, P: number } -- nivel, progreso hacia el siguiente
 export type State = {
 	Passives: { [string]: PassiveState },
-	Contrib: { [string]: { T: number, W: number, Wk: number, N: string } },
+	Contrib: { [string]: { T: number, W: number, Wk: number, N: string, Lv: number?, R: string? } },
 	Log: { { t: number, m: string } },
 }
 
@@ -79,7 +79,7 @@ function GuildCatalog.Sanitize(raw: any): State
 	if typeof(raw.Contrib) == "table" then
 		for uid, c in pairs(raw.Contrib) do
 			if typeof(uid) == "string" and typeof(c) == "table" and typeof(c.T) == "number" then
-				s.Contrib[uid] = { T = c.T, W = if typeof(c.W) == "number" then c.W else 0, Wk = if typeof(c.Wk) == "number" then c.Wk else 0, N = if typeof(c.N) == "string" then c.N else "?" }
+				s.Contrib[uid] = { T = c.T, W = if typeof(c.W) == "number" then c.W else 0, Wk = if typeof(c.Wk) == "number" then c.Wk else 0, N = if typeof(c.N) == "string" then c.N else "?", Lv = if typeof(c.Lv) == "number" then c.Lv else nil, R = if typeof(c.R) == "string" then c.R else nil }
 			end
 		end
 	end
@@ -125,7 +125,7 @@ end
 -- Aplica un lote de aportes pendientes (lo hace el servidor dentro de UpdateAsync y también de forma optimista en la caché)
 export type Delta = {
 	Pass: { [string]: number },
-	Contrib: { [string]: { PA: number, Name: string } },
+	Contrib: { [string]: { PA: number, Name: string, Lv: number?, Role: string? } },
 	Log: { { t: number, m: string } },
 }
 function GuildCatalog.NewDelta(): Delta
@@ -153,6 +153,12 @@ function GuildCatalog.ApplyDelta(s: State, d: Delta, now: number): { string }
 		e.T += c.PA
 		e.W += c.PA
 		e.N = c.Name
+		if c.Lv then
+			e.Lv = c.Lv
+		end
+		if c.Role then
+			e.R = c.Role
+		end
 	end
 	for _, l in ipairs(d.Log) do
 		addLog(s, l.t, l.m)
@@ -190,11 +196,11 @@ function GuildCatalog.StatsFor(s: State): { [string]: number }
 end
 
 -- Ranking: lista ordenada { Uid, Name, Total, Week }. weekly=true ordena por la semana actual.
-function GuildCatalog.Ranking(s: State, weekly: boolean, now: number, limit: number): { { Uid: string, Name: string, Total: number, Week: number } }
+function GuildCatalog.Ranking(s: State, weekly: boolean, now: number, limit: number): { { Uid: string, Name: string, Total: number, Week: number, Lv: number?, Role: string? } }
 	local wk = GuildCatalog.WeekId(now)
-	local list: { { Uid: string, Name: string, Total: number, Week: number } } = {}
+	local list: { { Uid: string, Name: string, Total: number, Week: number, Lv: number?, Role: string? } } = {}
 	for uid, e in pairs(s.Contrib) do
-		table.insert(list, { Uid = uid, Name = e.N, Total = e.T, Week = if e.Wk == wk then e.W else 0 })
+		table.insert(list, { Uid = uid, Name = e.N, Total = e.T, Week = if e.Wk == wk then e.W else 0, Lv = e.Lv, Role = e.R })
 	end
 	table.sort(list, function(a, b)
 		local av = if weekly then a.Week else a.Total

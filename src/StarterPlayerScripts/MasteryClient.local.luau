@@ -16,13 +16,14 @@ local MasteryCatalog = require(Modules:WaitForChild("MasteryCatalog", 10))
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
+local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 
 local stateRemote = ClientNet.Get("MasteryState")
 local actionRemote = ClientNet.Get("MasteryAction")
 local resultRemote = ClientNet.Get("MasteryResult")
 
-local GREEN, RED, GRAY, GOLD = "#6fdc7f", "#ff6b6b", "#aaaab8", "#ffd45e"
+local GREEN, RED, GRAY, GOLD = "#2f9a47", "#c23b3b", "#8a8a96", "#c8960a"
 local theme = UITheme.For(player:GetAttribute("Faction"))
 
 local gui = Instance.new("ScreenGui")
@@ -74,67 +75,46 @@ local function build()
 	if win then
 		win:Destroy()
 	end
-	local w = UITheme.Frame(gui, theme, UDim2.fromOffset(500, 560), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
+	local pal = NpcKit.Palette(theme)
+	local hasPass = state ~= nil and state.Pass
+	local w = NpcKit.Window(gui, theme, UDim2.fromOffset(500, 610), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "Maestría de rol",
+		if hasPass then "Pase Maestría Multiclase activo" else "Cada rol sube su propio rango jugando con él", "🏅", function()
+			gui.Enabled = false
+		end)
 	win = w
 	WindowDrag.Attach(w, "Mastery", 52, 50)
-	UITheme.Text(w, "Maestría de rol", 20, theme.Primary, UDim2.fromOffset(18, 6), UDim2.fromOffset(340, 26))
-	local hasPass = state ~= nil and state.Pass
-	local sub = UITheme.Text(w, if hasPass then "Pase Maestría Multiclase activo" else "Cada rol sube su propio rango jugando con él", 12, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(18, 30), UDim2.fromOffset(440, 16))
-	sub.TextColor3 = if hasPass then Color3.fromRGB(255, 214, 90) else Color3.fromRGB(170, 170, 185)
-
-	local close = Instance.new("TextButton")
-	close.Position = UDim2.new(1, -38, 0, 8)
-	close.Size = UDim2.fromOffset(28, 28)
-	close.Text = "X"
-	close.BackgroundTransparency = 1
-	close.TextColor3 = Color3.fromRGB(255, 120, 120)
-	close.Font = UITheme.Font
-	close.TextSize = 18
-	close.ZIndex = 30
-	close.Parent = w
-	close.Activated:Connect(function()
-		gui.Enabled = false
-	end)
 
 	if not state then
-		UITheme.Text(w, "Cargando…", 14, Color3.new(1, 1, 1), UDim2.fromOffset(18, 70), UDim2.fromOffset(300, 20))
+		UITheme.Text(w, "Cargando…", 14, pal.FText, UDim2.fromOffset(18, 100), UDim2.fromOffset(300, 20))
 		return
 	end
 	for i, info in ipairs(state.Roles) do
-		local y = 56 + (i - 1) * 66
-		local row = Instance.new("Frame")
-		row.Position = UDim2.fromOffset(16, y)
-		row.Size = UDim2.fromOffset(468, 60)
-		row.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
-		row.BorderSizePixel = 0
-		row.Parent = w
-		Instance.new("UICorner", row)
+		local y = 84 + (i - 1) * 66
 		local isCurrent = info.Role == state.Current
-		local st = Instance.new("UIStroke")
-		st.Color = if isCurrent then theme.Primary else Color3.fromRGB(70, 70, 85)
-		st.Thickness = if isCurrent then 2 else 1
-		st.Parent = row
-		UITheme.Text(row, info.Role, 15, if isCurrent then Color3.fromRGB(255, 214, 90) else Color3.new(1, 1, 1), UDim2.fromOffset(10, 4), UDim2.fromOffset(120, 20))
-		local rankTxt = UITheme.Text(row, string.format("Rango %d/%d", info.Rank, MasteryCatalog.MAX_RANK), 13, Color3.fromRGB(150, 220, 255), UDim2.fromOffset(120, 5), UDim2.fromOffset(110, 18))
+		local row = NpcKit.Panel(w, theme, UDim2.fromOffset(468, 60), UDim2.fromOffset(16, y), if isCurrent then "plate" else "card")
+		UITheme.Text(row, info.Role, 15, pal.Text, UDim2.fromOffset(10, 4), UDim2.fromOffset(120, 20))
+		local rankTxt = UITheme.Text(row, string.format("Rango %d/%d", info.Rank, MasteryCatalog.MAX_RANK), 13, pal.Accent, UDim2.fromOffset(120, 5), UDim2.fromOffset(110, 18))
 		rankTxt.TextXAlignment = Enum.TextXAlignment.Left
 		local cur, need = MasteryCatalog.Progress(info.Points)
 		local barBg = Instance.new("Frame")
 		barBg.Position = UDim2.fromOffset(10, 28)
 		barBg.Size = UDim2.fromOffset(300, 8)
-		barBg.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+		barBg.BackgroundColor3 = pal.Slot
+		barBg.ZIndex = 4
 		barBg.BorderSizePixel = 0
 		barBg.Parent = row
 		Instance.new("UICorner", barBg)
 		local fill = Instance.new("Frame")
 		fill.Size = UDim2.fromScale(math.clamp(cur / math.max(need, 1), 0, 1), 1)
-		fill.BackgroundColor3 = if info.Rank >= MasteryCatalog.MAX_RANK then Color3.fromRGB(255, 205, 80) else theme.Primary
+		fill.BackgroundColor3 = if info.Rank >= MasteryCatalog.MAX_RANK then Color3.fromRGB(255, 205, 80) else pal.Accent
+		fill.ZIndex = 5
 		fill.BorderSizePixel = 0
 		fill.Parent = barBg
 		Instance.new("UICorner", fill)
-		UITheme.Text(row, if info.Rank >= MasteryCatalog.MAX_RANK then "MAESTRÍA MÁXIMA" else string.format("%s / %s", withDots(cur), withDots(need)), 10, Color3.fromRGB(165, 165, 180), UDim2.fromOffset(320, 24), UDim2.fromOffset(140, 14))
-		UITheme.Text(row, bonusText(info.Rank) .. (if info.HasLoadout then "   ·   ✔ equipo guardado" else ""), 11, Color3.fromRGB(165, 205, 170), UDim2.fromOffset(10, 40), UDim2.fromOffset(330, 16))
+		UITheme.Text(row, if info.Rank >= MasteryCatalog.MAX_RANK then "MAESTRÍA MÁXIMA" else string.format("%s / %s", withDots(cur), withDots(need)), 10, pal.Muted, UDim2.fromOffset(320, 24), UDim2.fromOffset(140, 14))
+		UITheme.Text(row, bonusText(info.Rank) .. (if info.HasLoadout then "   ·   ✔ equipo guardado" else ""), 11, pal.Muted, UDim2.fromOffset(10, 40), UDim2.fromOffset(330, 16))
 		if isCurrent then
-			UITheme.Text(row, "ACTUAL", 11, Color3.fromRGB(255, 214, 90), UDim2.fromOffset(380, 8), UDim2.fromOffset(78, 16), Enum.TextXAlignment.Right)
+			UITheme.Text(row, "ACTUAL", 12, pal.Accent, UDim2.fromOffset(380, 8), UDim2.fromOffset(78, 16), Enum.TextXAlignment.Right)
 		elseif state.Pass then
 			local b = Instance.new("TextButton")
 			b.Position = UDim2.fromOffset(372, 14)
@@ -151,22 +131,22 @@ local function build()
 				actionRemote:FireServer("Switch", info.Role)
 			end)
 		else
-			UITheme.Text(row, "🔒 Pase", 11, Color3.fromRGB(150, 150, 165), UDim2.fromOffset(380, 22), UDim2.fromOffset(78, 16), Enum.TextXAlignment.Right)
+			UITheme.Text(row, "🔒 Pase", 11, pal.Muted, UDim2.fromOffset(380, 22), UDim2.fromOffset(78, 16), Enum.TextXAlignment.Right)
 		end
 	end
 
-	resultLabel = UITheme.Text(w, "", 13, nil, UDim2.fromOffset(18, 456), UDim2.fromOffset(464, 36))
+	resultLabel = UITheme.Text(w, "", 13, pal.FText, UDim2.fromOffset(18, 484), UDim2.fromOffset(464, 36))
 	resultLabel.TextWrapped = true
 	resultLabel.RichText = true
 	resultLabel.TextYAlignment = Enum.TextYAlignment.Top
 
 	if state.Pass then
-		local info = UITheme.Text(w, "Tu equipo se guarda por rol y la maestría sube un 25% más rápido. No se puede cambiar en la Arena ni en combate.", 11, Color3.fromRGB(165, 165, 180), UDim2.fromOffset(18, 500), UDim2.fromOffset(464, 40))
+		local info = UITheme.Text(w, "Tu equipo se guarda por rol y la maestría sube un 25% más rápido. No se puede cambiar en la Arena ni en combate.", 11, pal.FMuted, UDim2.fromOffset(18, 536), UDim2.fromOffset(464, 40))
 		info.TextWrapped = true
 		info.TextYAlignment = Enum.TextYAlignment.Top
 	else
 		local buy = Instance.new("TextButton")
-		buy.Position = UDim2.fromOffset(18, 496)
+		buy.Position = UDim2.fromOffset(18, 530)
 		buy.Size = UDim2.fromOffset(464, 40)
 		buy.BackgroundColor3 = Color3.fromRGB(140, 90, 200)
 		buy.TextColor3 = Color3.new(1, 1, 1)

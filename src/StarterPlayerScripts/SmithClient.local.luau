@@ -344,7 +344,7 @@ local function refreshList()
 		local name = UITheme.Text(b, GearView.DisplayName(item, e.Plus), 12, col, UDim2.fromOffset(8, 2), UDim2.new(1, -16, 0, 18))
 		name.TextTruncate = Enum.TextTruncate.AtEnd
 		local sub = if e.Worn then "Puesto · " .. (ItemCatalog.SlotDisplay[item.Slot] or item.Slot) else "Mochila · " .. (ItemCatalog.SlotDisplay[item.Slot] or item.Slot)
-		UITheme.Text(b, sub, 10, Color3.fromRGB(160, 160, 175), UDim2.fromOffset(8, 20), UDim2.new(1, -16, 0, 14))
+		UITheme.Text(b, sub, 10, NpcKit.Palette(theme).Muted, UDim2.fromOffset(8, 20), UDim2.new(1, -16, 0, 14))
 		b.Activated:Connect(function()
 			selected = { Kind = e.Kind, Key = e.Key }
 			resultLabel.Text = ""
@@ -375,23 +375,11 @@ local function build()
 		win:Destroy()
 	end
 	local W = 700
-	win = UITheme.Frame(gui, theme, UDim2.fromOffset(W, 520), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
-	WindowDrag.Attach(win, "Smith", 60, 50)
-	NpcKit.Header(win, theme, W, smithName, (if smithTitle ~= "" then smithTitle .. "  ·  " else "") .. "Fragua de mejoras  ·  arrastra el rótulo para mover", "⚒")
-
-	local close = Instance.new("TextButton")
-	close.Position = UDim2.new(1, -40, 0, 14)
-	close.Size = UDim2.fromOffset(28, 28)
-	close.Text = "X"
-	close.BackgroundTransparency = 1
-	close.TextColor3 = Color3.fromRGB(255, 120, 120)
-	close.Font = UITheme.Font
-	close.TextSize = 18
-	close.ZIndex = 30
-	close.Parent = win
-	close.Activated:Connect(function()
+	win = NpcKit.Window(gui, theme, UDim2.fromOffset(W, 520), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), smithName, (if smithTitle ~= "" then smithTitle .. "  ·  " else "") .. "Fragua de mejoras  ·  arrastra el rótulo para mover", "⚒", function()
 		gui.Enabled = false
 	end)
+	WindowDrag.Attach(win, "Smith", 60, 50)
+
 
 	-- ESTANTES (izquierda): tu equipo mejorable
 	local shelves = NpcKit.Panel(win, theme, UDim2.fromOffset(240, 430), UDim2.fromOffset(16, 70), "inset")

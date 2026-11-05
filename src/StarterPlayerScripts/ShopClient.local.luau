@@ -304,7 +304,9 @@ local function build()
 		win:Destroy()
 	end
 	local W = 730
-	win = UITheme.Frame(gui, theme, UDim2.fromOffset(W, 500), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
+	win = NpcKit.Window(gui, theme, UDim2.fromOffset(W, 500), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), npcName, if npcTitle ~= "" then npcTitle else "Mercader", "🛒", function()
+		gui.Enabled = false
+	end)
 	WindowDrag.Attach(win, "Shop", 66, 50)
 	local pal = NpcKit.Palette(theme)
 	local shinobi = NpcKit.Key(theme) == "Shinobi"
@@ -314,7 +316,6 @@ local function build()
 	else
 		GREEN, RED, GRAY, GOLD = "#6fdc7f", "#ff6b6b", "#aaaab8", "#ffd45e"
 	end
-	NpcKit.Header(win, theme, W, npcName, if npcTitle ~= "" then npcTitle else "Mercader", "🛒")
 	goldLabel = UITheme.Text(win, "", 15, Color3.fromRGB(255, 226, 140), UDim2.fromOffset(W - 260, 20), UDim2.fromOffset(190, 22))
 	goldLabel.RichText = true
 	goldLabel.TextXAlignment = Enum.TextXAlignment.Right
@@ -323,19 +324,6 @@ local function build()
 		goldLabel.TextColor3 = Color3.fromRGB(40, 28, 14)
 	end
 
-	local close = Instance.new("TextButton")
-	close.Position = UDim2.new(1, -38, 0, 18)
-	close.Size = UDim2.fromOffset(28, 28)
-	close.Text = "X"
-	close.BackgroundTransparency = 1
-	close.TextColor3 = if shinobi then Color3.fromRGB(150, 30, 30) else Color3.fromRGB(255, 120, 120)
-	close.Font = UITheme.Font
-	close.TextSize = 18
-	close.ZIndex = 30
-	close.Parent = win
-	close.Activated:Connect(function()
-		gui.Enabled = false
-	end)
 
 	-- (las pestañas Comprar/Vender las crea refreshAll para marcar la activa)
 

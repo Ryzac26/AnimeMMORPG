@@ -27,6 +27,8 @@ local MasteryCatalog = require(Modules:WaitForChild("MasteryCatalog", 10))
 local LootTables = require(Modules:WaitForChild("LootTables", 10))
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
+local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
+local BagDock = require(script.Parent:WaitForChild("BagDock", 10))
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "CharacterGui"
@@ -51,22 +53,26 @@ local LEFT = { "Casco", "Armadura", "Arma", "Escudo", "Zapatos", "Cinturon" }
 local RIGHT = { "Collar", "Pendientes", "Brazalete", "Anillo", "Accesorio1", "Accesorio2" }
 local BOTTOM = { "Capa", "Alas", "Montura", "Traje", "Anillo2", "Accesorio3" }
 
-local function makeSlot(slotName: string, pos: UDim2, size: UDim2)
+local function makeSlot(slotName: string, pos: UDim2, size: UDim2, parent: Instance)
+	local pal = NpcKit.Palette(theme)
 	local b = Instance.new("TextButton")
 	b.Position = pos
 	b.Size = size
-	b.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
+	b.BackgroundColor3 = pal.Slot
 	b.Text = ""
 	b.AutoButtonColor = true
-	b.Parent = win
-	Instance.new("UICorner", b)
+	b.ZIndex = 5
+	b.Parent = parent
+	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
 	local st = Instance.new("UIStroke")
 	st.Thickness = 2
-	st.Color = theme.Secondary
+	st.Color = pal.Edge2
 	st.Parent = b
-	local label = UITheme.Text(b, ItemCatalog.SlotDisplay[slotName] or slotName, 11, Color3.fromRGB(140, 140, 155), UDim2.fromScale(0, 0.15), UDim2.fromScale(1, 0.7), Enum.TextXAlignment.Center)
+	local label = UITheme.Text(b, ItemCatalog.SlotDisplay[slotName] or slotName, 10, pal.Muted, UDim2.fromScale(0, 0.06), UDim2.fromScale(1, 0.88), Enum.TextXAlignment.Center)
 	label.Name = "Label"
 	label.TextWrapped = true
+	label.TextStrokeTransparency = 1
+	label.ZIndex = 6
 	b.Activated:Connect(function()
 		local cur = PlayerClass.Get(player).Role
 		if (viewRole == nil or viewRole == cur) and Store.Equip[slotName] then
@@ -83,6 +89,8 @@ local function refreshSlots()
 	local showing = viewRole or cls.Role
 	local other = showing ~= cls.Role
 	local level = player:GetAttribute("Level")
+	local pal = NpcKit.Palette(theme)
+	local light = NpcKit.Key(theme) == "Shinobi"
 	for name, b in pairs(slotButtons) do
 		local id = Store.Equip[name]
 		local plus = Store.EquipPlus[name]
@@ -107,18 +115,18 @@ local function refreshSlots()
 		if item then
 			local col = ItemCatalog.RarityColor[item.Rarity] or Color3.new(1, 1, 1)
 			label.Text = GearView.DisplayName(item, plus) .. (if shared then "\n(compartido)" else "")
-			label.TextColor3 = col
+			label.TextColor3 = if light then pal.Text else col
 			stroke.Color = col
-			b.BackgroundColor3 = col:Lerp(Color3.new(0, 0, 0), 0.75)
+			b.BackgroundColor3 = col:Lerp(pal.Slot, if light then 0.8 else 0.75)
 		else
 			label.Text = ItemCatalog.SlotDisplay[name] or name
 			local passAttr = ItemCatalog.SlotPass[name]
 			if passAttr and player:GetAttribute(passAttr) ~= true then
 				label.Text ..= "\n🔒 Pase"
 			end
-			label.TextColor3 = Color3.fromRGB(140, 140, 155)
-			stroke.Color = theme.Secondary
-			b.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
+			label.TextColor3 = pal.Muted
+			stroke.Color = pal.Edge2
+			b.BackgroundColor3 = pal.Slot
 		end
 	end
 	local sh = switchHint
@@ -158,6 +166,15 @@ local passiveLabel: TextLabel? = nil
 local keysResetLabel: TextLabel? = nil
 
 local GREEN, RED, GRAY = Color3.fromRGB(111, 220, 127), Color3.fromRGB(255, 107, 107), Color3.fromRGB(150, 150, 165)
+local function applyPalette()
+	local pal = NpcKit.Palette(theme)
+	if NpcKit.Key(theme) == "Shinobi" then
+		GREEN, RED, GRAY = Color3.fromRGB(38, 122, 52), Color3.fromRGB(168, 50, 45), pal.Muted
+	else
+		GREEN, RED, GRAY = Color3.fromRGB(111, 220, 127), Color3.fromRGB(255, 107, 107), pal.Muted
+	end
+end
+local infoTab = "Stats" -- "Stats" | "Set"
 
 -- Filas del panel de estadísticas (se reconstruyen cuando algo cambia)
 local rowOrder = 0
@@ -173,9 +190,11 @@ end
 
 local function addHeader(text: string)
 	local f = addRow(24)
-	UITheme.Text(f, text, 14, theme.Primary, UDim2.fromOffset(0, 4), UDim2.new(1, 0, 0, 18))
+	local pal = NpcKit.Palette(theme)
+	local h = UITheme.Text(f, text, 14, pal.Accent, UDim2.fromOffset(0, 4), UDim2.new(1, 0, 0, 18))
+	h.TextStrokeTransparency = 1
 	local line = Instance.new("Frame")
-	line.BackgroundColor3 = theme.Secondary
+	line.BackgroundColor3 = pal.Edge2
 	line.BorderSizePixel = 0
 	line.Position = UDim2.new(0, 0, 1, -2)
 	line.Size = UDim2.new(1, 0, 0, 1)
@@ -185,10 +204,11 @@ end
 -- "Nombre ......... valor   +x%"
 local function addStat(name: string, value: string, bonus: string?, bonusColor: Color3?)
 	local f = addRow(20)
-	UITheme.Text(f, name, 13, Color3.fromRGB(215, 215, 225), UDim2.fromOffset(0, 0), UDim2.new(0.44, 0, 1, 0))
-	UITheme.Text(f, value, 13, nil, UDim2.new(0.44, 0, 0, 0), UDim2.new(0.24, 0, 1, 0), Enum.TextXAlignment.Right)
+	local pal = NpcKit.Palette(theme)
+	UITheme.Text(f, name, 13, pal.Text, UDim2.fromOffset(0, 0), UDim2.new(0.44, 0, 1, 0)).TextStrokeTransparency = 1
+	UITheme.Text(f, value, 13, pal.Text, UDim2.new(0.44, 0, 0, 0), UDim2.new(0.24, 0, 1, 0), Enum.TextXAlignment.Right).TextStrokeTransparency = 1
 	if bonus then
-		UITheme.Text(f, bonus, 13, bonusColor or GREEN, UDim2.new(0.68, 0, 0, 0), UDim2.new(0.32, -2, 1, 0), Enum.TextXAlignment.Right)
+		UITheme.Text(f, bonus, 13, bonusColor or GREEN, UDim2.new(0.68, 0, 0, 0), UDim2.new(0.32, -2, 1, 0), Enum.TextXAlignment.Right).TextStrokeTransparency = 1
 	end
 end
 
@@ -202,6 +222,7 @@ local function addNote(text: string, color: Color3?): TextLabel
 	t.Font = Enum.Font.Gotham
 	t.TextSize = 11
 	t.TextColor3 = color or GRAY
+	t.TextSize = 12
 	t.TextWrapped = true
 	t.TextXAlignment = Enum.TextXAlignment.Left
 	t.TextYAlignment = Enum.TextYAlignment.Top
@@ -244,6 +265,41 @@ local function refreshStats()
 		end
 	end
 	rowOrder = 0
+	applyPalette()
+
+	if infoTab == "Set" then
+		local role = PlayerClass.Get(player).Role
+		local br0 = GearView.Breakdown()
+		local full: any = (GearCatalog.SetFull :: any)[role]
+		addHeader(string.format("Set de %s  ·  %d/4 piezas", role, math.min(br0.SetPieces, 4)))
+		local count = 0
+		for _, slotName in ipairs(ItemCatalog.EquipSlots) do
+			local id = Store.Equip[slotName]
+			local it: any = if id then ItemCatalog.Items[id] else nil
+			if it and it.Set == role then
+				count += 1
+				addStat((if count <= 4 then "✔ " else "• ") .. GearView.DisplayName(it, Store.EquipPlus[slotName]), "", ItemCatalog.SlotDisplay[slotName] or slotName, GRAY)
+			end
+		end
+		if count == 0 then
+			addNote("No llevas piezas del set de tu rol.")
+		end
+		addStat("2 piezas", "", "+5% al equipo", if br0.SetPieces >= 2 then GREEN else GRAY)
+		addStat("4 piezas", "", "+15% al equipo", if br0.SetPieces >= 4 then GREEN else GRAY)
+		if full then
+			addNote((if br0.SetPieces >= 4 then "✔ Set completo: " else "Set completo (4/4): ") .. full.Text, if br0.SetPieces >= 4 then GREEN else GRAY)
+		end
+		local info2 = ROLE_INFO[role]
+		if info2 then
+			addHeader("Pasivas de " .. role)
+			addNote(info2.Desc)
+			for _, t in ipairs(info2.Pasivas) do
+				addNote("• " .. t, GRAY)
+			end
+			addNote("Poder 7 · Primeros Auxilios: curación propia cada 25 s (tecla 7).", GRAY)
+		end
+		return
+	end
 
 	local class = PlayerClass.Get(player)
 	local char = player.Character
@@ -389,105 +445,82 @@ end
 
 local function build()
 	theme = UITheme.For(player:GetAttribute("Faction"))
+	applyPalette()
+	BagDock.Detach() -- la mochila no debe destruirse con esta ventana
 	if win then
 		win:Destroy()
 		table.clear(slotButtons)
 	end
-	win = UITheme.Frame(gui, theme, UDim2.fromOffset(700, 700), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
+	local cls = PlayerClass.Get(player)
+	local lvl = player:GetAttribute("Level")
+	win = NpcKit.Window(gui, theme, UDim2.fromOffset(1040, 680), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "Equipo y Mochila",
+		string.format("%s · Nivel %d · %s  ·  clic en una ranura para desequiparla · cada rol guarda su equipo", cls.CharacterName, if typeof(lvl) == "number" then lvl else 1, cls.Role), "🎒", function()
+			gui.Enabled = false
+		end)
 	WindowDrag.Attach(win, "Character", 40, 50)
-	title = UITheme.Text(win, "PERFIL", 20, theme.Primary, UDim2.fromOffset(18, 8), UDim2.fromOffset(240, 28))
-	local close = Instance.new("TextButton")
-	close.Position = UDim2.new(1, -38, 0, 8)
-	close.Size = UDim2.fromOffset(28, 28)
-	close.Text = "X"
-	close.BackgroundTransparency = 1
-	close.TextColor3 = Color3.fromRGB(255, 120, 120)
-	close.Font = UITheme.Font
-	close.TextSize = 18
-	close.Parent = win
-	close.Activated:Connect(function()
-		gui.Enabled = false
-	end)
+	title = Instance.new("TextLabel")
+	local pal = NpcKit.Palette(theme)
 
 	-- pestañas de ROL (equipo propio por rol; el cambio de rol lo hace la Maestría Multiclase y cada rol conserva su set)
 	table.clear(tabButtons)
-	local curRole = PlayerClass.Get(player).Role
+	local curRole = cls.Role
 	if viewRole == nil then
 		viewRole = curRole
 	end
+	local function paintTabs()
+		for r, tb in pairs(tabButtons) do
+			local on = r == viewRole
+			tb.BackgroundColor3 = if on then pal.TabOn else pal.TabOff
+			tb.TextColor3 = if on then pal.TabOnText else pal.TabOffText
+		end
+	end
 	for i, role in ipairs(MasteryCatalog.ROLES) do
-		local tb = Instance.new("TextButton")
-		tb.Position = UDim2.fromOffset(268 + (i - 1) * 64, 10)
-		tb.Size = UDim2.fromOffset(60, 24)
-		tb.Font = UITheme.Font
-		tb.TextSize = 11
-		tb.Text = role
-		tb.TextColor3 = Color3.new(1, 1, 1)
-		tb.BackgroundColor3 = if role == viewRole then theme.Primary else Color3.fromRGB(40, 40, 54)
-		tb.Parent = win
-		Instance.new("UICorner", tb)
+		local tb = NpcKit.Tab(win, theme, role, UDim2.fromOffset(75, 28), UDim2.fromOffset(14 + (i - 1) * 79, 72), role == viewRole, function()
+			viewRole = role
+			paintTabs()
+			refreshSlots()
+		end)
+		tb.TextSize = 12
 		if role == curRole then
 			local dot = Instance.new("Frame")
-			dot.Size = UDim2.fromOffset(6, 6)
-			dot.Position = UDim2.new(1, -9, 0, 3)
-			dot.BackgroundColor3 = Color3.fromRGB(111, 220, 127)
+			dot.Size = UDim2.fromOffset(7, 7)
+			dot.Position = UDim2.new(1, -11, 0, 3)
+			dot.BackgroundColor3 = Color3.fromRGB(80, 210, 100)
 			dot.BorderSizePixel = 0
+			dot.ZIndex = 12
 			dot.Parent = tb
 			Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
 		end
-		tb.Activated:Connect(function()
-			viewRole = role
-			for r, other in pairs(tabButtons) do
-				other.BackgroundColor3 = if r == role then theme.Primary else Color3.fromRGB(40, 40, 54)
-			end
-			refreshSlots()
-		end)
 		tabButtons[role] = tb
 	end
-	local cambiar = Instance.new("TextButton")
-	cambiar.Position = UDim2.fromOffset(396, 466)
-	cambiar.Size = UDim2.fromOffset(286, 22)
-	cambiar.Font = UITheme.Font
-	cambiar.TextSize = 12
-	cambiar.TextColor3 = Color3.new(1, 1, 1)
-	cambiar.BackgroundColor3 = Color3.fromRGB(50, 130, 70)
-	cambiar.Text = ""
-	cambiar.Visible = false
-	cambiar.Parent = win
-	Instance.new("UICorner", cambiar)
-	cambiar.Activated:Connect(function()
-		if viewRole and viewRole ~= PlayerClass.Get(player).Role and player:GetAttribute("Pass_Multiclass") == true then
-			local remote = ClientNet.Get("MasteryAction")
-			if remote then
-				remote:FireServer("Switch", viewRole)
-			end
-		end
-	end)
-	switchHint = cambiar
 
-	-- ranuras izquierda / derecha (6 c/u)
+	-- panel de equipo: ranuras izquierda / miniatura 3D / ranuras derecha
+	local main = NpcKit.Panel(win, theme, UDim2.fromOffset(470, 322), UDim2.fromOffset(14, 106), "card")
 	for i, n in ipairs(LEFT) do
-		makeSlot(n, UDim2.fromOffset(18, 46 + (i - 1) * 56), UDim2.fromOffset(70, 50))
+		makeSlot(n, UDim2.fromOffset(12, 13 + (i - 1) * 50), UDim2.fromOffset(58, 46), main)
 	end
 	for i, n in ipairs(RIGHT) do
-		makeSlot(n, UDim2.fromOffset(310, 46 + (i - 1) * 56), UDim2.fromOffset(70, 50))
+		makeSlot(n, UDim2.fromOffset(400, 13 + (i - 1) * 50), UDim2.fromOffset(58, 46), main)
 	end
-	-- fila inferior
+	-- fila inferior (6 ranuras: Capa, Alas, Montura, Traje, Anillo 2, Mascota 2)
 	for i, n in ipairs(BOTTOM) do
-		makeSlot(n, UDim2.fromOffset(18 + (i - 1) * 94, 392), UDim2.fromOffset(86, 60))
+		makeSlot(n, UDim2.fromOffset(14 + (i - 1) * 79, 434), UDim2.fromOffset(75, 44), win)
 	end
 
-	-- miniatura 3D
 	viewport = Instance.new("ViewportFrame")
-	viewport.Position = UDim2.fromOffset(96, 46)
-	viewport.Size = UDim2.fromOffset(206, 330)
-	viewport.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
+	viewport.Position = UDim2.fromOffset(78, 12)
+	viewport.Size = UDim2.fromOffset(314, 298)
+	viewport.BackgroundColor3 = pal.Inset
 	viewport.Ambient = Color3.fromRGB(190, 190, 200)
 	viewport.LightColor = Color3.new(1, 1, 1)
-	viewport.Parent = win
+	viewport.ZIndex = 3
+	viewport.Parent = main
 	Instance.new("UICorner", viewport)
-	UITheme.Border(viewport, theme, 2)
-	UITheme.Text(viewport, "arrastra para girar", 10, Color3.fromRGB(150, 150, 165), UDim2.fromScale(0, 0.94), UDim2.fromScale(1, 0.06), Enum.TextXAlignment.Center)
+	local vs = Instance.new("UIStroke")
+	vs.Color = pal.Edge2
+	vs.Thickness = 1
+	vs.Parent = viewport
+	UITheme.Text(viewport, "arrastra para girar", 10, pal.Muted, UDim2.fromScale(0, 0.94), UDim2.fromScale(1, 0.06), Enum.TextXAlignment.Center).TextStrokeTransparency = 1
 	viewport.InputBegan:Connect(function(i)
 		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
@@ -504,23 +537,39 @@ local function build()
 		end
 	end)
 
-	-- panel de estadísticas (con scroll por si hay muchas filas)
-	local statsBox = Instance.new("Frame")
-	statsBox.Position = UDim2.fromOffset(388, 46)
-	statsBox.Size = UDim2.fromOffset(296, 330)
-	statsBox.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
-	statsBox.BorderSizePixel = 0
-	statsBox.Parent = win
-	Instance.new("UICorner", statsBox)
-	UITheme.Border(statsBox, theme, 2)
+	-- pestañas inferiores: Estadísticas | Set y pasivas
+	local function tabBtn(text: string, id: string, x: number)
+		local tb = NpcKit.Tab(win, theme, text, UDim2.fromOffset(130, 26), UDim2.fromOffset(x, 486), infoTab == id, function()
+			infoTab = id
+			build()
+			refreshModel()
+		end)
+		tb.TextSize = 12
+	end
+	tabBtn("Estadísticas", "Stats", 14)
+	tabBtn("Set y pasivas", "Set", 148)
+	local cambiar = NpcKit.Button(win, theme, "", UDim2.fromOffset(190, 26), UDim2.fromOffset(294, 486), "buy", function()
+		if viewRole and viewRole ~= PlayerClass.Get(player).Role and player:GetAttribute("Pass_Multiclass") == true then
+			local remote = ClientNet.Get("MasteryAction")
+			if remote then
+				remote:FireServer("Switch", viewRole)
+			end
+		end
+	end)
+	cambiar.TextSize = 12
+	cambiar.Visible = false
+	switchHint = cambiar
+
+	local statsBox = NpcKit.Panel(win, theme, UDim2.fromOffset(470, 148), UDim2.fromOffset(14, 518), "inset")
 	statsScroll = Instance.new("ScrollingFrame")
-	statsScroll.Position = UDim2.fromOffset(10, 8)
-	statsScroll.Size = UDim2.fromOffset(276, 314)
+	statsScroll.Position = UDim2.fromOffset(8, 6)
+	statsScroll.Size = UDim2.fromOffset(454, 136)
 	statsScroll.BackgroundTransparency = 1
 	statsScroll.BorderSizePixel = 0
 	statsScroll.ScrollBarThickness = 4
+	statsScroll.ZIndex = 3
 	local statsPad = Instance.new("UIPadding")
-	statsPad.PaddingRight = UDim.new(0, 12)
+	statsPad.PaddingRight = UDim.new(0, 10)
 	statsPad.Parent = statsScroll
 	statsScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	statsScroll.CanvasSize = UDim2.fromOffset(0, 0)
@@ -529,36 +578,15 @@ local function build()
 	statsList.SortOrder = Enum.SortOrder.LayoutOrder
 	statsList.Padding = UDim.new(0, 2)
 	statsList.Parent = statsScroll
-	UITheme.Text(win, "Clic en una ranura para desequiparla (rol actual).  Cada rol guarda su equipo.  Equipa desde la mochila (B).", 12, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(18, 466), UDim2.fromOffset(372, 20))
 
-	-- descripción del personaje y pasivas
-	local pBox = Instance.new("Frame")
-	pBox.Position = UDim2.fromOffset(18, 494)
-	pBox.Size = UDim2.fromOffset(664, 184)
-	pBox.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
-	pBox.BorderSizePixel = 0
-	pBox.Parent = win
-	Instance.new("UICorner", pBox)
-	UITheme.Border(pBox, theme, 2)
-	local pl = UITheme.Text(pBox, "", 13, nil, UDim2.fromOffset(14, 8), UDim2.fromOffset(636, 168))
-	pl.TextYAlignment = Enum.TextYAlignment.Top
-	pl.TextWrapped = true
-	pl.RichText = true
-	passiveLabel = pl
-	local cls = PlayerClass.Get(player)
-	local info = ROLE_INFO[cls.Role]
-	local out = { string.format("<b>%s</b> · %s", cls.CharacterName, cls.Role) }
-	if info then
-		table.insert(out, info.Desc)
-		table.insert(out, "")
-		table.insert(out, "<b>Pasivas</b>")
-		for _, t in ipairs(info.Pasivas) do
-			table.insert(out, "• " .. t)
-		end
-		table.insert(out, "")
-		table.insert(out, "<b>Poder 7 · Primeros Auxilios</b>: curación propia cada 25 s (tecla 7).")
-	end
-	pl.Text = table.concat(out, "\n")
+	-- hueco de la MOCHILA (a la derecha): el panel de InventoryClient se acopla aquí
+	local host = Instance.new("Frame")
+	host.Name = "MochilaHost"
+	host.Position = UDim2.fromOffset(498, 72)
+	host.Size = UDim2.fromOffset(528, 594)
+	host.BackgroundTransparency = 1
+	host.Parent = win
+	BagDock.Attach(host)
 
 	refreshSlots()
 	refreshStats()

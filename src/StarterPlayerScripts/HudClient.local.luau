@@ -152,9 +152,35 @@ build()
 ---------------------------------------------------------------------
 local say: (string) -> () = function() end -- se define más abajo
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
-local menuBar = UITheme.Frame(gui, theme, UDim2.fromOffset(700, 44), UDim2.new(0.5, 0, 1, -8), Vector2.new(0.5, 1))
--- los botones van en su propio contenedor: así el UIListLayout no mueve los adornos del marco (fondo, cuerda, remaches)
-menuBar.Visible = not MOBILE
+local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
+local pal = NpcKit.Palette(theme)
+local MENU = {
+	{ "Perfil", "C", "Character" }, { "Mochila", "B", "Inventory" }, { "Tienda", "", "Tienda" }, { "Habilidades", "", "" }, { "Misiones", "", "" },
+	{ "Mapa", "", "" }, { "Facción", "G", "Guild" }, { "Mascota", "", "Pets" }, { "Ajustes", "", "Settings" },
+}
+local BTN_W, BTN_H, GAP = 88, 30, 6
+local BAR_W = #MENU * BTN_W + (#MENU - 1) * GAP + 24
+-- contenedor que se desliza hacia abajo (la flecha de arriba queda siempre a la vista)
+local menuHolder = Instance.new("Frame")
+menuHolder.Name = "MenuHolder"
+menuHolder.AnchorPoint = Vector2.new(0.5, 1)
+menuHolder.Position = UDim2.new(0.5, 0, 1, -8)
+menuHolder.Size = UDim2.fromOffset(BAR_W, 46)
+menuHolder.BackgroundTransparency = 1
+menuHolder.Visible = not MOBILE
+menuHolder.Parent = gui
+local menuBar = Instance.new("Frame")
+menuBar.Name = "MenuBar"
+menuBar.Size = UDim2.fromScale(1, 1)
+menuBar.BackgroundColor3 = pal.Bg
+menuBar.BorderSizePixel = 0
+menuBar.ZIndex = 9
+menuBar.Parent = menuHolder
+Instance.new("UICorner", menuBar).CornerRadius = UDim.new(0, 8)
+local barStroke = Instance.new("UIStroke")
+barStroke.Color = pal.Edge
+barStroke.Thickness = 2
+barStroke.Parent = menuBar
 local menuRow = Instance.new("Frame")
 menuRow.Name = "Botones"
 menuRow.BackgroundTransparency = 1
@@ -165,28 +191,24 @@ local menuLayout = Instance.new("UIListLayout")
 menuLayout.FillDirection = Enum.FillDirection.Horizontal
 menuLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 menuLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-menuLayout.Padding = UDim.new(0, 6)
+menuLayout.Padding = UDim.new(0, GAP)
 menuLayout.Parent = menuRow
-local MENU = {
-	{ "Perfil", "C", "Character" }, { "Mochila", "B", "Inventory" }, { "Tienda", "", "Tienda" }, { "Habilidades", "", "" }, { "Misiones", "", "" },
-	{ "Mapa", "", "" }, { "Facción", "G", "Guild" }, { "Mascota", "", "Pets" }, { "Ajustes", "", "Settings" },
-}
 for _, m in ipairs(MENU) do
 	local b = Instance.new("TextButton")
-	b.Size = UDim2.fromOffset(78, 28)
-	b.BackgroundColor3 = theme.Dark
-	b.BackgroundTransparency = 0.1
+	b.Size = UDim2.fromOffset(BTN_W, BTN_H)
+	b.BackgroundColor3 = pal.TabOff
 	b.Text = if m[2] ~= "" then string.format("%s [%s]", m[1], m[2]) else m[1]
-	b.TextColor3 = if m[3] ~= "" then UITheme.Accent(theme) else Color3.fromRGB(150, 150, 165)
+	b.TextColor3 = pal.TabOffText
+	b.TextTransparency = if m[3] ~= "" then 0 else 0.45
 	b.Font = UITheme.Font
-	b.TextSize = 11
+	b.TextSize = 12
 	b.AutoButtonColor = true
 	b.ZIndex = 11
 	b.Parent = menuRow
-	Instance.new("UICorner", b).CornerRadius = UDim.new(0, math.max(UITheme.Radius(theme) - 4, 3))
+	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
 	local bs = Instance.new("UIStroke")
-	bs.Color = theme.Primary
-	bs.Transparency = if m[3] ~= "" then 0.2 else 0.6
+	bs.Color = pal.Edge2
+	bs.Transparency = if m[3] ~= "" then 0.1 else 0.55
 	bs.Thickness = 1
 	bs.Parent = b
 	b.Activated:Connect(function()
@@ -197,6 +219,33 @@ for _, m in ipairs(MENU) do
 		end
 	end)
 end
+-- flecha central: oculta / muestra la barra
+local arrow = Instance.new("TextButton")
+arrow.Name = "Flecha"
+arrow.AnchorPoint = Vector2.new(0.5, 1)
+arrow.Position = UDim2.new(0.5, 0, 0, -2)
+arrow.Size = UDim2.fromOffset(54, 18)
+arrow.BackgroundColor3 = pal.Bg
+arrow.BorderSizePixel = 0
+arrow.Text = "▼"
+arrow.TextColor3 = pal.Accent
+arrow.Font = UITheme.Font
+arrow.TextSize = 12
+arrow.ZIndex = 12
+arrow.Parent = menuHolder
+Instance.new("UICorner", arrow).CornerRadius = UDim.new(0, 6)
+local arrowStroke = Instance.new("UIStroke")
+arrowStroke.Color = pal.Edge
+arrowStroke.Thickness = 2
+arrowStroke.Parent = arrow
+local barHidden = false
+arrow.Activated:Connect(function()
+	barHidden = not barHidden
+	arrow.Text = if barHidden then "▲" else "▼"
+	TweenService:Create(menuHolder, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Position = if barHidden then UDim2.new(0.5, 0, 1, 46) else UDim2.new(0.5, 0, 1, -8),
+	}):Play()
+end)
 
 ---------------------------------------------------------------------
 -- OBJETIVO (clic en un enemigo)

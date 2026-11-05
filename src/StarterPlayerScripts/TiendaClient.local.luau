@@ -31,7 +31,7 @@ gui.Enabled = false
 gui.DisplayOrder = 12
 gui.Parent = player:WaitForChild("PlayerGui", 10)
 
-local GREEN, RED, GRAY, GOLD = "#6fdc7f", "#ff6b6b", "#aaaab8", "#ffd45e"
+local GREEN, RED, GRAY, GOLD = "#2f9a47", "#c23b3b", "#8a8a96", "#c8960a"
 local theme = UITheme.For(player:GetAttribute("Faction"))
 local win: Frame
 local scroll: ScrollingFrame
@@ -320,23 +320,10 @@ local function build()
 		win:Destroy()
 	end
 	local W = 760
-	win = UITheme.Frame(gui, theme, UDim2.fromOffset(W, 610), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
-	WindowDrag.Attach(win, "Tienda", 40, 50)
-	NpcKit.Header(win, theme, W, "Tienda", "Boosts, paquetes, objetos y pases", "🛒")
-	NpcKit.Awning(win, theme, W, 60)
-	local close = Instance.new("TextButton")
-	close.Position = UDim2.new(1, -40, 0, 14)
-	close.Size = UDim2.fromOffset(28, 28)
-	close.Text = "X"
-	close.BackgroundTransparency = 1
-	close.TextColor3 = Color3.fromRGB(255, 120, 120)
-	close.Font = UITheme.Font
-	close.TextSize = 18
-	close.ZIndex = 30
-	close.Parent = win
-	close.Activated:Connect(function()
+	win = NpcKit.Window(gui, theme, UDim2.fromOffset(W, 610), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "Tienda", "Boosts, paquetes, objetos y pases", "🛒", function()
 		gui.Enabled = false
 	end)
+	WindowDrag.Attach(win, "Tienda", 40, 50)
 	-- columna de secciones (como los pasillos de la tienda)
 	table.clear(tabButtons)
 	for i, t in ipairs(TABS) do
@@ -354,7 +341,7 @@ local function build()
 	boostPill.TextStrokeTransparency = 1
 	resetLabel = UITheme.Text(bar, "", 12, pal.Muted, UDim2.new(1, -190, 0, 0), UDim2.fromOffset(180, 28), Enum.TextXAlignment.Right)
 	resetLabel.TextStrokeTransparency = 1
-	tabNote = UITheme.Text(win, "", 11, pal.Muted, UDim2.fromOffset(156, 126), UDim2.fromOffset(590, 30))
+	tabNote = UITheme.Text(win, "", 11, pal.FMuted, UDim2.fromOffset(156, 126), UDim2.fromOffset(590, 30))
 	tabNote.TextWrapped = true
 	tabNote.TextYAlignment = Enum.TextYAlignment.Top
 	tabNote.TextStrokeTransparency = 1
@@ -376,11 +363,11 @@ local function build()
 	grid.CellPadding = UDim2.fromOffset(8, 8)
 	grid.SortOrder = Enum.SortOrder.LayoutOrder
 	grid.Parent = scroll
-	resultLabel = UITheme.Text(win, "", 13, Color3.new(1, 1, 1), UDim2.fromOffset(154, 542), UDim2.fromOffset(594, 22))
+	resultLabel = UITheme.Text(win, "", 13, pal.Text, UDim2.fromOffset(154, 542), UDim2.fromOffset(594, 22))
 	resultLabel.RichText = true
 	resultLabel.TextWrapped = true
 	resultLabel.TextYAlignment = Enum.TextYAlignment.Top
-	footer = UITheme.Text(win, "Precios en Robux. El boost se combina con todo.", 11, Color3.fromRGB(150, 150, 165), UDim2.fromOffset(154, 574), UDim2.fromOffset(594, 24))
+	footer = UITheme.Text(win, "Precios en Robux. El boost se combina con todo.", 11, pal.FMuted, UDim2.fromOffset(154, 574), UDim2.fromOffset(594, 24))
 	footer.TextWrapped = true
 	footer.TextYAlignment = Enum.TextYAlignment.Top
 end

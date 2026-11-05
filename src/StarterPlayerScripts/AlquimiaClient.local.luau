@@ -227,7 +227,7 @@ local function refreshDetail()
 			t.ZIndex = 6
 			local m = UITheme.Text(f, mid, 15, midColor, UDim2.fromOffset(0, 24), UDim2.new(1, 0, 0, 18), Enum.TextXAlignment.Center)
 			m.ZIndex = 6
-			local b = UITheme.Text(f, bottom, 9, Color3.fromRGB(170, 160, 150), UDim2.fromOffset(0, 45), UDim2.new(1, 0, 0, 14), Enum.TextXAlignment.Center)
+			local b = UITheme.Text(f, bottom, 9, pal.Muted, UDim2.fromOffset(0, 45), UDim2.new(1, 0, 0, 14), Enum.TextXAlignment.Center)
 			b.ZIndex = 6
 		end
 		local OKC, BADC = Color3.fromRGB(111, 220, 127), Color3.fromRGB(255, 107, 107)
@@ -316,7 +316,7 @@ local function refreshList()
 		st.Parent = b
 		local name = UITheme.Text(b, GearView.DisplayName(item, plus), 12, col, UDim2.fromOffset(8, 2), UDim2.new(1, -16, 0, 18))
 		name.TextTruncate = Enum.TextTruncate.AtEnd
-		UITheme.Text(b, subText, 10, Color3.fromRGB(160, 160, 175), UDim2.fromOffset(8, 20), UDim2.new(1, -16, 0, 14))
+		UITheme.Text(b, subText, 10, pal.Muted, UDim2.fromOffset(8, 20), UDim2.new(1, -16, 0, 14))
 		b.Activated:Connect(onClick)
 	end
 	if mode ~= "Dismantle" then
@@ -341,7 +341,7 @@ local function refreshList()
 			t.TextWrapped = true
 			t.Font = Enum.Font.Gotham
 			t.TextSize = 13
-			t.TextColor3 = Color3.fromRGB(170, 170, 185)
+			t.TextColor3 = pal.Muted
 			t.Text = "No tienes equipo para desmontar."
 			t.Parent = listScroll
 		end
@@ -393,28 +393,16 @@ local function build()
 	if win then
 		win:Destroy()
 	end
-	win = UITheme.Frame(gui, theme, UDim2.fromOffset(640, 486), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
+	win = NpcKit.Window(gui, theme, UDim2.fromOffset(640, 486), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), npcName, if npcTitle ~= "" then npcTitle .. "  ·  mesa de alquimia" else "Mesa de alquimia", "⚗", function()
+		gui.Enabled = false
+	end)
 	WindowDrag.Attach(win, "Alquimia", 52, 50)
-	NpcKit.Header(win, theme, 640, npcName, if npcTitle ~= "" then npcTitle .. "  ·  mesa de alquimia" else "Mesa de alquimia", "⚗")
 	goldLabel = UITheme.Text(win, "", 15, Color3.new(1, 1, 1), UDim2.fromOffset(420, 24), UDim2.fromOffset(170, 22))
 	goldLabel.RichText = true
 	goldLabel.TextXAlignment = Enum.TextXAlignment.Right
 	goldLabel.ZIndex = 30
-	goldLabel.TextColor3 = if NpcKit.Key(theme) == "Shinobi" then Color3.fromRGB(255, 232, 170) else Color3.new(1, 1, 1)
+	goldLabel.TextColor3 = if NpcKit.Key(theme) == "Shinobi" then Color3.fromRGB(46, 33, 18) else Color3.new(1, 1, 1)
 
-	local close = Instance.new("TextButton")
-	close.Position = UDim2.new(1, -38, 0, 8)
-	close.Size = UDim2.fromOffset(28, 28)
-	close.Text = "X"
-	close.BackgroundTransparency = 1
-	close.TextColor3 = Color3.fromRGB(255, 120, 120)
-	close.Font = UITheme.Font
-	close.TextSize = 18
-	close.ZIndex = 30
-	close.Parent = win
-	close.Activated:Connect(function()
-		gui.Enabled = false
-	end)
 
 	tabsHolder = Instance.new("Frame")
 	tabsHolder.BackgroundTransparency = 1

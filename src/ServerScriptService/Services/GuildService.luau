@@ -125,11 +125,11 @@ local function buildState(player: Player, f: string): any
 	end
 	local top = {}
 	for _, r in ipairs(GuildCatalog.Ranking(s, true, now, 10)) do
-		table.insert(top, { Name = r.Name, Value = r.Week, Mine = r.Uid == uid })
+		table.insert(top, { Name = r.Name, Value = r.Week, Mine = r.Uid == uid, Lv = r.Lv, Role = r.Role })
 	end
 	local topAll = {}
 	for _, r in ipairs(GuildCatalog.Ranking(s, false, now, 10)) do
-		table.insert(topAll, { Name = r.Name, Value = r.Total, Mine = r.Uid == uid })
+		table.insert(topAll, { Name = r.Name, Value = r.Total, Mine = r.Uid == uid, Lv = r.Lv, Role = r.Role })
 	end
 	local log = {}
 	for i = #s.Log, 1, -1 do
@@ -194,8 +194,9 @@ local function mergeDelta(into: GuildCatalog.Delta, from: GuildCatalog.Delta)
 		if e then
 			e.PA += c.PA
 			e.Name = c.Name
+			e.Lv, e.Role = c.Lv, c.Role
 		else
-			into.Contrib[uid] = { PA = c.PA, Name = c.Name }
+			into.Contrib[uid] = { PA = c.PA, Name = c.Name, Lv = c.Lv, Role = c.Role }
 		end
 	end
 	for _, l in ipairs(from.Log) do
@@ -350,7 +351,14 @@ local function donate(player: Player, passiveId: any, kind: any, qty: any)
 	-- aplica ya en la caché (el DataStore confirma en el próximo envío)
 	local delta = GuildCatalog.NewDelta()
 	delta.Pass[passiveId] = pa
-	delta.Contrib[tostring(player.UserId)] = { PA = pa, Name = player.DisplayName }
+	local lvAttr = player:GetAttribute("Level")
+	local roleAttr = player:GetAttribute("Role")
+	delta.Contrib[tostring(player.UserId)] = {
+		PA = pa,
+		Name = player.DisplayName,
+		Lv = if typeof(lvAttr) == "number" then lvAttr else nil,
+		Role = if typeof(roleAttr) == "string" then roleAttr else nil,
+	}
 	local def = GuildCatalog.ById[passiveId]
 	local what = if kind == "Gold" then string.format("%d oro", n) else string.format("%d %s", n, (ItemCatalog.Items :: any)[kind] and (ItemCatalog.Items :: any)[kind].Name or kind)
 	if pa >= GuildCatalog.LOG_MIN_PA then

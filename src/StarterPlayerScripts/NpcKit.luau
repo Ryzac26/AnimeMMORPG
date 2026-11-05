@@ -1,23 +1,27 @@
 --!strict
 --[[
     NpcKit (ModuleScript) -> StarterPlayer > StarterPlayerScripts > NpcKit
-    Piezas visuales compartidas por las ventanas de NPC (Tienda, Mercader, Herrero, Alquimia, Instructor...) para que cada una
-    se vea como lo que es y cada FACCIÓN tenga su propio estilo, sin imágenes (solo código):
-      Saiyan    -> panel tecnológico tipo scouter: acero oscuro, franjas naranjas en diagonal, esquinas cortadas
-      Shinobi   -> pergamino: papel envejecido, varillas enrolladas, tinta oscura
-      Pirate    -> madera de barco: tablones, latón, cuerda
-      Shinigami -> tinta y espíritu: negro profundo, líneas finas pálidas, cinta vertical
+    ESTILO ÚNICO de las ventanas dentro del juego (mochila/perfil, gremio, tienda, mercader, herrero, alquimia, mascota, ajustes, instructor...).
+    Todo con fondo OPACO y un look propio por facción (solo código, sin imágenes):
+      Saiyan    -> acero oscuro con franjas naranjas
+      Shinobi   -> marco verde oscuro con bambú; paneles de pergamino con letra de tinta; cabecera de pergamino con letra oscura
+      Pirate    -> madera de barco con tablones y latón
+      Shinigami -> negro violáceo con resplandor y líneas pálidas
     API:
-      NpcKit.Header(win, theme, width, title, subtitle, icon) -> Frame   cabecera/rótulo de 56 px (poner la X de cerrar encima, ZIndex 30)
-      NpcKit.Awning(win, theme, width, y)                       -> Frame   toldo de tienda (rayas + festón) de 22 px
-      NpcKit.Panel(parent, theme, size, pos, kind)              -> Frame   panel/tarjeta con el material de la facción (kind: "card" | "inset" | "plate")
-      NpcKit.Button(parent, theme, text, size, pos, kind, cb)   -> TextButton  (kind: "buy" | "sell" | "action" | "neutral" | "danger")
-      NpcKit.Shelf(parent, theme, pos, width)                   -> Frame   tabla de estantería (madera/metal/papel según facción)
-      NpcKit.Tab(parent, theme, text, size, pos, active, cb)    -> TextButton  pestaña vertical u horizontal
-      NpcKit.Chip(parent, text, color, pos, size)               -> TextLabel  etiqueta redonda (precio, "AHORRAS", "ELEGIDO")
-      NpcKit.Palette(theme)                                     -> { Ink, Paper, Edge, Soft, Text, Muted }
+      NpcKit.Window(parent, theme, size, pos, anchor, title, subtitle, icon, onClose) -> Frame   ventana completa (fondo, marco doble, cabecera y X). Contenido desde y = NpcKit.TOP
+      NpcKit.Header(win, theme, width, title, subtitle, icon)   cabecera suelta (la usa Window)
+      NpcKit.Awning(win, theme, width, y)                       toldo de tienda
+      NpcKit.Panel(parent, theme, size, pos, kind)              "card" | "inset" | "plate"
+      NpcKit.Slot(parent, theme, size, pos)                     casilla de objeto
+      NpcKit.Button(parent, theme, text, size, pos, kind, cb)   "buy" | "sell" | "action" | "neutral" | "danger"
+      NpcKit.Tab(parent, theme, text, size, pos, active, cb)
+      NpcKit.Chip(parent, text, color, pos, size)
+      NpcKit.Shelf(parent, theme, pos, width)
+      NpcKit.Palette(theme) -> { Bg, Panel, Inset, Slot, Edge, Edge2, Accent, FText, FMuted, Text, Muted, TabOn, TabOnText, TabOff, TabOffText,
+                                 BtnA, BtnB, BtnText, Ink, Paper, Soft }   (Ink/Paper/Soft = nombres antiguos)
 ]]
 local NpcKit = {}
+NpcKit.TOP = 72 -- y donde empieza el contenido (debajo de la cabecera)
 
 local function key(theme: any): string
 	local f = theme.Faction
@@ -32,23 +36,55 @@ local function key(theme: any): string
 end
 NpcKit.Key = key
 
+local function c(r: number, g: number, b: number): Color3
+	return Color3.fromRGB(r, g, b)
+end
+
 local PALETTE: { [string]: { [string]: Color3 } } = {
-	Saiyan = { Ink = Color3.fromRGB(22, 20, 26), Paper = Color3.fromRGB(34, 30, 38), Edge = Color3.fromRGB(255, 150, 50), Soft = Color3.fromRGB(58, 44, 36), Text = Color3.fromRGB(255, 240, 220), Muted = Color3.fromRGB(190, 170, 150) },
-	Shinobi = { Ink = Color3.fromRGB(40, 30, 20), Paper = Color3.fromRGB(214, 196, 150), Edge = Color3.fromRGB(110, 80, 40), Soft = Color3.fromRGB(190, 170, 124), Text = Color3.fromRGB(46, 32, 18), Muted = Color3.fromRGB(104, 84, 56) },
-	Pirate = { Ink = Color3.fromRGB(30, 20, 12), Paper = Color3.fromRGB(96, 64, 38), Edge = Color3.fromRGB(226, 184, 100), Soft = Color3.fromRGB(122, 84, 50), Text = Color3.fromRGB(255, 240, 205), Muted = Color3.fromRGB(214, 184, 140) },
-	Shinigami = { Ink = Color3.fromRGB(8, 6, 14), Paper = Color3.fromRGB(18, 14, 30), Edge = Color3.fromRGB(190, 175, 255), Soft = Color3.fromRGB(32, 26, 54), Text = Color3.fromRGB(240, 236, 255), Muted = Color3.fromRGB(160, 150, 200) },
+	Saiyan = {
+		Bg = c(23, 18, 15), Panel = c(36, 28, 22), Inset = c(16, 12, 9), Slot = c(23, 17, 9), Edge = c(255, 154, 46), Edge2 = c(120, 76, 30),
+		Accent = c(255, 193, 90), FText = c(255, 241, 220), FMuted = c(196, 169, 138), Text = c(255, 241, 220), Muted = c(196, 169, 138),
+		TabOn = c(255, 176, 74), TabOnText = c(36, 18, 4), TabOff = c(43, 33, 24), TabOffText = c(196, 169, 138),
+		BtnA = c(255, 180, 84), BtnB = c(192, 90, 12), BtnText = c(42, 18, 4), Head = c(58, 34, 18), Head2 = c(24, 19, 14),
+	},
+	Shinobi = {
+		Bg = c(31, 43, 28), Panel = c(217, 200, 159), Inset = c(195, 175, 128), Slot = c(235, 223, 186), Edge = c(122, 84, 38), Edge2 = c(150, 122, 78),
+		Accent = c(177, 58, 50), FText = c(243, 231, 196), FMuted = c(185, 195, 160), Text = c(46, 33, 18), Muted = c(98, 80, 48),
+		TabOn = c(177, 58, 50), TabOnText = c(255, 243, 214), TabOff = c(195, 175, 128), TabOffText = c(66, 50, 26),
+		BtnA = c(200, 71, 61), BtnB = c(138, 36, 32), BtnText = c(255, 243, 214), Head = c(226, 209, 166), Head2 = c(201, 180, 136),
+		HText = c(46, 33, 18), HMuted = c(98, 80, 48),
+	},
+	Pirate = {
+		Bg = c(44, 28, 16), Panel = c(78, 51, 29), Inset = c(51, 32, 15), Slot = c(42, 26, 13), Edge = c(226, 184, 100), Edge2 = c(140, 108, 58),
+		Accent = c(240, 200, 112), FText = c(255, 237, 200), FMuted = c(210, 184, 138), Text = c(255, 237, 200), Muted = c(210, 184, 138),
+		TabOn = c(226, 184, 100), TabOnText = c(42, 22, 4), TabOff = c(62, 41, 21), TabOffText = c(210, 184, 138),
+		BtnA = c(240, 200, 112), BtnB = c(184, 131, 44), BtnText = c(42, 22, 4), Head = c(122, 82, 48), Head2 = c(74, 47, 24),
+	},
+	Shinigami = {
+		Bg = c(14, 10, 26), Panel = c(26, 20, 48), Inset = c(10, 7, 18), Slot = c(18, 13, 34), Edge = c(185, 168, 255), Edge2 = c(78, 68, 120),
+		Accent = c(165, 140, 255), FText = c(240, 236, 255), FMuted = c(167, 155, 214), Text = c(240, 236, 255), Muted = c(167, 155, 214),
+		TabOn = c(165, 140, 255), TabOnText = c(18, 10, 42), TabOff = c(29, 22, 54), TabOffText = c(167, 155, 214),
+		BtnA = c(185, 162, 255), BtnB = c(106, 79, 208), BtnText = c(18, 10, 42), Head = c(43, 33, 80), Head2 = c(14, 10, 26),
+	},
 }
+for _, p in pairs(PALETTE) do
+	p.Ink, p.Paper, p.Soft = p.Bg, p.Panel, p.Inset
+	p.HText = p.HText or p.FText
+	p.HMuted = p.HMuted or p.FMuted
+end
 function NpcKit.Palette(theme: any): { [string]: Color3 }
 	return PALETTE[key(theme)]
 end
 
+local RADIUS: { [string]: { number } } = { Saiyan = { 4, 3 }, Shinobi = { 6, 5 }, Pirate = { 6, 4 }, Shinigami = { 4, 3 } }
+
 local function corner(inst: Instance, r: number)
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, r)
-	c.Parent = inst
+	local cr = Instance.new("UICorner")
+	cr.CornerRadius = UDim.new(0, r)
+	cr.Parent = inst
 end
 
-local function stroke(inst: Instance, color: Color3, thickness: number, transparency: number?)
+local function stroke(inst: Instance, color: Color3, thickness: number, transparency: number?): UIStroke
 	local s = Instance.new("UIStroke")
 	s.Color = color
 	s.Thickness = thickness
@@ -94,73 +130,135 @@ local function label(parent: Instance, text: string, size: number, color: Color3
 end
 
 ---------------------------------------------------------------------
--- CABECERA / RÓTULO
+-- CABECERA
 ---------------------------------------------------------------------
 function NpcKit.Header(win: Frame, theme: any, width: number, title: string, subtitle: string?, icon: string?): Frame
 	local k = key(theme)
 	local p = PALETTE[k]
+	local r = RADIUS[k]
 	local h = Instance.new("Frame")
 	h.Name = "Cabecera"
-	h.Position = UDim2.fromOffset(8, 8)
-	h.Size = UDim2.fromOffset(width - 16, 52)
+	h.Position = UDim2.fromOffset(12, 12)
+	h.Size = UDim2.fromOffset(width - 24, 52)
 	h.BorderSizePixel = 0
 	h.ClipsDescendants = true
+	h.BackgroundColor3 = p.Head
 	h.ZIndex = 2
 	h.Parent = win
-	local titleColor = p.Text
+	gradient(h, p.Head, p.Head2, if k == "Saiyan" or k == "Shinigami" then 0 else 90)
+	corner(h, r[2])
+	stroke(h, p.Edge, 1.5, 0.15)
+	local w = width - 24
 	if k == "Saiyan" then
-		h.BackgroundColor3 = p.Ink
-		gradient(h, Color3.fromRGB(60, 38, 22), Color3.fromRGB(20, 18, 24), 0)
-		corner(h, 3)
-		stroke(h, p.Edge, 1.5, 0.2)
-		for i = 0, 14 do -- franjas diagonales naranjas (zona de scouter)
-			local s = box(h, UDim2.fromOffset(width - 150 + i * 14, -6), UDim2.fromOffset(6, 80), p.Edge, 0.7 + (i % 3) * 0.08, 3)
+		for i = 0, 11 do
+			local s = box(h, UDim2.fromOffset(w - 190 + i * 16, -8), UDim2.fromOffset(6, 80), p.Edge, 0.72 + (i % 3) * 0.06, 3)
 			s.Rotation = 24
 		end
-		box(h, UDim2.fromOffset(0, 49), UDim2.new(1, 0, 0, 3), p.Edge, 0.1, 3)
 	elseif k == "Shinobi" then
-		h.BackgroundColor3 = p.Paper
-		gradient(h, Color3.fromRGB(228, 212, 168), Color3.fromRGB(196, 176, 130), 90)
-		corner(h, 6)
-		stroke(h, p.Edge, 2)
-		for _, x in ipairs({ 0, width - 16 - 14 }) do -- varillas del pergamino
-			local rod = box(h, UDim2.fromOffset(x, 0), UDim2.fromOffset(14, 52), Color3.fromRGB(96, 62, 30), 0, 3)
-			gradient(rod, Color3.fromRGB(140, 96, 52), Color3.fromRGB(70, 44, 20), 0)
+		for _, x in ipairs({ 0, w - 12 }) do
+			local rod = box(h, UDim2.fromOffset(x, 0), UDim2.fromOffset(12, 52), c(110, 74, 34), 0, 3)
+			gradient(rod, c(150, 104, 56), c(70, 44, 20), 0)
 		end
-		titleColor = p.Text
 	elseif k == "Pirate" then
-		h.BackgroundColor3 = p.Paper
-		gradient(h, Color3.fromRGB(122, 84, 50), Color3.fromRGB(78, 50, 28), 90)
-		corner(h, 5)
-		stroke(h, p.Edge, 2)
-		for i = 1, 3 do -- tablones
-			box(h, UDim2.fromOffset(0, i * 13), UDim2.new(1, 0, 0, 1), Color3.fromRGB(40, 24, 12), 0.35, 3)
+		for i = 1, 3 do
+			box(h, UDim2.fromOffset(0, i * 13), UDim2.new(1, 0, 0, 1), c(40, 24, 12), 0.45, 3)
 		end
-		for _, x in ipairs({ 10, width - 16 - 14 }) do -- remaches de latón
-			local r = box(h, UDim2.fromOffset(x, 8), UDim2.fromOffset(6, 6), p.Edge, 0, 4)
-			corner(r, 3)
-			local r2 = box(h, UDim2.fromOffset(x, 38), UDim2.fromOffset(6, 6), p.Edge, 0, 4)
-			corner(r2, 3)
+		for _, x in ipairs({ 6, w - 12 }) do
+			corner(box(h, UDim2.fromOffset(x, 7), UDim2.fromOffset(6, 6), p.Edge, 0, 4), 3)
+			corner(box(h, UDim2.fromOffset(x, 39), UDim2.fromOffset(6, 6), p.Edge, 0, 4), 3)
 		end
 	else
-		h.BackgroundColor3 = p.Ink
-		gradient(h, Color3.fromRGB(34, 26, 58), Color3.fromRGB(8, 6, 14), 0)
-		corner(h, 4)
-		stroke(h, p.Edge, 1, 0.45)
-		box(h, UDim2.fromOffset(0, 25), UDim2.new(1, 0, 0, 1), p.Edge, 0.7, 3)
-		box(h, UDim2.fromOffset(70, 0), UDim2.fromOffset(2, 52), p.Edge, 0.55, 3)
-		box(h, UDim2.fromOffset(width - 16 - 40, 0), UDim2.fromOffset(1, 52), p.Edge, 0.7, 3)
+		box(h, UDim2.fromOffset(78, 0), UDim2.fromOffset(1, 52), p.Edge, 0.5, 3)
+		box(h, UDim2.fromOffset(0, 26), UDim2.new(1, 0, 0, 1), p.Edge, 0.82, 3)
 	end
-	-- icono en medallón
-	local medal = box(h, UDim2.fromOffset(12, 6), UDim2.fromOffset(40, 40), if k == "Shinobi" then Color3.fromRGB(150, 40, 36) else theme.Primary, 0, 4)
+	local medal = box(h, UDim2.fromOffset(if k == "Shinobi" then 18 else 12, 6), UDim2.fromOffset(40, 40), if k == "Shinobi" then c(150, 40, 36) else p.Accent, 0, 4)
 	corner(medal, if k == "Saiyan" then 4 else 20)
-	stroke(medal, if k == "Shinobi" then Color3.fromRGB(70, 20, 18) else p.Edge, 2)
-	label(medal, icon or theme.Emblem, 22, Color3.new(1, 1, 1), UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center, 5)
-	label(h, string.upper(title), 22, if k == "Shinobi" then p.Text elseif k == "Pirate" then Color3.fromRGB(255, 232, 170) else theme.Primary, UDim2.fromOffset(62, 4), UDim2.new(1, -140, 0, 28), nil, 5)
+	stroke(medal, if k == "Shinobi" then c(70, 20, 18) else p.Edge, 2)
+	label(medal, icon or theme.Emblem, 21, if k == "Shinobi" or k == "Saiyan" or k == "Pirate" then c(255, 255, 255) else p.BtnText, UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center, 5)
+	local tx = if k == "Shinobi" then 68 else 62
+	local tt = label(h, string.upper(title), 21, p.HText, UDim2.fromOffset(tx, 4), UDim2.new(1, -(tx + 90), 0, 28), nil, 5)
+	tt.TextTruncate = Enum.TextTruncate.AtEnd
 	if subtitle then
-		label(h, subtitle, 12, if k == "Shinobi" then p.Muted else p.Muted, UDim2.fromOffset(62, 30), UDim2.new(1, -140, 0, 16), nil, 5)
+		local st = label(h, subtitle, 12, p.HMuted, UDim2.fromOffset(tx, 30), UDim2.new(1, -(tx + 90), 0, 16), nil, 5)
+		st.TextTruncate = Enum.TextTruncate.AtEnd
 	end
 	return h
+end
+
+---------------------------------------------------------------------
+-- VENTANA COMPLETA (fondo opaco + marco doble + cabecera + X)
+---------------------------------------------------------------------
+function NpcKit.Window(parent: Instance, theme: any, size: UDim2, pos: UDim2, anchor: Vector2?, title: string, subtitle: string?, icon: string?, onClose: (() -> ())?): Frame
+	local k = key(theme)
+	local p = PALETTE[k]
+	local r = RADIUS[k]
+	local win = Instance.new("Frame")
+	win.Name = "Ventana"
+	win.Size = size
+	win.Position = pos
+	win.AnchorPoint = anchor or Vector2.zero
+	win.BackgroundColor3 = p.Bg
+	win.BackgroundTransparency = 0
+	win.BorderSizePixel = 0
+	win.Parent = parent
+	corner(win, r[1])
+	stroke(win, p.Edge, 2)
+	local w = size.X.Offset
+	local h = size.Y.Offset
+	-- textura del fondo
+	local pat = Instance.new("Frame")
+	pat.Name = "Textura"
+	pat.Size = UDim2.fromScale(1, 1)
+	pat.BackgroundTransparency = 1
+	pat.ClipsDescendants = true
+	pat.ZIndex = 1
+	pat.Parent = win
+	corner(pat, r[1])
+	if k == "Shinobi" and w > 0 then
+		for x = 20, w, 26 do
+			box(pat, UDim2.fromOffset(x, 0), UDim2.new(0, 3, 1, 0), c(0, 0, 0), 0.86, 1)
+		end
+	elseif k == "Pirate" and h > 0 then
+		for y = 14, h, 15 do
+			box(pat, UDim2.fromOffset(0, y), UDim2.new(1, 0, 0, 1), c(0, 0, 0), 0.78, 1)
+		end
+	elseif k == "Saiyan" and w > 0 then
+		for x = -h, w, 28 do
+			local s = box(pat, UDim2.fromOffset(x, -20), UDim2.fromOffset(2, h + 80), p.Edge, 0.94, 1)
+			s.Rotation = -30
+		end
+	else
+		local glow = box(pat, UDim2.fromScale(-0.1, -0.35), UDim2.fromScale(0.8, 0.8), p.Accent, 0.9, 1)
+		corner(glow, 400)
+	end
+	-- marco interior fino
+	local inner = Instance.new("Frame")
+	inner.Name = "MarcoInterior"
+	inner.Position = UDim2.fromOffset(5, 5)
+	inner.Size = UDim2.new(1, -10, 1, -10)
+	inner.BackgroundTransparency = 1
+	inner.ZIndex = 1
+	inner.Parent = win
+	corner(inner, math.max(r[1] - 2, 2))
+	stroke(inner, p.Edge2, 1, 0.2)
+	NpcKit.Header(win, theme, w, title, subtitle, icon)
+	local close = Instance.new("TextButton")
+	close.Name = "Cerrar"
+	close.Position = UDim2.new(1, -46, 0, 18)
+	close.Size = UDim2.fromOffset(28, 28)
+	close.Text = "X"
+	close.BackgroundColor3 = p.Slot
+	close.TextColor3 = c(255, 122, 122)
+	close.Font = Enum.Font.GothamBold
+	close.TextSize = 16
+	close.ZIndex = 30
+	close.Parent = win
+	corner(close, r[2])
+	stroke(close, p.Edge, 1)
+	if onClose then
+		close.Activated:Connect(onClose)
+	end
+	return win
 end
 
 ---------------------------------------------------------------------
@@ -170,70 +268,59 @@ function NpcKit.Awning(win: Frame, theme: any, width: number, y: number): Frame
 	local k = key(theme)
 	local holder = Instance.new("Frame")
 	holder.Name = "Toldo"
-	holder.Position = UDim2.fromOffset(8, y)
-	holder.Size = UDim2.fromOffset(width - 16, 22)
+	holder.Position = UDim2.fromOffset(12, y)
+	holder.Size = UDim2.fromOffset(width - 24, 22)
 	holder.BackgroundTransparency = 1
-	holder.ClipsDescendants = false
 	holder.ZIndex = 3
 	holder.Parent = win
-	local a, b = theme.Primary, theme.Secondary
+	local a, b = c(255, 154, 46), c(42, 26, 16)
 	if k == "Shinobi" then
-		a, b = Color3.fromRGB(150, 40, 36), Color3.fromRGB(226, 208, 160)
+		a, b = c(168, 50, 45), c(234, 223, 189)
 	elseif k == "Shinigami" then
-		a, b = Color3.fromRGB(34, 26, 58), Color3.fromRGB(190, 175, 255)
+		a, b = c(58, 45, 112), c(185, 168, 255)
 	elseif k == "Pirate" then
-		a, b = Color3.fromRGB(190, 50, 50), Color3.fromRGB(236, 222, 190)
+		a, b = c(192, 57, 43), c(239, 227, 198)
 	end
 	local stripe = 26
-	local n = math.ceil((width - 16) / stripe)
-	for i = 0, n - 1 do
-		local c = if i % 2 == 0 then a else b
-		local s = box(holder, UDim2.fromOffset(i * stripe, 0), UDim2.fromOffset(stripe, 14), c, 0, 3)
-		local scallop = box(s, UDim2.fromOffset(0, 8), UDim2.fromOffset(stripe, stripe), c, 0, 3)
+	for i = 0, math.ceil((width - 24) / stripe) - 1 do
+		local col = if i % 2 == 0 then a else b
+		local s = box(holder, UDim2.fromOffset(i * stripe, 0), UDim2.fromOffset(stripe, 12), col, 0, 3)
+		local scallop = box(s, UDim2.fromOffset(0, 5), UDim2.fromOffset(stripe, 14), col, 0, 3)
 		corner(scallop, stripe / 2)
-		scallop.Size = UDim2.fromOffset(stripe, 14)
 	end
 	return holder
 end
 
 ---------------------------------------------------------------------
--- PANELES
+-- PANELES / CASILLAS
 ---------------------------------------------------------------------
 function NpcKit.Panel(parent: Instance, theme: any, size: UDim2, pos: UDim2, kind: string?): Frame
+	local k = key(theme)
+	local p = PALETTE[k]
+	local r = RADIUS[k]
+	local f = Instance.new("Frame")
+	f.Position = pos
+	f.Size = size
+	f.BorderSizePixel = 0
+	f.BackgroundColor3 = if kind == "inset" then p.Inset else p.Panel
+	f.Parent = parent
+	corner(f, r[2])
+	local plate = kind == "plate"
+	stroke(f, if kind == "inset" then p.Edge2 else p.Edge, if plate then 2 else 1, if kind == "inset" then 0.2 else if plate then 0 else 0.45)
+	return f
+end
+
+function NpcKit.Slot(parent: Instance, theme: any, size: UDim2, pos: UDim2): Frame
 	local k = key(theme)
 	local p = PALETTE[k]
 	local f = Instance.new("Frame")
 	f.Position = pos
 	f.Size = size
+	f.BackgroundColor3 = p.Slot
 	f.BorderSizePixel = 0
 	f.Parent = parent
-	local inset = kind == "inset"
-	local plate = kind == "plate"
-	if k == "Saiyan" then
-		f.BackgroundColor3 = if inset then Color3.fromRGB(14, 13, 18) else p.Paper
-		gradient(f, if inset then Color3.fromRGB(18, 16, 22) else Color3.fromRGB(46, 38, 44), if inset then Color3.fromRGB(10, 10, 14) else Color3.fromRGB(26, 24, 30), 90)
-		corner(f, 3)
-		stroke(f, p.Edge, if plate then 2 else 1, if inset then 0.6 else 0.35)
-		if not inset then
-			box(f, UDim2.fromOffset(0, 0), UDim2.new(0, 36, 0, 2), p.Edge, 0.05, 3) -- marca de esquina
-			box(f, UDim2.new(1, -36, 1, -2), UDim2.new(0, 36, 0, 2), p.Edge, 0.05, 3)
-		end
-	elseif k == "Shinobi" then
-		f.BackgroundColor3 = if inset then Color3.fromRGB(176, 156, 112) else p.Paper
-		gradient(f, if inset then Color3.fromRGB(184, 164, 120) else Color3.fromRGB(226, 210, 166), if inset then Color3.fromRGB(160, 140, 98) else Color3.fromRGB(200, 180, 134), 90)
-		corner(f, 6)
-		stroke(f, p.Edge, if plate then 2 else 1.2, if inset then 0.3 else 0)
-	elseif k == "Pirate" then
-		f.BackgroundColor3 = if inset then Color3.fromRGB(58, 38, 22) else p.Paper
-		gradient(f, if inset then Color3.fromRGB(66, 44, 26) else Color3.fromRGB(120, 82, 48), if inset then Color3.fromRGB(46, 30, 16) else Color3.fromRGB(86, 56, 32), 90)
-		corner(f, 5)
-		stroke(f, if inset then Color3.fromRGB(30, 18, 8) else p.Edge, if plate then 2 else 1.2, if inset then 0.2 else 0.15)
-	else
-		f.BackgroundColor3 = if inset then Color3.fromRGB(6, 4, 12) else p.Paper
-		gradient(f, if inset then Color3.fromRGB(10, 8, 18) else Color3.fromRGB(28, 22, 46), if inset then Color3.fromRGB(4, 3, 8) else Color3.fromRGB(12, 9, 22), 90)
-		corner(f, 4)
-		stroke(f, p.Edge, if plate then 1.6 else 1, if inset then 0.7 else 0.5)
-	end
+	corner(f, RADIUS[k][2])
+	stroke(f, p.Edge2, 2, 0.1)
 	return f
 end
 
@@ -241,32 +328,32 @@ end
 -- BOTONES / PESTAÑAS / ETIQUETAS
 ---------------------------------------------------------------------
 local BTN: { [string]: { Color3 } } = {
-	buy = { Color3.fromRGB(110, 210, 120), Color3.fromRGB(40, 130, 66) },
-	sell = { Color3.fromRGB(235, 190, 80), Color3.fromRGB(160, 100, 24) },
-	action = { Color3.fromRGB(110, 170, 255), Color3.fromRGB(44, 90, 180) },
-	neutral = { Color3.fromRGB(100, 100, 120), Color3.fromRGB(56, 56, 72) },
-	danger = { Color3.fromRGB(235, 100, 90), Color3.fromRGB(150, 40, 40) },
+	buy = { c(110, 210, 120), c(40, 130, 66) },
+	sell = { c(235, 190, 80), c(160, 100, 24) },
+	action = { c(110, 170, 255), c(44, 90, 180) },
+	neutral = { c(110, 110, 130), c(60, 60, 78) },
+	danger = { c(235, 100, 90), c(150, 40, 40) },
 }
 
 function NpcKit.Button(parent: Instance, theme: any, text: string, size: UDim2, pos: UDim2, kind: string?, cb: (() -> ())?): TextButton
 	local k = key(theme)
-	local colors = BTN[kind or "neutral"] or BTN.neutral
+	local p = PALETTE[k]
+	local colors: { Color3 } = if kind == nil or kind == "action" or kind == "primary" then { p.BtnA, p.BtnB } else (BTN[kind] or BTN.neutral)
 	local b = Instance.new("TextButton")
 	b.Position = pos
 	b.Size = size
 	b.BackgroundColor3 = colors[2]
-	b.TextColor3 = Color3.new(1, 1, 1)
+	b.TextColor3 = if colors[1] == p.BtnA then p.BtnText else Color3.new(1, 1, 1)
 	b.Font = Enum.Font.GothamBold
 	b.TextSize = 14
 	b.Text = text
 	b.AutoButtonColor = true
 	b.BorderSizePixel = 0
 	b.ZIndex = 10
-	b.TextStrokeTransparency = 0.5
 	b.Parent = parent
-	corner(b, if k == "Saiyan" then 3 elseif k == "Shinigami" then 4 else 8)
+	corner(b, RADIUS[k][2])
 	gradient(b, colors[1], colors[2], 90)
-	stroke(b, colors[1]:Lerp(Color3.new(1, 1, 1), 0.3), 1.2, 0.35)
+	stroke(b, colors[1]:Lerp(Color3.new(1, 1, 1), 0.3), 1.2, 0.4)
 	if cb then
 		b.Activated:Connect(cb)
 	end
@@ -286,15 +373,15 @@ function NpcKit.Tab(parent: Instance, theme: any, text: string, size: UDim2, pos
 	b.AutoButtonColor = true
 	b.ZIndex = 10
 	b.Parent = parent
-	corner(b, if k == "Saiyan" then 2 else 7)
+	corner(b, RADIUS[k][2])
 	if active then
-		b.BackgroundColor3 = theme.Primary
-		b.TextColor3 = if k == "Shinobi" then Color3.fromRGB(30, 20, 10) else Color3.fromRGB(20, 14, 8)
+		b.BackgroundColor3 = p.TabOn
+		b.TextColor3 = p.TabOnText
 		stroke(b, p.Edge, 2)
 	else
-		b.BackgroundColor3 = if k == "Shinobi" then Color3.fromRGB(176, 156, 112) else p.Soft
-		b.TextColor3 = if k == "Shinobi" then p.Text else p.Muted
-		stroke(b, p.Edge, 1, 0.65)
+		b.BackgroundColor3 = p.TabOff
+		b.TextColor3 = p.TabOffText
+		stroke(b, p.Edge2, 1, 0.3)
 	end
 	if cb then
 		b.Activated:Connect(cb)
@@ -307,7 +394,7 @@ function NpcKit.Chip(parent: Instance, text: string, color: Color3, pos: UDim2, 
 	t.Position = pos
 	t.Size = size
 	t.BackgroundColor3 = color
-	t.TextColor3 = if color.R * 0.3 + color.G * 0.6 + color.B * 0.1 > 0.55 then Color3.fromRGB(40, 24, 4) else Color3.new(1, 1, 1)
+	t.TextColor3 = if color.R * 0.3 + color.G * 0.6 + color.B * 0.1 > 0.55 then c(40, 24, 4) else Color3.new(1, 1, 1)
 	t.Font = Enum.Font.GothamBold
 	t.TextSize = 11
 	t.Text = text
@@ -320,27 +407,15 @@ end
 
 function NpcKit.Shelf(parent: Instance, theme: any, pos: UDim2, width: number): Frame
 	local k = key(theme)
+	local p = PALETTE[k]
 	local f = Instance.new("Frame")
 	f.Position = pos
-	f.Size = UDim2.fromOffset(width, 10)
+	f.Size = UDim2.fromOffset(width, 8)
 	f.BorderSizePixel = 0
 	f.ZIndex = 2
+	f.BackgroundColor3 = p.Edge2
 	f.Parent = parent
-	if k == "Pirate" then
-		f.BackgroundColor3 = Color3.fromRGB(104, 70, 40)
-		gradient(f, Color3.fromRGB(140, 96, 56), Color3.fromRGB(70, 44, 24), 90)
-	elseif k == "Saiyan" then
-		f.BackgroundColor3 = Color3.fromRGB(70, 66, 78)
-		gradient(f, Color3.fromRGB(110, 104, 120), Color3.fromRGB(44, 42, 52), 90)
-		box(f, UDim2.fromOffset(0, 0), UDim2.new(1, 0, 0, 2), Color3.fromRGB(255, 150, 50), 0.3, 3)
-	elseif k == "Shinobi" then
-		f.BackgroundColor3 = Color3.fromRGB(110, 80, 44)
-		gradient(f, Color3.fromRGB(140, 104, 60), Color3.fromRGB(86, 60, 30), 90)
-	else
-		f.BackgroundColor3 = Color3.fromRGB(40, 32, 66)
-		gradient(f, Color3.fromRGB(70, 58, 112), Color3.fromRGB(22, 18, 40), 90)
-		box(f, UDim2.fromOffset(0, 0), UDim2.new(1, 0, 0, 1), Color3.fromRGB(190, 175, 255), 0.4, 3)
-	end
+	gradient(f, p.Edge, p.Edge2, 90)
 	corner(f, 3)
 	return f
 end

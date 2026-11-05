@@ -22,8 +22,10 @@ local stateRemote = ClientNet.Get("GuildState")
 local actionRemote = ClientNet.Get("GuildAction")
 local resultRemote = ClientNet.Get("GuildResult")
 
-local GREEN, RED = "#6fdc7f", "#ff6b6b"
+local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
+local GREEN, RED = "#3fae55", "#d04545"
 local theme = UITheme.For(player:GetAttribute("Faction"))
+local pal = NpcKit.Palette(theme)
 local TABS = { "Resumen", "Bendiciones", "Ranking", "Registro" }
 
 local gui = Instance.new("ScreenGui")
@@ -59,20 +61,9 @@ local function short(n: number): string
 	return tostring(math.floor(n))
 end
 
-local function button(parent: Instance, text: string, pos: UDim2, size: UDim2, color: Color3, cb: () -> ()): TextButton
-	local b = Instance.new("TextButton")
-	b.Position = pos
-	b.Size = size
-	b.BackgroundColor3 = color
-	b.TextColor3 = Color3.new(1, 1, 1)
-	b.Font = UITheme.Font
+local function button(parent: Instance, text: string, pos: UDim2, size: UDim2, kind: string, cb: () -> ()): TextButton
+	local b = NpcKit.Button(parent, theme, text, size, pos, kind, cb)
 	b.TextSize = 12
-	b.TextWrapped = true
-	b.Text = text
-	b.ZIndex = 30
-	b.Parent = parent
-	Instance.new("UICorner", b)
-	b.Activated:Connect(cb)
 	return b
 end
 
@@ -80,16 +71,29 @@ local function bar(parent: Instance, pos: UDim2, size: UDim2, frac: number, colo
 	local bg = Instance.new("Frame")
 	bg.Position = pos
 	bg.Size = size
-	bg.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+	bg.BackgroundColor3 = pal.Slot
 	bg.BorderSizePixel = 0
+	bg.ZIndex = 4
 	bg.Parent = parent
 	Instance.new("UICorner", bg)
+	local st = Instance.new("UIStroke")
+	st.Color = pal.Edge2
+	st.Thickness = 1
+	st.Parent = bg
 	local fill = Instance.new("Frame")
 	fill.Size = UDim2.fromScale(math.clamp(frac, 0, 1), 1)
 	fill.BackgroundColor3 = color
 	fill.BorderSizePixel = 0
+	fill.ZIndex = 5
 	fill.Parent = bg
 	Instance.new("UICorner", fill)
+end
+
+local function txt(parent: Instance, text: string, size: number, color: Color3, pos: UDim2, sz: UDim2, align: Enum.TextXAlignment?): TextLabel
+	local t = UITheme.Text(parent, text, size, color, pos, sz, align)
+	t.TextStrokeTransparency = 1
+	t.ZIndex = 6
+	return t
 end
 
 local function passiveInfo(id: string): any
@@ -114,164 +118,215 @@ local function donate(kind: string, qty: number)
 end
 
 ---------------------------------------------------------------------
--- Pestañas
+-- Pestañas (área de contenido: 852 x 470)
 ---------------------------------------------------------------------
 local function tabResumen(b: Frame)
 	local s = state
-	UITheme.Text(b, string.format("Gremio %s", tostring(s.Faction)), 18, theme.Primary, UDim2.fromOffset(8, 4), UDim2.fromOffset(400, 24))
-	local t = UITheme.Text(b, "Todos los jugadores de tu facción forman parte. Las bendiciones se financian con aportes y valen para todos, en todos los servidores.", 12, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(8, 30), UDim2.fromOffset(500, 34))
+	local left = NpcKit.Panel(b, theme, UDim2.fromOffset(420, 300), UDim2.fromOffset(0, 0), "card")
+	txt(left, string.format("Gremio %s", tostring(s.Faction)), 18, pal.FText, UDim2.fromOffset(14, 8), UDim2.fromOffset(380, 24))
+	local t = txt(left, "Todos los jugadores de tu facción forman parte. Las bendiciones se financian con aportes y valen para todos, en todos los servidores.", 12, pal.FMuted, UDim2.fromOffset(14, 34), UDim2.fromOffset(392, 34))
 	t.TextWrapped = true
 	t.TextYAlignment = Enum.TextYAlignment.Top
 	local function stat(y: number, label: string, value: string)
-		UITheme.Text(b, label, 13, Color3.fromRGB(190, 190, 205), UDim2.fromOffset(8, y), UDim2.fromOffset(240, 18))
-		UITheme.Text(b, value, 14, Color3.new(1, 1, 1), UDim2.fromOffset(250, y), UDim2.fromOffset(250, 18), Enum.TextXAlignment.Right)
+		txt(left, label, 13, pal.FMuted, UDim2.fromOffset(14, y), UDim2.fromOffset(240, 18))
+		txt(left, value, 14, pal.FText, UDim2.fromOffset(200, y), UDim2.fromOffset(206, 18), Enum.TextXAlignment.Right)
 	end
-	stat(76, "Nivel del gremio (suma de bendiciones)", string.format("%d / %d", s.TotalLevels, s.MaxTotal))
-	bar(b, UDim2.fromOffset(8, 98), UDim2.fromOffset(492, 8), s.TotalLevels / math.max(s.MaxTotal, 1), theme.Primary)
-	stat(116, "Miembros conectados (tu facción)", tostring(s.Online))
-	stat(138, "Tu aporte esta semana", withDots(s.MineWeek) .. " PA")
-	stat(160, "Tu aporte total", withDots(s.MineTotal) .. " PA")
-	stat(182, "Tu límite de hoy", string.format("%s / %s PA", withDots(s.DailyUsed), withDots(s.DailyCap)))
-	bar(b, UDim2.fromOffset(8, 204), UDim2.fromOffset(492, 8), s.DailyUsed / math.max(s.DailyCap, 1), Color3.fromRGB(255, 190, 80))
-	UITheme.Text(b, "Bendiciones activas", 14, theme.Primary, UDim2.fromOffset(8, 226), UDim2.fromOffset(300, 20))
-	local any = false
+	stat(78, "Nivel del gremio", string.format("%d / %d", s.TotalLevels, s.MaxTotal))
+	bar(left, UDim2.fromOffset(14, 100), UDim2.fromOffset(392, 10), s.TotalLevels / math.max(s.MaxTotal, 1), pal.Accent)
+	stat(124, "Conectados (tu facción)", tostring(s.Online))
+	stat(148, "Tu aporte esta semana", withDots(s.MineWeek) .. " PA")
+	stat(172, "Tu aporte total", withDots(s.MineTotal) .. " PA")
+	stat(196, "Tu límite de hoy", string.format("%s / %s PA", withDots(s.DailyUsed), withDots(s.DailyCap)))
+	bar(left, UDim2.fromOffset(14, 218), UDim2.fromOffset(392, 10), s.DailyUsed / math.max(s.DailyCap, 1), Color3.fromRGB(230, 160, 50))
+	local note = txt(left, if s.Shared then "Los aportes se sincronizan con todos los servidores cada ~40 s." else "⚠ Sin DataStore (Studio): el gremio solo existe en este servidor.", 11, pal.FMuted, UDim2.fromOffset(14, 246), UDim2.fromOffset(392, 16))
+	note.TextWrapped = true
+	txt(left, "PA = puntos de aporte: 1 oro = 1 PA; los materiales valen más según su rareza.", 11, pal.FMuted, UDim2.fromOffset(14, 268), UDim2.fromOffset(392, 16))
+
+	-- tarjetas de pasivas activas
+	local right = NpcKit.Panel(b, theme, UDim2.fromOffset(424, 300), UDim2.fromOffset(428, 0), "card")
+	txt(right, "Bendiciones activas", 16, pal.FText, UDim2.fromOffset(14, 8), UDim2.fromOffset(300, 22))
 	for i, p in ipairs(s.Passives) do
 		local def = GuildCatalog.ById[p.Id]
 		local col = (i - 1) % 2
 		local row = math.floor((i - 1) / 2)
-		local txt = if p.Level > 0 then string.format("%s %s Nv.%d · %s", def.Icon, def.Name, p.Level, effectText(def, p.Level)) else string.format("%s %s · sin nivel todavía", def.Icon, def.Name)
-		any = any or p.Level > 0
-		UITheme.Text(b, txt, 12, if p.Level > 0 then Color3.new(1, 1, 1) else Color3.fromRGB(130, 130, 145), UDim2.fromOffset(8 + col * 250, 250 + row * 22), UDim2.fromOffset(246, 18))
+		local card = NpcKit.Panel(right, theme, UDim2.fromOffset(196, 78), UDim2.fromOffset(14 + col * 204, 38 + row * 86), "inset")
+		txt(card, string.format("%s %s", def.Icon, def.Name), 13, pal.Text, UDim2.fromOffset(8, 5), UDim2.fromOffset(120, 18))
+		txt(card, string.format("Nv. %d/%d", p.Level, GuildCatalog.MAX_LEVEL), 12, pal.Accent, UDim2.fromOffset(110, 5), UDim2.fromOffset(78, 18), Enum.TextXAlignment.Right)
+		local e = txt(card, if p.Level > 0 then effectText(def, p.Level) else "sin nivel todavía", 11, if p.Level > 0 then pal.Text else pal.Muted, UDim2.fromOffset(8, 26), UDim2.fromOffset(180, 30))
+		e.TextWrapped = true
+		e.TextYAlignment = Enum.TextYAlignment.Top
+		bar(card, UDim2.fromOffset(8, 62), UDim2.fromOffset(180, 7), if p.Need > 0 then p.Progress / p.Need else 1, def.Color)
 	end
-	local note = UITheme.Text(b, if s.Shared then "Los aportes se sincronizan con todos los servidores cada ~40 s." else "⚠ Sin DataStore (Studio): el gremio solo existe en este servidor.", 11, Color3.fromRGB(140, 140, 155), UDim2.fromOffset(8, 330), UDim2.fromOffset(500, 16))
-	note.TextWrapped = true
-	UITheme.Text(b, "PA = puntos de aporte: 1 oro = 1 PA; los materiales valen más según su rareza.", 11, Color3.fromRGB(140, 140, 155), UDim2.fromOffset(8, 348), UDim2.fromOffset(500, 16))
+	-- mejores aportantes (vista rápida)
+	local top = NpcKit.Panel(b, theme, UDim2.fromOffset(852, 160), UDim2.fromOffset(0, 308), "card")
+	txt(top, "Mejores aportantes de la semana", 14, pal.FText, UDim2.fromOffset(14, 6), UDim2.fromOffset(400, 20))
+	if #s.Top == 0 then
+		txt(top, "Aún nadie ha aportado esta semana. ¡Sé el primero!", 12, pal.FMuted, UDim2.fromOffset(14, 36), UDim2.fromOffset(500, 18))
+	end
+	for i, r in ipairs(s.Top) do
+		if i > 5 then
+			break
+		end
+		local medal = if i == 1 then "🥇" elseif i == 2 then "🥈" elseif i == 3 then "🥉" else tostring(i) .. "."
+		local y = 30 + (i - 1) * 25
+		txt(top, medal, 13, pal.FText, UDim2.fromOffset(14, y), UDim2.fromOffset(34, 18))
+		txt(top, tostring(r.Name), 13, if r.Mine then pal.Accent else pal.FText, UDim2.fromOffset(52, y), UDim2.fromOffset(300, 18))
+		txt(top, withDots(r.Value) .. " PA", 13, pal.FText, UDim2.fromOffset(620, y), UDim2.fromOffset(212, 18), Enum.TextXAlignment.Right)
+	end
 end
 
 local function tabBendiciones(b: Frame)
 	local s = state
-	-- lista izquierda
+	-- lista izquierda de pasivas
+	local listBox = NpcKit.Panel(b, theme, UDim2.fromOffset(330, 466), UDim2.fromOffset(0, 0), "card")
 	for i, p in ipairs(s.Passives) do
 		local def = GuildCatalog.ById[p.Id]
-		local y = 4 + (i - 1) * 54
+		local y = 8 + (i - 1) * 76
 		local isSel = p.Id == selected
 		local row = Instance.new("TextButton")
-		row.Position = UDim2.fromOffset(4, y)
-		row.Size = UDim2.fromOffset(236, 50)
-		row.BackgroundColor3 = if isSel then Color3.fromRGB(34, 34, 48) else Color3.fromRGB(22, 22, 30)
+		row.Position = UDim2.fromOffset(8, y)
+		row.Size = UDim2.fromOffset(314, 70)
+		row.BackgroundColor3 = if isSel then pal.TabOn else pal.Inset
 		row.Text = ""
 		row.AutoButtonColor = false
-		row.ZIndex = 20
-		row.Parent = b
+		row.ZIndex = 5
+		row.Parent = listBox
 		Instance.new("UICorner", row)
 		local st = Instance.new("UIStroke")
-		st.Color = if isSel then def.Color else Color3.fromRGB(60, 60, 75)
+		st.Color = if isSel then pal.Accent else pal.Edge2
 		st.Thickness = if isSel then 2 else 1
 		st.Parent = row
-		UITheme.Text(row, string.format("%s %s", def.Icon, def.Name), 14, Color3.new(1, 1, 1), UDim2.fromOffset(8, 3), UDim2.fromOffset(150, 18))
-		UITheme.Text(row, string.format("Nv. %d/%d", p.Level, GuildCatalog.MAX_LEVEL), 12, Color3.fromRGB(255, 214, 90), UDim2.fromOffset(150, 4), UDim2.fromOffset(80, 16), Enum.TextXAlignment.Right)
-		bar(row, UDim2.fromOffset(8, 28), UDim2.fromOffset(220, 7), if p.Need > 0 then p.Progress / p.Need else 1, def.Color)
-		UITheme.Text(row, if p.Need > 0 then string.format("%s / %s", short(p.Progress), short(p.Need)) else "MÁXIMO", 10, Color3.fromRGB(165, 165, 180), UDim2.fromOffset(8, 35), UDim2.fromOffset(220, 12))
+		local nameCol = if isSel then pal.TabOnText else pal.Text
+		txt(row, string.format("%s %s", def.Icon, def.Name), 15, nameCol, UDim2.fromOffset(10, 6), UDim2.fromOffset(170, 20))
+		txt(row, string.format("Nv. %d/%d", p.Level, GuildCatalog.MAX_LEVEL), 13, if isSel then pal.TabOnText else pal.Accent, UDim2.fromOffset(200, 7), UDim2.fromOffset(104, 18), Enum.TextXAlignment.Right)
+		-- pips de nivel (10)
+		for n = 1, GuildCatalog.MAX_LEVEL do
+			local pip = Instance.new("Frame")
+			pip.Position = UDim2.fromOffset(10 + (n - 1) * 29, 30)
+			pip.Size = UDim2.fromOffset(25, 7)
+			pip.BackgroundColor3 = if n <= p.Level then def.Color else pal.Slot
+			pip.BorderSizePixel = 0
+			pip.ZIndex = 6
+			pip.Parent = row
+			Instance.new("UICorner", pip)
+		end
+		bar(row, UDim2.fromOffset(10, 44), UDim2.fromOffset(294, 6), if p.Need > 0 then p.Progress / p.Need else 1, def.Color)
+		txt(row, if p.Need > 0 then string.format("%s / %s PA", short(p.Progress), short(p.Need)) else "MÁXIMO", 10, if isSel then pal.TabOnText else pal.Muted, UDim2.fromOffset(10, 52), UDim2.fromOffset(294, 14))
 		row.Activated:Connect(function()
 			selected = p.Id
 			build()
 		end)
 	end
-	-- panel derecho
+	-- panel derecho: detalle + aportes
+	local detail = NpcKit.Panel(b, theme, UDim2.fromOffset(514, 466), UDim2.fromOffset(338, 0), "card")
 	local p = passiveInfo(selected)
 	local def = GuildCatalog.ById[selected]
 	if not p or not def then
 		return
 	end
-	local x = 252
-	UITheme.Text(b, string.format("%s %s", def.Icon, def.Name), 18, def.Color, UDim2.fromOffset(x, 2), UDim2.fromOffset(240, 24))
-	UITheme.Text(b, def.Desc, 12, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(x, 26), UDim2.fromOffset(240, 16))
-	UITheme.Text(b, "Ahora: " .. (if p.Level > 0 then effectText(def, p.Level) else "—"), 12, Color3.fromRGB(165, 220, 175), UDim2.fromOffset(x, 46), UDim2.fromOffset(240, 16))
+	txt(detail, string.format("%s %s", def.Icon, def.Name), 20, pal.FText, UDim2.fromOffset(16, 10), UDim2.fromOffset(300, 26))
+	txt(detail, def.Desc, 13, pal.FMuted, UDim2.fromOffset(16, 38), UDim2.fromOffset(480, 18))
+	local cur = NpcKit.Panel(detail, theme, UDim2.fromOffset(482, 64), UDim2.fromOffset(16, 64), "inset")
+	txt(cur, "Ahora: " .. (if p.Level > 0 then effectText(def, p.Level) else "—"), 13, pal.Text, UDim2.fromOffset(12, 6), UDim2.fromOffset(460, 18))
 	if p.Level < GuildCatalog.MAX_LEVEL then
-		UITheme.Text(b, "Siguiente: " .. effectText(def, p.Level + 1), 12, Color3.fromRGB(255, 214, 90), UDim2.fromOffset(x, 64), UDim2.fromOffset(240, 16))
-		UITheme.Text(b, string.format("Faltan %s PA para el nivel %d", withDots(p.Need - p.Progress), p.Level + 1), 11, Color3.fromRGB(150, 150, 165), UDim2.fromOffset(x, 82), UDim2.fromOffset(240, 14))
+		txt(cur, "Siguiente: " .. effectText(def, p.Level + 1), 13, pal.Accent, UDim2.fromOffset(12, 24), UDim2.fromOffset(460, 18))
+		txt(cur, string.format("Faltan %s PA para el nivel %d", withDots(p.Need - p.Progress), p.Level + 1), 11, pal.Muted, UDim2.fromOffset(12, 44), UDim2.fromOffset(460, 14))
 	else
-		UITheme.Text(b, "Bendición al máximo", 12, Color3.fromRGB(255, 214, 90), UDim2.fromOffset(x, 64), UDim2.fromOffset(240, 16))
+		txt(cur, "Bendición al máximo", 13, pal.Accent, UDim2.fromOffset(12, 24), UDim2.fromOffset(460, 18))
 		return
 	end
 	local left = math.max(0, s.DailyCap - s.DailyUsed)
-	UITheme.Text(b, string.format("Tu límite de hoy: quedan %s PA", withDots(left)), 11, Color3.fromRGB(255, 190, 80), UDim2.fromOffset(x, 102), UDim2.fromOffset(240, 14))
-	UITheme.Text(b, string.format("Oro (tienes %s)", withDots(s.Gold)), 12, Color3.new(1, 1, 1), UDim2.fromOffset(x, 122), UDim2.fromOffset(240, 16))
-	local amounts = { 1000, 10000, 100000 }
-	for i, a in ipairs(amounts) do
-		button(b, "+" .. short(a), UDim2.fromOffset(x + (i - 1) * 80, 140), UDim2.fromOffset(74, 26), Color3.fromRGB(170, 130, 40), function()
-			donate("Gold", a)
+	txt(detail, string.format("Tu límite de hoy: quedan %s PA", withDots(left)), 12, pal.FText, UDim2.fromOffset(16, 142), UDim2.fromOffset(480, 16))
+	txt(detail, string.format("ORO  (tienes %s)", withDots(s.Gold)), 13, pal.FText, UDim2.fromOffset(16, 170), UDim2.fromOffset(300, 18))
+	-- el oro se aporta como % del límite diario que te queda (limitado por tu oro)
+	local function goldFor(frac: number): number
+		return math.max(1, math.floor(math.min(s.Gold, left * frac)))
+	end
+	local pcts = { { "10%", 0.10 }, { "25%", 0.25 }, { "Máx", 1 } }
+	for i, pc in ipairs(pcts) do
+		local amount = goldFor(pc[2])
+		button(detail, string.format("%s  (%s)", pc[1], short(amount)), UDim2.fromOffset(16 + (i - 1) * 124, 192), UDim2.fromOffset(118, 30), "buy", function()
+			if s.Gold > 0 and left > 0 then
+				donate("Gold", amount)
+			end
 		end)
 	end
-	UITheme.Text(b, "Materiales", 12, Color3.new(1, 1, 1), UDim2.fromOffset(x, 174), UDim2.fromOffset(240, 16))
+	txt(detail, "MATERIALES", 13, pal.FText, UDim2.fromOffset(16, 238), UDim2.fromOffset(300, 18))
 	if #s.Mats == 0 then
-		UITheme.Text(b, "No tienes materiales aportables.", 11, Color3.fromRGB(140, 140, 155), UDim2.fromOffset(x, 194), UDim2.fromOffset(240, 14))
+		txt(detail, "No tienes materiales aportables.", 12, pal.FMuted, UDim2.fromOffset(16, 262), UDim2.fromOffset(400, 16))
 	end
 	for i, m in ipairs(s.Mats) do
 		if i > 5 then
 			break
 		end
-		local y = 192 + (i - 1) * 30
-		UITheme.Text(b, string.format("%s x%d", m.Name, m.Have), 11, Color3.new(1, 1, 1), UDim2.fromOffset(x, y), UDim2.fromOffset(118, 14))
-		UITheme.Text(b, string.format("%d PA c/u", m.PA), 10, Color3.fromRGB(140, 140, 155), UDim2.fromOffset(x, y + 13), UDim2.fromOffset(118, 12))
-		button(b, "+1", UDim2.fromOffset(x + 120, y), UDim2.fromOffset(34, 24), Color3.fromRGB(50, 110, 160), function()
+		local y = 260 + (i - 1) * 40
+		txt(detail, string.format("%s x%d", m.Name, m.Have), 13, pal.FText, UDim2.fromOffset(16, y), UDim2.fromOffset(240, 16))
+		txt(detail, string.format("%d PA c/u", m.PA), 11, pal.FMuted, UDim2.fromOffset(16, y + 17), UDim2.fromOffset(240, 14))
+		button(detail, "+1", UDim2.fromOffset(300, y), UDim2.fromOffset(60, 28), "action", function()
 			donate(m.Id, 1)
 		end)
-		button(b, "+10", UDim2.fromOffset(x + 158, y), UDim2.fromOffset(38, 24), Color3.fromRGB(50, 110, 160), function()
-			donate(m.Id, 10)
+		button(detail, "+10", UDim2.fromOffset(366, y), UDim2.fromOffset(60, 28), "action", function()
+			donate(m.Id, math.min(10, m.Have))
 		end)
-		button(b, "Todo", UDim2.fromOffset(x + 200, y), UDim2.fromOffset(40, 24), Color3.fromRGB(50, 130, 70), function()
+		button(detail, "Todo", UDim2.fromOffset(432, y), UDim2.fromOffset(70, 28), "buy", function()
 			donate(m.Id, m.Have)
 		end)
 	end
 end
 
 local function tabRanking(b: Frame)
-	button(b, "Semana", UDim2.fromOffset(8, 2), UDim2.fromOffset(90, 26), if rankWeekly then Color3.fromRGB(70, 110, 180) else Color3.fromRGB(45, 45, 60), function()
+	local box = NpcKit.Panel(b, theme, UDim2.fromOffset(852, 466), UDim2.fromOffset(0, 0), "card")
+	button(box, "Semana", UDim2.fromOffset(14, 10), UDim2.fromOffset(100, 28), if rankWeekly then "buy" else "neutral", function()
 		rankWeekly = true
 		build()
 	end)
-	button(b, "Total", UDim2.fromOffset(104, 2), UDim2.fromOffset(90, 26), if not rankWeekly then Color3.fromRGB(70, 110, 180) else Color3.fromRGB(45, 45, 60), function()
+	button(box, "Total", UDim2.fromOffset(120, 10), UDim2.fromOffset(100, 28), if not rankWeekly then "buy" else "neutral", function()
 		rankWeekly = false
 		build()
 	end)
-	UITheme.Text(b, if rankWeekly then "Se reinicia cada semana (lunes UTC)" else "Desde que existe el gremio", 11, Color3.fromRGB(140, 140, 155), UDim2.fromOffset(210, 8), UDim2.fromOffset(290, 16), Enum.TextXAlignment.Right)
+	txt(box, if rankWeekly then "Se reinicia cada semana (lunes UTC)" else "Desde que existe el gremio", 12, pal.FMuted, UDim2.fromOffset(300, 16), UDim2.fromOffset(536, 16), Enum.TextXAlignment.Right)
+	-- cabecera de columnas
+	txt(box, "#", 11, pal.FMuted, UDim2.fromOffset(20, 46), UDim2.fromOffset(40, 14))
+	txt(box, "JUGADOR", 11, pal.FMuted, UDim2.fromOffset(70, 46), UDim2.fromOffset(300, 14))
+	txt(box, "NIVEL", 11, pal.FMuted, UDim2.fromOffset(420, 46), UDim2.fromOffset(70, 14))
+	txt(box, "CLASE", 11, pal.FMuted, UDim2.fromOffset(500, 46), UDim2.fromOffset(150, 14))
+	txt(box, "APORTE", 11, pal.FMuted, UDim2.fromOffset(640, 46), UDim2.fromOffset(196, 14), Enum.TextXAlignment.Right)
 	local list = if rankWeekly then state.Top else state.TopAll
 	if #list == 0 then
-		UITheme.Text(b, "Aún nadie ha aportado. ¡Sé el primero!", 13, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(8, 50), UDim2.fromOffset(400, 20))
+		txt(box, "Aún nadie ha aportado. ¡Sé el primero!", 14, pal.FMuted, UDim2.fromOffset(20, 76), UDim2.fromOffset(500, 20))
 	end
 	for i, r in ipairs(list) do
-		local y = 36 + (i - 1) * 30
-		local row = Instance.new("Frame")
-		row.Position = UDim2.fromOffset(4, y)
-		row.Size = UDim2.fromOffset(496, 26)
-		row.BackgroundColor3 = if r.Mine then Color3.fromRGB(40, 50, 70) else Color3.fromRGB(22, 22, 30)
-		row.BorderSizePixel = 0
-		row.Parent = b
-		Instance.new("UICorner", row)
+		local y = 64 + (i - 1) * 39
+		local row = NpcKit.Panel(box, theme, UDim2.fromOffset(824, 34), UDim2.fromOffset(14, y), if r.Mine then "plate" else "inset")
 		local medal = if i == 1 then "🥇" elseif i == 2 then "🥈" elseif i == 3 then "🥉" else tostring(i) .. "."
-		UITheme.Text(row, medal, 13, Color3.new(1, 1, 1), UDim2.fromOffset(8, 4), UDim2.fromOffset(36, 18))
-		UITheme.Text(row, tostring(r.Name), 13, if r.Mine then Color3.fromRGB(255, 214, 90) else Color3.new(1, 1, 1), UDim2.fromOffset(48, 4), UDim2.fromOffset(280, 18))
-		UITheme.Text(row, withDots(r.Value) .. " PA", 13, Color3.fromRGB(150, 220, 255), UDim2.fromOffset(300, 4), UDim2.fromOffset(190, 18), Enum.TextXAlignment.Right)
+		local tc = if r.Mine then pal.FText else pal.Text
+		txt(row, medal, 14, tc, UDim2.fromOffset(8, 8), UDim2.fromOffset(40, 18))
+		txt(row, tostring(r.Name), 14, tc, UDim2.fromOffset(56, 8), UDim2.fromOffset(340, 18))
+		txt(row, if r.Lv then tostring(r.Lv) else "—", 14, tc, UDim2.fromOffset(406, 8), UDim2.fromOffset(70, 18))
+		txt(row, if r.Role then tostring(r.Role) else "—", 14, tc, UDim2.fromOffset(486, 8), UDim2.fromOffset(150, 18))
+		txt(row, withDots(r.Value) .. " PA", 14, tc, UDim2.fromOffset(626, 8), UDim2.fromOffset(188, 18), Enum.TextXAlignment.Right)
 	end
 end
 
 local function tabRegistro(b: Frame)
+	local box = NpcKit.Panel(b, theme, UDim2.fromOffset(852, 466), UDim2.fromOffset(0, 0), "card")
 	if #state.Log == 0 then
-		UITheme.Text(b, "Todavía no hay actividad. Los aportes grandes y las subidas de nivel aparecen aquí.", 12, Color3.fromRGB(170, 170, 185), UDim2.fromOffset(8, 6), UDim2.fromOffset(490, 34)).TextWrapped = true
+		txt(box, "Todavía no hay actividad. Los aportes grandes y las subidas de nivel aparecen aquí.", 13, pal.FMuted, UDim2.fromOffset(16, 14), UDim2.fromOffset(800, 20))
 		return
 	end
 	local scroll = Instance.new("ScrollingFrame")
-	scroll.Size = UDim2.fromScale(1, 1)
+	scroll.Position = UDim2.fromOffset(8, 8)
+	scroll.Size = UDim2.fromOffset(836, 450)
 	scroll.BackgroundTransparency = 1
 	scroll.BorderSizePixel = 0
 	scroll.ScrollBarThickness = 5
-	scroll.CanvasSize = UDim2.fromOffset(0, #state.Log * 30)
-	scroll.Parent = b
+	scroll.ZIndex = 4
+	scroll.CanvasSize = UDim2.fromOffset(0, #state.Log * 32)
+	scroll.Parent = box
 	for i, e in ipairs(state.Log) do
 		local ago = math.max(0, (state.Now or 0) - e.t)
 		local when = if ago < 3600 then string.format("hace %d min", math.floor(ago / 60)) elseif ago < 86400 then string.format("hace %d h", math.floor(ago / 3600)) else string.format("hace %d d", math.floor(ago / 86400))
-		local l = UITheme.Text(scroll, string.format("%s  ·  %s", tostring(e.m), when), 12, Color3.fromRGB(220, 220, 232), UDim2.fromOffset(6, (i - 1) * 30), UDim2.fromOffset(480, 26))
+		local l = txt(scroll, string.format("%s  ·  %s", tostring(e.m), when), 13, pal.FText, UDim2.fromOffset(8, (i - 1) * 32 + 4), UDim2.fromOffset(800, 26))
 		l.TextWrapped = true
 	end
 end
@@ -281,39 +336,29 @@ end
 ---------------------------------------------------------------------
 build = function()
 	theme = UITheme.For(player:GetAttribute("Faction"))
+	pal = NpcKit.Palette(theme)
 	if win then
 		win:Destroy()
 	end
-	local w = UITheme.Frame(gui, theme, UDim2.fromOffset(540, 520), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "window")
+	local w = NpcKit.Window(gui, theme, UDim2.fromOffset(880, 640), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "Gremio de Facción",
+		"Bendiciones compartidas por toda la facción · aporta oro y materiales", "⚑", function()
+			gui.Enabled = false
+		end)
 	win = w
 	WindowDrag.Attach(w, "Guild", 52, 50)
-	UITheme.Text(w, "Gremio de Facción", 20, theme.Primary, UDim2.fromOffset(18, 6), UDim2.fromOffset(340, 26))
-	local close = Instance.new("TextButton")
-	close.Position = UDim2.new(1, -38, 0, 8)
-	close.Size = UDim2.fromOffset(28, 28)
-	close.Text = "X"
-	close.BackgroundTransparency = 1
-	close.TextColor3 = Color3.fromRGB(255, 120, 120)
-	close.Font = UITheme.Font
-	close.TextSize = 18
-	close.ZIndex = 30
-	close.Parent = w
-	close.Activated:Connect(function()
-		gui.Enabled = false
-	end)
 	for i, name in ipairs(TABS) do
-		button(w, name, UDim2.fromOffset(18 + (i - 1) * 126, 38), UDim2.fromOffset(120, 28), if tab == name then theme.Primary else Color3.fromRGB(45, 45, 60), function()
+		NpcKit.Tab(w, theme, name, UDim2.fromOffset(140, 28), UDim2.fromOffset(14 + (i - 1) * 146, 72), tab == name, function()
 			tab = name
 			build()
 		end)
 	end
 	if not state then
-		UITheme.Text(w, "Cargando… (elige una facción para unirte al gremio)", 13, Color3.new(1, 1, 1), UDim2.fromOffset(18, 80), UDim2.fromOffset(480, 20))
+		txt(w, "Cargando… (elige una facción para unirte al gremio)", 14, pal.FText, UDim2.fromOffset(18, 120), UDim2.fromOffset(480, 20))
 		return
 	end
 	local b = Instance.new("Frame")
-	b.Position = UDim2.fromOffset(18, 76)
-	b.Size = UDim2.fromOffset(504, 366)
+	b.Position = UDim2.fromOffset(14, 108)
+	b.Size = UDim2.fromOffset(852, 470)
 	b.BackgroundTransparency = 1
 	b.Parent = w
 	body = b
@@ -326,9 +371,9 @@ build = function()
 	else
 		tabRegistro(b)
 	end
-	resultLabel = UITheme.Text(w, "", 13, nil, UDim2.fromOffset(18, 450), UDim2.fromOffset(504, 20))
+	resultLabel = txt(w, "", 13, pal.FText, UDim2.fromOffset(18, 584), UDim2.fromOffset(840, 20))
 	resultLabel.RichText = true
-	local f = UITheme.Text(w, "Límite diario por jugador: " .. withDots(GuildCatalog.DailyCap(player:GetAttribute("Level") :: any or 1)) .. " PA · las bendiciones suben con el esfuerzo de toda la facción.", 11, Color3.fromRGB(140, 140, 155), UDim2.fromOffset(18, 478), UDim2.fromOffset(504, 30))
+	local f = txt(w, "Límite diario por jugador: " .. withDots(GuildCatalog.DailyCap(player:GetAttribute("Level") :: any or 1)) .. " PA · las bendiciones suben con el esfuerzo de toda la facción.", 11, pal.FMuted, UDim2.fromOffset(18, 610), UDim2.fromOffset(840, 20))
 	f.TextWrapped = true
 	f.TextYAlignment = Enum.TextYAlignment.Top
 end
