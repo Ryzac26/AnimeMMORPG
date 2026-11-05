@@ -9,6 +9,7 @@
 ]]
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GearCatalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GearCatalog"))
+local GearIcons = require(ReplicatedStorage.Modules.GearIcons)
 local ItemIcon = {}
 
 local WEIGHT = { Tanque = "H", Guerrero = "H", Asesino = "M", Tirador = "M", Mago = "L", Curador = "L" } :: { [string]: string }
@@ -75,6 +76,21 @@ function ItemIcon.Tint(item: any, rarityColor: Color3): Color3
 	return rarityColor
 end
 
+-- Marco de rareza (imagen marcos/<rareza>) encima del icono, si está subida
+local function addFrame(f: Frame, item: any)
+	local r: string? = item.Rarity
+	local id = if r then GearIcons["marcos/" .. string.lower(r)] else nil
+	if id then
+		local fr = Instance.new("ImageLabel")
+		fr.Name = "MarcoRareza"
+		fr.Size = UDim2.fromScale(1, 1)
+		fr.BackgroundTransparency = 1
+		fr.Image = id
+		fr.ZIndex = 12
+		fr.Parent = f
+	end
+end
+
 function ItemIcon.Build(parent: Instance, item: any, size: number, rarityColor: Color3): Frame
 	local f = Instance.new("Frame")
 	f.Name = "ItemIcon"
@@ -95,6 +111,7 @@ function ItemIcon.Build(parent: Instance, item: any, size: number, rarityColor: 
 		im.Image = img
 		im.ZIndex = 8
 		im.Parent = f
+		addFrame(f, item)
 		return f
 	end
 	local g = Instance.new("TextLabel")
@@ -106,6 +123,7 @@ function ItemIcon.Build(parent: Instance, item: any, size: number, rarityColor: 
 	g.TextColor3 = Color3.new(1, 1, 1)
 	g.ZIndex = 8
 	g.Parent = f
+	addFrame(f, item)
 	local role: string? = item.Role
 	if role and ROLE_TAG[role] then
 		local tag = Instance.new("TextLabel")

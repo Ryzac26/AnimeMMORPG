@@ -16,13 +16,16 @@ local TURN_SPEED = 14 -- más alto = gira más rápido
 local CAST_WINDOW = 0.6
 
 local faceUntil = 0
-local KEYS: { [Enum.KeyCode]: boolean } = {
-	[Enum.KeyCode.One] = true, [Enum.KeyCode.Two] = true, [Enum.KeyCode.Three] = true, [Enum.KeyCode.Four] = true,
-	[Enum.KeyCode.KeypadOne] = true, [Enum.KeyCode.KeypadTwo] = true, [Enum.KeyCode.KeypadThree] = true, [Enum.KeyCode.KeypadFour] = true,
-}
+local KeyBinds = require(script.Parent:WaitForChild("KeyBinds", 10))
 UserInputService.InputBegan:Connect(function(input, processed)
-	if not processed and KEYS[input.KeyCode] then
-		faceUntil = os.clock() + CAST_WINDOW
+	if processed then
+		return
+	end
+	for i = 1, 4 do
+		if KeyBinds.Matches(input, "Poder" .. i) then
+			faceUntil = os.clock() + CAST_WINDOW
+			return
+		end
 	end
 end)
 

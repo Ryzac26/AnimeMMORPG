@@ -14,6 +14,7 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
+local KeyBinds = require(script.Parent:WaitForChild("KeyBinds", 10))
 local Modules = ReplicatedStorage:WaitForChild("Modules", 10)
 local ItemCatalog = require(Modules:WaitForChild("ItemCatalog", 10))
 local GB = require(Modules:WaitForChild("GameBalance", 10))
@@ -674,7 +675,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 UserInputService.InputBegan:Connect(function(input, processed)
-	if not processed and input.KeyCode == Enum.KeyCode.C then
+	if not processed and KeyBinds.Matches(input, "Perfil") then
 		if gui.Enabled then
 			gui.Enabled = false
 		else

@@ -139,6 +139,14 @@ do
 			items[id].ArtKey = "consumibles/" .. key
 		end
 	end
+	-- claves de arte de mascotas (una por familia) y materiales / recursos / llaves / fragmentos
+	for id, item in pairs(items) do
+		if item.Pet and item.Pet.Family then
+			item.ArtKey = "mascotas/" .. string.lower(item.Pet.Family)
+		elseif LootTables.Materials[id] or id == "Fragmento_Metin" then
+			item.ArtKey = "materiales/" .. id
+		end
+	end
 	-- Iconos reales: GearIcons[ArtKey] = "rbxassetid://ID" (vacío hasta subir las imágenes)
 	local GearIcons = require(script.Parent.GearIcons)
 	for _, item in pairs(items) do

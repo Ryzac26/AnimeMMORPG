@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
+local KeyBinds = require(script.Parent:WaitForChild("KeyBinds", 10))
 local Modules = ReplicatedStorage:WaitForChild("Modules", 10)
 local GuildCatalog = require(Modules:WaitForChild("GuildCatalog", 10))
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
@@ -413,7 +414,7 @@ MenuBus.Event:Connect(function(name: string)
 	end
 end)
 UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
-	if not processed and input.KeyCode == Enum.KeyCode.G then
+	if not processed and KeyBinds.Matches(input, "Faccion") then
 		open()
 	end
 end)

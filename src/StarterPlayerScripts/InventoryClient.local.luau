@@ -21,6 +21,7 @@ local BagCatalog = require(ReplicatedStorage.Modules.BagCatalog)
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 local ItemIcon = require(script.Parent:WaitForChild("ItemIcon", 10))
 local BagDock = require(script.Parent:WaitForChild("BagDock", 10))
+local KeyBinds = require(script.Parent:WaitForChild("KeyBinds", 10))
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 
 -- La mochila ya NO es una ventana propia: es un panel (528x594) que se acopla dentro de "Equipo y Mochila" (CharacterClient).
@@ -563,12 +564,24 @@ local function toggle()
 	MenuBus.Fire("Character")
 end
 
-ContextActionService:BindActionAtPriority("ToggleInventory", function(_, state)
-	if state == Enum.UserInputState.Begin then
-		toggle()
+local function bindBagKey()
+	ContextActionService:UnbindAction("ToggleInventory")
+	local code = KeyBinds.Get("Mochila")
+	if code then
+		ContextActionService:BindActionAtPriority("ToggleInventory", function(_, state)
+			if state == Enum.UserInputState.Begin then
+				toggle()
+			end
+			return Enum.ContextActionResult.Sink
+		end, false, Enum.ContextActionPriority.High.Value + 100, code)
 	end
-	return Enum.ContextActionResult.Sink
-end, false, Enum.ContextActionPriority.High.Value + 100, Enum.KeyCode.B)
+end
+bindBagKey()
+KeyBinds.Changed:Connect(function(id: string)
+	if id == "Mochila" then
+		bindBagKey()
+	end
+end)
 
 MenuBus.Event:Connect(function(name: string)
 	if name == "Inventory" then

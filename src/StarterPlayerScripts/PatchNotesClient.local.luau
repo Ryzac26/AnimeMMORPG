@@ -3,7 +3,7 @@
     PatchNotesClient (LocalScript) -> StarterPlayer.StarterPlayerScripts
     NOVEDADES (rediseño): lista de versiones a la izquierda y el detalle de la elegida a la derecha
     (texto de ReplicatedStorage.Modules.PatchNotes), con el color de tu facción. La más nueva viene abierta.
-    Al entrar al juego se muestra a los 3 s. Botón ENTENDIDO / ✕ para cerrar. Tecla N = abrir o cerrar.
+    Al entrar al juego se muestra a los 3 s. Botón ENTENDIDO / ✕ para cerrar. Tecla configurable (Ajustes > Atajos; por defecto J) = abrir o cerrar.
     Los jugadores no pueden cambiar el contenido (se edita solo desde Studio).
 ]]
 local Players = game:GetService("Players")
@@ -12,6 +12,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Notes = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PatchNotes"))
 local player = Players.LocalPlayer
+local KeyBinds = require(script.Parent:WaitForChild("KeyBinds", 10))
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local Platform = require(script.Parent:WaitForChild("Platform", 10))
 local MOBILE = Platform.IsMobile()
@@ -132,7 +133,7 @@ hint.TextSize = if MOBILE then 11 else 14
 hint.TextColor3 = GREY
 hint.TextWrapped = true
 hint.TextXAlignment = Enum.TextXAlignment.Left
-hint.Text = if MOBILE then "Toca una versión para leerla" else "Toca una versión para leerla  ·  Pulsa N para abrir o cerrar las novedades"
+hint.Text = if MOBILE then "Toca una versión para leerla" else "Toca una versión para leerla  ·  Pulsa " .. KeyBinds.Label("Notas") .. " para abrir o cerrar las novedades"
 hint.Parent = footer
 local ok = Instance.new("TextButton")
 ok.AnchorPoint = Vector2.new(1, 0.5)
@@ -342,7 +343,7 @@ ok.Activated:Connect(function()
 	gui.Enabled = false
 end)
 UserInputService.InputBegan:Connect(function(input, processed)
-	if not processed and input.KeyCode == Enum.KeyCode.N then
+	if not processed and KeyBinds.Matches(input, "Notas") then
 		gui.Enabled = not gui.Enabled
 	end
 end)

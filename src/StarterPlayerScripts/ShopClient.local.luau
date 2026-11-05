@@ -12,6 +12,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
+local KeyBinds = require(script.Parent:WaitForChild("KeyBinds", 10))
 local Modules = ReplicatedStorage:WaitForChild("Modules", 10)
 local ItemCatalog = require(Modules:WaitForChild("ItemCatalog", 10))
 local ShopCatalog = require(Modules:WaitForChild("ShopCatalog", 10))
@@ -492,7 +493,7 @@ do
 	end
 	pb.Activated:Connect(openPortable)
 	UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
-		if not processed and input.KeyCode == Enum.KeyCode.V then
+		if not processed and KeyBinds.Matches(input, "Mercader") then
 			openPortable()
 		end
 	end)

@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
+local KeyBinds = require(script.Parent:WaitForChild("KeyBinds", 10))
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local remote = ReplicatedStorage:WaitForChild("Remotes", 10):WaitForChild("Party", 10) :: RemoteEvent
 local theme = UITheme.For(player:GetAttribute("Faction"))
@@ -214,7 +215,7 @@ head.Activated:Connect(function()
 	render()
 end)
 UserInputService.InputBegan:Connect(function(input, processed)
-	if not processed and input.KeyCode == Enum.KeyCode.P then
+	if not processed and KeyBinds.Matches(input, "Grupo") then
 		expanded = true
 		invitesOpen = not invitesOpen
 		render()

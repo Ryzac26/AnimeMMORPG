@@ -25,6 +25,7 @@ local Modules = ReplicatedStorage:WaitForChild("Modules", 10) :: Folder
 local PlayerClass = require(Modules:WaitForChild("PlayerClass", 10))
 local ItemCatalog = require(Modules:WaitForChild("ItemCatalog", 10))
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
+local KeyBinds = require(script.Parent:WaitForChild("KeyBinds", 10))
 local PortraitKit = require(script.Parent:WaitForChild("PortraitKit", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local DealDamageEvent = ClientNet.Get("DealDamageEvent")
@@ -122,8 +123,13 @@ local function build()
 		UITheme.Border(f, theme, 3)
 		local icon = UITheme.Text(f, if skill then string.sub(skill.Name, 1, 2):upper() else "🔒", 15, theme.Primary, UDim2.fromScale(0, 0.1), UDim2.fromScale(1, 0.6), Enum.TextXAlignment.Center)
 		icon.TextStrokeTransparency = 0.3
-		local num = UITheme.Text(f, tostring(i), 12, Color3.new(1, 1, 1), UDim2.fromOffset(4, 1), UDim2.fromOffset(14, 14))
+		local num = UITheme.Text(f, KeyBinds.Label("Poder" .. i), 12, Color3.new(1, 1, 1), UDim2.fromOffset(4, 1), UDim2.fromOffset(14, 14))
 		num.ZIndex = 4
+		KeyBinds.Changed:Connect(function(id: string)
+			if id == "Poder" .. i then
+				num.Text = KeyBinds.Label(id)
+			end
+		end)
 		local nm = UITheme.Text(bar, if skill then skill.Name else "Próximamente", 10, Color3.fromRGB(230, 230, 235), UDim2.fromOffset(12 + (i - 1) * (slotSize + gap) - 6, slotSize + 2), UDim2.fromOffset(slotSize + 12, 26), Enum.TextXAlignment.Center)
 		nm.TextWrapped = true
 		nm.TextYAlignment = Enum.TextYAlignment.Top
@@ -155,8 +161,8 @@ local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 local pal = NpcKit.Palette(theme)
 local MENU = {
-	{ "Perfil", "C", "Character" }, { "Mochila", "B", "Inventory" }, { "Tienda", "", "Tienda" }, { "Habilidades", "", "" }, { "Misiones", "", "" },
-	{ "Mapa", "", "" }, { "Facción", "G", "Guild" }, { "Mascota", "", "Pets" }, { "Ajustes", "", "Settings" },
+	{ "Perfil", "Perfil", "Character" }, { "Mochila", "Mochila", "Inventory" }, { "Tienda", "", "Tienda" }, { "Habilidades", "", "" }, { "Misiones", "", "" },
+	{ "Mapa", "", "" }, { "Facción", "Faccion", "Guild" }, { "Mascota", "", "Pets" }, { "Ajustes", "", "Settings" },
 }
 local BTN_W, BTN_H, GAP = 88, 30, 6
 local BAR_W = #MENU * BTN_W + (#MENU - 1) * GAP + 24
@@ -197,7 +203,15 @@ for _, m in ipairs(MENU) do
 	local b = Instance.new("TextButton")
 	b.Size = UDim2.fromOffset(BTN_W, BTN_H)
 	b.BackgroundColor3 = pal.TabOff
-	b.Text = if m[2] ~= "" then string.format("%s [%s]", m[1], m[2]) else m[1]
+	local function setText()
+		b.Text = if m[2] ~= "" then string.format("%s [%s]", m[1], KeyBinds.Label(m[2])) else m[1]
+	end
+	setText()
+	KeyBinds.Changed:Connect(function(id: string)
+		if id == m[2] then
+			setText()
+		end
+	end)
 	b.TextColor3 = pal.TabOffText
 	b.TextTransparency = if m[3] ~= "" then 0 else 0.45
 	b.Font = UITheme.Font
@@ -357,10 +371,14 @@ end)
 ---------------------------------------------------------------------
 -- PODERES 1-4
 ---------------------------------------------------------------------
-local KEYS: { [Enum.KeyCode]: number } = {
-	[Enum.KeyCode.One] = 1, [Enum.KeyCode.Two] = 2, [Enum.KeyCode.Three] = 3, [Enum.KeyCode.Four] = 4, [Enum.KeyCode.Five] = 5, [Enum.KeyCode.Six] = 6, [Enum.KeyCode.Seven] = 7, [Enum.KeyCode.KeypadSeven] = 7,
-	[Enum.KeyCode.KeypadOne] = 1, [Enum.KeyCode.KeypadTwo] = 2, [Enum.KeyCode.KeypadThree] = 3, [Enum.KeyCode.KeypadFour] = 4, [Enum.KeyCode.KeypadFive] = 5, [Enum.KeyCode.KeypadSix] = 6,
-}
+local function slotOf(input: InputObject): number?
+	for i = 1, 7 do
+		if KeyBinds.Matches(input, "Poder" .. i) then
+			return i
+		end
+	end
+	return nil
+end
 
 local function useSlot(i: number)
 	if i > 2 then
@@ -397,11 +415,11 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then
 		return
 	end
-	if input.KeyCode == Enum.KeyCode.Q and AutoAttackRemote then
+	if KeyBinds.Matches(input, "AutoAtaque") and AutoAttackRemote then
 		AutoAttackRemote:FireServer("Toggle") -- pausa / reanuda el auto-ataque
 		return
 	end
-	local slot = KEYS[input.KeyCode]
+	local slot = slotOf(input)
 	if slot then
 		useSlot(slot)
 	end

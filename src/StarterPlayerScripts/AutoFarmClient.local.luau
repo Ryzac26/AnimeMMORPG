@@ -15,6 +15,7 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
+local KeyBinds = require(script.Parent:WaitForChild("KeyBinds", 10))
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
 local setRemote = Remotes:WaitForChild("AutoFarm", 10) :: RemoteEvent
@@ -343,7 +344,7 @@ modeBtn.Activated:Connect(function()
 	panel.Visible = not panel.Visible
 end)
 UserInputService.InputBegan:Connect(function(input, processed)
-	if not processed and input.KeyCode == Enum.KeyCode.Z then
+	if not processed and KeyBinds.Matches(input, "AutoFarm") then
 		toggle()
 	end
 end)

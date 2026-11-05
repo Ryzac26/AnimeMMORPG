@@ -13,16 +13,27 @@ local Services = ServerScriptService.Services
 local Net = require(Services.Net)
 local PlayerData = require(Services.PlayerData)
 local DamageService = require(Services.DamageService)
+local KeyBindCatalog = require(game:GetService("ReplicatedStorage").Modules.KeyBindCatalog)
 
-local DEFS: { [string]: { Default: string, Allowed: { string } } } = {
+local DEFS: { [string]: { Default: string, Allowed: { string }? } } = {
 	PetsMode = { Default = "all", Allowed = { "all", "mine", "none" } },
 }
+-- Atajos de teclado: "Key_<Id>" = nombre de tecla permitido (Allowed = nil -> se valida con KeyBindCatalog)
+for _, a in ipairs(KeyBindCatalog.Actions) do
+	DEFS["Key_" .. a.Id] = { Default = a.Default }
+end
 
 local values: { [Player]: { [string]: string } } = {}
 
 local function isAllowed(key: string, value: any): boolean
 	local def = DEFS[key]
-	return def ~= nil and typeof(value) == "string" and table.find(def.Allowed, value) ~= nil
+	if def == nil or typeof(value) ~= "string" then
+		return false
+	end
+	if def.Allowed == nil then
+		return KeyBindCatalog.IsAllowedKey(value)
+	end
+	return table.find(def.Allowed, value) ~= nil
 end
 
 local function publish(player: Player, key: string, value: string)
