@@ -121,9 +121,53 @@ end
 ---------------------------------------------------------------------
 -- Pestañas (área de contenido: 852 x 470)
 ---------------------------------------------------------------------
+-- Bendiciones de pago activas (BlessingService publica el atributo "BlessJson"); el cartel cuenta hacia atrás cada segundo
+local blessTimers: { { Label: TextLabel, Left: number, At: number, By: string, Name: string, Short: string } } = {}
+local function blessEntries(): { any }
+	local raw = player:GetAttribute("BlessJson")
+	if typeof(raw) == "string" and raw ~= "" then
+		local ok, data = pcall(game:GetService("HttpService").JSONDecode, game:GetService("HttpService"), raw)
+		if ok and typeof(data) == "table" then
+			return data
+		end
+	end
+	return {}
+end
+local function clock(sec: number): string
+	sec = math.max(0, math.floor(sec))
+	return string.format("%d:%02d:%02d", sec // 3600, (sec % 3600) // 60, sec % 60)
+end
+local function blessLine(t: any, now: number): string
+	local left = t.Left - (now - t.At)
+	local who = if t.By ~= "" then t.By .. " compró " else "Devuelta: "
+	return string.format("✨ %s%s · %s · quedan %s", who, t.Name, t.Short, clock(left))
+end
+
 local function tabResumen(b: Frame)
 	local s = state
-	local left = NpcKit.Panel(b, theme, UDim2.fromOffset(420, 300), UDim2.fromOffset(0, 0), "card")
+	local oy, topH = 0, 160
+	table.clear(blessTimers)
+	local entries = blessEntries()
+	if #entries > 0 then
+		oy, topH = 52, 110
+		local banner = NpcKit.Panel(b, theme, UDim2.fromOffset(852, 46), UDim2.fromOffset(0, 0), "card")
+		local st = banner:FindFirstChildOfClass("UIStroke")
+		if st then
+			st.Color = Color3.fromRGB(255, 212, 94)
+			st.Thickness = 2
+		end
+		local now = os.clock()
+		for i, e in ipairs(entries) do
+			if i > 2 then
+				txt(banner, string.format("+%d más…", #entries - 2), 11, pal.FMuted, UDim2.fromOffset(760, 26), UDim2.fromOffset(84, 16), Enum.TextXAlignment.Right)
+				break
+			end
+			local t = { Label = txt(banner, "", 13, pal.Text, UDim2.fromOffset(12, 4 + (i - 1) * 20), UDim2.fromOffset(830, 18)), Left = e.l, At = now, By = if e.p then "" else tostring(e.by or "?"), Name = tostring(e.n), Short = tostring(e.s) }
+			t.Label.Text = blessLine(t, now)
+			table.insert(blessTimers, t)
+		end
+	end
+	local left = NpcKit.Panel(b, theme, UDim2.fromOffset(420, 300), UDim2.fromOffset(0, oy), "card")
 	txt(left, string.format("Gremio %s", tostring(s.Faction)), 18, pal.FText, UDim2.fromOffset(14, 8), UDim2.fromOffset(380, 24))
 	local t = txt(left, "Todos los jugadores de tu facción forman parte. Las bendiciones se financian con aportes y valen para todos, en todos los servidores.", 12, pal.FMuted, UDim2.fromOffset(14, 34), UDim2.fromOffset(392, 34))
 	t.TextWrapped = true
@@ -144,7 +188,7 @@ local function tabResumen(b: Frame)
 	txt(left, "PA = puntos de aporte: 1 oro = 1 PA; los materiales valen más según su rareza.", 11, pal.FMuted, UDim2.fromOffset(14, 268), UDim2.fromOffset(392, 16))
 
 	-- tarjetas de pasivas activas
-	local right = NpcKit.Panel(b, theme, UDim2.fromOffset(424, 300), UDim2.fromOffset(428, 0), "card")
+	local right = NpcKit.Panel(b, theme, UDim2.fromOffset(424, 300), UDim2.fromOffset(428, oy), "card")
 	txt(right, "Bendiciones activas", 16, pal.FText, UDim2.fromOffset(14, 8), UDim2.fromOffset(300, 22))
 	for i, p in ipairs(s.Passives) do
 		local def = GuildCatalog.ById[p.Id]
@@ -159,13 +203,13 @@ local function tabResumen(b: Frame)
 		bar(card, UDim2.fromOffset(8, 62), UDim2.fromOffset(180, 7), if p.Need > 0 then p.Progress / p.Need else 1, def.Color)
 	end
 	-- mejores aportantes (vista rápida)
-	local top = NpcKit.Panel(b, theme, UDim2.fromOffset(852, 160), UDim2.fromOffset(0, 308), "card")
+	local top = NpcKit.Panel(b, theme, UDim2.fromOffset(852, topH), UDim2.fromOffset(0, 308 + oy), "card")
 	txt(top, "Mejores aportantes de la semana", 14, pal.FText, UDim2.fromOffset(14, 6), UDim2.fromOffset(400, 20))
 	if #s.Top == 0 then
 		txt(top, "Aún nadie ha aportado esta semana. ¡Sé el primero!", 12, pal.FMuted, UDim2.fromOffset(14, 36), UDim2.fromOffset(500, 18))
 	end
 	for i, r in ipairs(s.Top) do
-		if i > 5 then
+		if i > (if topH < 160 then 3 else 5) then
 			break
 		end
 		local medal = if i == 1 then "🥇" elseif i == 2 then "🥈" elseif i == 3 then "🥉" else tostring(i) .. "."
@@ -416,6 +460,25 @@ end)
 UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
 	if not processed and KeyBinds.Matches(input, "Faccion") then
 		open()
+	end
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(1)
+		if gui.Enabled and #blessTimers > 0 then
+			local now = os.clock()
+			for _, t in ipairs(blessTimers) do
+				if t.Label.Parent then
+					t.Label.Text = blessLine(t, now)
+				end
+			end
+		end
+	end
+end)
+player:GetAttributeChangedSignal("BlessJson"):Connect(function()
+	if gui.Enabled and tab == "Resumen" and state then
+		build()
 	end
 end)
 

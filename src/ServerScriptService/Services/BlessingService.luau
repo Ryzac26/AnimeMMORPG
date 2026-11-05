@@ -10,6 +10,7 @@
       - Bendición personal: se guarda en el perfil (sección "Blessing" = { P = { grupo = segundos } }); el tiempo corre con el jugador conectado.
       - Atributo del jugador "BlessInfo" (texto "Grupo:segundos;...") para mostrar lo activo.
 ]]
+local HttpService = game:GetService("HttpService")
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -23,7 +24,7 @@ local GearService = require(Services.GearService)
 
 local NotifyRemote = Net.Get("Notify")
 
-type Line = { Left: number, Buyers: { [string]: number } }
+type Line = { Left: number, Buyers: { [string]: number }, Last: string }
 type Day = { Day: string, Used: number }
 
 local BlessingService = {}
@@ -64,26 +65,30 @@ end
 local function apply(player: Player)
 	local stats: { [string]: number } = {}
 	local info: { string } = {}
-	local function take(group: string, left: number)
+	local json: { any } = {}
+	local function take(group: string, left: number, by: string?, isPersonal: boolean)
 		local def = ProductCatalog.BlessGroups[group]
 		if def and left > 0 then
 			for st, v in pairs(def.Stats) do
 				stats[st] = math.max(stats[st] or 0, v)
 			end
 			table.insert(info, string.format("%s:%d", group, math.floor(left)))
+			table.insert(json, { g = group, n = def.Name, s = def.Short, l = math.floor(left), by = by, p = isPersonal })
 		end
 	end
 	local f = factionOf(player)
 	if f and lines[f] then
 		for g, l in pairs(lines[f]) do
-			take(g, l.Left)
+			take(g, l.Left, l.Last, false)
 		end
 	end
 	for g, left in pairs(personal[player] or {}) do
-		take(g, left)
+		take(g, left, nil, true)
 	end
 	GearService.SetTemp(player, if next(stats) then stats else nil, "Blessing")
 	player:SetAttribute("BlessInfo", table.concat(info, ";"))
+	-- para los carteles del cliente (ventana de Gremio y cuadro de pantalla); el cliente cuenta hacia atrás por su cuenta
+	player:SetAttribute("BlessJson", if #json > 0 then HttpService:JSONEncode(json) else "")
 end
 
 local function applyFaction(f: string)
@@ -122,10 +127,11 @@ function BlessingService.Activate(player: Player, p: ProductCatalog.Product): bo
 	end
 	local l = fl[group]
 	if not l then
-		l = { Left = 0, Buyers = {} }
+		l = { Left = 0, Buyers = {}, Last = player.DisplayName }
 		fl[group] = l
 	end
 	l.Left += secs
+	l.Last = player.DisplayName
 	local uid = tostring(player.UserId)
 	l.Buyers[uid] = (l.Buyers[uid] or 0) + secs
 	local dayRec = used[f]
