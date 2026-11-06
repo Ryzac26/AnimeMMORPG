@@ -134,7 +134,14 @@ local function build()
 		return
 	end
 	if not state.HasPass then
-		text(w, "Necesitas el pase Pabellón Imperial para usar el baúl y los invitados (Tienda > Pases).", 14, pal.FText, UDim2.fromOffset(18, top), UDim2.fromOffset(740, 40)).TextWrapped = true
+		if state.Lapsed then
+			text(w, "Tu Casa VIP venció porque la suscripción no se renovó. Tu baúl está a salvo en el buzón de la ciudad. Para volver a tener la casa hay que pagar de nuevo el Pabellón Imperial (si todavía quedan casas).", 14, pal.FText, UDim2.fromOffset(18, top), UDim2.fromOffset(740, 60)).TextWrapped = true
+			NpcKit.Button(w, theme, "Recomprar Pabellón Imperial · 599 R$", UDim2.fromOffset(360, 38), UDim2.fromOffset(18, top + 80), "buy", function()
+				actionRemote:FireServer("Rebuy")
+			end)
+		else
+			text(w, "Necesitas el pase Pabellón Imperial para usar el baúl y los invitados (Tienda > Pases).", 14, pal.FText, UDim2.fromOffset(18, top), UDim2.fromOffset(740, 40)).TextWrapped = true
+		end
 		return
 	end
 	if tab == "Baul" then
@@ -151,8 +158,18 @@ local function build()
 			actionRemote:FireServer("Deposit", e.Slot)
 		end)
 		hover = text(w, "Clic en un objeto para pasarlo al otro lado.", 13, pal.FMuted, UDim2.fromOffset(18, 566), UDim2.fromOffset(740, 20))
-		if not state.Sub then
-			text(w, "Con la Suscripción Imperial el baúl sube a 60 casillas.", 12, pal.FMuted, UDim2.fromOffset(18, 546), UDim2.fromOffset(500, 16))
+	elseif tab == "Animals" then
+		text(w, "Elige qué animales quedan sueltos en el jardín. Sus bonus siguen activos. Se quedan en la casa hasta que los agarres o salgas del servidor.", 12, pal.FMuted, UDim2.fromOffset(18, top), UDim2.fromOffset(748, 34)).TextWrapped = true
+		if #state.Animals == 0 then
+			text(w, "No tienes mascotas ni montura equipadas.", 14, pal.FText, UDim2.fromOffset(18, top + 44), UDim2.fromOffset(500, 20))
+		end
+		for i, a in ipairs(state.Animals) do
+			local y = top + 44 + (i - 1) * 44
+			local row = NpcKit.Panel(w, theme, UDim2.fromOffset(748, 38), UDim2.fromOffset(14, y), "inset")
+			text(row, (if a.Key == "Mount" then "🐎  " else "🐾  ") .. tostring(a.Name) .. (if a.Released then "   (suelto en el jardín)" else ""), 14, pal.Text, UDim2.fromOffset(12, 9), UDim2.fromOffset(500, 20))
+			NpcKit.Button(row, theme, if a.Released then "Agarrar" else "Soltar", UDim2.fromOffset(170, 28), UDim2.fromOffset(570, 5), if a.Released then "danger" else "buy", function()
+				actionRemote:FireServer("Release", a.Key, not a.Released)
+			end)
 		end
 	elseif tab == "Animals" then
 		text(w, "Elige qué animales quedan sueltos en el jardín. Sus bonus siguen activos. Se quedan en la casa hasta que los agarres o salgas del servidor.", 12, pal.FMuted, UDim2.fromOffset(18, top), UDim2.fromOffset(748, 34)).TextWrapped = true
@@ -186,15 +203,23 @@ local function build()
 	else
 		text(w, "SUSCRIPCIÓN IMPERIAL", 16, pal.FText, UDim2.fromOffset(18, top), UDim2.fromOffset(500, 22))
 		local perks = {
-			"• Baúl privado de 60 casillas (en vez de 30)",
+			"• El primer mes (30 días) va incluido en el pago de 599 R$. Después, esta suscripción es el costo mensual para seguir usando tu casa",
 			"• Se renueva sola cada mes; puedes cancelarla cuando quieras",
-			"• Nada de lo que guardaste se borra si termina",
-			"• Próximamente: misiones del Pabellón, tienda VIP del mes, títulos y decoración",
+			"• Si no se renueva, la casa vence: tu baúl pasa al buzón de la ciudad (no se borra nada)",
+			"• Para volver a tener la casa hay que pagar de nuevo el Pabellón (599 R$), si aún quedan casas",
 		}
 		text(w, table.concat(perks, "\n"), 14, pal.Text, UDim2.fromOffset(18, top + 34), UDim2.fromOffset(740, 110)).TextYAlignment = Enum.TextYAlignment.Top
 		if state.Sub then
 			text(w, "✔ Suscripción activa. ¡Gracias por apoyar el juego!", 15, Color3.fromRGB(110, 210, 140), UDim2.fromOffset(18, top + 160), UDim2.fromOffset(600, 22))
 		else
+			if state.TimeLeft then
+				local days = math.ceil(state.TimeLeft / 86400)
+				if state.TimeLeft > 0 then
+					text(w, string.format("Mes incluido en tu compra: te quedan %d días. Suscríbete antes para no perder la casa.", days), 14, Color3.fromRGB(240, 190, 70), UDim2.fromOffset(18, top + 124), UDim2.fromOffset(740, 22))
+				else
+					text(w, string.format("⚠ Tu mes terminó: la casa vence en %d h si no te suscribes.", math.max(0, math.ceil((state.TimeLeft + state.Grace) / 3600))), 14, Color3.fromRGB(235, 140, 90), UDim2.fromOffset(18, top + 124), UDim2.fromOffset(740, 22))
+				end
+			end
 			NpcKit.Button(w, theme, "Suscribirme · " .. tostring(state.SubPrice), UDim2.fromOffset(300, 38), UDim2.fromOffset(18, top + 156), "buy", function()
 				actionRemote:FireServer("BuySub")
 			end)

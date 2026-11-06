@@ -2,7 +2,9 @@
 --[[
     HouseService (ModuleScript) -> ServerScriptService.Services.HouseService
     CASA VIP ("Pabellón Imperial"). Fase 1.
-      - Pase "VipHouse" (atributo Pass_VipHouse, lo pone PurchaseService) = casa privada. Suscripción Imperial (atributo Sub_Vip) = baúl grande.
+      - LICENCIA DE CASA: el pago único (Game Pass "VipHouse", o su recompra "VipHouseRebuy") da la casa y la SUSCRIPCIÓN IMPERIAL (mensual) es el costo
+        de seguir usándola; el primer mes (30 días) va INCLUIDO en el pago único. Si pasado ese mes no hay suscripción (más GRACE_SECONDS de margen) la licencia VENCE: se pierde la casa, se libera el cupo, todo el baúl
+        pasa al buzón de la ciudad y para volver a tenerla hay que pagar de nuevo el pase (si aún quedan casas). Atributo del jugador: House_Active.
       - Portal en la plaza de cada ciudad (CityStyler llama AddCityPortal). El dueño entra a SU casa; un invitado entra a la del que lo invitó.
       - La casa se construye lejos del mapa (en lo alto) cuando el dueño entra por primera vez y se borra cuando él sale del servidor.
         Dentro: portal de SALIDA, BAÚL (solo el dueño lo abre), TABLÓN de invitados (solo el dueño) y rincón de mascotas (próximamente).
@@ -31,8 +33,10 @@ local StateRemote = Net.Get("HouseState")
 local ActionRemote = Net.Get("HouseAction")
 local NotifyRemote = Net.Get("Notify")
 
-local VAULT_BASE = 30
-local VAULT_SUB = 60
+local VAULT_CAP = 60 -- casillas del baúl (la casa siempre tiene suscripción activa)
+local INCLUDED_SECONDS = 30 * 86400 -- el pago único incluye el primer mes: la suscripción se cobra recién después
+local GRACE_SECONDS = 3 * 86400 -- margen para que se acredite el pago de la suscripción / reintento de cobro
+local REMIND_SECONDS = 5 * 86400 -- avisa de que hay que suscribirse cuando faltan menos de 5 días
 local MAX_GUESTS = 8
 local SLOT_COUNT = 48
 local HOUSE_W = 140
@@ -52,6 +56,9 @@ local inside: { [Player]: Player } = {} -- jugador -> dueño de la casa donde es
 local returnCF: { [Player]: CFrame } = {}
 local portals: { [string]: Vector3 } = {}
 local lastAction: { [Player]: number } = {}
+local lic: { [Player]: { On: boolean, Until: number } } = {} -- licencia de casa (se guarda en el perfil)
+local rebuying: { [Player]: boolean } = {}
+local reminded: { [Player]: boolean } = {}
 local mail: { [Player]: { Stack } } = {} -- BUZÓN: objetos que no caben en el baúl (p. ej. al terminar la suscripción)
 local mailboxes: { Vector3 } = {}
 local MAIL_MAX = 300
@@ -61,11 +68,11 @@ local function say(player: Player, text: string)
 end
 
 local function hasPass(player: Player): boolean
-	return player:GetAttribute("Pass_VipHouse") == true
+	return player:GetAttribute("House_Active") == true -- licencia de casa vigente
 end
 
-local function vaultCap(player: Player): number
-	return if player:GetAttribute("Sub_Vip") == true then VAULT_SUB else VAULT_BASE
+local function vaultCap(_player: Player): number
+	return VAULT_CAP
 end
 
 local function rootOf(player: Player): BasePart?
@@ -375,6 +382,11 @@ function HouseService.AddCityPortal(faction: string, pos: Vector3)
 			enterHouse(pl, pl)
 			return
 		end
+		if lic[pl] and not lic[pl].On then
+			say(pl, "Tu Casa VIP venció por falta de suscripción. Se abrirá la recompra del Pabellón (si quedan casas).")
+			HouseService.RequestRebuy(pl)
+			return
+		end
 		local host = invitedBy[pl]
 		if host and host.Parent and invited[host] and invited[host][pl.UserId] and houses[host] then
 			enterHouse(pl, host)
@@ -502,6 +514,9 @@ buildPush = function(player: Player)
 		table.insert(mailList, { Slot = i, Id = st.Id, Count = st.Count, Plus = st.Plus or 0, Locked = st.Locked == true })
 	end
 	StateRemote:FireClient(player, {
+		Lapsed = lic[player] ~= nil and not lic[player].On,
+		TimeLeft = if lic[player] and lic[player].On and player:GetAttribute("Sub_Vip") ~= true then math.max(0, lic[player].Until - os.time()) else nil, -- mes incluido / margen
+		Grace = GRACE_SECONDS,
 		Animals = animals,
 		Mail = mailList,
 		HasPass = isOwner,
@@ -661,25 +676,6 @@ function HouseService.MailClaim(player: Player, index: any)
 	end
 end
 
--- si la suscripción terminó, lo guardado en las casillas que ya no existen (31..60) pasa al buzón: no se pierde nada
-local function settleVault(player: Player)
-	local v = vaults[player]
-	if not v or not mail[player] then
-		return
-	end
-	local cap = vaultCap(player)
-	local moved = 0
-	for i, st in pairs(v) do
-		if i > cap and mailAdd(player, st) then
-			v[i] = nil
-			moved += 1
-		end
-	end
-	if moved > 0 then
-		say(player, string.format("Tu suscripción terminó: %d objetos del baúl pasaron al buzón de la ciudad. Recógelos allí.", moved))
-	end
-end
-
 ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any, b: any)
 	if typeof(action) ~= "string" then
 		return
@@ -699,6 +695,9 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 		invite(player, a, false)
 	elseif action == "Release" then
 		HouseService.SetRelease(player, a, b == true)
+	elseif action == "Rebuy" then
+		HouseService.RequestRebuy(player)
+		return
 	elseif action == "MailClaim" then
 		HouseService.MailClaim(player, a)
 	elseif action == "Exit" then
@@ -808,6 +807,18 @@ function HouseService.Claim(player: Player)
 	end)
 end
 
+function HouseService.Unclaim(player: Player)
+	if not registryStore or RunService:IsStudio() then
+		return
+	end
+	local uid = tostring(player.UserId)
+	registry(function(reg: any)
+		reg.Reserved[uid] = nil
+		reg.Claimed[uid] = nil -- el cupo vuelve a quedar libre
+		return "ok"
+	end)
+end
+
 function HouseService.Release(player: Player)
 	if not registryStore or RunService:IsStudio() then
 		return
@@ -831,6 +842,105 @@ end)
 ---------------------------------------------------------------------
 -- Suscripción (estado mensual, lo comprueba el servidor)
 ---------------------------------------------------------------------
+local function publishLicense(player: Player)
+	local L = lic[player]
+	player:SetAttribute("House_Active", L ~= nil and L.On)
+end
+
+-- Da (o devuelve) la licencia de casa: pago único hecho. Se pide la suscripción mensual para seguir usándola.
+function HouseService.GrantLicense(player: Player)
+	lic[player] = { On = true, Until = os.time() + INCLUDED_SECONDS } -- 30 días incluidos en el pago único
+	rebuying[player] = nil
+	publishLicense(player)
+	task.spawn(HouseService.Claim, player)
+	say(player, "¡Pabellón Imperial activado! El primer mes (30 días) va incluido. Después, suscríbete (199 R$/mes) para seguir usándolo.")
+	buildPush(player)
+end
+
+-- La licencia venció (suscripción sin renovar): se pierde la casa; el baúl entero pasa al buzón y se libera el cupo
+local function lapse(player: Player)
+	local L = lic[player]
+	if not L or not L.On then
+		return
+	end
+	L.On = false
+	publishLicense(player)
+	local v = vaults[player]
+	local moved = 0
+	if v then
+		for i, st in pairs(v) do
+			if mailAdd(player, st) then
+				v[i] = nil
+				moved += 1
+			end
+		end
+	end
+	player:SetAttribute("PetsHome1", nil)
+	player:SetAttribute("PetsHome2", nil)
+	player:SetAttribute("MountHome", nil)
+	exitHouse(player)
+	closeHouse(player)
+	task.spawn(HouseService.Unclaim, player)
+	say(player, string.format("Tu Casa VIP venció (suscripción sin renovar). %d objetos del baúl están en el buzón de la ciudad. Para recuperar la casa hay que pagar de nuevo el Pabellón, si quedan casas.", moved))
+	PlayerData.Save(player)
+end
+
+-- Se llama tras consultar la suscripción (estado definitivo) y cuando cambia el pase
+function HouseService.Evaluate(player: Player)
+	local subscribed = player:GetAttribute("Sub_Vip") == true
+	local L = lic[player]
+	local now = os.time()
+	if not L then
+		if player:GetAttribute("Pass_VipHouse") == true then
+			HouseService.GrantLicense(player) -- compra anterior del pase: empieza su ciclo (margen para suscribirse)
+		end
+	elseif L.On then
+		if subscribed then
+			L.Until = math.max(L.Until, now + GRACE_SECONDS) -- nunca se acorta el mes incluido
+		elseif now > L.Until + GRACE_SECONDS then
+			lapse(player)
+		elseif L.Until - now < REMIND_SECONDS and not reminded[player] then
+			reminded[player] = true
+			say(player, string.format("Tu mes incluido del Pabellón termina en %d días. Suscríbete (199 R$/mes) en la pestaña Suscripción de tu casa para no perderlo.", math.max(0, math.ceil((L.Until - now) / 86400))))
+		end
+	end
+	publishLicense(player)
+end
+
+-- Recompra (casa vencida): reserva cupo y abre el pago del Developer Product "VipHouseRebuy"
+function HouseService.RequestRebuy(player: Player)
+	if hasPass(player) or rebuying[player] then
+		return
+	end
+	local okSlot, why = HouseService.Reserve(player)
+	if not okSlot then
+		say(player, why or "Sin cupo de casas")
+		return
+	end
+	local prod = ProductCatalog.ByKey.VipHouseRebuy
+	if prod and prod.ProductId > 0 then
+		rebuying[player] = true
+		local started = pcall(MarketplaceService.PromptProductPurchase, MarketplaceService, player, prod.ProductId)
+		if not started then
+			rebuying[player] = nil
+			task.spawn(HouseService.Release, player)
+			say(player, "No se pudo abrir la compra.")
+		end
+	elseif RunService:IsStudio() then
+		HouseService.GrantLicense(player) -- prueba en Studio
+	else
+		task.spawn(HouseService.Release, player)
+		say(player, "La recompra aún no está a la venta.")
+	end
+end
+
+function HouseService.RebuyCancelled(player: Player)
+	if rebuying[player] then
+		rebuying[player] = nil
+		task.spawn(HouseService.Release, player)
+	end
+end
+
 local function checkSub(player: Player)
 	local subscribed = false
 	local definitive = true -- si Roblox no responde NO se toca nada (no se manda nada al buzón por error)
@@ -848,7 +958,7 @@ local function checkSub(player: Player)
 		player:SetAttribute("Sub_Vip", if definitive then subscribed else false)
 	end
 	if definitive and player.Parent then
-		settleVault(player)
+		HouseService.Evaluate(player)
 	end
 end
 
@@ -866,7 +976,7 @@ end)
 ---------------------------------------------------------------------
 PlayerData.RegisterSerializer("House", function(player: Player): any?
 	local v = vaults[player]
-	if (not v or next(v) == nil) and #(mail[player] or {}) == 0 then
+	if (not v or next(v) == nil) and #(mail[player] or {}) == 0 and not lic[player] then
 		return nil
 	end
 	v = v or {}
@@ -878,7 +988,8 @@ PlayerData.RegisterSerializer("House", function(player: Player): any?
 	for _, st in ipairs(mail[player] or {}) do
 		table.insert(m, { Id = st.Id, Count = st.Count, Plus = st.Plus, Locked = st.Locked })
 	end
-	return { V = out, M = m }
+	local L = lic[player]
+	return { V = out, M = m, L = if L then { On = L.On, Until = L.Until } else nil }
 end)
 
 local function init(player: Player)
@@ -908,15 +1019,15 @@ local function init(player: Player)
 		end
 	end
 	mail[player] = ml
-	checkSub(player)
-	-- el pase se detecta después (PurchaseService): al tenerlo, su casa queda registrada en el cupo
-	local function claimWhenOwned()
-		if hasPass(player) then
-			task.spawn(HouseService.Claim, player)
-		end
+	if typeof(raw) == "table" and typeof(raw.L) == "table" and typeof(raw.L.On) == "boolean" and typeof(raw.L.Until) == "number" then
+		lic[player] = { On = raw.L.On, Until = raw.L.Until }
 	end
-	claimWhenOwned()
-	player:GetAttributeChangedSignal("Pass_VipHouse"):Connect(claimWhenOwned)
+	publishLicense(player)
+	checkSub(player)
+	-- el pase se detecta después (PurchaseService): al aparecer, se evalúa la licencia
+	player:GetAttributeChangedSignal("Pass_VipHouse"):Connect(function()
+		HouseService.Evaluate(player)
+	end)
 end
 
 local function leave(player: Player)
@@ -936,6 +1047,18 @@ local function leave(player: Player)
 	lastAction[player] = nil
 end
 
+-- cada 10 minutos se vuelve a consultar la suscripción de quien tiene licencia (puede vencer con la sesión abierta)
+task.spawn(function()
+	while true do
+		task.wait(600)
+		for _, pl in ipairs(Players:GetPlayers()) do
+			if lic[pl] and lic[pl].On then
+				task.spawn(checkSub, pl)
+			end
+		end
+	end
+end)
+
 local function hookChar(pl: Player)
 	pl.CharacterAdded:Connect(function()
 		-- si muere dentro de la casa reaparece en su ciudad: ya no está dentro
@@ -954,6 +1077,9 @@ for _, pl in ipairs(Players:GetPlayers()) do
 end
 Players.PlayerRemoving:Connect(leave)
 PlayerData.Releasing:Connect(function(pl: Player)
+	lic[pl] = nil
+	rebuying[pl] = nil
+	reminded[pl] = nil
 	vaults[pl] = nil
 	mail[pl] = nil
 end)

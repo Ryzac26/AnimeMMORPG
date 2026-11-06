@@ -135,6 +135,12 @@ ProductCatalog.Products = {
 		Desc = "5 Pergaminos de Protección en una sola compra, más barato que por separado.",
 		ProductId = 2067373763, PriceText = "99 R$", DailyLimit = 10, MinLevel = 1, Items = { Pergamino_Proteccion = 5 },
 	},
+	-- CASA VIP: recompra del pago único cuando la licencia venció (la ofrece el portal del Pabellón; no sale en la Tienda)
+	{
+		Key = "VipHouseRebuy", Group = "Casa", Kind = "HouseLicense", Lane = "Casa", Price = 599, Name = "Pabellón Imperial (recompra)",
+		Desc = "Vuelve a activar tu Casa VIP tras vencer la suscripción. Sujeto a cupo de casas.",
+		ProductId = 0, PriceText = "599 R$", DailyLimit = 99, MinLevel = 1, -- TODO: crea este Developer Product (599 R$) y pega aquí su ID
+	},
 	-- BENDICIONES DE FACCIÓN (ver reglas arriba). Crea cada Developer Product y pega su ID; con ProductId 0 solo se prueba en Studio.
 	{
 		Key = "BlessXp3", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 449, Name = "Sabiduría 3 h",
@@ -231,20 +237,24 @@ ProductCatalog.Passes = {
 	},
 	{
 		Key = "VipHouse", Attr = "Pass_VipHouse", Name = "Pabellón Imperial",
-		Desc = "Tu casa privada con portal en cada ciudad: baúl, invitados y más.",
+		Desc = "Pago único para tener tu casa privada, con el primer mes incluido. Después se mantiene con la Suscripción Imperial.",
 		Perks = {
-			"Casa VIP privada: portal en la plaza de tu ciudad",
-			"Baúl privado de 30 casillas (con la suscripción, 60)",
+			"Casa VIP privada con portal en la plaza de tu ciudad",
+			"Baúl privado de 60 casillas y jardín para tus mascotas y montura",
 			"Invita a quien quieras: pueden entrar y mirar, pero no tocar nada",
-			"Próximamente: mascotas sueltas en tu casa y decoración",
+			"El primer mes va incluido; después se mantiene con la Suscripción Imperial (199 R$/mes). Si no se renueva, la casa vence",
 		},
 		PassId = 2075582326, PriceText = "599 R$",
 	},
 } :: { Pass }
 
 -- SUSCRIPCIÓN IMPERIAL (mensual, se renueva sola). Creación: Creator Hub > Monetización > Suscripciones (precio mínimo 49 R$).
--- Pega el ID (texto "EXS-...") en SubId. Beneficios: baúl de 60 casillas y los extras mensuales del Pabellón que se vayan sumando.
--- Regla de Roblox: los beneficios se dan todo el mes pagado y nada de lo guardado se borra al terminar.
+-- Pega el ID (texto "EXP-...") en SubId.
+-- DESCRIPCIÓN para el Creator Hub: "Costo mensual para seguir usando tu Casa VIP (Pabellón Imperial). El primer mes va incluido en la compra del
+-- Pabellón; se cobra al pasar los 30 días. Con la suscripción activa conservas tu
+-- casa, tu baúl de 60 casillas y el jardín de mascotas. Si no se renueva, la casa vence: tu baúl pasa al buzón de la ciudad y para volver a
+-- tenerla hay que pagar de nuevo el Pabellón (599 R$), si todavía quedan casas."
+-- Al vencer nada se borra: el baúl entero pasa al buzón.
 ProductCatalog.VipSub = { SubId = "EXP-2977508916442825297", Attr = "Sub_Vip", Name = "Suscripción Imperial", PriceText = "199 R$/mes" }
 -- Casas VIP limitadas: máximo de dueños del pase en total. Al tocar "comprar" se RESERVA una casa 10 minutos; si no se paga, se libera.
 ProductCatalog.VIP_HOUSE_CAP = 1000

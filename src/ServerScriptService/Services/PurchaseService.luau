@@ -202,6 +202,10 @@ local function grant(player: Player, s: Shop, p: ProductCatalog.Product): boolea
 			end
 		end
 	end
+	if p.Kind == "HouseLicense" then
+		HouseService.GrantLicense(player)
+		return true
+	end
 	if p.Kind == "Blessing" then
 		if not BlessingService.Activate(player, p) then
 			reply(player, false, "No se pudo activar la bendición (elige tu facción primero).")
@@ -266,9 +270,13 @@ local function request(player: Player, key: any)
 	end
 end
 
-MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId: number, _productId: number, _purchased: boolean)
+MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId: number, productId: number, purchased: boolean)
 	local player = Players:GetPlayerByUserId(userId)
 	if player then
+		local rebuy = ProductCatalog.ByKey.VipHouseRebuy
+		if rebuy and rebuy.ProductId == productId and not purchased then
+			HouseService.RebuyCancelled(player) -- no pagó: se libera el cupo reservado
+		end
 		pending[player] = nil
 		task.delay(1, function()
 			if player.Parent then
