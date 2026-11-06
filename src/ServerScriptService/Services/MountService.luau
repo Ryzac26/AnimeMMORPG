@@ -7,7 +7,7 @@
       - Incubadora (ciudad, IncubatorService): un huevo a la vez. El tiempo es de reloj (os.time), corre desconectado.
       - Abrir el huevo sortea rareza (con garantías cada 10/30/60 huevos) y especie. Repetida = sube de nivel.
       - Montar: tecla del cliente (remote MountAction "Toggle"). No se puede en la Arena PvP (se baja solo). En PvE se ataca montado.
-        Monta = más velocidad (WalkSpeed), personaje levantado (HipHeight) y sin salto. El dibujo de la montura es del cliente (MountClient).
+        Monta = más velocidad (WalkSpeed), personaje sentado sobre el lomo (HipHeight = SitLift; la pose la dibuja MountClient) y sin salto. El dibujo de la montura es del cliente (MountClient).
       - Pasivas mientras vas montado: Vigor (cura), Zancada (energía), Saqueo (oro extra al matar).
     Atributos del jugador: MountEquipped ("Especie|Rareza"), Mounted (bool), EggClaimed (bool, huevo de hoy tomado), EggResetAt (Unix).
     Atributos del personaje: Mounted (bool), MountKey.
@@ -333,7 +333,7 @@ local function mount(pl: Player)
 	mounted[pl] = info
 	local newSpeed = info.BaseSpeed * (1 + MountCatalog.SpeedPct(rarity, level) / 100)
 	hum.WalkSpeed = newSpeed
-	hum.HipHeight = info.BaseHip + MountCatalog.Lift
+	hum.HipHeight = info.BaseHip + MountCatalog.SitLift
 	hum.JumpPower = 0
 	hum.JumpHeight = 0
 	local char = pl.Character :: Model

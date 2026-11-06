@@ -10,9 +10,11 @@
 ]]
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Modules = ReplicatedStorage:WaitForChild("Modules")
-local MountCatalog = require(Modules:WaitForChild("MountCatalog"))
-local MountAssets = require(Modules:WaitForChild("MountAssets"))
+local Modules = ReplicatedStorage:WaitForChild("Modules", 15)
+local MountCatalog = require(Modules:WaitForChild("MountCatalog", 15))
+-- MountAssets es opcional: se acepta también el nombre "MountAsset" y, si no existe, se usan valores por defecto (sin esperar para siempre)
+local assetsModule = Modules:WaitForChild("MountAssets", 3) or Modules:FindFirstChild("MountAsset")
+local MountAssets = if assetsModule and assetsModule:IsA("ModuleScript") then require(assetsModule) else { Folder = "MountModels", ModelName = {} }
 
 local MountModels = {}
 
@@ -174,34 +176,106 @@ local function floater(model, legs, sp, shape)
 			tent.Transparency = 0.2
 			table.insert(legs, { Part = tent, Hip = hip, Len = 1.6, Phase = k * 1.1, Sway = true })
 		end
-	else -- Carpet
-		mkPart(model, "Tela", Vector3.new(3.4, 0.3, 4.6), CFrame.new(0, T - 0.15, 0), c, Enum.Material.Fabric)
-		mkPart(model, "Borde", Vector3.new(3.6, 0.25, 0.4), CFrame.new(0, T - 0.12, -2.3), a, Enum.Material.Fabric)
-		mkPart(model, "BordeB", Vector3.new(3.6, 0.25, 0.4), CFrame.new(0, T - 0.12, 2.3), a, Enum.Material.Fabric)
-		mkPart(model, "BordeC", Vector3.new(0.4, 0.25, 4.6), CFrame.new(-1.7, T - 0.12, 0), a, Enum.Material.Fabric)
-		mkPart(model, "BordeD", Vector3.new(0.4, 0.25, 4.6), CFrame.new(1.7, T - 0.12, 0), a, Enum.Material.Fabric)
-		mkPart(model, "Dibujo", Vector3.new(1.2, 0.05, 1.2), CFrame.new(0, T + 0.02, 0) * CFrame.Angles(0, math.rad(45), 0), a, Enum.Material.Neon)
-		for _, sx in ipairs({ -1, 1 }) do
-			for _, sz in ipairs({ -1, 1 }) do
-				local hip = Vector3.new(sx * 1.75, T - 0.25, sz * 2.4)
-				local tas = mkPart(model, "Borla", Vector3.new(0.2, 0.7, 0.2), CFrame.new(hip) * CFrame.new(0, -0.35, 0), a, Enum.Material.Fabric)
-				table.insert(legs, { Part = tas, Hip = hip, Len = 0.7, Phase = sx + sz, Sway = true })
-			end
+	else -- Carpet (alfombra voladora: tela con puntas levantadas, borde y borlas cortas; sin patas)
+		mkPart(model, "Tela", Vector3.new(3.2, 0.22, 3.6), CFrame.new(0, T - 0.12, 0), c, Enum.Material.Fabric)
+		mkPart(model, "PuntaDelantera", Vector3.new(3.2, 0.22, 1.0), CFrame.new(0, T + 0.05, -2.25) * CFrame.Angles(math.rad(-24), 0, 0), c, Enum.Material.Fabric)
+		mkPart(model, "PuntaTrasera", Vector3.new(3.2, 0.22, 1.0), CFrame.new(0, T + 0.0, 2.2) * CFrame.Angles(math.rad(18), 0, 0), c, Enum.Material.Fabric)
+		mkPart(model, "BordeDelantero", Vector3.new(3.3, 0.12, 0.2), CFrame.new(0, T + 0.2, -2.7) * CFrame.Angles(math.rad(-24), 0, 0), a, Enum.Material.Fabric)
+		mkPart(model, "BordeTrasero", Vector3.new(3.3, 0.12, 0.2), CFrame.new(0, T + 0.12, 2.65) * CFrame.Angles(math.rad(18), 0, 0), a, Enum.Material.Fabric)
+		mkPart(model, "BordeIzq", Vector3.new(0.2, 0.12, 3.6), CFrame.new(-1.6, T - 0.03, 0), a, Enum.Material.Fabric)
+		mkPart(model, "BordeDer", Vector3.new(0.2, 0.12, 3.6), CFrame.new(1.6, T - 0.03, 0), a, Enum.Material.Fabric)
+		mkPart(model, "Dibujo", Vector3.new(1.3, 0.04, 1.3), CFrame.new(0, T + 0.0, 0) * CFrame.Angles(0, math.rad(45), 0), a, Enum.Material.Neon)
+		mkPart(model, "Estela", Vector3.new(3.6, 0.08, 4.2), CFrame.new(0, T - 0.45, 0), a, Enum.Material.Neon, BALL).Transparency = 0.8
+		for k = -1, 1 do
+			local hip = Vector3.new(k * 1.1, T + 0.14, 2.75)
+			local tas = mkPart(model, "Borla", Vector3.new(0.14, 0.45, 0.14), CFrame.new(hip) * CFrame.new(0, -0.22, 0), a, Enum.Material.Fabric)
+			table.insert(legs, { Part = tas, Hip = hip, Len = 0.45, Phase = k * 1.3, Sway = true })
 		end
 	end
 	return T
 end
 
-function MountModels.Build(sp, rarity)
-	local custom = nil
+-- Modelos propios (Caja de herramientas): se buscan sin distinguir mayúsculas, se normalizan UNA vez y se guardan como plantilla.
+local templates = {}
+
+local function findModel(sp)
 	local folder = ReplicatedStorage:FindFirstChild(MountAssets.Folder)
-	if folder then
-		local nm = MountAssets.ModelName[sp.Id] or sp.Id
-		local m = folder:FindFirstChild(nm)
-		if m and m:IsA("Model") then
-			custom = m:Clone()
+	if not folder then
+		return nil
+	end
+	local want = string.lower(MountAssets.ModelName[sp.Id] or sp.Id)
+	for _, c in ipairs(folder:GetChildren()) do
+		if c:IsA("Model") and string.lower(c.Name) == want then
+			return c
 		end
 	end
+	return nil
+end
+
+local function prepare(src, sp)
+	local m = src:Clone()
+	for _, d in ipairs(m:GetDescendants()) do
+		if d:IsA("Script") or d:IsA("LocalScript") then
+			d:Destroy() -- los modelos de la Caja pueden traer scripts: no se ejecutan
+		end
+	end
+	-- altura objetivo, centrado, apoyado en y = 0 y mirando a -Z.
+	-- Atributos opcionales del Model: Height = alto en studs (3.2 por defecto, 2.2 si flota), Yaw = giro en grados si mira para otro lado.
+	local _, size0 = m:GetBoundingBox()
+	local wantH = m:GetAttribute("Height")
+	if typeof(wantH) ~= "number" then
+		wantH = if sp.Float then 2.2 else 3.2
+	end
+	if size0.Y > 0.01 then
+		m:ScaleTo(m:GetScale() * (wantH :: number) / size0.Y)
+	end
+	local _, size1 = m:GetBoundingBox()
+	local yaw = m:GetAttribute("Yaw")
+	m:PivotTo(CFrame.new(0, size1.Y / 2, 0) * CFrame.Angles(0, math.rad(if typeof(yaw) == "number" then yaw else 0), 0))
+	local bcf, bsize = m:GetBoundingBox()
+	m:PivotTo(m:GetPivot() + Vector3.new(-bcf.Position.X, bsize.Y / 2 - bcf.Position.Y, -bcf.Position.Z))
+	local count = 0
+	for _, d in ipairs(m:GetDescendants()) do
+		if d:IsA("BasePart") then
+			count += 1
+			d.Anchored = true
+			d.CanCollide = false
+			d.CanQuery = false
+			d.CanTouch = false
+			d.CastShadow = false
+			if d.Name == "Tinte" then
+				d.Color = sp.Color
+			end
+		end
+	end
+	if count > 300 then
+		warn(string.format("[MountModels] El modelo '%s' tiene %d piezas: es pesado. Busca uno con menos piezas para no bajar los FPS.", src.Name, count))
+	end
+	return m
+end
+
+local function customTemplate(sp)
+	local t = templates[sp.Id]
+	if t ~= nil then
+		return t or nil
+	end
+	local src = findModel(sp)
+	if not src then
+		return nil
+	end
+	local ok, res = pcall(prepare, src, sp)
+	if ok then
+		templates[sp.Id] = res
+		return res
+	end
+	templates[sp.Id] = false
+	warn("[MountModels] No se pudo preparar el modelo '" .. src.Name .. "': " .. tostring(res))
+	return nil
+end
+
+function MountModels.Build(sp, rarity)
+	local tpl = customTemplate(sp)
+	local custom = if tpl then tpl:Clone() else nil
 	local model = custom or Instance.new("Model")
 	local legs = {}
 	local top
@@ -209,17 +283,6 @@ function MountModels.Build(sp, rarity)
 	local idx = MountCatalog.RarityIndex[rarity] or 1
 	if custom then
 		top = if sp.Float then FLOAT_TOP else GROUND_TOP
-		for _, d in ipairs(custom:GetDescendants()) do
-			if d:IsA("BasePart") then
-				d.Anchored = true
-				d.CanCollide = false
-				d.CanQuery = false
-				d.CanTouch = false
-				if d.Name == "Tinte" then
-					d.Color = sp.Color
-				end
-			end
-		end
 	else
 		if sp.Shape == "Beast" or sp.Shape == "Boar" or sp.Shape == "Deer" then
 			top = quadruped(model, legs, sp, sp.Shape)

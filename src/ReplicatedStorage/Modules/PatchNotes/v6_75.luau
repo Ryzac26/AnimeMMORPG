@@ -25,6 +25,7 @@ local Entry = {
 			Items = {
 				"12 especies en 5 rarezas (4 de ellas flotantes). Más rareza, más velocidad y pasivas nuevas.",
 				"Móntate con la tecla H (se cambia en Ajustes) o desde la ventana Monturas del menú. Puedes atacar y usar habilidades montado en PvE.",
+				"Vas sentado sobre la montura, con las riendas en las manos.",
 				"En la Arena PvP no se puede montar: te bajas al entrar.",
 				"Una montura repetida sube de nivel (hasta 5). En el nivel máximo te da oro.",
 			},

@@ -6,7 +6,7 @@
          iniciar incubación, ACELERAR (Robux) y abrir el huevo. La pantalla de ECLOSIÓN revela especie y rareza.
       2) MIS MONTURAS (botón "Monturas" del menú): colección 12 especies x 5 rarezas, equipar y montar/bajar.
       3) MONTAR con la tecla "Montura" (por defecto H, se cambia en Ajustes > Atajos) (o el botón de la ventana). Todos ven la montura de los jugadores cercanos (se dibuja aquí con piezas, ver MountModels).
-         El personaje va de pie sobre la montura (el servidor sube su altura); se puede atacar montado. Las flotantes solo flotan.
+         El personaje va SENTADO sobre la montura (el servidor ajusta su altura y MountClient dobla piernas y pone los brazos en las riendas); se puede atacar montado. Las flotantes solo flotan.
     Atributos que lee: Mounted / MountEquipped (jugador), Mounted / MountKey (personaje). Datos: remote MountState.
     IMPORTANTE: está en la lista RELOAD de UIReloadClient.
 ]]
@@ -98,6 +98,15 @@ local function text(parent, str, size, color, pos, dim, align)
 	local l = UITheme.Text(parent, str, size, color, pos, dim, align)
 	l.TextStrokeTransparency = 1
 	return l
+end
+
+-- Las pestañas de NpcKit tienen ZIndex 10: lo que se les pone dentro debe quedar por encima
+local function lift(root)
+	for _, d in ipairs(root:GetDescendants()) do
+		if d:IsA("GuiObject") then
+			d.ZIndex = 12
+		end
+	end
 end
 
 local function disable(btn: TextButton, off: boolean)
@@ -235,6 +244,7 @@ local function buildIncubator()
 		local n = text(row, def.Name, 15, if on then pal.TabOnText else pal.TabOffText, UDim2.fromOffset(46, 7), UDim2.new(1, -52, 0, 20), Enum.TextXAlignment.Left)
 		n.Font = UITheme.Font
 		text(row, string.format("Franja %d · %d h de incubación", e.Tier, def.Hours), 11, if on then pal.TabOnText else pal.Muted, UDim2.fromOffset(46, 28), UDim2.new(1, -52, 0, 16), Enum.TextXAlignment.Left)
+		lift(row)
 	end
 	-- huevo del día
 	local daily = NpcKit.Panel(left, theme, UDim2.new(1, -16, 0, 86), UDim2.new(0, 8, 1, -94), "inset")
@@ -426,6 +436,7 @@ local function buildCollection()
 			d.Parent = card
 			Instance.new("UICorner", d).CornerRadius = UDim.new(1, 0)
 		end
+		lift(card)
 	end
 
 	-- detalle
@@ -453,7 +464,7 @@ local function buildCollection()
 		b.Size = UDim2.fromOffset(55, 22)
 		b.BackgroundColor3 = if r == selRarity then MountCatalog.RarityColor[r] else pal.Slot
 		b.BackgroundTransparency = if has or r == selRarity then 0 else 0.5
-		b.Text = string.sub(MountCatalog.RarityName[r], 1, 4)
+		b.Text = ({ "Común", "Raro", "Épico", "Leg.", "Mít." })[k]
 		b.TextColor3 = if r == selRarity then Color3.fromRGB(20, 17, 10) else MountCatalog.RarityColor[r]
 		b.Font = UITheme.Font
 		b.TextSize = 11
@@ -589,7 +600,12 @@ local function showHatch(res)
 		f:Destroy()
 		hatchFrame = nil
 	end)
-	close.ZIndex = 5
+	f.ZIndex = 19
+	for _, d in ipairs(f:GetDescendants()) do
+		if d:IsA("GuiObject") then
+			d.ZIndex = 20
+		end
+	end
 	hatchGui.Enabled = true
 	local _ = pal
 	local _v = vp
@@ -739,4 +755,115 @@ RunService.RenderStepped:Connect(function()
 			removeRig(pl)
 		end
 	end
+end)
+
+---------------------------------------------------------------------
+-- POSE SENTADO (todos los jugadores montados, R6 y R15). Se aplica después de CharacterAnimClient (prioridad Last + 1).
+-- Piernas dobladas hacia adelante y brazos en las riendas; mientras dura un ataque no se tocan los brazos (los mueve CharacterAnimClient).
+---------------------------------------------------------------------
+local SIT_HIP = 1.2 -- muslo hacia adelante (R15)
+local SIT_KNEE = -1.3 -- rodilla doblada (R15)
+local SIT_HIP_R6 = 1.1
+local REIN_ARM = 0.75
+local sitCache = setmetatable({}, { __mode = "k" })
+
+local function joint(m, part, name)
+	local p = m:FindFirstChild(part)
+	local j = p and p:FindFirstChild(name)
+	if j and (j:IsA("Motor6D") or j:IsA("AnimationConstraint")) then
+		return j
+	end
+	return nil
+end
+
+local function sitJoints(m)
+	local c = sitCache[m]
+	if c ~= nil then
+		return c or nil
+	end
+	local torso = m:FindFirstChild("Torso")
+	local j = nil
+	if torso then
+		local rs, ls, rh, lh = torso:FindFirstChild("Right Shoulder"), torso:FindFirstChild("Left Shoulder"), torso:FindFirstChild("Right Hip"), torso:FindFirstChild("Left Hip")
+		if rs and ls and rh and lh then
+			j = { R15 = false, RS = rs, LS = ls, RH = rh, LH = lh }
+		end
+	else
+		local rh, lh = joint(m, "RightUpperLeg", "RightHip"), joint(m, "LeftUpperLeg", "LeftHip")
+		if rh and lh then
+			j = {
+				R15 = true, RH = rh, LH = lh,
+				RK = joint(m, "RightLowerLeg", "RightKnee"), LK = joint(m, "LeftLowerLeg", "LeftKnee"),
+				RS = joint(m, "RightUpperArm", "RightShoulder"), LS = joint(m, "LeftUpperArm", "LeftShoulder"),
+				RE = joint(m, "RightLowerArm", "RightElbow"), LE = joint(m, "LeftLowerArm", "LeftElbow"),
+			}
+		end
+	end
+	sitCache[m] = j or false
+	return j
+end
+
+local function attacking(m)
+	local at, len = m:GetAttribute("AnimAt"), m:GetAttribute("AnimLen")
+	if typeof(at) == "number" and typeof(len) == "number" then
+		local age = Workspace:GetServerTimeNow() - at
+		return age >= -0.05 and age < len
+	end
+	return false
+end
+
+local function applySit(m)
+	local j = sitJoints(m)
+	if not j then
+		return
+	end
+	local arms = not attacking(m)
+	if j.R15 then
+		j.RH.Transform = CFrame.Angles(SIT_HIP, 0, 0)
+		j.LH.Transform = CFrame.Angles(SIT_HIP, 0, 0)
+		if j.RK then
+			j.RK.Transform = CFrame.Angles(SIT_KNEE, 0, 0)
+		end
+		if j.LK then
+			j.LK.Transform = CFrame.Angles(SIT_KNEE, 0, 0)
+		end
+		if arms then
+			if j.RS then
+				j.RS.Transform = CFrame.Angles(REIN_ARM, 0, 0)
+			end
+			if j.LS then
+				j.LS.Transform = CFrame.Angles(REIN_ARM, 0, 0)
+			end
+			if j.RE then
+				j.RE.Transform = CFrame.Angles(0.6, 0, 0)
+			end
+			if j.LE then
+				j.LE.Transform = CFrame.Angles(0.6, 0, 0)
+			end
+		end
+	else
+		j.RH.Transform = CFrame.Angles(0, 0, SIT_HIP_R6)
+		j.LH.Transform = CFrame.Angles(0, 0, -SIT_HIP_R6)
+		if arms then
+			j.RS.Transform = CFrame.Angles(0, 0, REIN_ARM)
+			j.LS.Transform = CFrame.Angles(0, 0, -REIN_ARM)
+		end
+	end
+end
+
+RunService:BindToRenderStep("MountSitPose", Enum.RenderPriority.Last.Value + 1, function()
+	local cam = Workspace.CurrentCamera
+	local camPos = cam and cam.CFrame.Position or Vector3.zero
+	for _, pl in ipairs(Players:GetPlayers()) do
+		local char = pl.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		if char and root and char:GetAttribute("Mounted") == true and (root.Position - camPos).Magnitude < VIEW_RANGE then
+			applySit(char)
+		end
+	end
+end)
+script.Destroying:Connect(function()
+	pcall(function()
+		RunService:UnbindFromRenderStep("MountSitPose")
+	end)
 end)
