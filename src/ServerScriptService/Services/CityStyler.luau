@@ -638,6 +638,12 @@ local function styleCity(biome: Instance, faction: string)
 		lamp(f, fo, u, 36, th)
 	end
 
+	-- portal de la Casa VIP (HouseService), en la plaza
+	pcall(function()
+		local HouseService = require(script.Parent.HouseService)
+		HouseService.AddCityPortal(faction, plaza.Position + plaza.CFrame.RightVector * 70 + Vector3.new(0, 0.6, 0))
+	end)
+
 	-- comercios
 	local quarter = city:FindFirstChild("Barrio_Comercial")
 	if quarter then

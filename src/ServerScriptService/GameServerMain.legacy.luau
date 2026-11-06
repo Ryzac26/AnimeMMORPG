@@ -33,6 +33,7 @@ require(Services:WaitForChild("BlessingService")) -- bendiciones de facción de 
 require(Services:WaitForChild("PurchaseService")) -- compras repetibles: boost de XP y paquetes de horas (Tienda)
 require(Services:WaitForChild("InstructorService")) -- instructor de cada ciudad: cambio de clase gratis
 require(Services:WaitForChild("MercaderService")) -- mercader de cada ciudad: compra pociones, vende botín
+require(Services:WaitForChild("HouseService")) -- Casa VIP (Pabellón Imperial): portal, salón privado, baúl, invitados
 require(Services:WaitForChild("GuildService")) -- gremio de facción: bendiciones por aportes (DataStore compartido)
 require(Services:WaitForChild("MasteryService")) -- maestría de rol + pase Multiclase (cambio de rol en cualquier lugar, equipo por rol)
 require(Services:WaitForChild("AlquimistaService")) -- alquimista de cada ciudad: fabrica pociones y desmonta equipo
