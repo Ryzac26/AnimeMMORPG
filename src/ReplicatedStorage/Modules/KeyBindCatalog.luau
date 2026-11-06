@@ -19,6 +19,7 @@ KeyBindCatalog.Actions = {
 	{ Id = "Notas", Label = "Novedades del parche", Default = "J", Group = "Ventanas", Short = "Novedades" },
 	{ Id = "AutoFarm", Label = "Auto-farmeo", Default = "Z", Group = "Combate", Short = "Auto-farm" },
 	{ Id = "AutoAtaque", Label = "Pausar auto-ataque", Default = "Q", Group = "Combate", Short = "Auto-atq" },
+	{ Id = "Montura", Label = "Montar / bajar de la montura", Default = "H", Group = "Combate", Short = "Montura" },
 	{ Id = "Poder1", Label = "Poder 1", Default = "One", Group = "Poderes", Short = "Poder 1" },
 	{ Id = "Poder2", Label = "Poder 2", Default = "Two", Group = "Poderes", Short = "Poder 2" },
 	{ Id = "Poder3", Label = "Poder 3", Default = "Three", Group = "Poderes", Short = "Poder 3" },

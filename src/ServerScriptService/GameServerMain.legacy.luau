@@ -52,6 +52,9 @@ require(Services:WaitForChild("DamageRankService")) -- ranking de daño en panta
 require(Services:WaitForChild("PetPowerService")) -- poderes de las mascotas Épicas, Legendarias y Míticas
 require(Services:WaitForChild("PetService")) -- alimentar mascotas: suben de nivel 1..10 (Plus de la mascota)
 require(Services:WaitForChild("SettingsService")) -- ajustes del jugador (ocultar mascotas) guardados en el perfil
+require(Services:WaitForChild("MountService")) -- monturas: huevos, incubadora, eclosión, montar y pasivas
+require(Services:WaitForChild("IncubatorService")) -- incubadora de cada ciudad (junto al Mercader)
+require(Services:WaitForChild("NestService")) -- nidos con guardianes en las franjas PvE
 require(Services:WaitForChild("StreamService")) -- pide al cliente que cargue el mapa donde aparece (Roblox web)
 require(Services:WaitForChild("WorldReadyService")) -- mundo listo: espera mapa + estilos y mantiene quieto al jugador hasta que su pantalla cargue
 -- CombatService: se carga aquí por si nadie más lo requiere (require repetido devuelve el mismo módulo, no se duplica)

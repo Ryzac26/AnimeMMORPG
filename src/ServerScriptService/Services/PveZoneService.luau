@@ -37,6 +37,8 @@ local DamageService = require(Services.DamageService)
 local DailyLimits = require(Services.DailyLimits)
 local PartyService = require(Services.PartyService)
 local Alchemist = require(Services.AlquimistaService)
+local NestService = require(Services.NestService)
+local MountCatalog = require(Modules.MountCatalog)
 
 local NotifyRemote = Net.Get("Notify")
 local MAP_NAME = "Map_WC3_Style"
@@ -960,6 +962,15 @@ local function buildLane(l: Lane, root: Folder)
 			buildChest(l, root, p, i)
 		end
 	end
+	-- nidos de huevos de montura (vigilados por monstruos de la franja)
+	local nestDefs = normalsOf(l)
+	for i = 1, MountCatalog.Nest.PerStrip[l.Strip] or 1 do
+		local p = pick(0.1, 0.94, 110)
+		if p then
+			table.insert(placed, p)
+			NestService.Build(root, p, l.Strip, i, nestDefs)
+		end
+	end
 	-- nodos
 	for i = 1, LootTables.Gathering.NodesPerStrip do
 		local p = pick(0.05, 0.96, 38)
@@ -978,6 +989,7 @@ local function clearAll()
 	end
 	table.clear(minis)
 	table.clear(camps)
+	NestService.Clear()
 	if folder then
 		folder:Destroy()
 		folder = nil

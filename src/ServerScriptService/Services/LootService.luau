@@ -31,6 +31,7 @@ local RewardService = require(Services.RewardService)
 local Inventory = require(Services.InventoryService)
 local Wallet = require(Services.WalletService)
 local GearService = require(Services.GearService)
+local MountService = require(Services.MountService)
 local LevelService = require(Services.LevelService)
 local LevelGap = require(Modules.LevelGap)
 
@@ -285,6 +286,7 @@ local function onMini(strip: number, level: number, participants: { Player }, sh
 				notify(pl, string.format("Mini jefe: ya agotaste tus recompensas de hoy en la Franja %d (%d al día)", strip, DailyLimits.Limit("MiniBoss", strip)))
 				continue
 			end
+			MountService.TryDailyEgg(pl, "Mini jefe", strip) -- huevo del día (si todavía no tomaste el de hoy)
 			local luck = luckOf(pl)
 			local faction, role = classOf(pl)
 			local h = newHaul()

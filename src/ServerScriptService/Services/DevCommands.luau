@@ -14,6 +14,8 @@
       /cerrar            cierra el evento
       /clase Shinobi Asesino   cambia de facción/rol y reaparece
       /item Espada_Hierro 1    te da un objeto de prueba (/items lista los Id)
+      /huevo 3           te da un huevo de montura (1..4 = franja)
+      /montura Lobo Epico  te da esa montura · /listo termina la incubación
       /vida              te cura al máximo
       /dano 300          te hace daño (probar penalización por muerte)
 ]]
@@ -37,6 +39,7 @@ local BossService = require(Services.BossService)
 local MobCatalog = require(ReplicatedStorage.Modules.MobCatalog)
 local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
 local Inventory = require(Services.InventoryService)
+local MountService = require(Services.MountService)
 
 local lastBossCmd = 0
 local function handle(player: Player, msg: string)
@@ -114,6 +117,12 @@ local function handle(player: Player, msg: string)
 		for id, it in pairs(ItemCatalog.Items) do
 			print(id, it.Name, it.Slot or "consumible")
 		end
+	elseif cmd == "/huevo" then
+		MountService.GrantEgg(player, tonumber(args[2]) or 1, "Prueba") -- /huevo 1..4 (franja del huevo)
+	elseif cmd == "/montura" and args[2] and args[3] then
+		MountService.DevGrantMount(player, args[2], args[3]) -- /montura Lobo Epico
+	elseif cmd == "/listo" then
+		MountService.DevFinishIncubation(player) -- termina la incubación al instante
 	elseif cmd == "/vida" and char then
 		local h = char:FindFirstChildOfClass("Humanoid")
 		if h then

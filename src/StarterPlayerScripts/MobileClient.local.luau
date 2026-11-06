@@ -313,7 +313,7 @@ gl.Parent = grid
 -- { texto, evento de MenuBus ("" = todavía no existe) }  (misma lista que el menú de HudClient; súmale las nuevas aquí)
 local ITEMS: { { string } } = {
 	{ "Perfil", "Character" }, { "Mochila", "Inventory" }, { "Grupo", "Party" }, { "Habilidades", "" },
-	{ "Misiones", "" }, { "Mapa", "" }, { "Facción", "Guild" }, { "Mascota", "Pets" }, { "Ajustes", "Settings" },
+	{ "Misiones", "" }, { "Mapa", "" }, { "Facción", "Guild" }, { "Mascota", "Pets" }, { "Monturas", "Mounts" }, { "Ajustes", "Settings" },
 }
 for _, it in ipairs(ITEMS) do
 	local label, ev = it[1], it[2]
