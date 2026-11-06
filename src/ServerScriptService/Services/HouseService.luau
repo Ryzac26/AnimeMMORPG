@@ -19,6 +19,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
 
 local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
+local MountCatalog = require(ReplicatedStorage.Modules.MountCatalog)
 local ProductCatalog = require(ReplicatedStorage.Modules.ProductCatalog)
 local Services = ServerScriptService.Services
 local Net = require(Services.Net)
@@ -39,7 +40,7 @@ local ORIGIN = Vector3.new(40000, 500, 40000) -- cuadrícula de casas MUY lejos 
 local SPACING = 260
 
 type Stack = { Id: string, Count: number, Plus: number?, Locked: boolean? }
-type House = { Owner: Player, Slot: number, Origin: Vector3, Model: Model }
+type House = { Owner: Player, Slot: number, Origin: Vector3, Model: Model, Garden: Vector3 }
 
 local HouseService = {}
 local houses: { [Player]: House } = {}
@@ -51,6 +52,9 @@ local inside: { [Player]: Player } = {} -- jugador -> dueño de la casa donde es
 local returnCF: { [Player]: CFrame } = {}
 local portals: { [string]: Vector3 } = {}
 local lastAction: { [Player]: number } = {}
+local mail: { [Player]: { Stack } } = {} -- BUZÓN: objetos que no caben en el baúl (p. ej. al terminar la suscripción)
+local mailboxes: { Vector3 } = {}
+local MAIL_MAX = 300
 
 local function say(player: Player, text: string)
 	NotifyRemote:FireClient(player, text)
@@ -275,26 +279,17 @@ local function buildHouse(owner: Player): House?
 	local hut = part(m, "Caseta", Vector3.new(14, 7, 10), at(30, 4.5, GZ - 4), Color3.fromRGB(160, 110, 66), Enum.Material.WoodPlanks)
 	part(m, "CasetaTecho", Vector3.new(17, 1.5, 13), at(30, 8.8, GZ - 4), Color3.fromRGB(150, 50, 56), Enum.Material.Wood)
 	sign(hut, "CASETA DE MASCOTAS", Color3.fromRGB(190, 255, 200), 7)
-	prompt(hut, "Soltar / Agarrar mascotas", "Caseta de mascotas", Enum.KeyCode.E, 0.4, function(pl)
+	prompt(hut, "Mascotas y monturas", "Caseta de animales", Enum.KeyCode.E, 0.4, function(pl)
 		if pl ~= owner then
-			say(pl, "Solo el dueño puede soltar o agarrar sus mascotas.")
+			say(pl, "Solo el dueño puede soltar o agarrar sus animales.")
 			return
 		end
-		if typeof(pl:GetAttribute("PetsHome")) == "Vector3" then
-			pl:SetAttribute("PetsHome", nil)
-			say(pl, "Agarraste a tus mascotas: vuelven a seguirte.")
-		else
-			if pl:GetAttribute("Equip_Accesorio2") == nil or pl:GetAttribute("Equip_Accesorio2") == "" then
-				say(pl, "No tienes mascota equipada.")
-				return
-			end
-			pl:SetAttribute("PetsHomeR", 30)
-			pl:SetAttribute("PetsHome", at(0, 1.6, GZ + 6))
-			say(pl, "Soltaste a tus mascotas en el jardín. Vuelve a usar la caseta para agarrarlas.")
-		end
+		pl:SetAttribute("PetsHomeR", 30)
+		OpenRemote:FireClient(pl, "Animals")
+		buildPush(pl)
 	end)
 	m.Parent = Workspace
-	local h: House = { Owner = owner, Slot = slot, Origin = o, Model = m }
+	local h: House = { Owner = owner, Slot = slot, Origin = o, Model = m, Garden = at(0, 1.6, GZ + 6) }
 	houses[owner] = h
 	return h
 end
@@ -330,6 +325,9 @@ local function closeHouse(owner: Player)
 			say(pl, "El dueño se fue: la casa se cerró.")
 		end
 	end
+	owner:SetAttribute("PetsHome1", nil)
+	owner:SetAttribute("PetsHome2", nil)
+	owner:SetAttribute("MountHome", nil)
 	usedSlots[h.Slot] = nil
 	houses[owner] = nil
 	h.Model:Destroy()
@@ -343,6 +341,30 @@ function HouseService.AddCityPortal(faction: string, pos: Vector3)
 		return
 	end
 	portals[faction] = pos
+	-- BUZÓN de la ciudad (aquí llega lo que no cabe en el baúl cuando termina la suscripción)
+	local boxPos = pos + Vector3.new(0, 0, 18)
+	table.insert(mailboxes, boxPos)
+	local box = Instance.new("Part")
+	box.Name = "Buzon_" .. faction
+	box.Anchored = true
+	box.Size = Vector3.new(3.4, 5, 2.4)
+	box.CFrame = CFrame.new(boxPos + Vector3.new(0, 2.5, 0))
+	box.Color = Color3.fromRGB(190, 50, 56)
+	box.Material = Enum.Material.Metal
+	box.Parent = Workspace
+	local top = Instance.new("Part")
+	top.Anchored = true
+	top.Shape = Enum.PartType.Cylinder
+	top.Size = Vector3.new(3.4, 3.4, 3.4)
+	top.CFrame = CFrame.new(boxPos + Vector3.new(0, 5, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	top.Color = Color3.fromRGB(190, 50, 56)
+	top.Material = Enum.Material.Metal
+	top.Parent = Workspace
+	sign(box, "📮 BUZÓN", Color3.fromRGB(255, 220, 140), 5)
+	prompt(box, "Abrir buzón", "Buzón de la ciudad", Enum.KeyCode.E, 0.3, function(pl)
+		OpenRemote:FireClient(pl, "Mail")
+		buildPush(pl)
+	end)
 	local pad = buildPad(Workspace, "Portal_CasaVIP_" .. faction, pos, Color3.fromRGB(255, 200, 90), "🏠 PABELLÓN IMPERIAL")
 	prompt(pad, "Entrar", "Casa VIP", Enum.KeyCode.E, 0.6, function(pl)
 		if pl:GetAttribute("Faction") ~= faction then
@@ -458,7 +480,30 @@ buildPush = function(player: Player)
 			table.insert(people, { UserId = pl.UserId, Name = pl.DisplayName, Invited = invited[player] ~= nil and invited[player][pl.UserId] == true, Inside = inside[pl] == player })
 		end
 	end
+	local animals: { any } = {}
+	local function addAnimal(key: string, name: string?, released: boolean)
+		if name then
+			table.insert(animals, { Key = key, Name = name, Released = released })
+		end
+	end
+	local function petName(slotAttr: string): string?
+		local id = player:GetAttribute("Equip_" .. slotAttr)
+		local it: any = if typeof(id) == "string" then (ItemCatalog.Items :: any)[id] else nil
+		return if it and it.Pet then it.Name else nil
+	end
+	addAnimal("Pet1", petName("Accesorio2"), typeof(player:GetAttribute("PetsHome1")) == "Vector3")
+	if player:GetAttribute("Pass_PetSlot") == true then
+		addAnimal("Pet2", petName("Accesorio3"), typeof(player:GetAttribute("PetsHome2")) == "Vector3")
+	end
+	local msp = MountCatalog.Parse(player:GetAttribute("MountEquipped"))
+	addAnimal("Mount", if msp then msp.Name else nil, typeof(player:GetAttribute("MountHome")) == "Vector3")
+	local mailList: { any } = {}
+	for i, st in ipairs(mail[player] or {}) do
+		table.insert(mailList, { Slot = i, Id = st.Id, Count = st.Count, Plus = st.Plus or 0, Locked = st.Locked == true })
+	end
 	StateRemote:FireClient(player, {
+		Animals = animals,
+		Mail = mailList,
 		HasPass = isOwner,
 		Cap = vaultCap(player),
 		Sub = player:GetAttribute("Sub_Vip") == true,
@@ -550,6 +595,91 @@ local function invite(player: Player, userId: any, on: boolean)
 	end
 end
 
+function HouseService.SetRelease(player: Player, key: any, on: boolean)
+	local h = houses[player]
+	if not h or inside[player] ~= player or typeof(key) ~= "string" then
+		return
+	end
+	local attr = if key == "Pet1" then "PetsHome1" elseif key == "Pet2" then "PetsHome2" elseif key == "Mount" then "MountHome" else nil
+	if not attr then
+		return
+	end
+	if on then
+		if key == "Mount" then
+			if player:GetAttribute("MountEquipped") == nil or player:GetAttribute("Mounted") == true then
+				say(player, "Baja de la montura primero (o equipa una).")
+				return
+			end
+		elseif key == "Pet2" and player:GetAttribute("Pass_PetSlot") ~= true then
+			return
+		end
+		player:SetAttribute(attr, h.Garden)
+	else
+		player:SetAttribute(attr, nil)
+	end
+end
+
+-- BUZÓN: guarda un objeto y devuelve si cupo
+local function mailAdd(player: Player, st: Stack): boolean
+	local list = mail[player]
+	if not list or #list >= MAIL_MAX then
+		return false
+	end
+	table.insert(list, { Id = st.Id, Count = st.Count, Plus = st.Plus, Locked = st.Locked })
+	return true
+end
+
+function HouseService.MailClaim(player: Player, index: any)
+	local list = mail[player]
+	if not list then
+		return
+	end
+	local near = false
+	local r = rootOf(player)
+	for _, p in ipairs(mailboxes) do
+		if r and (r.Position - p).Magnitude < 45 then
+			near = true
+		end
+	end
+	if not near then
+		return
+	end
+	if index == "all" then
+		for i = #list, 1, -1 do
+			local st = list[i]
+			if Inventory.Add(player, st.Id, st.Count, st.Plus or 0, st.Locked) then
+				table.remove(list, i)
+			end
+		end
+	elseif typeof(index) == "number" and list[math.floor(index)] then
+		local st = list[math.floor(index)]
+		if Inventory.Add(player, st.Id, st.Count, st.Plus or 0, st.Locked) then
+			table.remove(list, math.floor(index))
+		else
+			say(player, "Tu mochila está llena.")
+		end
+	end
+end
+
+-- si la suscripción terminó, lo guardado en las casillas que ya no existen (31..60) pasa al buzón: no se pierde nada
+local function settleVault(player: Player)
+	local v = vaults[player]
+	if not v or not mail[player] then
+		return
+	end
+	local cap = vaultCap(player)
+	local moved = 0
+	for i, st in pairs(v) do
+		if i > cap and mailAdd(player, st) then
+			v[i] = nil
+			moved += 1
+		end
+	end
+	if moved > 0 then
+		say(player, string.format("Tu suscripción terminó: %d objetos del baúl pasaron al buzón de la ciudad. Recógelos allí.", moved))
+	end
+end
+
 ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any, b: any)
 	if typeof(action) ~= "string" then
 		return
@@ -567,6 +697,10 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 		invite(player, a, true)
 	elseif action == "Uninvite" then
 		invite(player, a, false)
+	elseif action == "Release" then
+		HouseService.SetRelease(player, a, b == true)
+	elseif action == "MailClaim" then
+		HouseService.MailClaim(player, a)
 	elseif action == "Exit" then
 		exitHouse(player)
 		return
@@ -699,14 +833,22 @@ end)
 ---------------------------------------------------------------------
 local function checkSub(player: Player)
 	local subscribed = false
+	local definitive = true -- si Roblox no responde NO se toca nada (no se manda nada al buzón por error)
 	if RunService:IsStudio() then
 		subscribed = ProductCatalog.DevOwnSub
 	elseif ProductCatalog.VipSub.SubId ~= "" then
 		local ok, res = pcall(MarketplaceService.GetUserSubscriptionStatusAsync, MarketplaceService, player, ProductCatalog.VipSub.SubId)
-		subscribed = ok and typeof(res) == "table" and (res :: any).IsSubscribed == true
+		if ok and typeof(res) == "table" then
+			subscribed = (res :: any).IsSubscribed == true
+		else
+			definitive = false
+		end
 	end
-	if player.Parent then
-		player:SetAttribute("Sub_Vip", subscribed)
+	if player.Parent and (definitive or player:GetAttribute("Sub_Vip") == nil) then
+		player:SetAttribute("Sub_Vip", if definitive then subscribed else false)
+	end
+	if definitive and player.Parent then
+		settleVault(player)
 	end
 end
 
@@ -724,14 +866,19 @@ end)
 ---------------------------------------------------------------------
 PlayerData.RegisterSerializer("House", function(player: Player): any?
 	local v = vaults[player]
-	if not v or next(v) == nil then
+	if (not v or next(v) == nil) and #(mail[player] or {}) == 0 then
 		return nil
 	end
+	v = v or {}
 	local out: { [string]: any } = {}
 	for i, st in pairs(v) do
 		out[tostring(i)] = { Id = st.Id, Count = st.Count, Plus = st.Plus, Locked = st.Locked }
 	end
-	return { V = out }
+	local m: { any } = {}
+	for _, st in ipairs(mail[player] or {}) do
+		table.insert(m, { Id = st.Id, Count = st.Count, Plus = st.Plus, Locked = st.Locked })
+	end
+	return { V = out, M = m }
 end)
 
 local function init(player: Player)
@@ -751,6 +898,16 @@ local function init(player: Player)
 		end
 	end
 	vaults[player] = v
+	local ml: { Stack } = {}
+	if typeof(raw) == "table" and typeof(raw.M) == "table" then
+		for _, st in ipairs(raw.M) do
+			local c = cleanStack(st)
+			if c and #ml < MAIL_MAX then
+				table.insert(ml, c)
+			end
+		end
+	end
+	mail[player] = ml
 	checkSub(player)
 	-- el pase se detecta después (PurchaseService): al tenerlo, su casa queda registrada en el cupo
 	local function claimWhenOwned()
@@ -798,6 +955,7 @@ end
 Players.PlayerRemoving:Connect(leave)
 PlayerData.Releasing:Connect(function(pl: Player)
 	vaults[pl] = nil
+	mail[pl] = nil
 end)
 
 return HouseService

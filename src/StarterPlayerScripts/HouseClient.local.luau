@@ -34,7 +34,9 @@ local state: any = nil
 local tab = "Baul"
 local hover: TextLabel? = nil
 
-local TABS = { { "Baul", "🧰 Baúl" }, { "Guests", "👥 Invitados" }, { "Sub", "👑 Suscripción" } }
+local TABS_HOME = { { "Baul", "🧰 Baúl" }, { "Animals", "🐾 Animales" }, { "Guests", "👥 Invitados" }, { "Sub", "👑 Suscripción" } }
+local TABS_MAIL = { { "Mail", "📮 Buzón" } }
+local mailMode = false -- true = abierta desde el buzón de la ciudad (solo esa pestaña)
 
 local function text(parent: Instance, t: string, size: number, color: Color3, pos: UDim2, dim: UDim2, align: Enum.TextXAlignment?): TextLabel
 	local l = UITheme.Text(parent, t, size, color, pos, dim, align)
@@ -104,7 +106,7 @@ local function build()
 	end)
 	win = w
 	WindowDrag.Attach(w, "House", 40, 50)
-	for i, t in ipairs(TABS) do
+	for i, t in ipairs(if mailMode then TABS_MAIL else TABS_HOME) do
 		NpcKit.Tab(w, theme, t[2], UDim2.fromOffset(150, 28), UDim2.fromOffset(14 + (i - 1) * 156, 72), tab == t[1], function()
 			tab = t[1]
 			build()
@@ -113,6 +115,22 @@ local function build()
 	local top = 108
 	if not state then
 		text(w, "Cargando…", 14, pal.FText, UDim2.fromOffset(18, top), UDim2.fromOffset(300, 20))
+		return
+	end
+	if tab == "Mail" then
+		text(w, "BUZÓN DE LA CIUDAD: lo que no cupo en tu baúl está a salvo aquí hasta que lo recojas.", 13, pal.FMuted, UDim2.fromOffset(18, top), UDim2.fromOffset(740, 18))
+		local count = #state.Mail
+		if count == 0 then
+			text(w, "No tienes nada en el buzón.", 14, pal.FText, UDim2.fromOffset(18, top + 36), UDim2.fromOffset(500, 20))
+		else
+			slotGrid(w, theme, pal, state.Mail, math.max(count, 24), 12, UDim2.fromOffset(14, top + 28), function(e: any)
+				actionRemote:FireServer("MailClaim", e.Slot)
+			end)
+			NpcKit.Button(w, theme, "Recoger todo", UDim2.fromOffset(200, 34), UDim2.fromOffset(14, 540), "buy", function()
+				actionRemote:FireServer("MailClaim", "all")
+			end)
+			hover = text(w, "Clic en un objeto para pasarlo a tu mochila.", 13, pal.FMuted, UDim2.fromOffset(230, 548), UDim2.fromOffset(500, 20))
+		end
 		return
 	end
 	if not state.HasPass then
@@ -135,6 +153,19 @@ local function build()
 		hover = text(w, "Clic en un objeto para pasarlo al otro lado.", 13, pal.FMuted, UDim2.fromOffset(18, 566), UDim2.fromOffset(740, 20))
 		if not state.Sub then
 			text(w, "Con la Suscripción Imperial el baúl sube a 60 casillas.", 12, pal.FMuted, UDim2.fromOffset(18, 546), UDim2.fromOffset(500, 16))
+		end
+	elseif tab == "Animals" then
+		text(w, "Elige qué animales quedan sueltos en el jardín. Sus bonus siguen activos. Se quedan en la casa hasta que los agarres o salgas del servidor.", 12, pal.FMuted, UDim2.fromOffset(18, top), UDim2.fromOffset(748, 34)).TextWrapped = true
+		if #state.Animals == 0 then
+			text(w, "No tienes mascotas ni montura equipadas.", 14, pal.FText, UDim2.fromOffset(18, top + 44), UDim2.fromOffset(500, 20))
+		end
+		for i, a in ipairs(state.Animals) do
+			local y = top + 44 + (i - 1) * 44
+			local row = NpcKit.Panel(w, theme, UDim2.fromOffset(748, 38), UDim2.fromOffset(14, y), "inset")
+			text(row, (if a.Key == "Mount" then "🐎  " else "🐾  ") .. tostring(a.Name) .. (if a.Released then "   (suelto en el jardín)" else ""), 14, pal.Text, UDim2.fromOffset(12, 9), UDim2.fromOffset(500, 20))
+			NpcKit.Button(row, theme, if a.Released then "Agarrar" else "Soltar", UDim2.fromOffset(170, 28), UDim2.fromOffset(570, 5), if a.Released then "danger" else "buy", function()
+				actionRemote:FireServer("Release", a.Key, not a.Released)
+			end)
 		end
 	elseif tab == "Guests" then
 		text(w, string.format("Invitados: pueden entrar a tu casa, mirar y salir. No pueden abrir ni tocar nada. (máx. %d)", state.MaxGuests), 12, pal.FMuted, UDim2.fromOffset(18, top), UDim2.fromOffset(740, 18))
@@ -173,7 +204,8 @@ end
 
 if openRemote then
 	openRemote.OnClientEvent:Connect(function(kind: any)
-		tab = if kind == "Guests" then "Guests" else "Baul"
+		mailMode = kind == "Mail"
+		tab = if kind == "Guests" then "Guests" elseif kind == "Animals" then "Animals" elseif kind == "Mail" then "Mail" else "Baul"
 		build()
 		gui.Enabled = true
 	end)

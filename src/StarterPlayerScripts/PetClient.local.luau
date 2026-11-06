@@ -20,6 +20,7 @@ local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
+local ItemIcon = require(script.Parent:WaitForChild("ItemIcon", 10))
 
 local RARITY_COLOR: { [string]: Color3 } = {
 	Comun = Color3.fromRGB(200, 200, 200), Raro = Color3.fromRGB(80, 160, 255), Epico = Color3.fromRGB(180, 90, 255),
@@ -159,9 +160,12 @@ local function build()
 		b.Font = UITheme.Font
 		b.TextSize = 12
 		b.TextXAlignment = Enum.TextXAlignment.Left
-		b.Text = string.format("  Nv.%d  %s%s", PetCatalog.LevelOf(t.Plus), item.Name, if t.Kind == "Equip" then (if t.Key == "Accesorio3" then "   [puesta 2]" else "   [puesta]") else "")
+		b.Text = string.format("       Nv.%d  %s%s", PetCatalog.LevelOf(t.Plus), item.Name, if t.Kind == "Equip" then (if t.Key == "Accesorio3" then "   [puesta 2]" else "   [puesta]") else "")
 		b.Parent = listFrame
 		Instance.new("UICorner", b).CornerRadius = UDim.new(0, 5)
+		local rowIcon = ItemIcon.Build(b, item, 22, RARITY_COLOR[item.Rarity] or Color3.new(1, 1, 1))
+		rowIcon.AnchorPoint = Vector2.new(0, 0.5)
+		rowIcon.Position = UDim2.new(0, 4, 0.5, 0)
 		b.Activated:Connect(function()
 			selectedKey = keyOf(t)
 			build()
@@ -174,9 +178,12 @@ local function build()
 	local col = RARITY_COLOR[item.Rarity] or Color3.new(1, 1, 1)
 	local stage = PetCatalog.Stage(level)
 
-	UITheme.Text(w, item.Name, 20, col, UDim2.fromOffset(18, 210), UDim2.fromOffset(364, 26))
+	local bigIcon = ItemIcon.Build(w, item, 52, col)
+	bigIcon.AnchorPoint = Vector2.new(1, 0)
+	bigIcon.Position = UDim2.fromOffset(382, 206)
+	UITheme.Text(w, item.Name, 20, col, UDim2.fromOffset(18, 210), UDim2.fromOffset(300, 26))
 	local sub = if item.Faction then "Mascota de facción" else "Mascota · todas las clases"
-	UITheme.Text(w, string.format("%s  ·  Nivel %d / %d  ·  Evolución %d / %d", sub, level, PetCatalog.MaxLevel, stage, #PetCatalog.EVOLVE_AT), 12, pal.FMuted, UDim2.fromOffset(18, 236), UDim2.fromOffset(364, 16))
+	UITheme.Text(w, string.format("%s  ·  Nivel %d / %d  ·  Evolución %d / %d", sub, level, PetCatalog.MaxLevel, stage, #PetCatalog.EVOLVE_AT), 12, pal.FMuted, UDim2.fromOffset(18, 236), UDim2.fromOffset(300, 16))
 
 	-- barra de nivel
 	local bar = Instance.new("Frame")

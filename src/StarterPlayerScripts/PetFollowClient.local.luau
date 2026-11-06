@@ -474,14 +474,16 @@ local function reconcile()
 		local hrp = char and char:FindFirstChild("HumanoidRootPart")
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
 		local alive = hrp ~= nil and hrp:IsA("BasePart") and hum ~= nil and hum.Health > 0
-		local visible = alive and not (mode == "none" or (mode == "mine" and pl ~= localPlayer))
-		local home = pl:GetAttribute("PetsHome") -- mascotas sueltas en la Casa VIP: se ven donde está la casa, no donde está el dueño
-		local refPos = if typeof(home) == "Vector3" then home else (if hrp then hrp.Position else nil)
-		if visible and (pl ~= localPlayer or typeof(home) == "Vector3") and cam and refPos and (cam.CFrame.Position - refPos).Magnitude > VIEW_RANGE then
-			visible = false
-		end
+		local baseVisible = alive and not (mode == "none" or (mode == "mine" and pl ~= localPlayer))
 		for i, slotName in ipairs(SLOTS) do
 			local key = keyOf(pl, i)
+			-- mascotas sueltas en la Casa VIP (atributo PetsHome1 / PetsHome2): se ven donde está la casa, no donde está el dueño
+			local home = pl:GetAttribute("PetsHome" .. i)
+			local refPos = if typeof(home) == "Vector3" then home else (if hrp then hrp.Position else nil)
+			local visible = baseVisible
+			if visible and (pl ~= localPlayer or typeof(home) == "Vector3") and cam and refPos and (cam.CFrame.Position - refPos).Magnitude > VIEW_RANGE then
+				visible = false
+			end
 			local family, rarity = parse(pl:GetAttribute("Equip_" .. slotName))
 			local want = visible and family ~= nil and rarity ~= nil
 			if want and i == 2 and pl:GetAttribute("Pass_PetSlot") ~= true then
@@ -532,7 +534,7 @@ RunService.RenderStepped:Connect(function(dt)
 		elseif p.JumpAt > p.IdleSince then
 			p.IdleSince = p.JumpAt
 		end
-		local home = p.Player:GetAttribute("PetsHome")
+		local home = p.Player:GetAttribute("PetsHome" .. p.Slot)
 		local atHome = typeof(home) == "Vector3"
 		local sleeping = not atHome and t - p.IdleSince > SLEEP_AFTER
 		if sleeping and not p.Zzz then
