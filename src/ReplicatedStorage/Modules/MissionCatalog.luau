@@ -17,7 +17,7 @@ MissionCatalog.DailyPool = {
 	{ Id = "d_metin", Type = "Metin", Goal = 3, Text = "Destruye 3 piedras Metin", GoldBase = 3000, GoldPerLevel = 220 },
 	{ Id = "d_donate", Type = "Donate", Goal = 5000, Text = "Aporta 5.000 PA al Gremio", GoldBase = 2500, GoldPerLevel = 180 },
 	{ Id = "d_online", Type = "Online", Goal = 30, Text = "Juega 30 minutos", GoldBase = 2000, GoldPerLevel = 150 },
-	{ Id = "d_enhance", Type = "Enhance", Goal = 2, Text = "Mejora con éxito 2 veces en el Herrero", GoldBase = 3000, GoldPerLevel = 200 },
+	{ Id = "d_enhance", Type = "Enhance", Goal = 2, Text = "Mejora con éxito 2 veces (hasta +5) en el Herrero", GoldBase = 3000, GoldPerLevel = 200 },
 } :: { Def }
 
 MissionCatalog.WeeklyPool = {
@@ -45,7 +45,7 @@ function MissionCatalog.Pick(pool: { Def }, count: number, index: number): { Def
 	local copy = table.clone(pool)
 	local out: { Def } = {}
 	while #out < count and #copy > 0 do
-		table.insert(out, table.remove(copy, rng:NextInteger(1, #copy)))
+		table.insert(out, table.remove(copy, rng:NextInteger(1, #copy)) :: Def)
 	end
 	return out
 end
@@ -61,9 +61,13 @@ MissionCatalog.Frames = {
 	{ Id = "Oro", Name = "Marco de Oro", Need = 50, Color = Color3.fromRGB(250, 200, 70) },
 	{ Id = "Cristal", Name = "Marco de Cristal", Need = 100, Color = Color3.fromRGB(110, 225, 255) },
 	{ Id = "Imperial", Name = "Marco Imperial", Need = 200, Color = Color3.fromRGB(195, 100, 255) },
-} :: { { Id: string, Name: string, Need: number, Color: Color3 } }
+} :: { { Id: string, Name: string, Need: number, Color: Color3, Passive: { Name: string, Text: string, Stats: { [string]: number } }? } }
 
-MissionCatalog.FrameById = {} :: { [string]: { Id: string, Name: string, Need: number, Color: Color3 } }
+-- Pasivas únicas de los marcos altos (solo mientras el marco está EQUIPADO; elegir uno es una decisión)
+MissionCatalog.Frames[4].Passive = { Name = "Brillo de Cristal", Text = "+4% de suerte con el botín", Stats = { Suerte = 0.04 } }
+MissionCatalog.Frames[5].Passive = { Name = "Sello Imperial", Text = "+4% de XP y +4% de oro", Stats = { Xp = 0.04, Oro = 0.04 } }
+
+MissionCatalog.FrameById = {} :: { [string]: { Id: string, Name: string, Need: number, Color: Color3, Passive: { Name: string, Text: string, Stats: { [string]: number } }? } }
 for _, f in ipairs(MissionCatalog.Frames) do
 	MissionCatalog.FrameById[f.Id] = f
 end

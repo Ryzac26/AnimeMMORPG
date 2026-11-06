@@ -34,8 +34,9 @@ local VAULT_BASE = 30
 local VAULT_SUB = 60
 local MAX_GUESTS = 8
 local SLOT_COUNT = 48
-local ORIGIN = Vector3.new(-3200, 2600, -3200) -- esquina de la cuadrícula de casas (en lo alto, fuera del mapa)
-local SPACING = 200
+local HOUSE_W = 140
+local ORIGIN = Vector3.new(40000, 500, 40000) -- cuadrícula de casas MUY lejos del mapa (más allá de la distancia de dibujo: nadie las ve desde fuera)
+local SPACING = 260
 
 type Stack = { Id: string, Count: number, Plus: number?, Locked: boolean? }
 type House = { Owner: Player, Slot: number, Origin: Vector3, Model: Model }
@@ -147,6 +148,7 @@ local function exitHouse(player: Player)
 		return
 	end
 	inside[player] = nil
+	player:SetAttribute("InHouse", nil)
 	local cf = returnCF[player]
 	returnCF[player] = nil
 	if cf then
@@ -179,38 +181,59 @@ local function buildHouse(owner: Player): House?
 	local wood = Color3.fromRGB(96, 66, 42)
 	local stone = Color3.fromRGB(214, 204, 186)
 	local gold = Color3.fromRGB(240, 196, 90)
-	local W, H = 80, 30
-	part(m, "Suelo", Vector3.new(W, 2, W), o, Color3.fromRGB(150, 110, 70), Enum.Material.WoodPlanks)
-	part(m, "Alfombra", Vector3.new(34, 0.2, 44), o + Vector3.new(0, 1.1, 0), Color3.fromRGB(150, 38, 52), Enum.Material.Fabric)
-	part(m, "AlfombraBorde", Vector3.new(38, 0.15, 48), o + Vector3.new(0, 1.05, 0), gold, Enum.Material.Fabric)
-	for _, s in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
-		local horiz = s[1] ~= 0
-		part(m, "Muro", if horiz then Vector3.new(2, H, W) else Vector3.new(W, H, 2), o + Vector3.new(s[1] * (W / 2), H / 2, s[2] * (W / 2)), stone, Enum.Material.Marble)
-		part(m, "Friso", if horiz then Vector3.new(2.4, 1.2, W) else Vector3.new(W, 1.2, 2.4), o + Vector3.new(s[1] * (W / 2), 4, s[2] * (W / 2)), gold, Enum.Material.Metal)
+	local W, H = HOUSE_W, 34 -- 140 x 140 studs, 34 de alto
+	local HALF = W / 2
+	local function at(x: number, y: number, z: number): Vector3
+		return o + Vector3.new(x, y, z)
 	end
-	local ceil = part(m, "Techo", Vector3.new(W + 2, 2, W + 2), o + Vector3.new(0, H + 1, 0), wood, Enum.Material.Wood)
-	for _, dx in ipairs({ -26, 26 }) do
-		for _, dz in ipairs({ -26, 26 }) do
-			part(m, "Columna", Vector3.new(4, H, 4), o + Vector3.new(dx, H / 2, dz), stone, Enum.Material.Marble)
-			local lamp = part(m, "Farol", Vector3.new(2, 2, 2), o + Vector3.new(dx, 22, dz), Color3.fromRGB(255, 226, 150), Enum.Material.Neon)
+	-- SUELO: mármol y madera (sur = vestíbulo y salón, norte = jardín de mascotas)
+	part(m, "Suelo", Vector3.new(W, 2, W), o, Color3.fromRGB(150, 110, 70), Enum.Material.WoodPlanks)
+	part(m, "SueloSalon", Vector3.new(W, 0.3, 80), at(0, 1.1, -30), Color3.fromRGB(226, 218, 200), Enum.Material.Marble)
+	part(m, "Alfombra", Vector3.new(36, 0.2, 70), at(0, 1.3, -30), Color3.fromRGB(150, 38, 52), Enum.Material.Fabric)
+	part(m, "AlfombraBorde", Vector3.new(40, 0.15, 74), at(0, 1.25, -30), gold, Enum.Material.Fabric)
+	-- MUROS exteriores
+	for _, s2 in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+		local horiz = s2[1] ~= 0
+		part(m, "Muro", if horiz then Vector3.new(2, H, W) else Vector3.new(W, H, 2), at(s2[1] * HALF, H / 2, s2[2] * HALF), stone, Enum.Material.Marble)
+		part(m, "Friso", if horiz then Vector3.new(2.4, 1.4, W) else Vector3.new(W, 1.4, 2.4), at(s2[1] * HALF, 5, s2[2] * HALF), gold, Enum.Material.Metal)
+	end
+	-- TECHO solo sobre el salón (z < 10): el jardín queda al cielo abierto
+	local ceil = part(m, "Techo", Vector3.new(W + 2, 2, 82), at(0, H + 1, -30), wood, Enum.Material.Wood)
+	part(m, "TechoVigaE", Vector3.new(2, 3, 82), at(HALF - 1, H - 1, -30), gold, Enum.Material.Metal)
+	-- muro interior bajo que separa el salón del jardín, con un arco central
+	part(m, "DivisionO", Vector3.new(56, 14, 2), at(-42, 7, 10), stone, Enum.Material.Marble)
+	part(m, "DivisionE", Vector3.new(56, 14, 2), at(42, 7, 10), stone, Enum.Material.Marble)
+	part(m, "DivisionOro", Vector3.new(56, 1, 2.4), at(-42, 14.5, 10), gold, Enum.Material.Metal)
+	part(m, "DivisionOroE", Vector3.new(56, 1, 2.4), at(42, 14.5, 10), gold, Enum.Material.Metal)
+	-- COLUMNAS y faroles del salón
+	for _, dx in ipairs({ -34, 34 }) do
+		for _, dz in ipairs({ -60, -30, 0 }) do
+			part(m, "Columna", Vector3.new(4, H, 4), at(dx, H / 2, dz), stone, Enum.Material.Marble)
+			local lamp = part(m, "Farol", Vector3.new(2, 2, 2), at(dx, 24, dz), Color3.fromRGB(255, 226, 150), Enum.Material.Neon)
 			local pl = Instance.new("PointLight")
-			pl.Range, pl.Brightness, pl.Color = 40, 1.5, Color3.fromRGB(255, 226, 170)
+			pl.Range, pl.Brightness, pl.Color = 45, 1.6, Color3.fromRGB(255, 226, 170)
 			pl.Parent = lamp
 		end
 	end
 	local sky = Instance.new("PointLight")
-	sky.Range, sky.Brightness = 60, 1
+	sky.Range, sky.Brightness = 70, 1.2
 	sky.Parent = ceil
-	-- salida
-	local exitPad = buildPad(m, "Portal_Salida", o + Vector3.new(0, 1.4, -30), Color3.fromRGB(255, 255, 255), "SALIR A LA CIUDAD")
+	-- LÁMPARA central colgante
+	local chand = part(m, "Lampara", Vector3.new(6, 1, 6), at(0, H - 4, -30), gold, Enum.Material.Metal)
+	local chl = Instance.new("PointLight")
+	chl.Range, chl.Brightness, chl.Color = 60, 2, Color3.fromRGB(255, 232, 180)
+	chl.Parent = chand
+
+	-- SALIDA (portal blanco, al fondo del vestíbulo)
+	local exitPad = buildPad(m, "Portal_Salida", at(0, 1.4, -62), Color3.fromRGB(255, 255, 255), "SALIR A LA CIUDAD")
 	prompt(exitPad, "Salir", "Portal de salida", Enum.KeyCode.E, 0.5, function(pl)
 		if inside[pl] == owner then
 			exitHouse(pl)
 		end
 	end)
-	-- baúl (solo el dueño)
-	local chest = part(m, "Baul", Vector3.new(8, 5, 5), o + Vector3.new(-30, 3.5, 24), Color3.fromRGB(122, 78, 38), Enum.Material.Wood)
-	part(m, "BaulTapa", Vector3.new(8.4, 1.4, 5.4), o + Vector3.new(-30, 6.4, 24), gold, Enum.Material.Metal)
+	-- BAÚL (ala oeste, solo el dueño)
+	local chest = part(m, "Baul", Vector3.new(8, 5, 5), at(-56, 3.5, -30), Color3.fromRGB(122, 78, 38), Enum.Material.Wood)
+	part(m, "BaulTapa", Vector3.new(8.4, 1.4, 5.4), at(-56, 6.4, -30), gold, Enum.Material.Metal)
 	sign(chest, "BAÚL PRIVADO", gold, 5)
 	prompt(chest, "Abrir baúl", "Baúl privado", Enum.KeyCode.E, 0.3, function(pl)
 		if pl ~= owner then
@@ -220,8 +243,8 @@ local function buildHouse(owner: Player): House?
 		OpenRemote:FireClient(pl, "Vault")
 		buildPush(pl)
 	end)
-	-- tablón de invitados (solo el dueño)
-	local board = part(m, "Tablon", Vector3.new(10, 6, 1), o + Vector3.new(30, 5, 28), wood, Enum.Material.Wood)
+	-- TABLÓN de invitados (ala este, solo el dueño)
+	local board = part(m, "Tablon", Vector3.new(10, 6, 1), at(58, 5, -30), wood, Enum.Material.Wood)
 	sign(board, "INVITADOS", gold, 5)
 	prompt(board, "Invitados", "Tablón de invitados", Enum.KeyCode.E, 0.3, function(pl)
 		if pl ~= owner then
@@ -231,9 +254,45 @@ local function buildHouse(owner: Player): House?
 		OpenRemote:FireClient(pl, "Guests")
 		buildPush(pl)
 	end)
-	-- rincón de mascotas (Fase 2)
-	local rug = part(m, "RinconMascotas", Vector3.new(20, 0.3, 14), o + Vector3.new(26, 1.2, -4), Color3.fromRGB(70, 140, 90), Enum.Material.Grass)
-	sign(rug, "RINCÓN DE MASCOTAS (próximamente)", Color3.fromRGB(180, 240, 190), 4)
+	-- Sala de DECORACIÓN reservada (Fase 3): pedestal vacío
+	local deco = part(m, "Pedestal", Vector3.new(10, 1, 10), at(0, 1.6, -46), gold, Enum.Material.Metal)
+	sign(deco, "RINCÓN DE DECORACIÓN (próximamente)", Color3.fromRGB(255, 236, 170), 4)
+
+	-- JARDÍN DE MASCOTAS (norte, cielo abierto): césped, estanque, árboles, valla y la caseta donde se sueltan / se agarran
+	local GZ = 42 -- centro del jardín en z
+	part(m, "Cesped", Vector3.new(W - 6, 0.4, 56), at(0, 1.2, GZ + 6), Color3.fromRGB(86, 150, 78), Enum.Material.Grass)
+	local pond = part(m, "Estanque", Vector3.new(24, 0.3, 16), at(-30, 1.45, GZ + 14), Color3.fromRGB(70, 150, 210), Enum.Material.Glass)
+	pond.Transparency = 0.25
+	for i, pos in ipairs({ { -52, GZ + 22 }, { 52, GZ + 24 }, { -50, GZ - 10 }, { 54, GZ - 8 }, { 20, GZ + 28 } }) do
+		part(m, "Tronco" .. i, Vector3.new(3, 12, 3), at(pos[1], 7, pos[2]), Color3.fromRGB(110, 76, 44), Enum.Material.Wood)
+		local crown = part(m, "Copa" .. i, Vector3.new(14, 11, 14), at(pos[1], 16, pos[2]), Color3.fromRGB(66, 140, 70), Enum.Material.Grass)
+		crown.Shape = Enum.PartType.Ball
+	end
+	for i = -3, 3 do
+		part(m, "Valla" .. i, Vector3.new(2, 4, 2), at(i * 18, 3, 12), wood, Enum.Material.Wood)
+	end
+	part(m, "VallaTravesano", Vector3.new(W - 6, 0.8, 0.8), at(0, 4.2, 12), wood, Enum.Material.Wood)
+	local hut = part(m, "Caseta", Vector3.new(14, 7, 10), at(30, 4.5, GZ - 4), Color3.fromRGB(160, 110, 66), Enum.Material.WoodPlanks)
+	part(m, "CasetaTecho", Vector3.new(17, 1.5, 13), at(30, 8.8, GZ - 4), Color3.fromRGB(150, 50, 56), Enum.Material.Wood)
+	sign(hut, "CASETA DE MASCOTAS", Color3.fromRGB(190, 255, 200), 7)
+	prompt(hut, "Soltar / Agarrar mascotas", "Caseta de mascotas", Enum.KeyCode.E, 0.4, function(pl)
+		if pl ~= owner then
+			say(pl, "Solo el dueño puede soltar o agarrar sus mascotas.")
+			return
+		end
+		if typeof(pl:GetAttribute("PetsHome")) == "Vector3" then
+			pl:SetAttribute("PetsHome", nil)
+			say(pl, "Agarraste a tus mascotas: vuelven a seguirte.")
+		else
+			if pl:GetAttribute("Equip_Accesorio2") == nil or pl:GetAttribute("Equip_Accesorio2") == "" then
+				say(pl, "No tienes mascota equipada.")
+				return
+			end
+			pl:SetAttribute("PetsHomeR", 30)
+			pl:SetAttribute("PetsHome", at(0, 1.6, GZ + 6))
+			say(pl, "Soltaste a tus mascotas en el jardín. Vuelve a usar la caseta para agarrarlas.")
+		end
+	end)
 	m.Parent = Workspace
 	local h: House = { Owner = owner, Slot = slot, Origin = o, Model = m }
 	houses[owner] = h
@@ -253,7 +312,8 @@ local function enterHouse(player: Player, host: Player)
 	end
 	returnCF[player] = root.CFrame
 	inside[player] = host
-	moveTo(player, CFrame.new(h.Origin + Vector3.new(0, 5, -24)) * CFrame.Angles(0, math.rad(180), 0))
+	player:SetAttribute("InHouse", true)
+	moveTo(player, CFrame.new(h.Origin + Vector3.new(0, 5, -54)) * CFrame.Angles(0, math.rad(180), 0))
 	if player ~= host then
 		say(host, player.DisplayName .. " entró a tu casa.")
 	end
@@ -723,6 +783,7 @@ local function hookChar(pl: Player)
 	pl.CharacterAdded:Connect(function()
 		-- si muere dentro de la casa reaparece en su ciudad: ya no está dentro
 		inside[pl] = nil
+		pl:SetAttribute("InHouse", nil)
 		returnCF[pl] = nil
 	end)
 end

@@ -55,6 +55,9 @@ type Pet = {
 	Level: number,
 	Slot: number,
 	Scale: number,
+	Wander: Vector3?,
+	WanderAt: number?,
+	WanderHome: Vector3?,
 	Wings: { { Weld: Weld, Side: number, Base: CFrame } },
 	Wag: { { Weld: Weld, Base: CFrame, Amp: number } },
 	Halo: Weld?,
@@ -472,7 +475,9 @@ local function reconcile()
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
 		local alive = hrp ~= nil and hrp:IsA("BasePart") and hum ~= nil and hum.Health > 0
 		local visible = alive and not (mode == "none" or (mode == "mine" and pl ~= localPlayer))
-		if visible and pl ~= localPlayer and cam and hrp and (cam.CFrame.Position - hrp.Position).Magnitude > VIEW_RANGE then
+		local home = pl:GetAttribute("PetsHome") -- mascotas sueltas en la Casa VIP: se ven donde está la casa, no donde está el dueño
+		local refPos = if typeof(home) == "Vector3" then home else (if hrp then hrp.Position else nil)
+		if visible and (pl ~= localPlayer or typeof(home) == "Vector3") and cam and refPos and (cam.CFrame.Position - refPos).Magnitude > VIEW_RANGE then
 			visible = false
 		end
 		for i, slotName in ipairs(SLOTS) do
@@ -527,7 +532,9 @@ RunService.RenderStepped:Connect(function(dt)
 		elseif p.JumpAt > p.IdleSince then
 			p.IdleSince = p.JumpAt
 		end
-		local sleeping = t - p.IdleSince > SLEEP_AFTER
+		local home = p.Player:GetAttribute("PetsHome")
+		local atHome = typeof(home) == "Vector3"
+		local sleeping = not atHome and t - p.IdleSince > SLEEP_AFTER
 		if sleeping and not p.Zzz then
 			local bb = Instance.new("BillboardGui")
 			bb.Size = UDim2.fromOffset(60, 24)
@@ -553,6 +560,19 @@ RunService.RenderStepped:Connect(function(dt)
 		-- punto donde "debería" estar: detrás y a la derecha del dueño
 		local anchorCf = if p.Slot == 2 then hrp.CFrame * CFrame.new(-3.0, 0, 4.6) else hrp.CFrame * CFrame.new(3.0, 0, 3.6)
 		local target = anchorCf.Position
+		if atHome then
+			-- sueltas en la casa: pasean solas por el jardín (cada pocos segundos eligen otro punto)
+			local radius = p.Player:GetAttribute("PetsHomeR")
+			local R = if typeof(radius) == "number" then radius else 25
+			if not p.Wander or t > (p.WanderAt or 0) or (p.WanderHome :: Vector3 - home :: Vector3).Magnitude > 1 then
+				p.WanderHome = home
+				p.Wander = (home :: Vector3) + Vector3.new((math.random() * 2 - 1) * R, 0, (math.random() * 2 - 1) * R * 0.7)
+				p.WanderAt = t + 2.5 + math.random() * 5
+			end
+			target = p.Wander
+		else
+			p.Wander = nil
+		end
 		local bob = 0
 		local speed = p.Vel.Magnitude
 		if flies then
@@ -568,7 +588,7 @@ RunService.RenderStepped:Connect(function(dt)
 		if (cur - target).Magnitude > 60 then
 			cur = target
 		end
-		local alpha = 1 - math.exp(-6.5 * dt)
+		local alpha = 1 - math.exp(-(if atHome then 1.4 else 6.5) * dt)
 		local newPos = cur:Lerp(target, alpha)
 		p.Vel = (newPos - cur) / math.max(dt, 1e-3)
 		-- orientación: hacia donde se mueve; quieta, mira como el dueño

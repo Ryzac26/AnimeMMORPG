@@ -112,7 +112,7 @@ local function build()
 	else
 		text(w, string.format("Misiones completadas: %d. Los marcos rodean tu retrato. Son iguales para todos los jugadores.", state.Total), 13, pal.FMuted, UDim2.fromOffset(18, top), UDim2.fromOffset(740, 18))
 		local y = top + 28
-		local function row(name: string, need: number, color: Color3?, id: string)
+		local function row(name: string, need: number, color: Color3?, id: string, passive: any?)
 			local unlocked = state.Total >= need
 			local equipped = (state.Frame or "") == id
 			local r = NpcKit.Panel(w, theme, UDim2.fromOffset(748, 60), UDim2.fromOffset(14, y), "card")
@@ -129,8 +129,12 @@ local function build()
 				st.Thickness = 3.5
 				st.Parent = sw
 			end
-			text(r, name, 15, if unlocked then pal.Text else pal.Muted, UDim2.fromOffset(72, 8), UDim2.fromOffset(400, 20))
-			text(r, if need == 0 then "Sin marco" else (if unlocked then "Desbloqueado" else string.format("Faltan %d misiones", need - state.Total)), 12, pal.Muted, UDim2.fromOffset(72, 32), UDim2.fromOffset(400, 18))
+			text(r, name, 15, if unlocked then pal.Text else pal.Muted, UDim2.fromOffset(72, 8), UDim2.fromOffset(480, 20))
+			local sub = if need == 0 then "Sin marco" else (if unlocked then "Desbloqueado" else string.format("Faltan %d misiones", need - state.Total))
+			if passive then
+				sub ..= " · ✨ " .. passive.Name .. ": " .. passive.Text
+			end
+			text(r, sub, 12, if passive then Color3.fromRGB(240, 190, 70) else pal.Muted, UDim2.fromOffset(72, 32), UDim2.fromOffset(490, 18))
 			NpcKit.Button(r, theme, if equipped then "✔ Equipado" elseif unlocked then "Equipar" else "🔒 " .. need .. " misiones", UDim2.fromOffset(170, 34), UDim2.fromOffset(566, 13), if unlocked and not equipped then "buy" else "neutral", function()
 				if unlocked and not equipped then
 					actionRemote:FireServer("Frame", id)
@@ -140,7 +144,7 @@ local function build()
 		end
 		row("Sin marco", 0, nil, "")
 		for _, f in ipairs(MissionCatalog.Frames) do
-			row(f.Name, f.Need, f.Color, f.Id)
+			row(f.Name, f.Need, f.Color, f.Id, f.Passive)
 		end
 	end
 end

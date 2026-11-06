@@ -20,6 +20,7 @@ local Net = require(Services.Net)
 local PlayerData = require(Services.PlayerData)
 local Wallet = require(Services.WalletService)
 local RewardService = require(Services.RewardService)
+local GearService = require(Services.GearService)
 
 local OpenRemote = Net.Get("MissionOpen")
 local StateRemote = Net.Get("MissionState")
@@ -75,6 +76,8 @@ end
 local function publishFrame(player: Player)
 	local d = data[player]
 	player:SetAttribute("ProfileFrame", if d and d.Frame then d.Frame else "")
+	local def = if d and d.Frame then MissionCatalog.FrameById[d.Frame] else nil
+	GearService.SetTemp(player, if def and def.Passive then def.Passive.Stats else nil, "Marco")
 end
 
 local function push(player: Player)
