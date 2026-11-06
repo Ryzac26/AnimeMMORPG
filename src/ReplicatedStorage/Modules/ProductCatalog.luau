@@ -238,14 +238,17 @@ ProductCatalog.Passes = {
 			"Invita a quien quieras: pueden entrar y mirar, pero no tocar nada",
 			"Próximamente: mascotas sueltas en tu casa y decoración",
 		},
-		PassId = 0, PriceText = "599 R$", -- TODO: crea el Game Pass y pega aquí su ID
+		PassId = 2075582326, PriceText = "599 R$",
 	},
 } :: { Pass }
 
 -- SUSCRIPCIÓN IMPERIAL (mensual, se renueva sola). Creación: Creator Hub > Monetización > Suscripciones (precio mínimo 49 R$).
 -- Pega el ID (texto "EXS-...") en SubId. Beneficios: baúl de 60 casillas y los extras mensuales del Pabellón que se vayan sumando.
 -- Regla de Roblox: los beneficios se dan todo el mes pagado y nada de lo guardado se borra al terminar.
-ProductCatalog.VipSub = { SubId = "", Attr = "Sub_Vip", Name = "Suscripción Imperial", PriceText = "199 R$/mes" }
+ProductCatalog.VipSub = { SubId = "EXP-2977508916442825297", Attr = "Sub_Vip", Name = "Suscripción Imperial", PriceText = "199 R$/mes" }
+-- Casas VIP limitadas: máximo de dueños del pase en total. Al tocar "comprar" se RESERVA una casa 10 minutos; si no se paga, se libera.
+ProductCatalog.VIP_HOUSE_CAP = 1000
+ProductCatalog.VIP_RESERVE_SECONDS = 600
 ProductCatalog.DevOwnSub = false -- solo Studio: true = tu cuenta de prueba cuenta como suscrita
 
 ProductCatalog.PassByKey = {} :: { [string]: Pass }

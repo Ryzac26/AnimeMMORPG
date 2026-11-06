@@ -288,6 +288,9 @@ local function enhance(player: Player, kind: any, key: any, useScroll: any)
 	local name = item.Name :: string
 	if rng:NextNumber() < (EnhanceCatalog.SuccessRate[target] or 0) then
 		Inventory.SetPlus(player, kind, key, target)
+		pcall(function() -- misiones del Pabellón
+			require(script.Parent.MissionService).Report(player, "Enhance", 1)
+		end)
 		reply(player, true, string.format("¡Éxito! %s", EnhanceCatalog.PlusName(name, target)), target)
 		if target >= EnhanceCatalog.MaxPlus then
 			forged9[player] = (forged9[player] or 0) + 1

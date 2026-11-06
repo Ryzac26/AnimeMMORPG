@@ -1,0 +1,164 @@
+--!strict
+--[[
+    MissionClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > MissionClient
+    Ventana del NPC del Pabellón VIP (Mayordomo Imperial): MISIONES diarias y semanales (gratis y VIP por igual) y MARCOS de perfil.
+    Datos: MissionState / MissionOpen / MissionAction (MissionService). IMPORTANTE: está en la lista RELOAD de UIReloadClient.
+]]
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
+local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
+local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
+local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
+local MissionCatalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("MissionCatalog"))
+
+local openRemote = ClientNet.Get("MissionOpen")
+local stateRemote = ClientNet.Get("MissionState")
+local actionRemote = ClientNet.Get("MissionAction")
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "MissionGui"
+gui.ResetOnSpawn = false
+gui.Enabled = false
+gui.DisplayOrder = 13
+gui.Parent = player:WaitForChild("PlayerGui", 10)
+
+local win: Frame? = nil
+local state: any = nil
+local tab = "Misiones"
+
+local function text(parent: Instance, t: string, size: number, color: Color3, pos: UDim2, dim: UDim2, align: Enum.TextXAlignment?): TextLabel
+	local l = UITheme.Text(parent, t, size, color, pos, dim, align)
+	l.TextStrokeTransparency = 1
+	return l
+end
+
+local function clock(sec: number): string
+	sec = math.max(0, math.floor(sec))
+	local d = sec // 86400
+	local h = (sec % 86400) // 3600
+	local m = (sec % 3600) // 60
+	return if d > 0 then string.format("%d d %d h", d, h) else string.format("%d h %d min", h, m)
+end
+
+local function thousands(n: number): string
+	local s = tostring(math.floor(n))
+	local out = s:reverse():gsub("(%d%d%d)", "%1."):reverse()
+	return (out:gsub("^%.", ""))
+end
+
+local function build()
+	local theme = UITheme.For(player:GetAttribute("Faction"))
+	local pal = NpcKit.Palette(theme)
+	if win then
+		win:Destroy()
+	end
+	local w = NpcKit.Window(gui, theme, UDim2.fromOffset(780, 620), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "Pabellón Imperial",
+		"Misiones para todos · el Pabellón privado es el pase VIP", "📜", function()
+			gui.Enabled = false
+		end)
+	win = w
+	WindowDrag.Attach(w, "Missions", 40, 50)
+	for i, t in ipairs({ { "Misiones", "📜 Misiones" }, { "Marcos", "🖼 Marcos" } }) do
+		NpcKit.Tab(w, theme, t[2], UDim2.fromOffset(150, 28), UDim2.fromOffset(14 + (i - 1) * 156, 72), tab == t[1], function()
+			tab = t[1]
+			build()
+		end)
+	end
+	local top = 110
+	if not state then
+		text(w, "Cargando…", 14, pal.FText, UDim2.fromOffset(18, top), UDim2.fromOffset(300, 20))
+		return
+	end
+	if tab == "Misiones" then
+		local y = top
+		local function section(title: string, reset: string, list: { any })
+			text(w, title, 14, pal.FText, UDim2.fromOffset(18, y), UDim2.fromOffset(300, 18))
+			text(w, reset, 12, pal.FMuted, UDim2.fromOffset(420, y), UDim2.fromOffset(340, 18), Enum.TextXAlignment.Right)
+			y += 24
+			for _, m in ipairs(list) do
+				local row = NpcKit.Panel(w, theme, UDim2.fromOffset(748, 62), UDim2.fromOffset(14, y), "card")
+				text(row, tostring(m.Text), 14, pal.Text, UDim2.fromOffset(12, 6), UDim2.fromOffset(520, 20))
+				text(row, string.format("%s / %s", thousands(m.P), thousands(m.Goal)), 12, pal.Muted, UDim2.fromOffset(12, 36), UDim2.fromOffset(160, 18))
+				local bar = Instance.new("Frame")
+				bar.Position = UDim2.fromOffset(120, 41)
+				bar.Size = UDim2.fromOffset(300, 8)
+				bar.BackgroundColor3 = pal.Inset
+				bar.BorderSizePixel = 0
+				bar.Parent = row
+				Instance.new("UICorner", bar).CornerRadius = UDim.new(0, 4)
+				local fill = Instance.new("Frame")
+				fill.Size = UDim2.fromScale(math.clamp(m.P / math.max(m.Goal, 1), 0, 1), 1)
+				fill.BackgroundColor3 = pal.Accent
+				fill.BorderSizePixel = 0
+				fill.Parent = bar
+				Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 4)
+				text(row, "+" .. thousands(m.Gold) .. " oro", 13, Color3.fromRGB(240, 190, 70), UDim2.fromOffset(440, 34), UDim2.fromOffset(150, 20))
+				local done = m.P >= m.Goal
+				NpcKit.Button(row, theme, if m.Claimed then "✔ Reclamada" elseif done then "Reclamar" else "En curso", UDim2.fromOffset(130, 34), UDim2.fromOffset(606, 14), if done and not m.Claimed then "buy" else "neutral", function()
+					if done and not m.Claimed then
+						actionRemote:FireServer("Claim", m.Id)
+					end
+				end)
+				y += 68
+			end
+			y += 6
+		end
+		section("MISIONES DE HOY", "Se renuevan en " .. clock(state.DailyReset), state.Daily)
+		section("MISIONES DE LA SEMANA", "Se renuevan en " .. clock(state.WeeklyReset), state.Weekly)
+		text(w, string.format("Misiones completadas: %d · los marcos se desbloquean con ellas", state.Total), 12, pal.FMuted, UDim2.fromOffset(18, 586), UDim2.fromOffset(740, 18))
+	else
+		text(w, string.format("Misiones completadas: %d. Los marcos rodean tu retrato. Son iguales para todos los jugadores.", state.Total), 13, pal.FMuted, UDim2.fromOffset(18, top), UDim2.fromOffset(740, 18))
+		local y = top + 28
+		local function row(name: string, need: number, color: Color3?, id: string)
+			local unlocked = state.Total >= need
+			local equipped = (state.Frame or "") == id
+			local r = NpcKit.Panel(w, theme, UDim2.fromOffset(748, 60), UDim2.fromOffset(14, y), "card")
+			local sw = Instance.new("Frame")
+			sw.Position = UDim2.fromOffset(12, 8)
+			sw.Size = UDim2.fromOffset(44, 44)
+			sw.BackgroundColor3 = pal.Inset
+			sw.BorderSizePixel = 0
+			sw.Parent = r
+			Instance.new("UICorner", sw).CornerRadius = UDim.new(0, 8)
+			if color then
+				local st = Instance.new("UIStroke")
+				st.Color = color
+				st.Thickness = 3.5
+				st.Parent = sw
+			end
+			text(r, name, 15, if unlocked then pal.Text else pal.Muted, UDim2.fromOffset(72, 8), UDim2.fromOffset(400, 20))
+			text(r, if need == 0 then "Sin marco" else (if unlocked then "Desbloqueado" else string.format("Faltan %d misiones", need - state.Total)), 12, pal.Muted, UDim2.fromOffset(72, 32), UDim2.fromOffset(400, 18))
+			NpcKit.Button(r, theme, if equipped then "✔ Equipado" elseif unlocked then "Equipar" else "🔒 " .. need .. " misiones", UDim2.fromOffset(170, 34), UDim2.fromOffset(566, 13), if unlocked and not equipped then "buy" else "neutral", function()
+				if unlocked and not equipped then
+					actionRemote:FireServer("Frame", id)
+				end
+			end)
+			y += 66
+		end
+		row("Sin marco", 0, nil, "")
+		for _, f in ipairs(MissionCatalog.Frames) do
+			row(f.Name, f.Need, f.Color, f.Id)
+		end
+	end
+end
+
+if openRemote then
+	openRemote.OnClientEvent:Connect(function()
+		build()
+		gui.Enabled = true
+	end)
+end
+if stateRemote then
+	stateRemote.OnClientEvent:Connect(function(s: any)
+		if typeof(s) == "table" then
+			state = s
+			if gui.Enabled then
+				build()
+			end
+		end
+	end)
+end
+print("[MissionClient] listo")

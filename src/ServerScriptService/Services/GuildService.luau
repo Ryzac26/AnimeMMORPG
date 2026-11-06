@@ -348,6 +348,9 @@ local function donate(player: Player, passiveId: any, kind: any, qty: any)
 		return
 	end
 	g.Given += pa
+	pcall(function() -- misiones del Pabellón
+		require(Services.MissionService).Report(player, "Donate", pa)
+	end)
 	-- aplica ya en la caché (el DataStore confirma en el próximo envío)
 	local delta = GuildCatalog.NewDelta()
 	delta.Pass[passiveId] = pa

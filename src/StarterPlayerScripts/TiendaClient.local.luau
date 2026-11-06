@@ -289,6 +289,11 @@ local function render()
 		perks.TextWrapped = true
 		perks.TextYAlignment = Enum.TextYAlignment.Top
 		perks.TextStrokeTransparency = 1
+		local capLeft = workspace:GetAttribute("VipHousesLeft")
+		if ps.Key == "VipHouse" and typeof(capLeft) == "number" and not has then
+			local cl = UITheme.Text(f, string.format("🏠 Quedan %d de %d casas", capLeft, (workspace:GetAttribute("VipHousesCap") :: any) or 0), 12, if capLeft > 0 then Color3.fromRGB(255, 214, 110) else Color3.fromRGB(235, 120, 100), UDim2.fromOffset(14, 188), UDim2.new(1, -28, 0, 16))
+			cl.TextStrokeTransparency = 1
+		end
 		NpcKit.Button(f, theme, if has then "✔ ADQUIRIDO" else ps.PriceText, UDim2.new(1, -28, 0, 34), UDim2.fromOffset(14, 206), if has then "neutral" else "buy", function()
 			if not has and actionRemote then
 				actionRemote:FireServer("BuyPass", ps.Key)

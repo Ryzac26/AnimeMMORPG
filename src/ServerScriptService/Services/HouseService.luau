@@ -10,6 +10,7 @@
       - Baúl: se guarda en el perfil (sección "House" = { V = { ["slot"] = {Id, Count, Plus, Locked} } }). Sin pase se conserva, pero no se abre.
       - Remotes: HouseOpen (servidor -> cliente: abre la ventana) · HouseState · HouseAction ("State" | "Deposit" | "Withdraw" | "Invite" | "Uninvite" | "Exit" | "BuySub").
 ]]
+local DataStoreService = game:GetService("DataStoreService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -282,7 +283,7 @@ function HouseService.AddCityPortal(faction: string, pos: Vector3)
 		return
 	end
 	portals[faction] = pos
-	local pad = buildPad(Workspace, "Portal_CasaVIP_" .. faction, pos, Color3.fromRGB(255, 200, 90), "🏠 CASA VIP")
+	local pad = buildPad(Workspace, "Portal_CasaVIP_" .. faction, pos, Color3.fromRGB(255, 200, 90), "🏠 PABELLÓN IMPERIAL")
 	prompt(pad, "Entrar", "Casa VIP", Enum.KeyCode.E, 0.6, function(pl)
 		if pl:GetAttribute("Faction") ~= faction then
 			say(pl, "Este portal es de la facción " .. faction .. ".")
@@ -522,6 +523,118 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 end)
 
 ---------------------------------------------------------------------
+-- Cupo de casas (registro compartido entre servidores): reservar al pulsar comprar, reclamar al pagar, liberar si no se paga
+---------------------------------------------------------------------
+local registryStore: DataStore? = nil
+do
+	local ok, r = pcall(function()
+		return DataStoreService:GetDataStore("VipHouses_v1")
+	end)
+	if ok then
+		registryStore = r :: DataStore
+	end
+end
+
+local function countKeys(t: any): number
+	local n = 0
+	if typeof(t) == "table" then
+		for _ in pairs(t) do
+			n += 1
+		end
+	end
+	return n
+end
+
+local function publishLeft(reg: any)
+	local left = ProductCatalog.VIP_HOUSE_CAP - countKeys(reg.Claimed) - countKeys(reg.Reserved)
+	Workspace:SetAttribute("VipHousesCap", ProductCatalog.VIP_HOUSE_CAP)
+	Workspace:SetAttribute("VipHousesLeft", math.max(0, left))
+end
+
+-- fn recibe el registro limpio y devuelve (resultado); se aplica de forma atómica
+local function registry(fn: (any, number) -> any): (boolean, any)
+	if not registryStore then
+		return false, nil
+	end
+	local result: any = nil
+	local ok = pcall(function()
+		(registryStore :: DataStore):UpdateAsync("Registry", function(old: any)
+			local reg: any = if typeof(old) == "table" then old else {}
+			reg.Claimed = if typeof(reg.Claimed) == "table" then reg.Claimed else {}
+			reg.Reserved = if typeof(reg.Reserved) == "table" then reg.Reserved else {}
+			local now = os.time()
+			for uid, exp in pairs(reg.Reserved) do
+				if typeof(exp) ~= "number" or exp < now then
+					reg.Reserved[uid] = nil
+				end
+			end
+			result = fn(reg, now)
+			publishLeft(reg)
+			return reg
+		end)
+	end)
+	return ok, result
+end
+
+-- true = puede comprar (ya tenía casa, o se le reservó una). En Studio / sin DataStore no hay límite.
+function HouseService.Reserve(player: Player): (boolean, string?)
+	if not registryStore or RunService:IsStudio() then
+		return true, nil
+	end
+	local uid = tostring(player.UserId)
+	local ok, res = registry(function(reg: any, now: number)
+		if reg.Claimed[uid] then
+			return "ya"
+		end
+		local others = countKeys(reg.Claimed) + countKeys(reg.Reserved) - (if reg.Reserved[uid] then 1 else 0)
+		if others >= ProductCatalog.VIP_HOUSE_CAP then
+			return "lleno"
+		end
+		reg.Reserved[uid] = now + ProductCatalog.VIP_RESERVE_SECONDS
+		return "ok"
+	end)
+	if not ok then
+		return false, "No se pudo comprobar el cupo de casas. Inténtalo de nuevo."
+	end
+	if res == "lleno" then
+		return false, "¡Agotado! Ya se vendieron todas las casas VIP. Si alguien no completa su compra se libera un cupo."
+	end
+	return true, nil
+end
+
+function HouseService.Claim(player: Player)
+	if not registryStore or RunService:IsStudio() then
+		return
+	end
+	local uid = tostring(player.UserId)
+	registry(function(reg: any)
+		reg.Reserved[uid] = nil
+		reg.Claimed[uid] = true -- quien ya pagó siempre conserva su casa, aunque se haya pasado del cupo
+		return "ok"
+	end)
+end
+
+function HouseService.Release(player: Player)
+	if not registryStore or RunService:IsStudio() then
+		return
+	end
+	local uid = tostring(player.UserId)
+	registry(function(reg: any)
+		reg.Reserved[uid] = nil
+		return "ok"
+	end)
+end
+
+task.spawn(function()
+	while registryStore and not RunService:IsStudio() do
+		registry(function()
+			return "leer"
+		end)
+		task.wait(90)
+	end
+end)
+
+---------------------------------------------------------------------
 -- Suscripción (estado mensual, lo comprueba el servidor)
 ---------------------------------------------------------------------
 local function checkSub(player: Player)
@@ -579,6 +692,14 @@ local function init(player: Player)
 	end
 	vaults[player] = v
 	checkSub(player)
+	-- el pase se detecta después (PurchaseService): al tenerlo, su casa queda registrada en el cupo
+	local function claimWhenOwned()
+		if hasPass(player) then
+			task.spawn(HouseService.Claim, player)
+		end
+	end
+	claimWhenOwned()
+	player:GetAttributeChangedSignal("Pass_VipHouse"):Connect(claimWhenOwned)
 end
 
 local function leave(player: Player)

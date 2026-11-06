@@ -202,6 +202,28 @@ function PortraitKit.Mount(parent: Instance, pos: UDim2, size: UDim2, theme: UIT
 			task.wait(5)
 		end
 	end)
+	-- marco de perfil ganado con las misiones del Pabellón (atributo "ProfileFrame" del jugador local)
+	if not character then
+		local MissionCatalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("MissionCatalog"))
+		local lp = game:GetService("Players").LocalPlayer
+		local function applyFrame()
+			local old = frame:FindFirstChild("MarcoPerfil")
+			if old then
+				old:Destroy()
+			end
+			local def = MissionCatalog.FrameById[tostring(lp:GetAttribute("ProfileFrame") or "")]
+			if def then
+				local st = Instance.new("UIStroke")
+				st.Name = "MarcoPerfil"
+				st.Color = def.Color
+				st.Thickness = 3.5
+				st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+				st.Parent = frame
+			end
+		end
+		applyFrame()
+		lp:GetAttributeChangedSignal("ProfileFrame"):Connect(applyFrame)
+	end
 	return frame
 end
 

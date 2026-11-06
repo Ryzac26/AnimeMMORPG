@@ -19,6 +19,7 @@ local GB = require(ReplicatedStorage.Modules.GameBalance)
 local ProductCatalog = require(ReplicatedStorage.Modules.ProductCatalog)
 local Net = require(ServerScriptService.Services.Net)
 local BlessingService = require(ServerScriptService.Services.BlessingService)
+local HouseService = require(ServerScriptService.Services.HouseService)
 local PlayerData = require(ServerScriptService.Services.PlayerData)
 local LevelService = require(ServerScriptService.Services.LevelService)
 local Inventory = require(ServerScriptService.Services.InventoryService)
@@ -139,6 +140,13 @@ local function buyPass(player: Player, key: any)
 		reply(player, false, "Ya tienes este pase.")
 		return
 	end
+	if ps.Key == "VipHouse" then
+		local okSlot, why = HouseService.Reserve(player) -- cupo limitado de casas
+		if not okSlot then
+			reply(player, false, why or "Sin cupo")
+			return
+		end
+	end
 	if ps.PassId > 0 then
 		local ok, err = pcall(MarketplaceService.PromptGamePassPurchase, MarketplaceService, player, ps.PassId)
 		if not ok then
@@ -162,6 +170,9 @@ end
 
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player: Player, passId: number, purchased: boolean)
 	if not purchased then
+		if ProductCatalog.PassByKey.VipHouse and ProductCatalog.PassByKey.VipHouse.PassId == passId then
+			task.spawn(HouseService.Release, player) -- no pagó: se libera su cupo
+		end
 		return
 	end
 	for _, ps in ipairs(ProductCatalog.Passes) do
