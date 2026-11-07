@@ -31,10 +31,10 @@ end
 
 local function pushLedger(player: Player, w: Wallet)
 	for reason, v in pairs(w.In) do
-		player:SetAttribute("GoldIn_" .. reason, v)
+		player:SetAttribute("GoldIn_" .. string.gsub(reason, "[^%w_]", "_"), v)
 	end
 	for reason, v in pairs(w.Out) do
-		player:SetAttribute("GoldOut_" .. reason, v)
+		player:SetAttribute("GoldOut_" .. string.gsub(reason, "[^%w_]", "_"), v)
 	end
 end
 
@@ -49,7 +49,7 @@ function WalletService.AddGold(player: Player, amount: number, reason: string?):
 		return 0
 	end
 	w.Gold += n
-	local key = reason or "Otros"
+	local key = string.gsub(reason or "Otros", "[^%w_]", "_")
 	w.In[key] = (w.In[key] or 0) + n
 	player:SetAttribute("GoldIn_" .. key, w.In[key])
 	push(player)
@@ -74,7 +74,7 @@ function WalletService.TrySpendGold(player: Player, amount: number, reason: stri
 		return false
 	end
 	w.Gold -= n
-	local key = reason or "Otros"
+	local key = string.gsub(reason or "Otros", "[^%w_]", "_")
 	w.Out[key] = (w.Out[key] or 0) + n
 	player:SetAttribute("GoldOut_" .. key, w.Out[key])
 	push(player)
