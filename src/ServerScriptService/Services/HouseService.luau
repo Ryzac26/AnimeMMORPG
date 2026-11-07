@@ -22,6 +22,7 @@ local Workspace = game:GetService("Workspace")
 
 local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
 local MountCatalog = require(ReplicatedStorage.Modules.MountCatalog)
+local HouseDecor = require(script.Parent.HouseDecor)
 local ProductCatalog = require(ReplicatedStorage.Modules.ProductCatalog)
 local Services = ServerScriptService.Services
 local Net = require(Services.Net)
@@ -55,6 +56,28 @@ local invitedBy: { [Player]: Player } = {} -- invitado -> último que lo invitó
 local inside: { [Player]: Player } = {} -- jugador -> dueño de la casa donde está
 local returnCF: { [Player]: CFrame } = {}
 local portals: { [string]: Vector3 } = {}
+
+local MAX_MOUNTS_OUT = 6
+
+local function mountKeys(player: Player): { string }
+	local raw = player:GetAttribute("MountHomeKeys")
+	local out: { string } = {}
+	if typeof(raw) == "string" then
+		for k in string.gmatch(raw, "[^;]+") do
+			table.insert(out, k)
+		end
+	end
+	return out
+end
+
+local function setMountKeys(player: Player, list: { string })
+	player:SetAttribute("MountHomeKeys", if #list > 0 then table.concat(list, ";") else nil)
+	-- el centro del jardín lo leen los clientes para pasear
+	if #list == 0 then
+		player:SetAttribute("MountHome", nil)
+	end
+end
+
 local lastAction: { [Player]: number } = {}
 local lic: { [Player]: { On: boolean, Until: number } } = {} -- licencia de casa (se guarda en el perfil)
 local rebuying: { [Player]: boolean } = {}
@@ -154,21 +177,28 @@ local function buildPad(parent: Instance, name: string, pos: Vector3, color: Col
 end
 
 local function exitHouse(player: Player)
-	local host = inside[player]
-	if not host then
-		return
-	end
 	inside[player] = nil
 	player:SetAttribute("InHouse", nil)
 	local cf = returnCF[player]
 	returnCF[player] = nil
+	if not cf then
+		-- sin punto guardado: portal de su facción, o cualquier portal, o su punto de reaparición
+		local pp = portals[tostring(player:GetAttribute("Faction"))]
+		if not pp then
+			local _, any = next(portals)
+			pp = any
+		end
+		if pp then
+			cf = CFrame.new(pp + Vector3.new(0, 4, 14))
+		else
+			local sp = player.RespawnLocation or Workspace:FindFirstChildWhichIsA("SpawnLocation", true)
+			if sp then
+				cf = sp.CFrame + Vector3.new(0, 6, 0)
+			end
+		end
+	end
 	if cf then
 		moveTo(player, cf)
-	else
-		local sp = player.RespawnLocation
-		if sp then
-			moveTo(player, sp.CFrame + Vector3.new(0, 6, 0))
-		end
 	end
 end
 
@@ -238,7 +268,10 @@ local function buildHouse(owner: Player): House?
 	-- SALIDA (portal blanco, al fondo del vestíbulo)
 	local exitPad = buildPad(m, "Portal_Salida", at(0, 1.4, -62), Color3.fromRGB(255, 255, 255), "SALIR A LA CIUDAD")
 	prompt(exitPad, "Salir", "Portal de salida", Enum.KeyCode.E, 0.5, function(pl)
-		if inside[pl] == owner then
+		-- vale si figura dentro o si físicamente está en esta casa (el estado pudo perderse)
+		local r = rootOf(pl)
+		local physically = r ~= nil and (r.Position - o).Magnitude < HOUSE_W
+		if inside[pl] == owner or physically then
 			exitHouse(pl)
 		end
 	end)
@@ -295,6 +328,16 @@ local function buildHouse(owner: Player): House?
 		OpenRemote:FireClient(pl, "Animals")
 		buildPush(pl)
 	end)
+	local FACTION_COLOR: { [string]: Color3 } = {
+		Imperio_Saiyan = Color3.fromRGB(220, 120, 40),
+		Alianza_Shinobi = Color3.fromRGB(70, 130, 220),
+		Flota_Pirata = Color3.fromRGB(200, 50, 60),
+		Corte_Shinigami = Color3.fromRGB(150, 90, 220),
+	}
+	local okDecor, errDecor = pcall(HouseDecor.Build, m, o, W, H, GZ, FACTION_COLOR[tostring(owner:GetAttribute("Faction"))] or gold, owner.DisplayName)
+	if not okDecor then
+		warn("[HouseService] decoración falló: " .. tostring(errDecor))
+	end
 	m.Parent = Workspace
 	local h: House = { Owner = owner, Slot = slot, Origin = o, Model = m, Garden = at(0, 1.6, GZ + 6) }
 	houses[owner] = h
@@ -335,6 +378,7 @@ local function closeHouse(owner: Player)
 	owner:SetAttribute("PetsHome1", nil)
 	owner:SetAttribute("PetsHome2", nil)
 	owner:SetAttribute("MountHome", nil)
+	owner:SetAttribute("MountHomeKeys", nil)
 	usedSlots[h.Slot] = nil
 	houses[owner] = nil
 	h.Model:Destroy()
@@ -343,6 +387,13 @@ end
 ---------------------------------------------------------------------
 -- Portal de la ciudad
 ---------------------------------------------------------------------
+local function player_grabAll(pl: Player)
+	pl:SetAttribute("PetsHome1", nil)
+	pl:SetAttribute("PetsHome2", nil)
+	setMountKeys(pl, {})
+	say(pl, "Tus animales volvieron contigo.")
+end
+
 function HouseService.AddCityPortal(faction: string, pos: Vector3)
 	if portals[faction] then
 		return
@@ -373,6 +424,12 @@ function HouseService.AddCityPortal(faction: string, pos: Vector3)
 		buildPush(pl)
 	end)
 	local pad = buildPad(Workspace, "Portal_CasaVIP_" .. faction, pos, Color3.fromRGB(255, 200, 90), "🏠 PABELLÓN IMPERIAL")
+	-- recoger todos los animales sueltos desde la ciudad
+	prompt(pad, "Agarrar mis animales", "Casa VIP", Enum.KeyCode.F, 0.4, function(pl)
+		if houses[pl] then
+			player_grabAll(pl)
+		end
+	end)
 	prompt(pad, "Entrar", "Casa VIP", Enum.KeyCode.E, 0.6, function(pl)
 		if pl:GetAttribute("Faction") ~= faction then
 			say(pl, "Este portal es de la facción " .. faction .. ".")
@@ -507,8 +564,18 @@ buildPush = function(player: Player)
 	if player:GetAttribute("Pass_PetSlot") == true then
 		addAnimal("Pet2", petName("Accesorio3"), typeof(player:GetAttribute("PetsHome2")) == "Vector3")
 	end
-	local msp = MountCatalog.Parse(player:GetAttribute("MountEquipped"))
-	addAnimal("Mount", if msp then msp.Name else nil, typeof(player:GetAttribute("MountHome")) == "Vector3")
+	local outKeys = mountKeys(player)
+	for _, mk in ipairs(outKeys) do
+		local sp = MountCatalog.Parse(mk)
+		if sp then
+			addAnimal("Mount:" .. mk, sp.Name, true)
+		end
+	end
+	local eqKey = player:GetAttribute("MountEquipped")
+	local esp = MountCatalog.Parse(eqKey)
+	if esp and typeof(eqKey) == "string" and not table.find(outKeys, eqKey) then
+		addAnimal("Mount:" .. eqKey, esp.Name, false)
+	end
 	local mailList: { any } = {}
 	for i, st in ipairs(mail[player] or {}) do
 		table.insert(mailList, { Slot = i, Id = st.Id, Count = st.Count, Plus = st.Plus or 0, Locked = st.Locked == true })
@@ -612,20 +679,43 @@ end
 
 function HouseService.SetRelease(player: Player, key: any, on: boolean)
 	local h = houses[player]
-	if not h or inside[player] ~= player or typeof(key) ~= "string" then
+	if not h or typeof(key) ~= "string" then
 		return
 	end
-	local attr = if key == "Pet1" then "PetsHome1" elseif key == "Pet2" then "PetsHome2" elseif key == "Mount" then "MountHome" else nil
+	-- SOLTAR solo estando dentro de la casa; AGARRAR se puede desde cualquier lado
+	if on and inside[player] ~= player then
+		return
+	end
+	local mkey = string.match(key, "^Mount:(.+)$")
+	if mkey then
+		local list = mountKeys(player)
+		local idx = table.find(list, mkey)
+		if on then
+			if idx then
+				return
+			end
+			if player:GetAttribute("MountEquipped") ~= mkey or player:GetAttribute("Mounted") == true then
+				say(player, "Equipa esa montura y baja de ella para dejarla.")
+				return
+			end
+			if #list >= MAX_MOUNTS_OUT then
+				say(player, "Máximo " .. MAX_MOUNTS_OUT .. " monturas sueltas.")
+				return
+			end
+			table.insert(list, mkey)
+			player:SetAttribute("MountHome", h.Garden)
+		elseif idx then
+			table.remove(list, idx)
+		end
+		setMountKeys(player, list)
+		return
+	end
+	local attr = if key == "Pet1" then "PetsHome1" elseif key == "Pet2" then "PetsHome2" else nil
 	if not attr then
 		return
 	end
 	if on then
-		if key == "Mount" then
-			if player:GetAttribute("MountEquipped") == nil or player:GetAttribute("Mounted") == true then
-				say(player, "Baja de la montura primero (o equipa una).")
-				return
-			end
-		elseif key == "Pet2" and player:GetAttribute("Pass_PetSlot") ~= true then
+		if key == "Pet2" and player:GetAttribute("Pass_PetSlot") ~= true then
 			return
 		end
 		player:SetAttribute(attr, h.Garden)
@@ -878,6 +968,7 @@ local function lapse(player: Player)
 	player:SetAttribute("PetsHome1", nil)
 	player:SetAttribute("PetsHome2", nil)
 	player:SetAttribute("MountHome", nil)
+	player:SetAttribute("MountHomeKeys", nil)
 	exitHouse(player)
 	closeHouse(player)
 	task.spawn(HouseService.Unclaim, player)

@@ -697,12 +697,12 @@ rayParams.FilterType = Enum.RaycastFilterType.Exclude
 local rigs = {} -- jugador -> { Key, Rig, Yaw }
 
 -- MONTURA SUELTA en la Casa VIP (atributo de jugador "MountHome" = centro del jardín): pasea sola por allí aunque el dueño no esté
-local homeRigs: { [Player]: any } = {}
-local function removeHome(pl)
-	local r = homeRigs[pl]
+local homeRigs: { [string]: any } = {} -- "userId;clave" -> rig (cada montura suelta es una instantánea propia)
+local function removeHome(id: string)
+	local r = homeRigs[id]
 	if r then
 		r.Rig.Model:Destroy()
-		homeRigs[pl] = nil
+		homeRigs[id] = nil
 	end
 end
 
@@ -765,56 +765,57 @@ RunService.RenderStepped:Connect(function()
 			removeRig(pl)
 		end
 	end
-	-- monturas sueltas
+	-- monturas sueltas (lista "MountHomeKeys", independiente de la que lleve equipada)
+	local want: { [string]: { Pl: Player, Key: string, Home: Vector3 } } = {}
 	for _, pl in ipairs(Players:GetPlayers()) do
 		local home = pl:GetAttribute("MountHome")
-		local key = pl:GetAttribute("MountEquipped")
-		if typeof(home) ~= "Vector3" or typeof(key) ~= "string" or pl:GetAttribute("Mounted") == true or (home - camPos).Magnitude > VIEW_RANGE then
-			removeHome(pl)
-		else
-			local cur = homeRigs[pl]
-			if cur and cur.Key ~= key then
-				removeHome(pl)
-				cur = nil
-			end
-			if not cur then
-				local sp, rar = MountCatalog.Parse(key)
-				if sp then
-					local rig = MountModels.Build(sp, rar)
-					rig.Model.Parent = fxFolder
-					cur = { Key = key, Rig = rig, Pos = home + Vector3.new(6, 0, 0), Target = home, NextAt = 0, Yaw = 0, Speed = 0 }
-					homeRigs[pl] = cur
-				end
-			end
-			if cur then
-				if t > cur.NextAt or (cur.Home :: Vector3?) ~= home then
-					cur.Home = home
-					cur.Target = home + Vector3.new((math.random() * 2 - 1) * 26, 0, (math.random() * 2 - 1) * 18)
-					cur.NextAt = t + 4 + math.random() * 6
-				end
-				local flat = Vector3.new(cur.Target.X - cur.Pos.X, 0, cur.Target.Z - cur.Pos.Z)
-				local dt = 1 / 60
-				local moving = flat.Magnitude > 1.5
-				if moving then
-					local stepV = flat.Unit * math.min(flat.Magnitude, 5 * dt)
-					cur.Pos = cur.Pos + stepV
-					cur.Yaw = math.atan2(-flat.X, -flat.Z)
-				end
-				cur.Speed = cur.Speed + ((if moving then 5 else 0) - cur.Speed) * 0.2
-				rayParams.FilterDescendantsInstances = { fxFolder, Workspace:FindFirstChild("PetsFx") or fxFolder }
-				local hit = Workspace:Raycast(cur.Pos + Vector3.new(0, 12, 0), Vector3.new(0, -40, 0), rayParams)
-				local gy = if hit then hit.Position.Y else home.Y
-				local cf = CFrame.new(Vector3.new(cur.Pos.X, gy, cur.Pos.Z)) * CFrame.Angles(0, cur.Yaw, 0)
-				if cur.Rig.Float then
-					cf = cf * CFrame.new(0, MountModels.FloatHover + math.sin(t * 2 + pl.UserId % 7) * 0.15, 0)
-				end
-				MountModels.Animate(cur.Rig, cf, t, cur.Speed)
+		local raw = pl:GetAttribute("MountHomeKeys")
+		if typeof(home) == "Vector3" and typeof(raw) == "string" and (home - camPos).Magnitude <= VIEW_RANGE then
+			for key in string.gmatch(raw, "[^;]+") do
+				want[pl.UserId .. ";" .. key] = { Pl = pl, Key = key, Home = home }
 			end
 		end
 	end
-	for pl in pairs(homeRigs) do
-		if not pl.Parent then
-			removeHome(pl)
+	for id in pairs(homeRigs) do
+		if not want[id] then
+			removeHome(id)
+		end
+	end
+	for id, w in pairs(want) do
+		local pl, key, home = w.Pl, w.Key, w.Home
+		local cur = homeRigs[id]
+		if not cur then
+			local sp, rar = MountCatalog.Parse(key)
+			if sp then
+				local rig = MountModels.Build(sp, rar)
+				rig.Model.Parent = fxFolder
+				cur = { Rig = rig, Pos = home + Vector3.new((math.random() * 2 - 1) * 10, 0, (math.random() * 2 - 1) * 8), Target = home, NextAt = 0, Yaw = 0, Speed = 0, Seed = math.random() * 7 }
+				homeRigs[id] = cur
+			end
+		end
+		if cur then
+			if t > cur.NextAt or (cur.Home :: Vector3?) ~= home then
+				cur.Home = home
+				cur.Target = home + Vector3.new((math.random() * 2 - 1) * 26, 0, (math.random() * 2 - 1) * 18)
+				cur.NextAt = t + 4 + math.random() * 6
+			end
+			local flat = Vector3.new(cur.Target.X - cur.Pos.X, 0, cur.Target.Z - cur.Pos.Z)
+			local dt = 1 / 60
+			local moving = flat.Magnitude > 1.5
+			if moving then
+				local stepV = flat.Unit * math.min(flat.Magnitude, 5 * dt)
+				cur.Pos = cur.Pos + stepV
+				cur.Yaw = math.atan2(-flat.X, -flat.Z)
+			end
+			cur.Speed = cur.Speed + ((if moving then 5 else 0) - cur.Speed) * 0.2
+			rayParams.FilterDescendantsInstances = { fxFolder, Workspace:FindFirstChild("PetsFx") or fxFolder }
+			local hit = Workspace:Raycast(cur.Pos + Vector3.new(0, 12, 0), Vector3.new(0, -40, 0), rayParams)
+			local gy = if hit then hit.Position.Y else home.Y
+			local cf = CFrame.new(Vector3.new(cur.Pos.X, gy, cur.Pos.Z)) * CFrame.Angles(0, cur.Yaw, 0)
+			if cur.Rig.Float then
+				cf = cf * CFrame.new(0, MountModels.FloatHover + math.sin(t * 2 + cur.Seed) * 0.15, 0)
+			end
+			MountModels.Animate(cur.Rig, cf, t, cur.Speed)
 		end
 	end
 end)

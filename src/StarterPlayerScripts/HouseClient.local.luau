@@ -159,27 +159,14 @@ local function build()
 		end)
 		hover = text(w, "Clic en un objeto para pasarlo al otro lado.", 13, pal.FMuted, UDim2.fromOffset(18, 566), UDim2.fromOffset(740, 20))
 	elseif tab == "Animals" then
-		text(w, "Elige qué animales quedan sueltos en el jardín. Sus bonus siguen activos. Se quedan en la casa hasta que los agarres o salgas del servidor.", 12, pal.FMuted, UDim2.fromOffset(18, top), UDim2.fromOffset(748, 34)).TextWrapped = true
+		text(w, "Elige qué animales quedan sueltos en el jardín. Sus bonus siguen activos. Cada uno queda como lo soltaste: puedes soltar varios y cambiar de montura. Agárralos aquí o con F en el portal de la ciudad.", 12, pal.FMuted, UDim2.fromOffset(18, top), UDim2.fromOffset(748, 34)).TextWrapped = true
 		if #state.Animals == 0 then
 			text(w, "No tienes mascotas ni montura equipadas.", 14, pal.FText, UDim2.fromOffset(18, top + 44), UDim2.fromOffset(500, 20))
 		end
 		for i, a in ipairs(state.Animals) do
 			local y = top + 44 + (i - 1) * 44
 			local row = NpcKit.Panel(w, theme, UDim2.fromOffset(748, 38), UDim2.fromOffset(14, y), "inset")
-			text(row, (if a.Key == "Mount" then "🐎  " else "🐾  ") .. tostring(a.Name) .. (if a.Released then "   (suelto en el jardín)" else ""), 14, pal.Text, UDim2.fromOffset(12, 9), UDim2.fromOffset(500, 20))
-			NpcKit.Button(row, theme, if a.Released then "Agarrar" else "Soltar", UDim2.fromOffset(170, 28), UDim2.fromOffset(570, 5), if a.Released then "danger" else "buy", function()
-				actionRemote:FireServer("Release", a.Key, not a.Released)
-			end)
-		end
-	elseif tab == "Animals" then
-		text(w, "Elige qué animales quedan sueltos en el jardín. Sus bonus siguen activos. Se quedan en la casa hasta que los agarres o salgas del servidor.", 12, pal.FMuted, UDim2.fromOffset(18, top), UDim2.fromOffset(748, 34)).TextWrapped = true
-		if #state.Animals == 0 then
-			text(w, "No tienes mascotas ni montura equipadas.", 14, pal.FText, UDim2.fromOffset(18, top + 44), UDim2.fromOffset(500, 20))
-		end
-		for i, a in ipairs(state.Animals) do
-			local y = top + 44 + (i - 1) * 44
-			local row = NpcKit.Panel(w, theme, UDim2.fromOffset(748, 38), UDim2.fromOffset(14, y), "inset")
-			text(row, (if a.Key == "Mount" then "🐎  " else "🐾  ") .. tostring(a.Name) .. (if a.Released then "   (suelto en el jardín)" else ""), 14, pal.Text, UDim2.fromOffset(12, 9), UDim2.fromOffset(500, 20))
+			text(row, (if string.sub(a.Key, 1, 6) == "Mount:" then "🐎  " else "🐾  ") .. tostring(a.Name) .. (if a.Released then "   (suelto en el jardín)" else ""), 14, pal.Text, UDim2.fromOffset(12, 9), UDim2.fromOffset(500, 20))
 			NpcKit.Button(row, theme, if a.Released then "Agarrar" else "Soltar", UDim2.fromOffset(170, 28), UDim2.fromOffset(570, 5), if a.Released then "danger" else "buy", function()
 				actionRemote:FireServer("Release", a.Key, not a.Released)
 			end)
