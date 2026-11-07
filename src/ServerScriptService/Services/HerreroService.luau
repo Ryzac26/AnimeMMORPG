@@ -22,6 +22,7 @@ local Net = require(ServerScriptService.Services.Net)
 local PlayerData = require(ServerScriptService.Services.PlayerData)
 local Inventory = require(ServerScriptService.Services.InventoryService)
 local Wallet = require(ServerScriptService.Services.WalletService)
+local NpcBuilder = require(ServerScriptService.Services.NpcBuilder)
 
 local forged9: { [Player]: number } = {} -- cuántas piezas +9 ha forjado (da el título EnhanceCatalog.TitlePlus9)
 PlayerData.RegisterSerializer("Forja", function(player: Player): any?
@@ -104,23 +105,8 @@ local function part(model: Model, name: string, size: Vector3, cf: CFrame, color
 	return p
 end
 
-local function buildSmith(info: { Name: string, Title: string, Skin: Color3, Shirt: Color3, Pants: Color3 }, cf: CFrame): Model
-	local model = Instance.new("Model")
-	local root = part(model, "HumanoidRootPart", Vector3.new(2, 2, 1), cf, info.Shirt)
-	root.Transparency = 1
-	model.PrimaryPart = root
-	part(model, "Torso", Vector3.new(2, 2, 1), cf, info.Shirt)
-	local head = part(model, "Head", Vector3.new(1.3, 1.3, 1.3), cf * CFrame.new(0, 1.65, 0), info.Skin)
-	local face = Instance.new("Decal")
-	face.Texture = "rbxasset://textures/face.png"
-	face.Face = Enum.NormalId.Front
-	face.Parent = head
-	part(model, "Cabello", Vector3.new(1.4, 0.5, 1.4), cf * CFrame.new(0, 2.45, 0.05), Color3.fromRGB(45, 35, 30))
-	part(model, "BrazoIzq", Vector3.new(1, 2, 1), cf * CFrame.new(-1.5, 0, 0), info.Skin)
-	part(model, "BrazoDer", Vector3.new(1, 2, 1), cf * CFrame.new(1.5, 0, 0), info.Skin)
-	part(model, "PiernaIzq", Vector3.new(1, 2, 1), cf * CFrame.new(-0.5, -2, 0), info.Pants)
-	part(model, "PiernaDer", Vector3.new(1, 2, 1), cf * CFrame.new(0.5, -2, 0), info.Pants)
-	part(model, "Delantal", Vector3.new(1.8, 1.7, 0.2), cf * CFrame.new(0, -0.15, -0.6), Color3.fromRGB(70, 50, 40), Enum.Material.Leather)
+local function buildSmith(info: { Name: string, Title: string, Skin: Color3, Shirt: Color3, Pants: Color3 }, cf: CFrame, faction: string): Model
+	local model, head = NpcBuilder.Person("Herrero", faction, cf)
 	-- yunque al lado
 	local anvilCF = cf * CFrame.new(4, -2.6, -1)
 	part(model, "Yunque", Vector3.new(2.6, 1.6, 2), anvilCF, Color3.fromRGB(60, 60, 68), Enum.Material.Metal)
@@ -129,7 +115,7 @@ local function buildSmith(info: { Name: string, Title: string, Skin: Color3, Shi
 	-- cartel con el nombre
 	local gui = Instance.new("BillboardGui")
 	gui.Size = UDim2.fromOffset(220, 46)
-	gui.StudsOffset = Vector3.new(0, 3.6, 0)
+	gui.StudsOffset = Vector3.new(0, 4.8, 0)
 	gui.MaxDistance = 60
 	gui.AlwaysOnTop = false
 	gui.Parent = head
@@ -172,7 +158,7 @@ local function spawnSmith(point: BasePart)
 	local look = point.CFrame.LookVector
 	local pos = ground + Vector3.new(0, 5.1, 0) -- el centro del torso queda 5 studs sobre el piso (piernas de 2 + mitad del torso... + margen)
 	local cf = CFrame.lookAt(pos, pos + Vector3.new(look.X, 0, look.Z))
-	local rig = buildSmith(info, cf)
+	local rig = buildSmith(info, cf, faction)
 	rig.Name = "Herrero_" .. faction
 	rig:SetAttribute("Smith", true)
 	rig:SetAttribute("Faction", faction)

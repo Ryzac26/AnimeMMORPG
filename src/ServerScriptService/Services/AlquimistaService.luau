@@ -23,6 +23,7 @@ local PlayerData = require(ServerScriptService.Services.PlayerData)
 local Inventory = require(ServerScriptService.Services.InventoryService)
 local Wallet = require(ServerScriptService.Services.WalletService)
 local ElixirService = require(ServerScriptService.Services.ElixirService)
+local NpcBuilder = require(ServerScriptService.Services.NpcBuilder)
 
 local OpenRemote = Net.Get("AlquimiaOpen")
 local ActionRemote = Net.Get("AlquimiaAction")
@@ -78,34 +79,17 @@ local function part(model: Model, name: string, size: Vector3, cf: CFrame, color
 	return p
 end
 
-local function build(info: { Name: string, Title: string, Skin: Color3, Shirt: Color3, Pants: Color3, Hair: Color3 }, cf: CFrame): Model
-	local model = Instance.new("Model")
-	local root = part(model, "HumanoidRootPart", Vector3.new(2, 2, 1), cf, info.Shirt)
-	root.Transparency = 1
-	model.PrimaryPart = root
-	part(model, "Torso", Vector3.new(2, 2, 1), cf, info.Shirt)
-	local head = part(model, "Head", Vector3.new(1.3, 1.3, 1.3), cf * CFrame.new(0, 1.65, 0), info.Skin)
-	local face = Instance.new("Decal")
-	face.Texture = "rbxasset://textures/face.png"
-	face.Face = Enum.NormalId.Front
-	face.Parent = head
-	part(model, "Cabello", Vector3.new(1.4, 0.5, 1.4), cf * CFrame.new(0, 2.45, 0.05), info.Hair)
-	part(model, "BrazoIzq", Vector3.new(1, 2, 1), cf * CFrame.new(-1.5, 0, 0), info.Shirt)
-	part(model, "BrazoDer", Vector3.new(1, 2, 1), cf * CFrame.new(1.5, 0, 0), info.Shirt)
-	part(model, "PiernaIzq", Vector3.new(1, 2, 1), cf * CFrame.new(-0.5, -2, 0), info.Pants)
-	part(model, "PiernaDer", Vector3.new(1, 2, 1), cf * CFrame.new(0.5, -2, 0), info.Pants)
-	part(model, "Gafas", Vector3.new(1.4, 0.3, 0.2), cf * CFrame.new(0, 1.8, -0.7), Color3.fromRGB(150, 220, 255), Enum.Material.Glass)
+local function build(info: { Name: string, Title: string, Skin: Color3, Shirt: Color3, Pants: Color3, Hair: Color3 }, cf: CFrame, faction: string): Model
+	local model, head = NpcBuilder.Person("Alquimista", faction, cf)
 	-- caldero con poción burbujeante + frascos
 	local potCF = cf * CFrame.new(-4, -2.4, -1)
 	part(model, "Caldero", Vector3.new(2.6, 2.2, 2.6), potCF, Color3.fromRGB(40, 40, 48), Enum.Material.Metal)
 	local brew = part(model, "Brebaje", Vector3.new(2.2, 0.3, 2.2), potCF * CFrame.new(0, 1.1, 0), Color3.fromRGB(120, 255, 150), Enum.Material.Neon)
 	brew.CanCollide = false
-	part(model, "FrascoA", Vector3.new(0.6, 1, 0.6), cf * CFrame.new(1.2, -0.9, -0.8), Color3.fromRGB(90, 160, 255), Enum.Material.Glass)
-	part(model, "FrascoB", Vector3.new(0.6, 1, 0.6), cf * CFrame.new(-1.0, -0.9, -0.8), Color3.fromRGB(235, 80, 100), Enum.Material.Glass)
 
 	local gui = Instance.new("BillboardGui")
 	gui.Size = UDim2.fromOffset(240, 46)
-	gui.StudsOffset = Vector3.new(0, 4.2, 0)
+	gui.StudsOffset = Vector3.new(0, 4.8, 0)
 	gui.MaxDistance = 60
 	gui.Parent = head
 	local nameLabel = Instance.new("TextLabel")
@@ -145,7 +129,7 @@ local function spawnAlchemist(point: BasePart)
 	local ground = if hit then hit.Position else point.Position
 	local look = point.CFrame.LookVector
 	local pos = ground + Vector3.new(0, 5.1, 0)
-	local rig = build(info, CFrame.lookAt(pos, pos + Vector3.new(look.X, 0, look.Z)))
+	local rig = build(info, CFrame.lookAt(pos, pos + Vector3.new(look.X, 0, look.Z)), faction)
 	rig.Name = "Alquimista_" .. faction
 	rig:SetAttribute("Faction", faction)
 	rig.Parent = Workspace

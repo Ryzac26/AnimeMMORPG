@@ -22,6 +22,7 @@ local Net = require(ServerScriptService.Services.Net)
 local PlayerData = require(ServerScriptService.Services.PlayerData)
 local Inventory = require(ServerScriptService.Services.InventoryService)
 local Wallet = require(ServerScriptService.Services.WalletService)
+local NpcBuilder = require(ServerScriptService.Services.NpcBuilder)
 
 local OpenRemote = Net.Get("ShopOpen")
 local ActionRemote = Net.Get("ShopAction")
@@ -66,26 +67,9 @@ local function part(model: Model, name: string, size: Vector3, cf: CFrame, color
 	return p
 end
 
-local function buildMerchant(info: { Name: string, Title: string, Skin: Color3, Shirt: Color3, Pants: Color3, Hair: Color3 }, cf: CFrame): Model
-	local model = Instance.new("Model")
-	local root = part(model, "HumanoidRootPart", Vector3.new(2, 2, 1), cf, info.Shirt)
-	root.Transparency = 1
-	model.PrimaryPart = root
-	part(model, "Torso", Vector3.new(2, 2, 1), cf, info.Shirt)
-	local head = part(model, "Head", Vector3.new(1.3, 1.3, 1.3), cf * CFrame.new(0, 1.65, 0), info.Skin)
-	local face = Instance.new("Decal")
-	face.Texture = "rbxasset://textures/face.png"
-	face.Face = Enum.NormalId.Front
-	face.Parent = head
-	part(model, "Cabello", Vector3.new(1.4, 0.5, 1.4), cf * CFrame.new(0, 2.45, 0.05), info.Hair)
-	part(model, "BrazoIzq", Vector3.new(1, 2, 1), cf * CFrame.new(-1.5, 0, 0), info.Skin)
-	part(model, "BrazoDer", Vector3.new(1, 2, 1), cf * CFrame.new(1.5, 0, 0), info.Skin)
-	part(model, "PiernaIzq", Vector3.new(1, 2, 1), cf * CFrame.new(-0.5, -2, 0), info.Pants)
-	part(model, "PiernaDer", Vector3.new(1, 2, 1), cf * CFrame.new(0.5, -2, 0), info.Pants)
-	-- sombrero de mercader + bolsa de monedas + cajones con mercancía
-	part(model, "Sombrero", Vector3.new(1.9, 0.3, 1.9), cf * CFrame.new(0, 2.85, 0.05), Color3.fromRGB(120, 80, 40), Enum.Material.Fabric)
-	part(model, "SombreroTope", Vector3.new(1.2, 0.5, 1.2), cf * CFrame.new(0, 3.2, 0.05), Color3.fromRGB(120, 80, 40), Enum.Material.Fabric)
-	part(model, "Bolsa", Vector3.new(0.7, 0.8, 0.5), cf * CFrame.new(0.8, -1.0, -0.7), Color3.fromRGB(200, 170, 70), Enum.Material.Fabric)
+local function buildMerchant(info: { Name: string, Title: string, Skin: Color3, Shirt: Color3, Pants: Color3, Hair: Color3 }, cf: CFrame, faction: string): Model
+	local model, head = NpcBuilder.Person("Mercader", faction, cf)
+	-- puesto: cajones con mercancía al lado
 	local crateCF = cf * CFrame.new(-4, -2.4, -1)
 	part(model, "Cajon", Vector3.new(2.4, 2.2, 2.4), crateCF, Color3.fromRGB(140, 100, 55), Enum.Material.WoodPlanks)
 	part(model, "CajonB", Vector3.new(2, 1.6, 2), crateCF * CFrame.new(0.2, 1.9, 0), Color3.fromRGB(165, 120, 65), Enum.Material.WoodPlanks)
@@ -93,7 +77,7 @@ local function buildMerchant(info: { Name: string, Title: string, Skin: Color3, 
 
 	local gui = Instance.new("BillboardGui")
 	gui.Size = UDim2.fromOffset(240, 46)
-	gui.StudsOffset = Vector3.new(0, 4.2, 0)
+	gui.StudsOffset = Vector3.new(0, 4.8, 0)
 	gui.MaxDistance = 60
 	gui.AlwaysOnTop = false
 	gui.Parent = head
@@ -144,7 +128,7 @@ local function spawnMerchant(point: BasePart)
 	local look = point.CFrame.LookVector
 	local pos = ground + Vector3.new(0, 5.1, 0)
 	local cf = CFrame.lookAt(pos, pos + Vector3.new(look.X, 0, look.Z))
-	local rig = buildMerchant(info, cf)
+	local rig = buildMerchant(info, cf, faction)
 	rig.Name = "Mercader_" .. faction
 	rig:SetAttribute("Merchant", true)
 	rig:SetAttribute("Faction", faction)

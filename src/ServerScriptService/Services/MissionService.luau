@@ -20,6 +20,7 @@ local Net = require(Services.Net)
 local PlayerData = require(Services.PlayerData)
 local Wallet = require(Services.WalletService)
 local RewardService = require(Services.RewardService)
+local NpcBuilder = require(Services.NpcBuilder)
 local GearService = require(Services.GearService)
 
 local OpenRemote = Net.Get("MissionOpen")
@@ -235,28 +236,12 @@ local function part(model: Model, name: string, size: Vector3, cf: CFrame, color
 	return p
 end
 
-local function buildSteward(cf: CFrame): Model
-	local skin, robe, gold = Color3.fromRGB(240, 205, 175), Color3.fromRGB(110, 40, 70), Color3.fromRGB(240, 196, 90)
-	local m = Instance.new("Model")
-	local root = part(m, "HumanoidRootPart", Vector3.new(2, 2, 1), cf, robe)
-	root.Transparency = 1
-	m.PrimaryPart = root
-	part(m, "Torso", Vector3.new(2, 2, 1), cf, robe)
-	part(m, "Falda", Vector3.new(2.4, 2.4, 1.4), cf * CFrame.new(0, -2, 0), robe)
-	part(m, "Faja", Vector3.new(2.1, 0.4, 1.1), cf * CFrame.new(0, -0.8, 0), gold, Enum.Material.Metal)
-	local head = part(m, "Head", Vector3.new(1.3, 1.3, 1.3), cf * CFrame.new(0, 1.65, 0), skin)
-	local face = Instance.new("Decal")
-	face.Texture = "rbxasset://textures/face.png"
-	face.Face = Enum.NormalId.Front
-	face.Parent = head
-	part(m, "Sombrero", Vector3.new(1.6, 0.9, 1.6), cf * CFrame.new(0, 2.5, 0), robe)
-	part(m, "SombreroOro", Vector3.new(1.7, 0.2, 1.7), cf * CFrame.new(0, 2.1, 0), gold, Enum.Material.Metal)
-	part(m, "BrazoIzq", Vector3.new(1, 2, 1), cf * CFrame.new(-1.5, 0, 0), robe)
-	part(m, "BrazoDer", Vector3.new(1, 2, 1), cf * CFrame.new(1.5, 0, 0), robe)
-	part(m, "Pergamino", Vector3.new(0.4, 1.6, 1.2), cf * CFrame.new(1.7, 0.4, -0.9), Color3.fromRGB(245, 235, 205))
+local function buildSteward(cf: CFrame, faction: string): Model
+	local gold = Color3.fromRGB(240, 196, 90)
+	local m, head = NpcBuilder.Person("Mayordomo", faction, cf)
 	local gui = Instance.new("BillboardGui")
 	gui.Size = UDim2.fromOffset(260, 46)
-	gui.StudsOffset = Vector3.new(0, 4.2, 0)
+	gui.StudsOffset = Vector3.new(0, 5.2, 0)
 	gui.MaxDistance = 60
 	gui.Parent = head
 	local n = Instance.new("TextLabel")
@@ -295,7 +280,7 @@ local function spawnSteward(point: BasePart)
 	local ground = if hit then hit.Position else point.Position
 	local look = point.CFrame.LookVector
 	local pos = ground + Vector3.new(0, 5.1, 0)
-	local rig = buildSteward(CFrame.lookAt(pos, pos + Vector3.new(look.X, 0, look.Z)))
+	local rig = buildSteward(CFrame.lookAt(pos, pos + Vector3.new(look.X, 0, look.Z)), faction)
 	rig.Name = "Mayordomo_" .. faction
 	rig.Parent = Workspace
 	local root = rig.PrimaryPart :: BasePart
