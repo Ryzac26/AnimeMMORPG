@@ -824,8 +824,8 @@ end)
 -- POSE SENTADO (todos los jugadores montados, R6 y R15). Se aplica después de CharacterAnimClient (prioridad Last + 1).
 -- Piernas dobladas hacia adelante y brazos en las riendas; mientras dura un ataque no se tocan los brazos (los mueve CharacterAnimClient).
 ---------------------------------------------------------------------
-local SIT_HIP = 1.2 -- muslo hacia adelante (R15)
-local SIT_KNEE = -1.3 -- rodilla doblada (R15)
+local SIT_HIP = 1.45 -- muslo casi horizontal hacia adelante (R15)
+local SIT_KNEE = -2.5 -- rodilla muy doblada: la pierna queda recogida sobre el lomo, no cuelga
 local SIT_HIP_R6 = 1.1
 local REIN_ARM = 0.75
 local sitCache = setmetatable({}, { __mode = "k" })

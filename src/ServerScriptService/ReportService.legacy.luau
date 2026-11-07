@@ -72,6 +72,9 @@ local function latestPatch(): string
 	return best
 end
 
+-- solo datos útiles (nada del equipo): así el reporte es corto
+local KEEP_WORDS = { "level", "faction", "role", "class", "char", "zone", "biome", "mount", "outfit", "strip" }
+
 local function attrLines(inst: Instance?, skip: number): string
 	if not inst then
 		return "-"
@@ -79,7 +82,16 @@ local function attrLines(inst: Instance?, skip: number): string
 	local keys = {}
 	for k, v in pairs(inst:GetAttributes()) do
 		local t = typeof(v)
-		if t == "string" or t == "number" or t == "boolean" then
+		local lk = string.lower(k)
+		local okType = t == "string" or t == "number" or t == "boolean"
+		local useful = false
+		for _, w in ipairs(KEEP_WORDS) do
+			if string.find(lk, w, 1, true) then
+				useful = true
+				break
+			end
+		end
+		if okType and useful and not string.find(lk, "equip", 1, true) then
 			table.insert(keys, k)
 		end
 	end

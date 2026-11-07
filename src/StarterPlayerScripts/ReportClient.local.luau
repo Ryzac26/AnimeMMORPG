@@ -7,10 +7,10 @@
 ]]
 local Players = game:GetService("Players")
 local LogService = game:GetService("LogService")
-local UserInputService = game:GetService("UserInputService")
-
 local player = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
+local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
 local submitR = ClientNet.Get("ReportSubmit")
 local adminR = ClientNet.Get("ReportAdmin")
 if not submitR or not adminR then
@@ -90,13 +90,48 @@ local function window(w, h, title)
 	x.Activated:Connect(function()
 		f.Visible = false
 	end)
+	WindowDrag.Attach(f, "Report_" .. title, 44, 50)
 	return f
 end
 
--- botón flotante
-local open = button(gui, "REPORTAR", UDim2.new(1, -92, 0.5, 90), UDim2.fromOffset(84, 28), ACCENT)
+-- botón flotante: arriba a la derecha (bajo los avisos de evento) y se puede ARRASTRAR; un toque corto abre el formulario
+local open = button(gui, "REPORTAR", UDim2.new(1, -92, 0, 172), UDim2.fromOffset(84, 28), ACCENT)
 open.TextSize = 12
 open.BackgroundTransparency = 0.15
+local onOpen = function() end
+do
+	local dragging, moved, startPos, startMouse = false, false, nil, nil
+	open.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging, moved = true, false
+			startPos, startMouse = open.Position, input.Position
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local d = input.Position - startMouse
+			if d.Magnitude > 6 then
+				moved = true
+			end
+			if moved then
+				local view = gui.AbsoluteSize
+				local sx = startPos.X.Scale * view.X + startPos.X.Offset + d.X
+				local sy = startPos.Y.Scale * view.Y + startPos.Y.Offset + d.Y
+				sx = math.clamp(sx, 0, view.X - open.AbsoluteSize.X)
+				sy = math.clamp(sy, 0, view.Y - open.AbsoluteSize.Y)
+				open.Position = UDim2.fromOffset(sx, sy)
+			end
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+			dragging = false
+			if not moved then
+				onOpen()
+			end
+		end
+	end)
+end
 
 ---------------------------------------------------------------------
 -- formulario
@@ -175,10 +210,10 @@ submitR.OnClientEvent:Connect(function(result, extra)
 	end
 end)
 
-open.Activated:Connect(function()
+onOpen = function()
 	form.Visible = not form.Visible
 	status.Text = ""
-end)
+end
 
 ---------------------------------------------------------------------
 -- ventana de reportes (solo dueño / admins)
