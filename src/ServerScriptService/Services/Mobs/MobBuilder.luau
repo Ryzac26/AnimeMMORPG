@@ -584,7 +584,10 @@ local function applyKit(look: { [string]: any }, model: Model, torso: any, head:
 	end
 	if look.Collar then
 		if clean then
-			a("Collar", v(2.05, 0.3, 1.06), look.Collar, torso, CFrame.new(0, 0.9, 0))
+			-- solapa en V sobre el pecho (antes era una losa que rodeaba el cuello y la cabeza)
+			for _, sx in ipairs({ -1, 1 }) do
+				a("CollarLapel", v(0.7, 0.2, 0.1), look.Collar, torso, CFrame.new(sx * 0.27, 0.8, -0.56) * CFrame.Angles(0, 0, math.rad(sx * -38)))
+			end
 		else
 			a("Collar", v(2.2, 0.55, 1.3), look.Collar, torso, CFrame.new(0, 1.05, 0.06))
 			a("CollarBack", v(2.2, 0.9, 0.2), look.Collar, torso, CFrame.new(0, 1.2, 0.6))
@@ -614,7 +617,7 @@ local function applyKit(look: { [string]: any }, model: Model, torso: any, head:
 		end
 	end
 	if look.Scarf then
-		a("Scarf", v(2.1, 0.4, 1.2), look.Scarf, torso, CFrame.new(0, 0.95, 0))
+		a("Scarf", if clean then v(1.45, 0.3, 0.95) else v(2.1, 0.4, 1.2), look.Scarf, torso, CFrame.new(0, if clean then 0.97 else 0.95, 0))
 		a("ScarfTail", v(0.5, 1.6, 0.14), look.Scarf, torso, CFrame.new(0.6, 0.2, 0.62))
 	end
 	if look.Pouch then
@@ -724,7 +727,7 @@ local function applyKit(look: { [string]: any }, model: Model, torso: any, head:
 	end
 	if look.Brow then
 		for _, sx in ipairs({ -1, 1 }) do
-			a("Brow", v(0.5, 0.1, 0.08), look.Brow, head, CFrame.new(sx * 0.32, 0.3, -0.64) * CFrame.Angles(0, 0, math.rad(sx * 14)))
+			a("Brow", v(0.28, 0.055, 0.06), look.Brow, head, CFrame.new(sx * 0.27, 0.235, -0.625) * CFrame.Angles(0, 0, math.rad(sx * 10)))
 		end
 	end
 	if look.Scar then
@@ -1283,19 +1286,32 @@ function MobBuilder.Dress(look: { [string]: any }, char: Model): boolean
 	-- cara propia (los avatares no siempre traen carita visible): ojos con blanco + iris, boca
 	local headPart = char:FindFirstChild("Head")
 	if headPart then
-		for _, d in ipairs(headPart:GetChildren()) do
-			if d:IsA("Decal") then
+		-- la carita por defecto del avatar (sonrisa negra) se oculta, también si Roblox la vuelve a poner un instante después
+		local function hideFace(d: Instance)
+			if d:IsA("Decal") or d:IsA("Texture") then
 				d.Transparency = 1
 			end
 		end
+		for _, d in ipairs(headPart:GetDescendants()) do
+			hideFace(d)
+		end
+		headPart.DescendantAdded:Connect(hideFace)
 	end
+	-- cara estilo anime, pequeña y limpia: párpado, ojo (blanco + iris + pupila + brillo) y sonrisa corta
 	local eyeColor: Color3 = look.Eye or Color3.fromRGB(20, 20, 24)
-	for _, sx in ipairs({ -0.34, 0.34 }) do
-		a("EyeWhite", v(0.36, 0.3, 0.06), Color3.new(1, 1, 1), head, CFrame.new(sx, 0.05, -0.62))
-		a("Iris", v(0.2, 0.26, 0.07), eyeColor, head, CFrame.new(sx, 0.05, -0.645))
-		a("Pupil", v(0.1, 0.14, 0.08), Color3.fromRGB(10, 10, 14), head, CFrame.new(sx, 0.05, -0.66))
+	local lidColor = Color3.fromRGB(24, 22, 28)
+	for _, sx in ipairs({ -0.26, 0.26 }) do
+		a("EyeWhite", v(0.25, 0.24, 0.05), Color3.new(1, 1, 1), head, CFrame.new(sx, 0.0, -0.615))
+		a("Iris", v(0.16, 0.21, 0.055), eyeColor, head, CFrame.new(sx, -0.01, -0.635))
+		a("Pupil", v(0.08, 0.12, 0.06), Color3.fromRGB(10, 10, 14), head, CFrame.new(sx, -0.01, -0.65))
+		a("Glint", v(0.055, 0.055, 0.06), Color3.new(1, 1, 1), head, CFrame.new(sx + 0.035, 0.05, -0.665))
+		a("Lid", v(0.3, 0.05, 0.06), lidColor, head, CFrame.new(sx, 0.135, -0.63) * CFrame.Angles(0, 0, math.rad(if sx > 0 then 6 else -6)))
 	end
-	a("Mouth", v(0.46, 0.07, 0.06), darker(skin, 0.55), head, CFrame.new(0, -0.27, -0.63))
+	local mouthColor = darker(skin, 0.4)
+	a("Mouth", v(0.18, 0.045, 0.05), mouthColor, head, CFrame.new(0, -0.3, -0.62))
+	for _, sx in ipairs({ -1, 1 }) do
+		a("MouthCorner", v(0.08, 0.045, 0.05), mouthColor, head, CFrame.new(sx * 0.115, -0.275, -0.62) * CFrame.Angles(0, 0, math.rad(sx * 28)))
+	end
 	if look.Hair then
 		addHair(look.HairStyle or "round", look.Hair, head, outfit)
 	end
@@ -1324,7 +1340,7 @@ function MobBuilder.Dress(look: { [string]: any }, char: Model): boolean
 			a("Plate", v(0.7, 0.3, 0.1) * (if newHair then 0.75 * hbS else 1), Color3.fromRGB(190, 195, 205), hbHead, CFrame.new(0, hbY * hbS, hbZ * hbS), nil, Enum.Material.Metal)
 		end
 		if look.EyeCover then -- Kakashi: el protector baja y tapa el ojo izquierdo
-			a("EyeCover", v(0.6, 0.55, 0.1), look.Headband, head, CFrame.new(-0.32, 0.08, -0.64))
+			a("EyeCover", v(0.4, 0.36, 0.08), look.Headband, head, CFrame.new(-0.26, 0.02, -0.66))
 		end
 		if look.HeadbandSlash then
 			a("Slash", v(0.7, 0.07, 0.11) * (if newHair then 0.75 * hbS else 1), Color3.fromRGB(40, 40, 40), hbHead, CFrame.new(0, hbY * hbS, (if newHair then -0.79 else -0.58) * hbS) * CFrame.Angles(0, 0, math.rad(25)))
