@@ -71,25 +71,45 @@ local function build()
 	local class = PlayerClass.Get(player)
 
 	-- PANEL DEL JUGADOR
+	-- Zona útil por facción: los marcos con rollos (Shinobi) y cuerdas (Pirata) tapan los bordes, así que el contenido se ajusta al "papel".
+	local fk = UITheme.Key(theme)
+	local L = {
+		PortX = 14, PortY = 14, PortS = 78, LvlY = 94, LvlS = 13,
+		NameY = 9, NameS = 19, RoleY = 30, RoleS = 12,
+		BarX = 104, BarW = 250, HpY = 48, HpH = 18, EnY = 70, EnH = 18, XpY = 94, XpH = 16,
+	}
+	if fk == "Shinobi" then
+		L = {
+			PortX = 20, PortY = 25, PortS = 62, LvlY = 87, LvlS = 11,
+			NameY = 20, NameS = 17, RoleY = 38, RoleS = 11,
+			BarX = 100, BarW = 244, HpY = 53, HpH = 14, EnY = 69, EnH = 14, XpY = 85, XpH = 14,
+		}
+	elseif fk == "Pirate" then
+		L = {
+			PortX = 20, PortY = 18, PortS = 70, LvlY = 91, LvlS = 12,
+			NameY = 14, NameS = 18, RoleY = 33, RoleS = 11,
+			BarX = 102, BarW = 246, HpY = 50, HpH = 16, EnY = 69, EnH = 16, XpY = 88, XpH = 14,
+		}
+	end
 	local panel = UITheme.Frame(root, theme, UDim2.fromOffset(370, 122), UDim2.fromOffset(14, 14), nil, "panel")
 	local accent = UITheme.Accent(theme)
-	PortraitKit.Mount(panel, UDim2.fromOffset(14, 14), UDim2.fromOffset(78, 78), theme, class.CharacterName)
+	PortraitKit.Mount(panel, UDim2.fromOffset(L.PortX, L.PortY), UDim2.fromOffset(L.PortS, L.PortS), theme, class.CharacterName)
 
 	-- nivel bajo el retrato
-	levelLabel = UITheme.Text(panel, "NIVEL 1", 13, accent, UDim2.fromOffset(14, 94), UDim2.fromOffset(78, 18), Enum.TextXAlignment.Center)
+	levelLabel = UITheme.Text(panel, "NIVEL 1", L.LvlS, accent, UDim2.fromOffset(L.PortX, L.LvlY), UDim2.fromOffset(L.PortS, 16), Enum.TextXAlignment.Center)
 
 	-- nombre + personaje y rol
-	nameLabel = UITheme.Text(panel, player.DisplayName, 19, accent, UDim2.fromOffset(104, 9), UDim2.fromOffset(250, 22))
+	nameLabel = UITheme.Text(panel, player.DisplayName, L.NameS, accent, UDim2.fromOffset(L.BarX, L.NameY), UDim2.fromOffset(L.BarW, L.NameS + 3))
 	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-	roleLabel = UITheme.Text(panel, string.format("%s · %s", class.CharacterName, class.Role), 12, Color3.fromRGB(215, 215, 225), UDim2.fromOffset(104, 30), UDim2.fromOffset(250, 14))
+	roleLabel = UITheme.Text(panel, string.format("%s · %s", class.CharacterName, class.Role), L.RoleS, Color3.fromRGB(215, 215, 225), UDim2.fromOffset(L.BarX, L.RoleY), UDim2.fromOffset(L.BarW, 14))
 
 	-- barras: vida / energía / XP (bordeadas con el color de la facción)
-	local _, hp = UITheme.Bar(panel, UDim2.fromOffset(104, 48), UDim2.fromOffset(250, 18), Color3.fromRGB(220, 60, 60), nil, 12, theme.Primary)
+	local _, hp = UITheme.Bar(panel, UDim2.fromOffset(L.BarX, L.HpY), UDim2.fromOffset(L.BarW, L.HpH), Color3.fromRGB(220, 60, 60), nil, if L.HpH < 16 then 11 else 12, theme.Primary)
 	setHp = hp
-	local _, en = UITheme.Bar(panel, UDim2.fromOffset(104, 70), UDim2.fromOffset(250, 18), theme.ResourceColor, nil, 12, theme.Primary)
+	local _, en = UITheme.Bar(panel, UDim2.fromOffset(L.BarX, L.EnY), UDim2.fromOffset(L.BarW, L.EnH), theme.ResourceColor, nil, if L.EnH < 16 then 11 else 12, theme.Primary)
 	setEnergy = en
-	UITheme.Text(panel, theme.Resource, 10, Color3.fromRGB(255, 255, 255), UDim2.fromOffset(110, 70), UDim2.fromOffset(60, 18)).ZIndex = 5
-	local _, xp = UITheme.Bar(panel, UDim2.fromOffset(104, 94), UDim2.fromOffset(250, 16), theme.Primary, nil, 11, theme.Primary)
+	UITheme.Text(panel, theme.Resource, 10, Color3.fromRGB(255, 255, 255), UDim2.fromOffset(L.BarX + 6, L.EnY), UDim2.fromOffset(60, L.EnH)).ZIndex = 5
+	local _, xp = UITheme.Bar(panel, UDim2.fromOffset(L.BarX, L.XpY), UDim2.fromOffset(L.BarW, L.XpH), theme.Primary, nil, 11, theme.Primary)
 	setXp = xp
 
 	-- BARRA DE PODERES 1-6

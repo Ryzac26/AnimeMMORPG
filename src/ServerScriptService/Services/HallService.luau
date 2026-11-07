@@ -28,6 +28,16 @@ local StatService = require(Services.StatService)
 local NpcBuilder = require(Services.NpcBuilder)
 
 local OpenRemote = Net.Get("HallOpen")
+local function grantTitle(pl: Player, id: string)
+	task.spawn(function()
+		local ok, TS = pcall(function()
+			return require(Services.TitleService)
+		end)
+		if ok and TS then
+			(TS :: any).Grant(pl, id)
+		end
+	end)
+end
 local NotifyRemote = Net.Get("Notify")
 
 local TEST_SECONDS = 30
@@ -209,6 +219,15 @@ local function refreshFaction(faction: string)
 	local dmgList = merge(fetchTop(dmgStores[faction]), liveDmg)
 	paint(hall.DmgRows, dmgList, true)
 	hall.Podium(dmgList)
+	for i = 1, math.min(3, #dmgList) do
+		local pl = Players:GetPlayerByUserId(dmgList[i].UserId)
+		if pl and pl:GetAttribute("Faction") == faction then
+			grantTitle(pl, "Podio")
+			if i == 1 then
+				grantTitle(pl, "Campeon")
+			end
+		end
+	end
 end
 
 local function writeLevel(pl: Player)
@@ -276,6 +295,7 @@ local function finish(pl: Player)
 	local record = total > (best[pl] or 0)
 	if record then
 		best[pl] = total
+		pl:SetAttribute("HallBest", total)
 		task.spawn(writeDmg, pl)
 	end
 	notify(pl, string.format("🎯 Prueba terminada: %s de daño en %d s (%s DPS)%s", fmt(total), TEST_SECONDS, fmt(dps), if record then " · ¡NUEVO RÉCORD!" else ""))
@@ -381,7 +401,7 @@ local function addLight(p: BasePart, color: Color3, range: number, brightness: n
 	l.Parent = p
 end
 
-local function label(parent: Instance, text: string, size: UDim2, pos: UDim2, font: Enum.Font, color: Color3, align: Enum.TextXAlignment?): TextLabel
+local function label(parent: Instance, text: string, size: UDim2, pos: UDim2, font: Enum.Font, color: Color3, align: Enum.TextXAlignment?, fixed: number?): TextLabel
 	local l = Instance.new("TextLabel")
 	l.BackgroundTransparency = 1
 	l.Size = size
@@ -389,7 +409,11 @@ local function label(parent: Instance, text: string, size: UDim2, pos: UDim2, fo
 	l.Font = font
 	l.Text = text
 	l.TextColor3 = color
-	l.TextScaled = true
+	l.TextScaled = fixed == nil
+	if fixed then
+		l.TextSize = fixed
+		l.TextTruncate = Enum.TextTruncate.AtEnd
+	end
 	l.TextWrapped = false
 	l.TextXAlignment = align or Enum.TextXAlignment.Center
 	l.Parent = parent
@@ -442,8 +466,8 @@ local function buildBoard(parent: Instance, bcf: CFrame, x: number, y: number, z
 	line.BorderSizePixel = 0
 	line.Parent = bg
 	label(bg, "#", UDim2.fromOffset(70, 26), UDim2.fromOffset(25, 110), Enum.Font.GothamBold, c(170, 176, 200))
-	label(bg, "JUGADOR", UDim2.fromOffset(420, 26), UDim2.fromOffset(110, 110), Enum.Font.GothamBold, c(170, 176, 200), Enum.TextXAlignment.Left)
-	label(bg, valueHeader, UDim2.fromOffset(300, 26), UDim2.fromOffset(590, 110), Enum.Font.GothamBold, c(170, 176, 200), Enum.TextXAlignment.Right)
+	label(bg, "JUGADOR", UDim2.fromOffset(420, 26), UDim2.fromOffset(110, 110), Enum.Font.GothamBold, c(170, 176, 200), Enum.TextXAlignment.Left, 22)
+	label(bg, valueHeader, UDim2.fromOffset(300, 26), UDim2.fromOffset(590, 110), Enum.Font.GothamBold, c(170, 176, 200), Enum.TextXAlignment.Right, 22)
 	local rows: Rows = {}
 	for i = 1, TOP do
 		local rowY = 140 + (i - 1) * 54
@@ -460,9 +484,9 @@ local function buildBoard(parent: Instance, bcf: CFrame, x: number, y: number, z
 			bar.BorderSizePixel = 0
 			bar.Parent = row
 		end
-		local rk = label(row, tostring(i), UDim2.fromOffset(70, 44), UDim2.fromOffset(10, 3), Enum.Font.GothamBlack, c(170, 176, 196))
-		local nm = label(row, "—", UDim2.fromOffset(470, 44), UDim2.fromOffset(95, 3), Enum.Font.GothamBlack, c(110, 116, 136), Enum.TextXAlignment.Left)
-		local vl = label(row, "", UDim2.fromOffset(280, 44), UDim2.fromOffset(575, 3), Enum.Font.GothamBlack, th.Glow, Enum.TextXAlignment.Right)
+		local rk = label(row, tostring(i), UDim2.fromOffset(70, 50), UDim2.fromOffset(10, 0), Enum.Font.GothamBlack, c(170, 176, 196), nil, 40)
+		local nm = label(row, "—", UDim2.fromOffset(500, 50), UDim2.fromOffset(95, 0), Enum.Font.GothamBlack, c(110, 116, 136), Enum.TextXAlignment.Left, 40)
+		local vl = label(row, "", UDim2.fromOffset(250, 50), UDim2.fromOffset(605, 0), Enum.Font.GothamBlack, th.Glow, Enum.TextXAlignment.Right, 38)
 		table.insert(rows, { Rank = rk, Name = nm, Value = vl })
 	end
 	label(bg, "Ranking global de toda la facción · se actualiza cada minuto", UDim2.fromOffset(880, 22), UDim2.fromOffset(15, 684), Enum.Font.Gotham, c(140, 146, 170))
@@ -906,6 +930,7 @@ local function init(player: Player)
 	local raw: any = (saved :: any).Hall
 	if typeof(raw) == "table" and typeof(raw.Dmg) == "number" and raw.Dmg > 0 then
 		best[player] = raw.Dmg
+		player:SetAttribute("HallBest", raw.Dmg)
 		task.spawn(writeDmg, player)
 	end
 	task.wait(5)

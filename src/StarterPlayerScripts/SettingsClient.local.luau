@@ -63,7 +63,7 @@ local function build()
 	for _, sec in ipairs(SETTINGS) do
 		height += 28 + #sec.Items * 112
 	end
-	height += 28 + 70
+	height += 28 + 74 + 28 + 74
 	local w = NpcKit.Window(gui, theme, UDim2.fromOffset(W, height), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "Ajustes", "Se guardan en tu perfil", "⚙", function()
 		gui.Enabled = false
 	end)
@@ -123,6 +123,23 @@ local function build()
 	hint.TextStrokeTransparency = 1
 	NpcKit.Button(card, theme, "⌨  Abrir teclado de atajos", UDim2.fromOffset(W - 52, 28), UDim2.fromOffset(12, 26), "buy", function()
 		openKeyboard()
+	end)
+	y += 74
+	-- EXTRAS: títulos y probabilidades
+	local head2 = UITheme.Text(w, "PERFIL Y TRANSPARENCIA", 13, pal.FText, UDim2.fromOffset(18, y), UDim2.fromOffset(W - 36, 18))
+	head2.TextStrokeTransparency = 1
+	y += 28
+	local card2 = NpcKit.Panel(w, theme, UDim2.fromOffset(W - 28, 60), UDim2.fromOffset(14, y), "card")
+	local hint2 = UITheme.Text(card2, "Tus títulos y las probabilidades reales de botín, huevos y mejoras.", 11, pal.Muted, UDim2.fromOffset(12, 6), UDim2.new(1, -24, 0, 16))
+	hint2.TextStrokeTransparency = 1
+	local half = math.floor((W - 52 - 8) / 2)
+	NpcKit.Button(card2, theme, "🏷  Mis títulos", UDim2.fromOffset(half, 28), UDim2.fromOffset(12, 26), "buy", function()
+		gui.Enabled = false
+		MenuBus.Fire("Titles")
+	end)
+	NpcKit.Button(card2, theme, "📊  Probabilidades", UDim2.fromOffset(half, 28), UDim2.fromOffset(20 + half, 26), "buy", function()
+		gui.Enabled = false
+		MenuBus.Fire("Probs")
 	end)
 end
 

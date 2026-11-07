@@ -222,6 +222,14 @@ end
 local buildPush: (Player) -> () = function() end
 
 local function buildHouse(owner: Player): House?
+	task.spawn(function() -- título "Señor del Pabellón" por poseer la Casa VIP
+		local ok, TS = pcall(function()
+			return require(script.Parent.TitleService)
+		end)
+		if ok and TS then
+			(TS :: any).Grant(owner, "Casa")
+		end
+	end)
 	local slot: number? = nil
 	for i = 0, SLOT_COUNT - 1 do
 		if not usedSlots[i] then
