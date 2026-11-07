@@ -111,6 +111,9 @@ end
 -- Huevos
 ---------------------------------------------------------------------
 function MountService.GrantEgg(pl: Player, tier: number, source: string): boolean
+	if MountCatalog.Enabled == false then
+		return false
+	end
 	local d = data[pl]
 	if not d or #d.Eggs >= MountCatalog.MaxEggsBag then
 		if d then
@@ -129,7 +132,7 @@ end
 -- Huevo del día (nido o mini jefe). Devuelve true si se entregó.
 function MountService.TryDailyEgg(pl: Player, source: string, tier: number): boolean
 	local d = data[pl]
-	if not d then
+	if not d or MountCatalog.Enabled == false then
 		return false
 	end
 	refreshDay(d)
@@ -146,7 +149,7 @@ end
 
 function MountService.DailyAvailable(pl: Player): boolean
 	local d = data[pl]
-	if not d then
+	if not d or MountCatalog.Enabled == false then
 		return false
 	end
 	refreshDay(d)
@@ -435,6 +438,12 @@ ActionRemote.OnServerEvent:Connect(function(pl: Player, action: any, arg: any)
 	if typeof(action) ~= "string" or not data[pl] then
 		return
 	end
+	if MountCatalog.Enabled == false then
+		if action == "Toggle" or action == "Open" or action == "Start" or action == "Accelerate" then
+			notify(pl, "Monturas: próximamente")
+		end
+		return
+	end
 	if action == "Toggle" then
 		if mounted[pl] then
 			dismount(pl)
@@ -455,6 +464,10 @@ ActionRemote.OnServerEvent:Connect(function(pl: Player, action: any, arg: any)
 end)
 
 function MountService.OpenIncubator(pl: Player)
+	if MountCatalog.Enabled == false then
+		notify(pl, "Incubadora: próximamente")
+		return
+	end
 	if data[pl] then
 		push(pl)
 		OpenRemote:FireClient(pl, "Incubator")

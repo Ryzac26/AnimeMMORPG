@@ -11,6 +11,7 @@ local Workspace = game:GetService("Workspace")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local MountService = require(ServerScriptService.Services.MountService)
+local MountCatalog = require(game:GetService("ReplicatedStorage").Modules.MountCatalog)
 
 local OFFSET = Vector3.new(11, 0, 2)
 
@@ -81,7 +82,7 @@ local function build(point: BasePart)
 	light.Parent = egg
 
 	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromOffset(180, 28)
+	gui.Size = UDim2.fromOffset(260, 28)
 	gui.StudsOffset = Vector3.new(0, 7.4, 0)
 	gui.AlwaysOnTop = false
 	gui.MaxDistance = 90
@@ -89,7 +90,7 @@ local function build(point: BasePart)
 	local lbl = Instance.new("TextLabel")
 	lbl.Size = UDim2.fromScale(1, 1)
 	lbl.BackgroundTransparency = 1
-	lbl.Text = "INCUBADORA"
+	lbl.Text = if MountCatalog.Enabled == false then "INCUBADORA · PRÓXIMAMENTE" else "INCUBADORA"
 	lbl.TextColor3 = accent
 	lbl.Font = Enum.Font.GothamBold
 	lbl.TextSize = 18
@@ -97,7 +98,7 @@ local function build(point: BasePart)
 	lbl.Parent = gui
 
 	local pp = Instance.new("ProximityPrompt")
-	pp.ActionText = "Abrir incubadora"
+	pp.ActionText = if MountCatalog.Enabled == false then "Próximamente" else "Abrir incubadora"
 	pp.ObjectText = "Huevos de montura"
 	pp.HoldDuration = 0
 	pp.MaxActivationDistance = 14

@@ -86,6 +86,9 @@ end
 local EGG_COLOR = { Color3.fromRGB(215, 215, 205), Color3.fromRGB(80, 160, 255), Color3.fromRGB(180, 90, 255), Color3.fromRGB(255, 170, 40) }
 
 function NestService.Build(root: Folder, pos: Vector3, strip: number, index: number, defs: { MobCatalog.MobDef })
+	if MountCatalog.Enabled == false then
+		return -- monturas "próximamente": sin nidos ni guardianes
+	end
 	strip = math.clamp(strip, 1, 4)
 	local f = Instance.new("Folder")
 	f.Name = string.format("Nido_%d_%d", strip, index)

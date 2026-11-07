@@ -35,6 +35,9 @@ MountCatalog.LevelPassive = 0.15
 -- Oro que da una montura repetida cuando ya está al nivel máximo (por rareza)
 MountCatalog.DuplicateGold = { 300, 900, 3000, 10000, 40000 }
 -- Cuánto se levanta el personaje sobre el suelo al montar (studs). SitLift = sentado (la cadera queda sobre el lomo): es el que se usa.
+-- INTERRUPTOR GENERAL: false = monturas "próximamente" (no se puede montar, ni abrir la incubadora, ni conseguir huevos; no hay nidos).
+-- Los datos de los jugadores no se tocan. Pon true cuando todo esté arreglado.
+MountCatalog.Enabled = false
 MountCatalog.Lift = 2.6
 MountCatalog.SitLift = 0.9
 

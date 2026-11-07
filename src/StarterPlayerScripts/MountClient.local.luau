@@ -640,6 +640,10 @@ end)
 
 MenuBus.Event:Connect(function(name)
 	if name == "Mounts" then
+		if MountCatalog.Enabled == false then
+			actionRemote:FireServer("Toggle") -- el servidor avisa "Monturas: próximamente"
+			return
+		end
 		if colGui.Enabled then
 			colGui.Enabled = false
 		else
@@ -827,6 +831,10 @@ end)
 local SIT_HIP = 1.45 -- muslo casi horizontal hacia adelante (R15)
 local SIT_KNEE = -2.5 -- rodilla muy doblada: la pierna queda recogida sobre el lomo, no cuelga
 local SIT_HIP_R6 = 1.1
+-- monturas FLOTANTES (alfombra, nube...): sentado sobre una superficie plana, piernas estiradas hacia adelante (como sentarse en el suelo)
+local FLOAT_HIP = 1.5
+local FLOAT_KNEE = -0.12
+local FLOAT_HIP_R6 = 1.5
 local REIN_ARM = 0.75
 local sitCache = setmetatable({}, { __mode = "k" })
 
@@ -875,20 +883,21 @@ local function attacking(m)
 	return false
 end
 
-local function applySit(m)
+local function applySit(m, floating)
 	local j = sitJoints(m)
 	if not j then
 		return
 	end
 	local arms = not attacking(m)
 	if j.R15 then
-		j.RH.Transform = CFrame.Angles(SIT_HIP, 0, 0)
-		j.LH.Transform = CFrame.Angles(SIT_HIP, 0, 0)
+		local hip, knee = if floating then FLOAT_HIP else SIT_HIP, if floating then FLOAT_KNEE else SIT_KNEE
+		j.RH.Transform = CFrame.Angles(hip, 0, 0)
+		j.LH.Transform = CFrame.Angles(hip, 0, 0)
 		if j.RK then
-			j.RK.Transform = CFrame.Angles(SIT_KNEE, 0, 0)
+			j.RK.Transform = CFrame.Angles(knee, 0, 0)
 		end
 		if j.LK then
-			j.LK.Transform = CFrame.Angles(SIT_KNEE, 0, 0)
+			j.LK.Transform = CFrame.Angles(knee, 0, 0)
 		end
 		if arms then
 			if j.RS then
@@ -905,8 +914,9 @@ local function applySit(m)
 			end
 		end
 	else
-		j.RH.Transform = CFrame.Angles(0, 0, SIT_HIP_R6)
-		j.LH.Transform = CFrame.Angles(0, 0, -SIT_HIP_R6)
+		local h6 = if floating then FLOAT_HIP_R6 else SIT_HIP_R6
+		j.RH.Transform = CFrame.Angles(0, 0, h6)
+		j.LH.Transform = CFrame.Angles(0, 0, -h6)
 		if arms then
 			j.RS.Transform = CFrame.Angles(0, 0, REIN_ARM)
 			j.LS.Transform = CFrame.Angles(0, 0, -REIN_ARM)
@@ -954,7 +964,8 @@ RunService:BindToRenderStep("MountSitPose", Enum.RenderPriority.Last.Value + 1, 
 		local root = char and char:FindFirstChild("HumanoidRootPart")
 		if char and root and char:GetAttribute("Mounted") == true and (root.Position - camPos).Magnitude < VIEW_RANGE then
 			dimTracks(char)
-			applySit(char)
+			local cur = rigs[pl]
+			applySit(char, cur ~= nil and cur.Rig.Float == true)
 		end
 	end
 	restoreTracks()
