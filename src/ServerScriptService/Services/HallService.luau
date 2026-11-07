@@ -63,7 +63,7 @@ local HallService = {}
 ---------------------------------------------------------------------
 type Entry = { UserId: number, Name: string, Value: number }
 type Rows = { { Rank: TextLabel, Name: TextLabel, Value: TextLabel } }
-type Hall = { Faction: string, LevelRows: Rows, DmgRows: Rows }
+type Hall = { Faction: string, LevelRows: Rows, DmgRows: Rows, Podium: ({ Entry }) -> () }
 
 local halls: { [string]: Hall } = {}
 local levelStores: { [string]: OrderedDataStore? } = {}
@@ -206,7 +206,9 @@ local function refreshFaction(faction: string)
 		end
 	end
 	paint(hall.LevelRows, merge(fetchTop(levelStores[faction]), liveLevel), false)
-	paint(hall.DmgRows, merge(fetchTop(dmgStores[faction]), liveDmg), true)
+	local dmgList = merge(fetchTop(dmgStores[faction]), liveDmg)
+	paint(hall.DmgRows, dmgList, true)
+	hall.Podium(dmgList)
 end
 
 local function writeLevel(pl: Player)
@@ -394,29 +396,33 @@ local function label(parent: Instance, text: string, size: UDim2, pos: UDim2, fo
 	return l
 end
 
--- cartel de ranking: marco, panel oscuro y 10 filas
-local function buildBoard(parent: Instance, bcf: CFrame, x: number, y: number, z: number, th: Theme, title: string, subtitle: string, valueHeader: string): Rows
+-- cartel de ranking: marco, panel oscuro y 10 filas (BW = ancho del marco en studs)
+local CANVAS_W, CANVAS_H = 910, 710
+local function buildBoard(parent: Instance, bcf: CFrame, x: number, y: number, z: number, BW: number, th: Theme, title: string, subtitle: string, valueHeader: string): (Rows, number)
+	local pw = BW - 1.4
+	local ph = pw * CANVAS_H / CANVAS_W
 	local function at(dx: number, dy: number, dz: number): CFrame
 		return bcf * CFrame.new(x + dx, y + dy, z + dz)
 	end
-	newPart(parent, "CartelMarco", Vector3.new(19.4, 15.4, 0.7), at(0, 0, 0.1), GOLD, Enum.Material.Metal)
-	newPart(parent, "CartelMarcoInt", Vector3.new(18.8, 14.8, 0.8), at(0, 0, 0), th.Primary, Enum.Material.Metal)
-	local panel = newPart(parent, "CartelPanel", Vector3.new(18.2, 14.2, 0.9), at(0, 0, -0.05), c(16, 18, 28), Enum.Material.SmoothPlastic)
-	local glow = newPart(parent, "CartelNeon", Vector3.new(19.8, 0.3, 0.3), at(0, 7.9, -0.3), th.Glow, Enum.Material.Neon)
-	addLight(glow, th.Glow, 24, 0.9)
-	newPart(parent, "CartelNeon", Vector3.new(19.8, 0.3, 0.3), at(0, -7.9, -0.3), th.Glow, Enum.Material.Neon)
-	-- remates dorados en las esquinas
-	for _, sx in ipairs({ -9.9, 9.9 }) do
-		for _, sy in ipairs({ -7.9, 7.9 }) do
+	newPart(parent, "CartelMarco", Vector3.new(BW, ph + 1.4, 0.7), at(0, 0, 0.1), GOLD, Enum.Material.Metal)
+	newPart(parent, "CartelMarcoInt", Vector3.new(pw + 0.6, ph + 0.6, 0.8), at(0, 0, 0), th.Primary, Enum.Material.Metal)
+	local panel = newPart(parent, "CartelPanel", Vector3.new(pw, ph, 0.9), at(0, 0, -0.05), c(16, 18, 28), Enum.Material.SmoothPlastic)
+	local glow = newPart(parent, "CartelNeon", Vector3.new(BW + 0.4, 0.3, 0.3), at(0, ph / 2 + 0.95, -0.3), th.Glow, Enum.Material.Neon)
+	glow.Transparency = 0.25
+	addLight(glow, th.Glow, 18, 0.35)
+	local glow2 = newPart(parent, "CartelNeon", Vector3.new(BW + 0.4, 0.3, 0.3), at(0, -ph / 2 - 0.95, -0.3), th.Glow, Enum.Material.Neon)
+	glow2.Transparency = 0.25
+	for _, sx in ipairs({ -BW / 2, BW / 2 }) do
+		for _, sy in ipairs({ -ph / 2 - 0.7, ph / 2 + 0.7 }) do
 			newPart(parent, "CartelEsquina", Vector3.new(1.2, 1.2, 1), at(sx, sy, -0.3), GOLD, Enum.Material.Metal, false, Enum.PartType.Ball)
 		end
 	end
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = Enum.NormalId.Front
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
-	gui.CanvasSize = Vector2.new(910, 710)
+	gui.CanvasSize = Vector2.new(CANVAS_W, CANVAS_H)
 	gui.LightInfluence = 0
-	gui.Brightness = 1.2
+	gui.Brightness = 1
 	gui.Parent = panel
 	local bg = Instance.new("Frame")
 	bg.Size = UDim2.fromScale(1, 1)
@@ -428,16 +434,16 @@ local function buildBoard(parent: Instance, bcf: CFrame, x: number, y: number, z
 	grad.Color = ColorSequence.new(c(30, 34, 54), c(12, 14, 22))
 	grad.Parent = bg
 	label(bg, title, UDim2.fromOffset(880, 70), UDim2.fromOffset(15, 6), Enum.Font.Fantasy, th.Glow)
-	label(bg, subtitle, UDim2.fromOffset(880, 24), UDim2.fromOffset(15, 74), Enum.Font.Gotham, c(170, 176, 200))
+	label(bg, subtitle, UDim2.fromOffset(880, 26), UDim2.fromOffset(15, 74), Enum.Font.GothamBold, c(190, 196, 220))
 	local line = Instance.new("Frame")
 	line.Size = UDim2.fromOffset(860, 3)
 	line.Position = UDim2.fromOffset(25, 104)
 	line.BackgroundColor3 = GOLD
 	line.BorderSizePixel = 0
 	line.Parent = bg
-	label(bg, "#", UDim2.fromOffset(70, 26), UDim2.fromOffset(25, 110), Enum.Font.GothamBold, c(150, 156, 180))
-	label(bg, "JUGADOR", UDim2.fromOffset(420, 26), UDim2.fromOffset(110, 110), Enum.Font.GothamBold, c(150, 156, 180), Enum.TextXAlignment.Left)
-	label(bg, valueHeader, UDim2.fromOffset(300, 26), UDim2.fromOffset(590, 110), Enum.Font.GothamBold, c(150, 156, 180), Enum.TextXAlignment.Right)
+	label(bg, "#", UDim2.fromOffset(70, 26), UDim2.fromOffset(25, 110), Enum.Font.GothamBold, c(170, 176, 200))
+	label(bg, "JUGADOR", UDim2.fromOffset(420, 26), UDim2.fromOffset(110, 110), Enum.Font.GothamBold, c(170, 176, 200), Enum.TextXAlignment.Left)
+	label(bg, valueHeader, UDim2.fromOffset(300, 26), UDim2.fromOffset(590, 110), Enum.Font.GothamBold, c(170, 176, 200), Enum.TextXAlignment.Right)
 	local rows: Rows = {}
 	for i = 1, TOP do
 		local rowY = 140 + (i - 1) * 54
@@ -449,18 +455,18 @@ local function buildBoard(parent: Instance, bcf: CFrame, x: number, y: number, z
 		row.Parent = bg
 		if i <= 3 then
 			local bar = Instance.new("Frame")
-			bar.Size = UDim2.fromOffset(6, 50)
+			bar.Size = UDim2.fromOffset(8, 50)
 			bar.BackgroundColor3 = MEDAL[i]
 			bar.BorderSizePixel = 0
 			bar.Parent = row
 		end
-		local rk = label(row, tostring(i), UDim2.fromOffset(70, 36), UDim2.fromOffset(10, 7), Enum.Font.GothamBlack, c(170, 176, 196))
-		local nm = label(row, "—", UDim2.fromOffset(450, 36), UDim2.fromOffset(95, 7), Enum.Font.GothamBold, c(110, 116, 136), Enum.TextXAlignment.Left)
-		local vl = label(row, "", UDim2.fromOffset(300, 36), UDim2.fromOffset(555, 7), Enum.Font.GothamBlack, th.Glow, Enum.TextXAlignment.Right)
+		local rk = label(row, tostring(i), UDim2.fromOffset(70, 44), UDim2.fromOffset(10, 3), Enum.Font.GothamBlack, c(170, 176, 196))
+		local nm = label(row, "—", UDim2.fromOffset(470, 44), UDim2.fromOffset(95, 3), Enum.Font.GothamBlack, c(110, 116, 136), Enum.TextXAlignment.Left)
+		local vl = label(row, "", UDim2.fromOffset(280, 44), UDim2.fromOffset(575, 3), Enum.Font.GothamBlack, th.Glow, Enum.TextXAlignment.Right)
 		table.insert(rows, { Rank = rk, Name = nm, Value = vl })
 	end
-	label(bg, "Ranking global de toda la facción · se actualiza cada minuto", UDim2.fromOffset(880, 22), UDim2.fromOffset(15, 684), Enum.Font.Gotham, c(120, 126, 150))
-	return rows
+	label(bg, "Ranking global de toda la facción · se actualiza cada minuto", UDim2.fromOffset(880, 22), UDim2.fromOffset(15, 684), Enum.Font.Gotham, c(140, 146, 170))
+	return rows, ph
 end
 
 local function buildDummy(parent: Instance, bcf: CFrame, x: number, z: number, th: Theme, index: number): Model
@@ -564,31 +570,180 @@ local function buildSecretary(model: Model, marker: BasePart, bcf: CFrame, facti
 	end)
 end
 
+local function makeFigure(userId: number): Model?
+	local ok, m = pcall(function()
+		return Players:CreateHumanoidModelFromUserId(userId)
+	end)
+	if not ok or not m then
+		return nil
+	end
+	for _, d in ipairs(m:GetDescendants()) do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanCollide = false
+			d.CanTouch = false
+			d.CanQuery = false
+		elseif d:IsA("Script") or d:IsA("LocalScript") then
+			d:Destroy()
+		end
+	end
+	local hum = m:FindFirstChildOfClass("Humanoid")
+	if hum then
+		hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+	end
+	return m
+end
+
+-- PODIO: figuras (avatares reales) de los 3 mejores de DAÑO, con su nombre
+local function buildPodium(folder: Instance, bcf: CFrame, z: number, th: Theme): ({ Entry }) -> ()
+	local dais = newPart(folder, "PodioBase", Vector3.new(0.8, 22, 22), bcf * CFrame.new(0, 0.8, z) * CFrame.Angles(0, 0, math.rad(90)), c(30, 30, 40), Enum.Material.Marble, true, Enum.PartType.Cylinder)
+	local ringD = newPart(folder, "PodioAro", Vector3.new(0.3, 22.8, 22.8), bcf * CFrame.new(0, 1.25, z) * CFrame.Angles(0, 0, math.rad(90)), th.Glow, Enum.Material.Neon, false, Enum.PartType.Cylinder)
+	ringD.Transparency = 0.3
+	addLight(dais, th.Glow, 22, 0.5)
+	local spots = {
+		{ X = 0, H = 4.2, Color = MEDAL[1], Medal = "🥇" },
+		{ X = -6.4, H = 2.8, Color = MEDAL[2], Medal = "🥈" },
+		{ X = 6.4, H = 1.8, Color = MEDAL[3], Medal = "🥉" },
+	}
+	local nameLabels: { TextLabel } = {}
+	local valueLabels: { TextLabel } = {}
+	local figures: { Model? } = {}
+	for i, sp in ipairs(spots) do
+		local top = 1.2 + sp.H
+		local block = newPart(folder, "PodioPuesto" .. i, Vector3.new(5.4, sp.H, 5.4), bcf * CFrame.new(sp.X, 1.2 + sp.H / 2, z), sp.Color, Enum.Material.Metal, true)
+		newPart(folder, "PodioBorde" .. i, Vector3.new(5.8, 0.3, 5.8), bcf * CFrame.new(sp.X, top, z), GOLD, Enum.Material.Metal, false)
+		local sg = Instance.new("SurfaceGui")
+		sg.Face = Enum.NormalId.Front
+		sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		sg.PixelsPerStud = 40
+		sg.Parent = block
+		label(sg, tostring(i), UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Enum.Font.GothamBlack, c(30, 30, 40))
+		local anchor = newPart(folder, "PodioAncla" .. i, Vector3.new(1, 1, 1), bcf * CFrame.new(sp.X, top + 8.6, z), Color3.new(1, 1, 1), Enum.Material.SmoothPlastic)
+		anchor.Transparency = 1
+		local bb = Instance.new("BillboardGui")
+		bb.Size = UDim2.fromOffset(300, 70)
+		bb.AlwaysOnTop = true
+		bb.MaxDistance = 90
+		bb.Adornee = anchor
+		bb.Parent = anchor
+		local nm = label(bb, sp.Medal .. " —", UDim2.fromScale(1, 0.58), UDim2.fromScale(0, 0), Enum.Font.GothamBlack, sp.Color)
+		nm.TextStrokeTransparency = 0.2
+		local vl = label(bb, "", UDim2.fromScale(1, 0.42), UDim2.fromScale(0, 0.58), Enum.Font.GothamBold, Color3.new(1, 1, 1))
+		vl.TextStrokeTransparency = 0.3
+		nameLabels[i] = nm
+		valueLabels[i] = vl
+	end
+	local curKey = ""
+	return function(list: { Entry })
+		local ids: { string } = {}
+		for i = 1, 3 do
+			table.insert(ids, if list[i] then tostring(list[i].UserId) .. ":" .. tostring(list[i].Value) else "-")
+		end
+		local key = table.concat(ids, ",")
+		if key == curKey then
+			return
+		end
+		curKey = key
+		for i, sp in ipairs(spots) do
+			local e = list[i]
+			nameLabels[i].Text = sp.Medal .. " " .. (if e then e.Name else "—")
+			valueLabels[i].Text = if e then fmt(e.Value) .. " de daño" else ""
+			local old = figures[i]
+			if old then
+				old:Destroy()
+				figures[i] = nil
+			end
+			if e then
+				local uid = e.UserId
+				task.spawn(function()
+					local f = makeFigure(uid)
+					if not f then
+						return
+					end
+					if curKey ~= key or figures[i] then
+						f:Destroy()
+						return
+					end
+					f.Name = "PodioFigura" .. i
+					f.Parent = folder
+					f:PivotTo(bcf * CFrame.new(sp.X, 1.2 + sp.H + 4, z))
+					local bbCf, bbSize = f:GetBoundingBox()
+					local bottom = bbCf.Position.Y - bbSize.Y / 2
+					f:PivotTo(f:GetPivot() + Vector3.new(0, bcf.Position.Y + 1.2 + sp.H + 0.15 - bottom, 0))
+					figures[i] = f
+				end)
+			end
+		end
+	end
+end
+
 local function buildHall(model: Model, marker: BasePart, faction: string)
 	local th = THEMES[faction]
-	local roof = model:FindFirstChild("Techo")
-	local lot = model:FindFirstChild("Parcela")
-	if not th or not roof or not roof:IsA("BasePart") or not lot or not lot:IsA("BasePart") or halls[faction] then
+	if not th or halls[faction] then
 		return
 	end
-	local floorY = lot.Position.Y - 0.15
-	local rcf = roof.CFrame
-	local bcf = CFrame.fromMatrix(Vector3.new(rcf.Position.X, floorY, rcf.Position.Z), rcf.XVector, rcf.YVector, rcf.ZVector)
-	local W, D = roof.Size.X - 4, roof.Size.Z - 4
-	local H = roof.Position.Y - floorY - 0.6
-	local backZ = D / 2 - 2.6
+	local roof = model:FindFirstChild("Techo")
+	local lot = model:FindFirstChild("Parcela")
+	local bcf: CFrame
+	local floorY: number
+	local W, D, H: number
+	if roof and roof:IsA("BasePart") and lot and lot:IsA("BasePart") then
+		floorY = lot.Position.Y - 0.15
+		local rcf = roof.CFrame
+		bcf = CFrame.fromMatrix(Vector3.new(rcf.Position.X, floorY, rcf.Position.Z), rcf.XVector, rcf.YVector, rcf.ZVector)
+		W, D = roof.Size.X - 4, roof.Size.Z - 4
+		H = roof.Position.Y - floorY - 0.6
+	else
+		-- respaldo: marco derivado del marcador del NPC (z local = -D/2 + 10.5 = -25.5) y tamaño de la pared trasera
+		local back = model:FindFirstChild("Pared_Trasera")
+		if not back or not back:IsA("BasePart") then
+			warn("[HallService] Sin Techo/Parcela ni Pared_Trasera en " .. model.Name)
+			return
+		end
+		floorY = marker.Position.Y
+		bcf = marker.CFrame * CFrame.new(0, 0, 25.5)
+		W, H = back.Size.X, back.Size.Y
+		D = 72
+	end
+	local backZ = D / 2 - 3.6
+	local halfW = W / 2 - 1.5
 	local folder = Instance.new("Folder")
 	folder.Name = "SalonDeHonor"
 	folder.Parent = model
 	local function at(x: number, y: number, z: number): CFrame
 		return bcf * CFrame.new(x, y, z)
 	end
+	local dark = th.Secondary:Lerp(Color3.new(0, 0, 0), 0.35)
+	local wallMat = if faction == "Pirate" then Enum.Material.WoodPlanks else Enum.Material.Slate
+
+	-- PAREDES OSCURAS por dentro y techo oscuro (evita el blanco brillante)
+	local sideLen = 22
+	local fl = model:FindFirstChild("Frente_Izquierdo")
+	if fl and fl:IsA("BasePart") then
+		sideLen = fl.Size.X
+	end
+	local op = W - 2 * sideLen
+	newPart(folder, "RevestimientoIzq", Vector3.new(0.8, H - 0.6, D - 3), at(-halfW + 0.4, H / 2 + 0.1, 0), dark, wallMat)
+	newPart(folder, "RevestimientoDer", Vector3.new(0.8, H - 0.6, D - 3), at(halfW - 0.4, H / 2 + 0.1, 0), dark, wallMat)
+	newPart(folder, "RevestimientoFondo", Vector3.new(W - 3, H - 0.6, 0.8), at(0, H / 2 + 0.1, D / 2 - 1.9), dark, wallMat)
+	for _, sx in ipairs({ -1, 1 }) do
+		newPart(folder, "RevestimientoFrente", Vector3.new(sideLen - 1.5, H - 0.6, 0.8), at(sx * (op / 2 + (sideLen - 1.5) / 2), H / 2 + 0.1, -D / 2 + 1.9), dark, wallMat)
+	end
+	newPart(folder, "RevestimientoDintel", Vector3.new(op, H - H * 0.62 - 0.6, 0.8), at(0, H * 0.62 + (H - H * 0.62) / 2 - 0.2, -D / 2 + 1.9), dark, wallMat)
+	newPart(folder, "Cielorraso", Vector3.new(W - 3, 0.6, D - 3), at(0, H - 0.3, 0), dark:Lerp(Color3.new(0, 0, 0), 0.25), Enum.Material.WoodPlanks)
+	for _, sx in ipairs({ -1, 1 }) do
+		newPart(folder, "ZocaloOro", Vector3.new(0.5, 0.8, D - 3), at(sx * (halfW - 0.9), 1.2, 0), GOLD, Enum.Material.Metal)
+		newPart(folder, "FrisoOro", Vector3.new(0.5, 0.5, D - 3), at(sx * (halfW - 0.9), H - 2.2, 0), GOLD, Enum.Material.Metal)
+	end
+	newPart(folder, "ZocaloFondo", Vector3.new(W - 3, 0.8, 0.5), at(0, 1.2, D / 2 - 2.3), GOLD, Enum.Material.Metal)
+	newPart(folder, "FrisoFondo", Vector3.new(W - 3, 0.5, 0.5), at(0, H - 2.2, D / 2 - 2.3), GOLD, Enum.Material.Metal)
 
 	-- SUELO y ALFOMBRA
-	newPart(folder, "Suelo", Vector3.new(W - 5, 0.2, D - 5), at(0, 0.42, 0), th.Secondary:Lerp(c(120, 120, 130), 0.25), Enum.Material.Marble)
-	newPart(folder, "AlfombraBorde", Vector3.new(11.4, 0.14, D - 7), at(0, 0.54, 0), GOLD, Enum.Material.Fabric)
-	newPart(folder, "Alfombra", Vector3.new(10, 0.2, D - 8), at(0, 0.58, 0), th.Primary, Enum.Material.Fabric)
-	local medal = newPart(folder, "AlfombraEmblema", Vector3.new(8, 0.12, 8), at(0, 0.7, 2), th.Primary:Lerp(Color3.new(1, 1, 1), 0.2), Enum.Material.Fabric)
+	newPart(folder, "Suelo", Vector3.new(W - 4, 0.2, D - 4), at(0, 0.42, 0), th.Secondary:Lerp(c(120, 120, 130), 0.2), Enum.Material.Marble)
+	newPart(folder, "AlfombraBorde", Vector3.new(12.4, 0.14, D - 6), at(0, 0.54, 0), GOLD, Enum.Material.Fabric)
+	newPart(folder, "Alfombra", Vector3.new(11, 0.2, D - 7), at(0, 0.58, 0), th.Primary, Enum.Material.Fabric)
+	local medal = newPart(folder, "AlfombraEmblema", Vector3.new(9, 0.12, 9), at(0, 0.7, 6), th.Primary:Lerp(Color3.new(1, 1, 1), 0.15), Enum.Material.Fabric)
 	local eg = Instance.new("SurfaceGui")
 	eg.Face = Enum.NormalId.Top
 	eg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
@@ -596,76 +751,76 @@ local function buildHall(model: Model, marker: BasePart, faction: string)
 	eg.Parent = medal
 	label(eg, th.Emblem, UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Enum.Font.GothamBlack, Color3.new(1, 1, 1))
 
-	-- PANELADO del fondo
-	newPart(folder, "Panelado", Vector3.new(W - 6, H - 3, 0.8), at(0, (H - 3) / 2 + 1, backZ + 1.2), th.Secondary:Lerp(c(90, 70, 50), 0.35), Enum.Material.WoodPlanks)
+	-- CARTELES de ranking (grandes) a los lados del podio
+	local BW = 23
+	local boardY = 13.2
+	local levelRows, ph = buildBoard(folder, bcf, -22, boardY, backZ, BW, th, "🏅 RANKING DE NIVEL", th.Name .. " · los más fuertes de la facción", "NIVEL")
+	local dmgRows = buildBoard(folder, bcf, 22, boardY, backZ, BW, th, "💥 RANKING DE DAÑO", "Mejor prueba de " .. TEST_SECONDS .. " s en el maniquí", "DAÑO TOTAL")
 
-	-- CARTELES de ranking
-	local levelRows = buildBoard(folder, bcf, -13.5, 10.8, backZ, th, "🏅 RANKING DE NIVEL", th.Name .. " · los más fuertes de la facción", "NIVEL")
-	local dmgRows = buildBoard(folder, bcf, 13.5, 10.8, backZ, th, "💥 RANKING DE DAÑO", "Mejor prueba de " .. TEST_SECONDS .. " s en el maniquí", "DAÑO TOTAL")
-
-	-- PLACA central
-	newPart(folder, "PlacaOro", Vector3.new(11.4, 5.4, 0.7), at(0, 15.6, backZ), GOLD, Enum.Material.Metal)
-	local plate = newPart(folder, "Placa", Vector3.new(10.8, 4.8, 0.8), at(0, 15.6, backZ - 0.05), c(18, 20, 30), Enum.Material.SmoothPlastic)
+	-- PLACA central sobre el podio
+	newPart(folder, "PlacaOro", Vector3.new(15.4, 4.6, 0.7), at(0, H - 5.4, backZ), GOLD, Enum.Material.Metal)
+	local plate = newPart(folder, "Placa", Vector3.new(14.8, 4, 0.8), at(0, H - 5.4, backZ - 0.05), c(18, 20, 30), Enum.Material.SmoothPlastic)
 	local pg = Instance.new("SurfaceGui")
 	pg.Face = Enum.NormalId.Front
 	pg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 	pg.PixelsPerStud = 50
 	pg.LightInfluence = 0
 	pg.Parent = plate
-	label(pg, th.Emblem .. " SALÓN DE HONOR", UDim2.new(1, 0, 0.6, 0), UDim2.fromScale(0, 0.05), Enum.Font.Fantasy, th.Glow)
-	label(pg, string.upper(th.Name), UDim2.new(1, 0, 0.28, 0), UDim2.fromScale(0, 0.66), Enum.Font.GothamBold, c(220, 224, 236))
+	label(pg, th.Emblem .. " SALÓN DE HONOR", UDim2.new(1, 0, 0.6, 0), UDim2.fromScale(0, 0.04), Enum.Font.Fantasy, th.Glow)
+	label(pg, string.upper(th.Name), UDim2.new(1, 0, 0.28, 0), UDim2.fromScale(0, 0.67), Enum.Font.GothamBold, c(220, 224, 236))
 
-	-- COLUMNAS con aro de luz
+	-- COLUMNAS con aro de luz tenue
 	for _, sx in ipairs({ -1, 1 }) do
-		for _, z in ipairs({ -14, 0, 14 }) do
-			newPart(folder, "Columna", Vector3.new(2.6, H - 1, 2.6), at(sx * 23, (H - 1) / 2 + 0.4, z), c(226, 220, 208), Enum.Material.Marble, true)
-			newPart(folder, "ColumnaBase", Vector3.new(3.6, 1.2, 3.6), at(sx * 23, 1, z), GOLD, Enum.Material.Metal)
-			newPart(folder, "ColumnaCapitel", Vector3.new(3.6, 1.2, 3.6), at(sx * 23, H - 1, z), GOLD, Enum.Material.Metal)
-			local ringL = newPart(folder, "ColumnaAro", Vector3.new(0.4, 3.2, 3.2), at(sx * 23, 14, z) * CFrame.Angles(0, 0, math.rad(90)), th.Glow, Enum.Material.Neon, false, Enum.PartType.Cylinder)
-			ringL.Transparency = 0.2
+		for _, z in ipairs({ -22, -8, 6, 20 }) do
+			local cx = sx * (halfW - 3.2)
+			newPart(folder, "Columna", Vector3.new(2.6, H - 1.5, 2.6), at(cx, (H - 1.5) / 2 + 0.4, z), c(70, 70, 82), Enum.Material.Marble, true)
+			newPart(folder, "ColumnaBase", Vector3.new(3.6, 1.2, 3.6), at(cx, 1, z), GOLD, Enum.Material.Metal)
+			newPart(folder, "ColumnaCapitel", Vector3.new(3.6, 1.2, 3.6), at(cx, H - 1.6, z), GOLD, Enum.Material.Metal)
+			local ringL = newPart(folder, "ColumnaAro", Vector3.new(0.4, 3.2, 3.2), at(cx, 15, z) * CFrame.Angles(0, 0, math.rad(90)), th.Glow, Enum.Material.Neon, false, Enum.PartType.Cylinder)
+			ringL.Transparency = 0.45
 		end
 		-- estandartes en la pared lateral
-		for _, z in ipairs({ -7, 7 }) do
-			local wx = sx * (W / 2 - 2.9)
-			newPart(folder, "EstandarteVara", Vector3.new(0.4, 0.4, 6.4), at(wx, 17.6, z), GOLD, Enum.Material.Metal)
-			newPart(folder, "Estandarte", Vector3.new(0.3, 11, 5.2), at(wx, 12, z), th.Primary, Enum.Material.Fabric)
-			newPart(folder, "EstandarteBorde", Vector3.new(0.4, 0.8, 5.6), at(wx, 6.4, z), GOLD, Enum.Material.Metal)
-			local eb = newPart(folder, "EstandarteEmblema", Vector3.new(0.4, 3.2, 3.2), at(wx - sx * 0.1, 13, z), th.Glow, Enum.Material.Neon)
-			eb.Transparency = 0.45
+		for _, z in ipairs({ -15, -1, 13 }) do
+			local wx = sx * (halfW - 0.9)
+			newPart(folder, "EstandarteVara", Vector3.new(0.4, 0.4, 6.4), at(wx, 19.4, z), GOLD, Enum.Material.Metal)
+			newPart(folder, "Estandarte", Vector3.new(0.3, 11, 5.2), at(wx, 13.6, z), th.Primary, Enum.Material.Fabric)
+			newPart(folder, "EstandarteBorde", Vector3.new(0.4, 0.8, 5.6), at(wx, 7.9, z), GOLD, Enum.Material.Metal)
+			local eb = newPart(folder, "EstandarteEmblema", Vector3.new(0.4, 3.2, 3.2), at(wx - sx * 0.1, 14.6, z), th.Glow, Enum.Material.Neon)
+			eb.Transparency = 0.55
 		end
-		-- braseros
-		for _, bz in ipairs({ -20, 19 }) do
-			local bx = sx * 15
+		-- braseros junto al podio y a la entrada
+		for _, bz in ipairs({ -29, 27 }) do
+			local bx = sx * (if bz > 0 then 14.5 else 17)
 			newPart(folder, "BraseroPie", Vector3.new(0.8, 3, 3), at(bx, 2, bz) * CFrame.Angles(0, 0, math.rad(90)), c(50, 50, 58), Enum.Material.Metal, false, Enum.PartType.Cylinder)
-			local bowl = newPart(folder, "BraseroCuenco", Vector3.new(1.2, 4, 4), at(bx, 3.8, bz) * CFrame.Angles(0, 0, math.rad(90)), GOLD, Enum.Material.Metal, false, Enum.PartType.Cylinder)
+			newPart(folder, "BraseroCuenco", Vector3.new(1.2, 4, 4), at(bx, 3.8, bz) * CFrame.Angles(0, 0, math.rad(90)), GOLD, Enum.Material.Metal, false, Enum.PartType.Cylinder)
 			local fireP = newPart(folder, "BraseroFuego", Vector3.new(2, 1, 2), at(bx, 4.6, bz), c(255, 150, 60), Enum.Material.Neon)
-			fireP.Transparency = 0.4
+			fireP.Transparency = 0.5
 			local fire = Instance.new("Fire")
-			fire.Size, fire.Heat = 6, 7
+			fire.Size, fire.Heat = 5, 7
 			fire.Parent = fireP
-			addLight(fireP, c(255, 170, 90), 26, 1.1)
-			bowl.Name = "BraseroCuenco"
+			addLight(fireP, c(255, 160, 80), 20, 0.7)
 		end
 	end
 
-	-- LÁMPARAS colgantes (iluminan el salón)
-	for _, z in ipairs({ -12, 3, 17 }) do
+	-- LÁMPARAS colgantes (luz cálida y tenue)
+	for _, z in ipairs({ -20, 0, 20 }) do
 		for _, dx in ipairs({ -3, 3 }) do
-			newPart(folder, "LamparaCadena", Vector3.new(0.2, 4, 0.2), at(dx, H - 2.4, z), c(70, 70, 78), Enum.Material.Metal)
+			newPart(folder, "LamparaCadena", Vector3.new(0.2, 4, 0.2), at(dx, H - 2.6, z), c(70, 70, 78), Enum.Material.Metal)
 		end
-		local ringP = newPart(folder, "LamparaAro", Vector3.new(0.6, 8, 8), at(0, H - 4.6, z) * CFrame.Angles(0, 0, math.rad(90)), GOLD, Enum.Material.Metal, false, Enum.PartType.Cylinder)
+		local ringP = newPart(folder, "LamparaAro", Vector3.new(0.6, 8, 8), at(0, H - 5, z) * CFrame.Angles(0, 0, math.rad(90)), GOLD, Enum.Material.Metal, false, Enum.PartType.Cylinder)
 		for i = 0, 7 do
 			local a = i / 8 * math.pi * 2
-			newPart(folder, "LamparaLlama", Vector3.new(0.7, 0.9, 0.7), at(math.cos(a) * 3.8, H - 4, z + math.sin(a) * 3.8), c(255, 226, 150), Enum.Material.Neon, false, Enum.PartType.Ball)
+			local fl2 = newPart(folder, "LamparaLlama", Vector3.new(0.7, 0.9, 0.7), at(math.cos(a) * 3.8, H - 4.4, z + math.sin(a) * 3.8), c(255, 214, 140), Enum.Material.Neon, false, Enum.PartType.Ball)
+			fl2.Transparency = 0.2
 		end
-		addLight(ringP, c(255, 232, 176), 40, 1.3)
+		addLight(ringP, c(255, 220, 160), 34, 0.55)
 	end
 
 	-- MANIQUÍES de entrenamiento
-	for i, x in ipairs({ -17, -8.5, 8.5, 17 }) do
-		buildDummy(folder, bcf, x, 7, th, i)
+	for i, x in ipairs({ -28, -14, 14, 28 }) do
+		buildDummy(folder, bcf, x, -6, th, i)
 	end
-	local trainSign = newPart(folder, "ZonaPrueba", Vector3.new(14, 1.6, 0.4), at(0, 2.6, 11.5), c(20, 22, 32), Enum.Material.SmoothPlastic)
+	local trainSign = newPart(folder, "ZonaPrueba", Vector3.new(16, 1.8, 0.4), at(0, 2.8, -12), c(20, 22, 32), Enum.Material.SmoothPlastic)
 	local tsg = Instance.new("SurfaceGui")
 	tsg.Face = Enum.NormalId.Front
 	tsg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
@@ -673,15 +828,22 @@ local function buildHall(model: Model, marker: BasePart, faction: string)
 	tsg.Parent = trainSign
 	label(tsg, "🎯 ZONA DE PRUEBA DE DAÑO · 30 s", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Enum.Font.GothamBold, th.Glow)
 	for _, sx in ipairs({ -1, 1 }) do
-		newPart(folder, "ZonaPruebaPata", Vector3.new(0.5, 2.4, 0.5), at(sx * 6.6, 1.5, 11.5), GOLD, Enum.Material.Metal)
+		newPart(folder, "ZonaPruebaPata", Vector3.new(0.5, 2.6, 0.5), at(sx * 7.6, 1.6, -12), GOLD, Enum.Material.Metal)
 	end
 
-	-- SECRETARIO NPC
-	buildSecretary(model, marker, bcf, faction, th, floorY)
+	-- PODIO con los 3 mejores de daño
+	local podium = buildPodium(folder, bcf, backZ - 12.5, th)
 
-	halls[faction] = { Faction = faction, LevelRows = levelRows, DmgRows = dmgRows }
+	-- SECRETARIO NPC
+	local okS, errS = pcall(buildSecretary, model, marker, bcf, faction, th, floorY)
+	if not okS then
+		warn("[HallService] Secretario de " .. faction .. " falló: " .. tostring(errS))
+	end
+
+	halls[faction] = { Faction = faction, LevelRows = levelRows, DmgRows = dmgRows, Podium = podium }
 	paint(levelRows, {}, false)
 	paint(dmgRows, {}, true)
+	print("[HallService] Salón de Honor construido: " .. faction)
 	task.spawn(refreshFaction, faction)
 end
 
@@ -719,8 +881,10 @@ task.spawn(function()
 		waited += 0.25
 	end
 	scan()
-	task.wait(5)
-	scan()
+	for _ = 1, 12 do
+		task.wait(10)
+		scan()
+	end
 end)
 
 ---------------------------------------------------------------------

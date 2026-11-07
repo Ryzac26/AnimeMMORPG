@@ -32,7 +32,7 @@
               Slot 2  Forja del Herrero            50x50  yunque + chimenea
               Slot 3  Laboratorio del Alquimista   40x40  torre cerrada
               Slot 4  Bazar del Mercader           40x40  puesto abierto con mostrador
-              Slot 5  Ayuntamiento de Clanes       60x50  edificio principal
+              Slot 5  Ayuntamiento de Clanes       84x72  edificio principal
               Slot 6  Pabellón VIP                 40x40  plataforma elevada con escalones
         - FRANJAS de 625 de profundidad. El ancho crece en línea recta: cada lado del abanico es
           una diagonal con 30 grados de apertura (ver FAN_NEAR_WIDTH / FAN_HALF_ANGLE_DEG).
@@ -246,7 +246,7 @@ local BUILDINGS: { BuildingSpec } = {
 	},
 	{
 		Slot = 5, Kind = "hall", ModelName = "Ayuntamiento_de_Clanes", Display = "Ayuntamiento de Clanes", Role = "Clanes",
-		Width = 60, Depth = 50, WallHeight = 20, Base = 0, Left = 1, Right = 1, FrontOpening = 30, FrontPosts = false,
+		Width = 84, Depth = 72, WallHeight = 24, Base = 0, Left = 1, Right = 1, FrontOpening = 40, FrontPosts = false,
 		WallColor = Color3.fromRGB(200, 195, 185), RoofColor = Color3.fromRGB(90, 100, 130), Accent = Color3.fromRGB(120, 85, 55),
 		RingAngle = 210,
 	},
