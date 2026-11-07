@@ -11,6 +11,8 @@ local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local TWEEN = TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
 
+local sky = Lighting:FindFirstChildOfClass("Sky")
+local savedStars: number? = nil
 local saved: { [string]: any }? = nil
 local tweens: { Tween } = {}
 
@@ -37,16 +39,26 @@ local function apply()
 				ClockTime = Lighting.ClockTime,
 			}
 		end
+		if sky and not savedStars then
+			savedStars = sky.StarCount
+		end
+		if sky then
+			sky.StarCount = 0
+		end
 		play({
-			Ambient = Color3.fromRGB(120, 96, 78),
-			OutdoorAmbient = Color3.fromRGB(150, 124, 100),
+			Ambient = Color3.fromRGB(78, 64, 58),
+			OutdoorAmbient = Color3.fromRGB(96, 82, 76),
 			FogColor = Color3.fromRGB(80, 60, 50),
 			FogStart = 150,
 			FogEnd = 900,
-			Brightness = 2.4,
+			Brightness = 1.3,
 			ClockTime = 17.6,
 		})
 	elseif saved then
+		if sky and savedStars then
+			sky.StarCount = savedStars
+			savedStars = nil
+		end
 		play(saved)
 		saved = nil
 	end

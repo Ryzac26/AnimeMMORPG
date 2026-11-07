@@ -144,50 +144,71 @@ function HouseDecor.Build(m: Model, o: Vector3, W: number, H: number, GZ: number
 	end
 	part(deco, "AroOro", Vector3.new(14.6, 0.6, 14.6), at(0, H - 5.9, -30), GOLD, Enum.Material.Metal, false, Enum.PartType.Cylinder).CFrame = at(0, H - 5.9, -30) * CFrame.Angles(0, 0, math.rad(90))
 
-	-- JARDÍN: sendero de piedra desde el arco hasta la fuente
-	for i = 0, 6 do
-		part(deco, "Sendero", Vector3.new(7, 0.2, 6), at(math.sin(i * 0.8) * 2, 1.5, 16 + i * 6), Color3.fromRGB(176, 170, 160), Enum.Material.Cobblestone, false)
-	end
-	for i = 0, 3 do
-		for _, side in ipairs({ -1, 1 }) do
-			local z = 18 + i * 10
-			part(deco, "FarolPoste", Vector3.new(0.8, 7, 0.8), at(side * 7, 5, z), Color3.fromRGB(40, 40, 48), Enum.Material.Metal)
-			local lamp = part(deco, "FarolLuz", Vector3.new(1.8, 1.8, 1.8), at(side * 7, 9, z), Color3.fromRGB(255, 226, 150), Enum.Material.Neon, false)
-			light(lamp, 24, 1.3, Color3.fromRGB(255, 226, 160))
+		-- JARDÍN: sendero de piedra desde el arco hasta la fuente
+		<<<<<<< HEAD
+	for i = 0, 5 do
+		=======
+		for i = 0, 6 do
+			>>>>>>> origin/main
+			part(deco, "Sendero", Vector3.new(7, 0.2, 6), at(math.sin(i * 0.8) * 2, 1.5, 16 + i * 6), Color3.fromRGB(176, 170, 160), Enum.Material.Cobblestone, false)
 		end
+		for i = 0, 3 do
+			for _, side in ipairs({ -1, 1 }) do
+				local z = 18 + i * 10
+				part(deco, "FarolPoste", Vector3.new(0.8, 7, 0.8), at(side * 7, 5, z), Color3.fromRGB(40, 40, 48), Enum.Material.Metal)
+				local lamp = part(deco, "FarolLuz", Vector3.new(1.8, 1.8, 1.8), at(side * 7, 9, z), Color3.fromRGB(255, 226, 150), Enum.Material.Neon, false)
+				light(lamp, 24, 1.3, Color3.fromRGB(255, 226, 160))
+					<<<<<<< HEAD
+			end
+		end
+
+		-- FUENTE central con agua
+		local fcx, fcz = 0, GZ + 14
+			=======
 	end
+end
 
-	-- FUENTE central con agua
-	local fcx, fcz = 0, GZ + 20
-	part(deco, "FuenteBase", Vector3.new(1.6, 14, 14), at(fcx, 2.4, fcz), Color3.fromRGB(190, 184, 172), Enum.Material.Marble, true, Enum.PartType.Cylinder).CFrame = at(fcx, 2.4, fcz) * CFrame.Angles(0, 0, math.rad(90))
-	local water = part(deco, "FuenteAgua", Vector3.new(0.4, 12, 12), at(fcx, 3.3, fcz), Color3.fromRGB(80, 170, 230), Enum.Material.Glass, false, Enum.PartType.Cylinder)
-	water.CFrame = at(fcx, 3.3, fcz) * CFrame.Angles(0, 0, math.rad(90))
-	water.Transparency = 0.35
-	part(deco, "FuentePilar", Vector3.new(6, 2.4, 2.4), at(fcx, 5.5, fcz), STONE, Enum.Material.Marble, true, Enum.PartType.Cylinder).CFrame = at(fcx, 5.5, fcz) * CFrame.Angles(0, 0, math.rad(90))
-	part(deco, "FuenteCopa", Vector3.new(0.6, 6, 6), at(fcx, 8.6, fcz), STONE, Enum.Material.Marble, false, Enum.PartType.Cylinder).CFrame = at(fcx, 8.6, fcz) * CFrame.Angles(0, 0, math.rad(90))
-	local spout = part(deco, "FuenteChorro", Vector3.new(1, 1, 1), at(fcx, 9.2, fcz), Color3.fromRGB(255, 255, 255), Enum.Material.Glass, false)
-	spout.Transparency = 1
-	local pe = Instance.new("ParticleEmitter")
-	pe.Rate = 60
-	pe.Lifetime = NumberRange.new(1.2, 1.8)
-	pe.Speed = NumberRange.new(12, 15)
-	pe.SpreadAngle = Vector2.new(22, 22)
-	pe.Acceleration = Vector3.new(0, -30, 0)
-	pe.Size = NumberSequence.new(0.5, 0.15)
-	pe.Color = ColorSequence.new(Color3.fromRGB(180, 225, 255))
-	pe.Transparency = NumberSequence.new(0.2, 1)
-	pe.LightEmission = 0.5
-	pe.Parent = spout
+-- FUENTE central con agua
+local fcx, fcz = 0, GZ + 20
+	>>>>>>> origin/main
+part(deco, "FuenteBase", Vector3.new(1.6, 14, 14), at(fcx, 2.4, fcz), Color3.fromRGB(190, 184, 172), Enum.Material.Marble, true, Enum.PartType.Cylinder).CFrame = at(fcx, 2.4, fcz) * CFrame.Angles(0, 0, math.rad(90))
+local water = part(deco, "FuenteAgua", Vector3.new(0.4, 12, 12), at(fcx, 3.3, fcz), Color3.fromRGB(80, 170, 230), Enum.Material.Glass, false, Enum.PartType.Cylinder)
+water.CFrame = at(fcx, 3.3, fcz) * CFrame.Angles(0, 0, math.rad(90))
+water.Transparency = 0.35
+part(deco, "FuentePilar", Vector3.new(6, 2.4, 2.4), at(fcx, 5.5, fcz), STONE, Enum.Material.Marble, true, Enum.PartType.Cylinder).CFrame = at(fcx, 5.5, fcz) * CFrame.Angles(0, 0, math.rad(90))
+part(deco, "FuenteCopa", Vector3.new(0.6, 6, 6), at(fcx, 8.6, fcz), STONE, Enum.Material.Marble, false, Enum.PartType.Cylinder).CFrame = at(fcx, 8.6, fcz) * CFrame.Angles(0, 0, math.rad(90))
+local spout = part(deco, "FuenteChorro", Vector3.new(1, 1, 1), at(fcx, 9.2, fcz), Color3.fromRGB(255, 255, 255), Enum.Material.Glass, false)
+spout.Transparency = 1
+local pe = Instance.new("ParticleEmitter")
+pe.Rate = 60
+pe.Lifetime = NumberRange.new(1.2, 1.8)
+pe.Speed = NumberRange.new(12, 15)
+pe.SpreadAngle = Vector2.new(22, 22)
+pe.Acceleration = Vector3.new(0, -30, 0)
+pe.Size = NumberSequence.new(0.5, 0.15)
+pe.Color = ColorSequence.new(Color3.fromRGB(180, 225, 255))
+pe.Transparency = NumberSequence.new(0.2, 1)
+pe.LightEmission = 0.5
+pe.Parent = spout
 
-	-- PARTERRES de flores a los costados del sendero
-	local cols = { Color3.fromRGB(255, 120, 150), Color3.fromRGB(255, 220, 90), Color3.fromRGB(190, 130, 255), Color3.fromRGB(255, 255, 255) }
-	for _, side in ipairs({ -1, 1 }) do
-		local bx = side * 22
+-- PARTERRES de flores a los costados del sendero
+local cols = { Color3.fromRGB(255, 120, 150), Color3.fromRGB(255, 220, 90), Color3.fromRGB(190, 130, 255), Color3.fromRGB(255, 255, 255) }
+for _, side in ipairs({ -1, 1 }) do
+	<<<<<<< HEAD
+	local bx = side * 13
+	part(deco, "ParterreBorde", Vector3.new(14, 1, 20), at(bx, 1.8, GZ - 3), Color3.fromRGB(140, 110, 80), Enum.Material.Wood, false)
+	part(deco, "ParterreTierra", Vector3.new(12.4, 1.2, 18.4), at(bx, 2, GZ - 3), Color3.fromRGB(76, 52, 36), Enum.Material.Ground, false)
+	for i = 0, 17 do
+		local fx2 = bx + ((i % 3) - 1) * 3.4
+		local fz2 = GZ - 3 - 7.5 + math.floor(i / 3) * 3
+			=======
+			local bx = side * 22
 		part(deco, "ParterreBorde", Vector3.new(14, 1, 24), at(bx, 1.8, GZ + 4), Color3.fromRGB(140, 110, 80), Enum.Material.Wood, false)
 		part(deco, "ParterreTierra", Vector3.new(12.4, 1.2, 22.4), at(bx, 2, GZ + 4), Color3.fromRGB(76, 52, 36), Enum.Material.Ground, false)
 		for i = 0, 17 do
 			local fx2 = bx + ((i % 3) - 1) * 3.4
 			local fz2 = GZ + 4 - 9 + math.floor(i / 3) * 3.6
+				>>>>>>> origin/main
 			part(deco, "Tallo", Vector3.new(0.2, 1.6, 0.2), at(fx2, 3, fz2), Color3.fromRGB(60, 140, 60), Enum.Material.Grass, false)
 			part(deco, "Flor", Vector3.new(1.2, 1.2, 1.2), at(fx2, 4, fz2), cols[(i % #cols) + 1], Enum.Material.SmoothPlastic, false, Enum.PartType.Ball)
 		end
@@ -202,34 +223,42 @@ function HouseDecor.Build(m: Model, o: Vector3, W: number, H: number, GZ: number
 		end
 	end
 
-	-- ÁRBOLES en las esquinas del jardín
-	for _, c in ipairs({ { -56, GZ + 30 }, { 56, GZ + 30 }, { -56, GZ - 6 }, { 56, GZ - 6 } }) do
-		part(deco, "Tronco", Vector3.new(3, 14, 3), at(c[1], 8, c[2]), Color3.fromRGB(104, 72, 46), Enum.Material.Wood)
-		local crown = part(deco, "Copa", Vector3.new(16, 14, 16), at(c[1], 19, c[2]), Color3.fromRGB(80, 168, 90), Enum.Material.Grass, false, Enum.PartType.Ball)
-		crown.Color = Color3.fromRGB(255, 170, 190)
-		part(deco, "CopaVerde", Vector3.new(12, 10, 12), at(c[1], 21, c[2]), Color3.fromRGB(70, 156, 84), Enum.Material.Grass, false, Enum.PartType.Ball)
+		-- ÁRBOLES en las esquinas del jardín
+		<<<<<<< HEAD
+	for _, c in ipairs({ { -56, GZ + 16 }, { 56, GZ + 16 }, { -56, GZ - 8 }, { 56, GZ - 8 } }) do
+		=======
+		for _, c in ipairs({ { -56, GZ + 30 }, { 56, GZ + 30 }, { -56, GZ - 6 }, { 56, GZ - 6 } }) do
+			>>>>>>> origin/main
+			part(deco, "Tronco", Vector3.new(3, 14, 3), at(c[1], 8, c[2]), Color3.fromRGB(104, 72, 46), Enum.Material.Wood)
+			local crown = part(deco, "Copa", Vector3.new(16, 14, 16), at(c[1], 19, c[2]), Color3.fromRGB(80, 168, 90), Enum.Material.Grass, false, Enum.PartType.Ball)
+			crown.Color = Color3.fromRGB(255, 170, 190)
+			part(deco, "CopaVerde", Vector3.new(12, 10, 12), at(c[1], 21, c[2]), Color3.fromRGB(70, 156, 84), Enum.Material.Grass, false, Enum.PartType.Ball)
+		end
+
+			-- LUCIÉRNAGAS por todo el jardín
+			<<<<<<< HEAD
+		local flies = part(deco, "Luciernagas", Vector3.new(120, 14, 46), at(0, 9, 45), Color3.fromRGB(255, 255, 160), Enum.Material.SmoothPlastic, false)
+			=======
+			local flies = part(deco, "Luciernagas", Vector3.new(120, 14, 52), at(0, 9, GZ + 6), Color3.fromRGB(255, 255, 160), Enum.Material.SmoothPlastic, false)
+			>>>>>>> origin/main
+		flies.Transparency = 1
+		local fe = Instance.new("ParticleEmitter")
+		fe.Rate = 14
+		fe.Lifetime = NumberRange.new(5, 8)
+		fe.Speed = NumberRange.new(0.5, 1.5)
+		fe.SpreadAngle = Vector2.new(180, 180)
+		fe.Size = NumberSequence.new(0.35)
+		fe.Color = ColorSequence.new(Color3.fromRGB(255, 250, 150))
+		fe.LightEmission = 1
+		fe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.2, 0.1), NumberSequenceKeypoint.new(1, 1) })
+		fe.EmitterShape = Enum.ParticleEmitterShape.Box
+		fe.Parent = flies
+
+		-- LÍRIOS en el estanque
+		for i = 0, 5 do
+			part(deco, "Nenufar", Vector3.new(0.2, 3, 3), at(-30 + (i % 3 - 1) * 6, 1.65, GZ + 14 + (math.floor(i / 3) - 0.5) * 6), Color3.fromRGB(70, 160, 80), Enum.Material.Grass, false, Enum.PartType.Cylinder).CFrame = at(-30 + (i % 3 - 1) * 6, 1.65, GZ + 14 + (math.floor(i / 3) - 0.5) * 6) * CFrame.Angles(0, 0, math.rad(90))
+		end
+		return deco
 	end
 
-	-- LUCIÉRNAGAS por todo el jardín
-	local flies = part(deco, "Luciernagas", Vector3.new(120, 14, 52), at(0, 9, GZ + 6), Color3.fromRGB(255, 255, 160), Enum.Material.SmoothPlastic, false)
-	flies.Transparency = 1
-	local fe = Instance.new("ParticleEmitter")
-	fe.Rate = 14
-	fe.Lifetime = NumberRange.new(5, 8)
-	fe.Speed = NumberRange.new(0.5, 1.5)
-	fe.SpreadAngle = Vector2.new(180, 180)
-	fe.Size = NumberSequence.new(0.35)
-	fe.Color = ColorSequence.new(Color3.fromRGB(255, 250, 150))
-	fe.LightEmission = 1
-	fe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.2, 0.1), NumberSequenceKeypoint.new(1, 1) })
-	fe.EmitterShape = Enum.ParticleEmitterShape.Box
-	fe.Parent = flies
-
-	-- LÍRIOS en el estanque
-	for i = 0, 5 do
-		part(deco, "Nenufar", Vector3.new(0.2, 3, 3), at(-30 + (i % 3 - 1) * 6, 1.65, GZ + 14 + (math.floor(i / 3) - 0.5) * 6), Color3.fromRGB(70, 160, 80), Enum.Material.Grass, false, Enum.PartType.Cylinder).CFrame = at(-30 + (i % 3 - 1) * 6, 1.65, GZ + 14 + (math.floor(i / 3) - 0.5) * 6) * CFrame.Angles(0, 0, math.rad(90))
-	end
-	return deco
-end
-
-return HouseDecor
+	return HouseDecor
