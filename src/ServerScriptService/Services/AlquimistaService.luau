@@ -82,7 +82,7 @@ end
 local function build(info: { Name: string, Title: string, Skin: Color3, Shirt: Color3, Pants: Color3, Hair: Color3 }, cf: CFrame, faction: string): Model
 	local model, head = NpcBuilder.Person("Alquimista", faction, cf)
 	-- caldero con poción burbujeante + frascos
-	local potCF = cf * CFrame.new(-4, -2.4, -1)
+	local potCF = cf * CFrame.new(-4, -1.9, -1)
 	part(model, "Caldero", Vector3.new(2.6, 2.2, 2.6), potCF, Color3.fromRGB(40, 40, 48), Enum.Material.Metal)
 	local brew = part(model, "Brebaje", Vector3.new(2.2, 0.3, 2.2), potCF * CFrame.new(0, 1.1, 0), Color3.fromRGB(120, 255, 150), Enum.Material.Neon)
 	brew.CanCollide = false
@@ -128,7 +128,7 @@ local function spawnAlchemist(point: BasePart)
 	local hit = Workspace:Raycast(point.Position + Vector3.new(0, 4, 0), Vector3.new(0, -12, 0), params)
 	local ground = if hit then hit.Position else point.Position
 	local look = point.CFrame.LookVector
-	local pos = ground + Vector3.new(0, 5.1, 0)
+	local pos = ground + Vector3.new(0, 3.05, 0)
 	local rig = build(info, CFrame.lookAt(pos, pos + Vector3.new(look.X, 0, look.Z)), faction)
 	rig.Name = "Alquimista_" .. faction
 	rig:SetAttribute("Faction", faction)

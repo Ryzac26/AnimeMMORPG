@@ -318,15 +318,36 @@ build = function()
 	elseif tab == "Decor" then
 		local inHome = state.Origin ~= nil
 		text(w, if inHome then "Elige un mueble y colócalo donde quieras. Cuadros y pantallas: pega el ID de tu imagen y se genera al instante." else "Entra a tu casa para decorar (usa la mesa de diseño del salón).", 12, pal.FMuted, UDim2.fromOffset(18, top), UDim2.fromOffset(748, 30)).TextWrapped = true
+		text(w, "Paredes:", 13, pal.Text, UDim2.fromOffset(18, top + 38), UDim2.fromOffset(70, 20))
+		for i, wc in ipairs(HouseFurniture.WallColors) do
+			local sw = Instance.new("TextButton")
+			sw.Position = UDim2.fromOffset(92 + (i - 1) * 54, top + 33)
+			sw.Size = UDim2.fromOffset(48, 28)
+			sw.BackgroundColor3 = wc.Color
+			sw.BorderSizePixel = 0
+			sw.Text = ""
+			sw.ZIndex = 5
+			sw.Parent = w
+			Instance.new("UICorner", sw).CornerRadius = UDim.new(0, 6)
+			local st = Instance.new("UIStroke")
+			st.Color = if state.WallColor == i then Color3.fromRGB(255, 255, 255) else pal.Edge2
+			st.Thickness = if state.WallColor == i then 3 else 1
+			st.Parent = sw
+			sw.Activated:Connect(function()
+				if inHome then
+					actionRemote:FireServer("WallColor", i)
+				end
+			end)
+		end
 		for i, d in ipairs(HouseFurniture.Catalog) do
 			local col, row = (i - 1) % 4, math.floor((i - 1) / 4)
-			NpcKit.Button(w, theme, d.Icon .. " " .. d.Name, UDim2.fromOffset(180, 32), UDim2.fromOffset(18 + col * 186, top + 34 + row * 38), "buy", function()
+			NpcKit.Button(w, theme, d.Icon .. " " .. d.Name, UDim2.fromOffset(180, 32), UDim2.fromOffset(18 + col * 186, top + 68 + row * 36), "buy", function()
 				if inHome then
 					startPlace(d.Id)
 				end
 			end)
 		end
-		local listTop = top + 34 + math.ceil(#HouseFurniture.Catalog / 4) * 38 + 4
+		local listTop = top + 68 + math.ceil(#HouseFurniture.Catalog / 4) * 36 + 4
 		text(w, string.format("Colocados: %d / %d", #state.Decor, state.DecorMax), 14, pal.Text, UDim2.fromOffset(18, listTop), UDim2.fromOffset(300, 20))
 		local sc = Instance.new("ScrollingFrame")
 		sc.BackgroundTransparency = 1

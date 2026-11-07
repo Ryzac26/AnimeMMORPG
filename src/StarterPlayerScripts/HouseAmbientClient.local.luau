@@ -45,15 +45,31 @@ local function apply()
 		if sky then
 			sky.StarCount = 0
 		end
-		play({
-			Ambient = Color3.fromRGB(78, 64, 58),
-			OutdoorAmbient = Color3.fromRGB(96, 82, 76),
-			FogColor = Color3.fromRGB(80, 60, 50),
-			FogStart = 150,
-			FogEnd = 900,
-			Brightness = 1.3,
-			ClockTime = 17.6,
-		})
+		local night = player:GetAttribute("HouseNight") == true
+		if sky then
+			sky.StarCount = if night then (savedStars or 3000) else 0
+		end
+		if night then
+			play({
+				Ambient = Color3.fromRGB(34, 38, 64),
+				OutdoorAmbient = Color3.fromRGB(46, 52, 90),
+				FogColor = Color3.fromRGB(14, 16, 32),
+				FogStart = 120,
+				FogEnd = 700,
+				Brightness = 0.35,
+				ClockTime = 0,
+			})
+		else
+			play({
+				Ambient = Color3.fromRGB(96, 84, 78),
+				OutdoorAmbient = Color3.fromRGB(120, 108, 98),
+				FogColor = Color3.fromRGB(150, 130, 112),
+				FogStart = 200,
+				FogEnd = 1100,
+				Brightness = 1.6,
+				ClockTime = 14,
+			})
+		end
 	elseif saved then
 		if sky and savedStars then
 			sky.StarCount = savedStars
@@ -65,4 +81,5 @@ local function apply()
 end
 
 player:GetAttributeChangedSignal("InHouse"):Connect(apply)
+player:GetAttributeChangedSignal("HouseNight"):Connect(apply)
 apply()

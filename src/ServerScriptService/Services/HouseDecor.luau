@@ -27,7 +27,7 @@ local function part(parent: Instance, name: string, size: Vector3, cf: CFrame, c
 	return p
 end
 
-function HouseDecor.Build(m: Model, o: Vector3, W: number, H: number, GZ: number, accent: Color3, ownerName: string)
+function HouseDecor.Build(m: Model, o: Vector3, W: number, H: number, GZ: number, accent: Color3, ownerName: string, E: number)
 	local deco = Instance.new("Folder")
 	deco.Name = "Decor"
 	deco.Parent = m
@@ -220,7 +220,7 @@ function HouseDecor.Build(m: Model, o: Vector3, W: number, H: number, GZ: number
 	end
 
 	-- LUCIÉRNAGAS por todo el jardín
-	local flies = part(deco, "Luciernagas", Vector3.new(120, 14, 46), at(0, 9, 45), Color3.fromRGB(255, 255, 160), Enum.Material.SmoothPlastic, false)
+	local flies = part(deco, "Luciernagas", Vector3.new(120, 14, 46 + E), at(0, 9, 45 + E / 2), Color3.fromRGB(255, 255, 160), Enum.Material.SmoothPlastic, false)
 	flies.Transparency = 1
 	local fe = Instance.new("ParticleEmitter")
 	fe.Rate = 14
@@ -237,6 +237,66 @@ function HouseDecor.Build(m: Model, o: Vector3, W: number, H: number, GZ: number
 	-- LÍRIOS en el estanque
 	for i = 0, 5 do
 		part(deco, "Nenufar", Vector3.new(0.2, 3, 3), at(-30 + (i % 3 - 1) * 6, 1.65, GZ + 14 + (math.floor(i / 3) - 0.5) * 6), Color3.fromRGB(70, 160, 80), Enum.Material.Grass, false, Enum.PartType.Cylinder).CFrame = at(-30 + (i % 3 - 1) * 6, 1.65, GZ + 14 + (math.floor(i / 3) - 0.5) * 6) * CFrame.Angles(0, 0, math.rad(90))
+	end
+	-- PRADERA de las mascotas (la parte nueva del jardín, hacia el norte)
+	local z0 = GZ + 36
+	for i = 6, 11 do
+		part(deco, "Sendero", Vector3.new(6, 0.2, 5), at(math.sin(i * 0.8) * 3, 1.5, 16 + i * 6), Color3.fromRGB(176, 170, 160), Enum.Material.Cobblestone, false)
+	end
+	for i = 0, 2 do
+		for _, side in ipairs({ -1, 1 }) do
+			local z = 60 + i * 14
+			part(deco, "FarolPoste", Vector3.new(0.8, 7, 0.8), at(side * 9, 5, z), Color3.fromRGB(40, 40, 48), Enum.Material.Metal)
+			local lamp = part(deco, "FarolLuz", Vector3.new(1.8, 1.8, 1.8), at(side * 9, 9, z), Color3.fromRGB(255, 226, 150), Enum.Material.Neon, false)
+			light(lamp, 24, 1.1, Color3.fromRGB(255, 226, 160))
+		end
+	end
+	-- arboleda: cerezos y robles repartidos por el fondo y los lados
+	local treeSpots = { { -56, z0 }, { 56, z0 }, { -58, z0 + 22 }, { 58, z0 + 22 }, { -44, GZ + 76 }, { 44, GZ + 76 }, { -20, GZ + 80 }, { 22, GZ + 82 } }
+	for i, c in ipairs(treeSpots) do
+		part(deco, "Tronco", Vector3.new(3, 14, 3), at(c[1], 8, c[2]), Color3.fromRGB(104, 72, 46), Enum.Material.Wood)
+		local cherry = i % 2 == 0
+		part(deco, "Copa", Vector3.new(16, 14, 16), at(c[1], 19, c[2]), if cherry then Color3.fromRGB(255, 170, 190) else Color3.fromRGB(70, 156, 84), Enum.Material.Grass, false, Enum.PartType.Ball)
+		part(deco, "CopaVerde", Vector3.new(12, 10, 12), at(c[1], 21, c[2]), Color3.fromRGB(70, 156, 84), Enum.Material.Grass, false, Enum.PartType.Ball)
+	end
+	-- lago del fondo con nenúfares y piedras
+	local lakeX, lakeZ = 26, GZ + 54
+	local lake = part(deco, "Lago", Vector3.new(0.3, 30, 30), at(lakeX, 1.45, lakeZ), Color3.fromRGB(70, 150, 210), Enum.Material.Glass, false, Enum.PartType.Cylinder)
+	lake.CFrame = at(lakeX, 1.45, lakeZ) * CFrame.Angles(0, 0, math.rad(90))
+	lake.Transparency = 0.25
+	for i = 0, 7 do
+		local a = i / 8 * math.pi * 2
+		part(deco, "Piedra", Vector3.new(3.4, 2.2, 3), at(lakeX + math.cos(a) * 15.5, 2, lakeZ + math.sin(a) * 15.5) * CFrame.Angles(0, a, 0), Color3.fromRGB(150 + (i % 3) * 14, 146, 140), Enum.Material.Slate, true, Enum.PartType.Ball)
+	end
+	for i = 0, 6 do
+		local a = i * 2.4
+		local lily = part(deco, "Nenufar", Vector3.new(0.2, 3, 3), at(lakeX + math.cos(a) * (3 + i), 1.65, lakeZ + math.sin(a) * (3 + i)), Color3.fromRGB(70, 160, 80), Enum.Material.Grass, false, Enum.PartType.Cylinder)
+		lily.CFrame = at(lakeX + math.cos(a) * (3 + i), 1.65, lakeZ + math.sin(a) * (3 + i)) * CFrame.Angles(0, 0, math.rad(90))
+	end
+	-- campos de flores
+	for _, side in ipairs({ -1, 1 }) do
+		local bx, bz = side * 40, GZ + 62
+		if side > 0 then
+			bz = GZ + 30
+		end
+		part(deco, "ParterreBorde", Vector3.new(16, 1, 14), at(bx, 1.8, bz), Color3.fromRGB(140, 110, 80), Enum.Material.Wood, false)
+		part(deco, "ParterreTierra", Vector3.new(14.4, 1.2, 12.4), at(bx, 2, bz), Color3.fromRGB(76, 52, 36), Enum.Material.Ground, false)
+		for i = 0, 15 do
+			local fx2 = bx + ((i % 4) - 1.5) * 3.2
+			local fz2 = bz + (math.floor(i / 4) - 1.5) * 2.8
+			part(deco, "Tallo", Vector3.new(0.2, 1.6, 0.2), at(fx2, 3, fz2), Color3.fromRGB(60, 140, 60), Enum.Material.Grass, false)
+			part(deco, "Flor", Vector3.new(1.2, 1.2, 1.2), at(fx2, 4, fz2), cols[(i % #cols) + 1], Enum.Material.SmoothPlastic, false, Enum.PartType.Ball)
+		end
+	end
+	-- pérgola de entrada a la pradera
+	for _, sx in ipairs({ -7, 7 }) do
+		part(deco, "PergolaPilar", Vector3.new(1.4, 12, 1.4), at(sx, 7, GZ + 32), WOOD, Enum.Material.Wood)
+	end
+	for i = 0, 4 do
+		part(deco, "PergolaViga", Vector3.new(16, 0.8, 1.2), at(0, 13.4, GZ + 30 + i * 1.6), WOOD, Enum.Material.Wood, false)
+	end
+	for i = 0, 5 do
+		part(deco, "PergolaHoja", Vector3.new(3, 1.6, 3), at(-6 + i * 2.4, 14.4, GZ + 32), Color3.fromRGB(80, 170, 90), Enum.Material.Grass, false, Enum.PartType.Ball)
 	end
 	return deco
 end

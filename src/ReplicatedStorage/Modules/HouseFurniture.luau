@@ -10,6 +10,23 @@ local Players = game:GetService("Players")
 local HouseFurniture = {}
 
 HouseFurniture.MaxItems = 60
+HouseFurniture.GardenMaxZ = 122 -- el jardín mide 60 más que el original (66 -> 126)
+
+-- colores de pared a elegir (el 1 es el mármol original)
+HouseFurniture.WallColors = {
+	{ Name = "Mármol", Color = Color3.fromRGB(214, 204, 186) },
+	{ Name = "Hueso", Color = Color3.fromRGB(240, 236, 228) },
+	{ Name = "Crema", Color = Color3.fromRGB(236, 220, 184) },
+	{ Name = "Rosa", Color = Color3.fromRGB(234, 190, 200) },
+	{ Name = "Salvia", Color = Color3.fromRGB(176, 200, 170) },
+	{ Name = "Celeste", Color = Color3.fromRGB(170, 200, 226) },
+	{ Name = "Lavanda", Color = Color3.fromRGB(196, 180, 224) },
+	{ Name = "Terracota", Color = Color3.fromRGB(206, 140, 110) },
+	{ Name = "Azul noche", Color = Color3.fromRGB(70, 84, 130) },
+	{ Name = "Bosque", Color = Color3.fromRGB(66, 108, 84) },
+	{ Name = "Burdeos", Color = Color3.fromRGB(120, 52, 64) },
+	{ Name = "Grafito", Color = Color3.fromRGB(70, 72, 80) },
+} :: { { Name: string, Color: Color3 } }
 HouseFurniture.FloorY = 1.45
 
 export type Def = { Id: string, Name: string, Icon: string, Image: boolean?, Radius: number }
@@ -44,7 +61,7 @@ function HouseFurniture.Valid(x: number, z: number): boolean
 		return false
 	end
 	local salon = z >= -66 and z <= 7
-	local garden = z >= 16 and z <= 66
+	local garden = z >= 16 and z <= HouseFurniture.GardenMaxZ
 	if not (salon or garden) then
 		return false
 	end
@@ -52,7 +69,7 @@ function HouseFurniture.Valid(x: number, z: number): boolean
 	local function near(cx: number, cz: number, r: number): boolean
 		return (x - cx) ^ 2 + (z - cz) ^ 2 < r * r
 	end
-	if near(0, -62, 11) or near(-56, -30, 8) or near(58, -30, 8) or near(44, -56, 7) or near(30, 38, 11) or near(-30, 56, 13) then
+	if near(0, -62, 11) or near(-56, -30, 13) or near(61, -30, 9) or near(44, -56, 7) or near(38, 44, 15) or near(-30, 56, 13) or near(26, 96, 17) then
 		return false
 	end
 	-- el hueco entre el salón y el jardín debe quedar libre

@@ -24,6 +24,7 @@ local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
 local MountCatalog = require(ReplicatedStorage.Modules.MountCatalog)
 local HouseDecor = require(script.Parent.HouseDecor)
 local HouseFurniture = require(ReplicatedStorage.Modules.HouseFurniture)
+local HouseProps = require(script.Parent.HouseProps)
 local ProductCatalog = require(ReplicatedStorage.Modules.ProductCatalog)
 local Services = ServerScriptService.Services
 local Net = require(Services.Net)
@@ -42,11 +43,12 @@ local REMIND_SECONDS = 5 * 86400 -- avisa de que hay que suscribirse cuando falt
 local MAX_GUESTS = 8
 local SLOT_COUNT = 48
 local HOUSE_W = 140
+local GARDEN_E = 60 -- el jardín de mascotas se alarga hacia el norte
 local ORIGIN = Vector3.new(40000, 500, 40000) -- cuadrícula de casas MUY lejos del mapa (más allá de la distancia de dibujo: nadie las ve desde fuera)
 local SPACING = 260
 
 type Stack = { Id: string, Count: number, Plus: number?, Locked: boolean? }
-type House = { Owner: Player, Slot: number, Origin: Vector3, Model: Model, Garden: Vector3 }
+type House = { Owner: Player, Slot: number, Origin: Vector3, Model: Model, Garden: Vector3, Bulbs: { Part } }
 
 local HouseService = {}
 local houses: { [Player]: House } = {}
@@ -61,6 +63,8 @@ local portals: { [string]: Vector3 } = {}
 type Item = { T: string, X: number, Z: number, R: number, I: string? }
 local decor: { [Player]: { Item } } = {} -- muebles colocados por el dueño (se guardan en el perfil)
 local imgCool: { [Player]: number } = {}
+local wallIdx: { [Player]: number } = {} -- color de paredes elegido (índice en HouseFurniture.WallColors)
+local nightOf: { [Player]: boolean } = {} -- la casa está de noche
 local MAX_MOUNTS_OUT = 6
 
 local function mountKeys(player: Player): { string }
@@ -184,6 +188,7 @@ end
 local function exitHouse(player: Player)
 	inside[player] = nil
 	player:SetAttribute("InHouse", nil)
+	player:SetAttribute("HouseNight", nil)
 	local cf = returnCF[player]
 	returnCF[player] = nil
 	if not cf then
@@ -233,22 +238,26 @@ local function buildHouse(owner: Player): House?
 		return o + Vector3.new(x, y, z)
 	end
 	-- SUELO: mármol y madera (sur = vestíbulo y salón, norte = jardín de mascotas)
-	part(m, "Suelo", Vector3.new(W, 2, W), o, Color3.fromRGB(150, 110, 70), Enum.Material.WoodPlanks)
+	part(m, "Suelo", Vector3.new(W, 2, W + GARDEN_E), o + Vector3.new(0, 0, GARDEN_E / 2), Color3.fromRGB(150, 110, 70), Enum.Material.WoodPlanks)
 	part(m, "SueloSalon", Vector3.new(W, 0.3, 80), at(0, 1.1, -30), Color3.fromRGB(226, 218, 200), Enum.Material.Marble)
 	part(m, "Alfombra", Vector3.new(36, 0.2, 70), at(0, 1.3, -30), Color3.fromRGB(150, 38, 52), Enum.Material.Fabric)
 	part(m, "AlfombraBorde", Vector3.new(40, 0.15, 74), at(0, 1.25, -30), gold, Enum.Material.Fabric)
-	-- MUROS exteriores
+	-- MUROS exteriores (la casa mide 140 de ancho y 140 + GARDEN_E de largo; el muro norte queda al fondo del jardín)
+	local LEN = W + GARDEN_E
+	local wallColor = (HouseFurniture.WallColors[wallIdx[owner] or 1] or HouseFurniture.WallColors[1]).Color
 	for _, s2 in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
 		local horiz = s2[1] ~= 0
-		part(m, "Muro", if horiz then Vector3.new(2, H, W) else Vector3.new(W, H, 2), at(s2[1] * HALF, H / 2, s2[2] * HALF), stone, Enum.Material.Marble)
-		part(m, "Friso", if horiz then Vector3.new(2.4, 1.4, W) else Vector3.new(W, 1.4, 2.4), at(s2[1] * HALF, 5, s2[2] * HALF), gold, Enum.Material.Metal)
+		local zc = if horiz then GARDEN_E / 2 elseif s2[2] > 0 then HALF + GARDEN_E else -HALF
+		local w = part(m, "Muro", if horiz then Vector3.new(2, H, LEN) else Vector3.new(W, H, 2), at(s2[1] * HALF, H / 2, zc), wallColor, Enum.Material.Marble)
+		w:SetAttribute("Wall", true)
+		part(m, "Friso", if horiz then Vector3.new(2.4, 1.4, LEN) else Vector3.new(W, 1.4, 2.4), at(s2[1] * HALF, 5, zc), gold, Enum.Material.Metal)
 	end
 	-- TECHO solo sobre el salón (z < 10): el jardín queda al cielo abierto
 	local ceil = part(m, "Techo", Vector3.new(W + 2, 2, 82), at(0, H + 1, -30), wood, Enum.Material.Wood)
 	part(m, "TechoVigaE", Vector3.new(2, 3, 82), at(HALF - 1, H - 1, -30), gold, Enum.Material.Metal)
 	-- muro interior bajo que separa el salón del jardín, con un arco central
-	part(m, "DivisionO", Vector3.new(56, 14, 2), at(-42, 7, 10), stone, Enum.Material.Marble)
-	part(m, "DivisionE", Vector3.new(56, 14, 2), at(42, 7, 10), stone, Enum.Material.Marble)
+	part(m, "DivisionO", Vector3.new(56, 14, 2), at(-42, 7, 10), wallColor, Enum.Material.Marble):SetAttribute("Wall", true)
+	part(m, "DivisionE", Vector3.new(56, 14, 2), at(42, 7, 10), wallColor, Enum.Material.Marble):SetAttribute("Wall", true)
 	part(m, "DivisionOro", Vector3.new(56, 1, 2.4), at(-42, 14.5, 10), gold, Enum.Material.Metal)
 	part(m, "DivisionOroE", Vector3.new(56, 1, 2.4), at(42, 14.5, 10), gold, Enum.Material.Metal)
 	-- COLUMNAS y faroles del salón
@@ -280,10 +289,9 @@ local function buildHouse(owner: Player): House?
 			exitHouse(pl)
 		end
 	end)
-	-- BAÚL (ala oeste, solo el dueño)
-	local chest = part(m, "Baul", Vector3.new(8, 5, 5), at(-56, 3.5, -30), Color3.fromRGB(122, 78, 38), Enum.Material.Wood)
-	part(m, "BaulTapa", Vector3.new(8.4, 1.4, 5.4), at(-56, 6.4, -30), gold, Enum.Material.Metal)
-	sign(chest, "BAÚL PRIVADO", gold, 5)
+	-- BAÚL (pared oeste, solo el dueño)
+	local chest = HouseProps.Chest(m, o)
+	sign(chest, "BAÚL PRIVADO", gold, 9)
 	prompt(chest, "Abrir baúl", "Baúl privado", Enum.KeyCode.E, 0.3, function(pl)
 		if pl ~= owner then
 			say(pl, "Solo el dueño puede abrir este baúl.")
@@ -292,9 +300,8 @@ local function buildHouse(owner: Player): House?
 		OpenRemote:FireClient(pl, "Vault")
 		buildPush(pl)
 	end)
-	-- TABLÓN de invitados (ala este, solo el dueño)
-	local board = part(m, "Tablon", Vector3.new(10, 6, 1), at(58, 5, -30), wood, Enum.Material.Wood)
-	sign(board, "INVITADOS", gold, 5)
+	-- TABLÓN de invitados (pared este, solo el dueño)
+	local board = HouseProps.Board(m, o)
 	prompt(board, "Invitados", "Tablón de invitados", Enum.KeyCode.E, 0.3, function(pl)
 		if pl ~= owner then
 			say(pl, "Solo el dueño puede invitar o expulsar.")
@@ -303,6 +310,27 @@ local function buildHouse(owner: Player): House?
 		OpenRemote:FireClient(pl, "Guests")
 		buildPush(pl)
 	end)
+	-- INTERRUPTORES de día / noche (uno en el salón y otro en el jardín, solo el dueño)
+	local bulbs: { Part } = {}
+	local function addSwitch(x: number, y: number, z: number, faceZ: number)
+		local plate, bulb = HouseProps.Switch(m, o, x, y, z, faceZ)
+		table.insert(bulbs, bulb)
+		prompt(plate, "Día / noche", "Interruptor", Enum.KeyCode.E, 0.2, function(pl)
+			if pl ~= owner then
+				say(pl, "Solo el dueño puede usar el interruptor.")
+				return
+			end
+			HouseService.SetNight(owner, not (nightOf[owner] == true))
+		end)
+	end
+	addSwitch(14, 7, -68.2, 1) -- salón, junto a la salida
+	addSwitch(24, 7, 11.3, 1) -- jardín, en el muro de división
+	local function paintBulbs()
+		for _, b in ipairs(bulbs) do
+			b.Color = if nightOf[owner] then Color3.fromRGB(120, 150, 255) else Color3.fromRGB(255, 226, 120)
+		end
+	end
+	paintBulbs()
 	-- MESA DE DISEÑO: abre el catálogo de decoración (solo el dueño)
 	local desk = part(m, "MesaDiseno", Vector3.new(9, 3.4, 5), at(44, 3.1, -56), wood, Enum.Material.Wood)
 	part(m, "MesaDisenoTapa", Vector3.new(9.6, 0.5, 5.6), at(44, 5, -56), gold, Enum.Material.Metal)
@@ -318,22 +346,20 @@ local function buildHouse(owner: Player): House?
 
 	-- JARDÍN DE MASCOTAS (norte, cielo abierto): césped, estanque, árboles, valla y la caseta donde se sueltan / se agarran
 	local GZ = 42 -- centro del jardín en z
-	part(m, "Cesped", Vector3.new(W - 6, 0.4, 46), at(0, 1.2, 45), Color3.fromRGB(86, 150, 78), Enum.Material.Grass)
+	part(m, "Cesped", Vector3.new(W - 6, 0.4, 46 + GARDEN_E), at(0, 1.2, 45 + GARDEN_E / 2), Color3.fromRGB(86, 150, 78), Enum.Material.Grass)
 	local pond = part(m, "Estanque", Vector3.new(24, 0.3, 16), at(-30, 1.45, GZ + 14), Color3.fromRGB(70, 150, 210), Enum.Material.Glass)
 	pond.Transparency = 0.25
 	for i = -3, 3 do
 		part(m, "Valla" .. i, Vector3.new(2, 4, 2), at(i * 18, 3, 12), wood, Enum.Material.Wood)
 	end
 	part(m, "VallaTravesano", Vector3.new(W - 6, 0.8, 0.8), at(0, 4.2, 12), wood, Enum.Material.Wood)
-	local hut = part(m, "Caseta", Vector3.new(14, 7, 10), at(30, 4.5, GZ - 4), Color3.fromRGB(160, 110, 66), Enum.Material.WoodPlanks)
-	part(m, "CasetaTecho", Vector3.new(17, 1.5, 13), at(30, 8.8, GZ - 4), Color3.fromRGB(150, 50, 56), Enum.Material.Wood)
-	sign(hut, "CASETA DE MASCOTAS", Color3.fromRGB(190, 255, 200), 7)
+	local hut = HouseProps.Hut(m, o, GZ)
 	prompt(hut, "Mascotas y monturas", "Caseta de animales", Enum.KeyCode.E, 0.4, function(pl)
 		if pl ~= owner then
 			say(pl, "Solo el dueño puede soltar o agarrar sus animales.")
 			return
 		end
-		pl:SetAttribute("PetsHomeR", 30)
+		pl:SetAttribute("PetsHomeR", 48)
 		OpenRemote:FireClient(pl, "Animals")
 		buildPush(pl)
 	end)
@@ -343,7 +369,7 @@ local function buildHouse(owner: Player): House?
 		Flota_Pirata = Color3.fromRGB(200, 50, 60),
 		Corte_Shinigami = Color3.fromRGB(150, 90, 220),
 	}
-	local okDecor, errDecor = pcall(HouseDecor.Build, m, o, W, H, GZ, FACTION_COLOR[tostring(owner:GetAttribute("Faction"))] or gold, owner.DisplayName)
+	local okDecor, errDecor = pcall(HouseDecor.Build, m, o, W, H, GZ, FACTION_COLOR[tostring(owner:GetAttribute("Faction"))] or gold, owner.DisplayName, GARDEN_E)
 	if not okDecor then
 		warn("[HouseService] decoración falló: " .. tostring(errDecor))
 	end
@@ -351,7 +377,7 @@ local function buildHouse(owner: Player): House?
 	placedFolder.Name = "Placed"
 	placedFolder.Parent = m
 	m.Parent = Workspace
-	local h: House = { Owner = owner, Slot = slot, Origin = o, Model = m, Garden = at(0, 1.6, GZ + 6) }
+	local h: House = { Owner = owner, Slot = slot, Origin = o, Model = m, Garden = at(0, 1.6, GZ + 6 + GARDEN_E / 2), Bulbs = bulbs }
 	houses[owner] = h
 	HouseService.RefreshPlaced(owner)
 	return h
@@ -370,6 +396,7 @@ local function enterHouse(player: Player, host: Player)
 	end
 	returnCF[player] = root.CFrame
 	inside[player] = host
+	player:SetAttribute("HouseNight", nightOf[host] == true)
 	player:SetAttribute("InHouse", true)
 	moveTo(player, CFrame.new(h.Origin + Vector3.new(0, 5, -54)) * CFrame.Angles(0, math.rad(180), 0))
 	if player ~= host then
@@ -605,6 +632,8 @@ buildPush = function(player: Player)
 		Animals = animals,
 		Decor = decorList,
 		DecorMax = HouseFurniture.MaxItems,
+		WallColor = wallIdx[player] or 1,
+		Night = nightOf[player] == true,
 		Origin = if inside[player] == player and houses[player] then houses[player].Origin else nil,
 		Mail = mailList,
 		HasPass = isOwner,
@@ -694,6 +723,34 @@ local function invite(player: Player, userId: any, on: boolean)
 		if inside[target] == player then
 			exitHouse(target)
 			say(target, "Ya no estás invitado a esa casa.")
+		end
+	end
+end
+
+function HouseService.SetNight(owner: Player, on: boolean)
+	nightOf[owner] = on
+	local h = houses[owner]
+	if h then
+		for _, b in ipairs(h.Bulbs) do
+			b.Color = if on then Color3.fromRGB(120, 150, 255) else Color3.fromRGB(255, 226, 120)
+		end
+	end
+	for pl, host in pairs(inside) do
+		if host == owner then
+			pl:SetAttribute("HouseNight", on)
+		end
+	end
+end
+
+function HouseService.SetWall(player: Player, idx: any)
+	local h = houses[player]
+	if not h or inside[player] ~= player or typeof(idx) ~= "number" or not HouseFurniture.WallColors[idx] then
+		return
+	end
+	wallIdx[player] = idx
+	for _, ch in ipairs(h.Model:GetChildren()) do
+		if ch:GetAttribute("Wall") and ch:IsA("BasePart") then
+			ch.Color = HouseFurniture.WallColors[idx].Color
 		end
 	end
 end
@@ -913,6 +970,8 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 		HouseService.SetRelease(player, a, b == true)
 	elseif action == "Place" then
 		HouseService.PlaceDecor(player, a)
+	elseif action == "WallColor" then
+		HouseService.SetWall(player, a)
 	elseif action == "RemoveDecor" then
 		HouseService.RemoveDecor(player, a)
 	elseif action == "SetImage" then
@@ -1200,7 +1259,7 @@ end)
 ---------------------------------------------------------------------
 PlayerData.RegisterSerializer("House", function(player: Player): any?
 	local v = vaults[player]
-	if (not v or next(v) == nil) and #(mail[player] or {}) == 0 and not lic[player] and #(decor[player] or {}) == 0 then
+	if (not v or next(v) == nil) and #(mail[player] or {}) == 0 and not lic[player] and #(decor[player] or {}) == 0 and wallIdx[player] == nil and nightOf[player] == nil then
 		return nil
 	end
 	v = v or {}
@@ -1217,7 +1276,7 @@ PlayerData.RegisterSerializer("House", function(player: Player): any?
 	for _, it in ipairs(decor[player] or {}) do
 		table.insert(D, { T = it.T, X = it.X, Z = it.Z, R = it.R, I = it.I })
 	end
-	return { V = out, M = m, L = if L then { On = L.On, Until = L.Until } else nil, D = D }
+	return { V = out, M = m, L = if L then { On = L.On, Until = L.Until } else nil, D = D, W = wallIdx[player], N = nightOf[player] }
 end)
 
 local function init(player: Player)
@@ -1257,6 +1316,12 @@ local function init(player: Player)
 		end
 	end
 	decor[player] = dl
+	if typeof(raw) == "table" and typeof(raw.W) == "number" and HouseFurniture.WallColors[raw.W] then
+		wallIdx[player] = raw.W
+	end
+	if typeof(raw) == "table" and raw.N == true then
+		nightOf[player] = true
+	end
 	if typeof(raw) == "table" and typeof(raw.L) == "table" and typeof(raw.L.On) == "boolean" and typeof(raw.L.Until) == "number" then
 		lic[player] = { On = raw.L.On, Until = raw.L.Until }
 	end
@@ -1285,6 +1350,8 @@ local function leave(player: Player)
 	lastAction[player] = nil
 	decor[player] = nil
 	imgCool[player] = nil
+	wallIdx[player] = nil
+	nightOf[player] = nil
 end
 
 -- cada 10 minutos se vuelve a consultar la suscripción de quien tiene licencia (puede vencer con la sesión abierta)

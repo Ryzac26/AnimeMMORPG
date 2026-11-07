@@ -796,7 +796,7 @@ RunService.RenderStepped:Connect(function()
 		if cur then
 			if t > cur.NextAt or (cur.Home :: Vector3?) ~= home then
 				cur.Home = home
-				cur.Target = home + Vector3.new((math.random() * 2 - 1) * 26, 0, (math.random() * 2 - 1) * 18)
+				cur.Target = home + Vector3.new((math.random() * 2 - 1) * 46, 0, (math.random() * 2 - 1) * 38)
 				cur.NextAt = t + 4 + math.random() * 6
 			end
 			local flat = Vector3.new(cur.Target.X - cur.Pos.X, 0, cur.Target.Z - cur.Pos.Z)

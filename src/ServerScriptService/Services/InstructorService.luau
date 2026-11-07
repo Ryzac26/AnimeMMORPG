@@ -93,7 +93,7 @@ local function spawnInstructor(point: BasePart)
 	local hit = Workspace:Raycast(point.Position + Vector3.new(0, 4, 0), Vector3.new(0, -12, 0), params)
 	local ground = if hit then hit.Position else point.Position
 	local look = point.CFrame.LookVector
-	local pos = ground + Vector3.new(0, 5.1, 0)
+	local pos = ground + Vector3.new(0, 3.05, 0)
 	local rig = build(info, CFrame.lookAt(pos, pos + Vector3.new(look.X, 0, look.Z)), faction)
 	rig.Name = "Instructor_" .. faction
 	rig:SetAttribute("Faction", faction)

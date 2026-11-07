@@ -70,7 +70,7 @@ end
 local function buildMerchant(info: { Name: string, Title: string, Skin: Color3, Shirt: Color3, Pants: Color3, Hair: Color3 }, cf: CFrame, faction: string): Model
 	local model, head = NpcBuilder.Person("Mercader", faction, cf)
 	-- puesto: cajones con mercancía al lado
-	local crateCF = cf * CFrame.new(-4, -2.4, -1)
+	local crateCF = cf * CFrame.new(-4, -1.9, -1)
 	part(model, "Cajon", Vector3.new(2.4, 2.2, 2.4), crateCF, Color3.fromRGB(140, 100, 55), Enum.Material.WoodPlanks)
 	part(model, "CajonB", Vector3.new(2, 1.6, 2), crateCF * CFrame.new(0.2, 1.9, 0), Color3.fromRGB(165, 120, 65), Enum.Material.WoodPlanks)
 	part(model, "Frasco", Vector3.new(0.6, 1, 0.6), crateCF * CFrame.new(-0.6, 3.0, 0), Color3.fromRGB(220, 60, 70), Enum.Material.Glass)
@@ -126,7 +126,7 @@ local function spawnMerchant(point: BasePart)
 
 	local ground = groundPosition(point)
 	local look = point.CFrame.LookVector
-	local pos = ground + Vector3.new(0, 5.1, 0)
+	local pos = ground + Vector3.new(0, 3.05, 0)
 	local cf = CFrame.lookAt(pos, pos + Vector3.new(look.X, 0, look.Z))
 	local rig = buildMerchant(info, cf, faction)
 	rig.Name = "Mercader_" .. faction

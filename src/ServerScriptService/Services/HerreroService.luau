@@ -108,7 +108,7 @@ end
 local function buildSmith(info: { Name: string, Title: string, Skin: Color3, Shirt: Color3, Pants: Color3 }, cf: CFrame, faction: string): Model
 	local model, head = NpcBuilder.Person("Herrero", faction, cf)
 	-- yunque al lado
-	local anvilCF = cf * CFrame.new(4, -2.6, -1)
+	local anvilCF = cf * CFrame.new(4, -2.1, -1)
 	part(model, "Yunque", Vector3.new(2.6, 1.6, 2), anvilCF, Color3.fromRGB(60, 60, 68), Enum.Material.Metal)
 	part(model, "YunqueBase", Vector3.new(1.6, 1.2, 1.4), anvilCF * CFrame.new(0, -1.3, 0), Color3.fromRGB(45, 45, 52), Enum.Material.Metal)
 
@@ -156,7 +156,7 @@ local function spawnSmith(point: BasePart)
 
 	local ground = groundPosition(point)
 	local look = point.CFrame.LookVector
-	local pos = ground + Vector3.new(0, 5.1, 0) -- el centro del torso queda 5 studs sobre el piso (piernas de 2 + mitad del torso... + margen)
+	local pos = ground + Vector3.new(0, 3.05, 0) -- el centro del torso queda 5 studs sobre el piso (piernas de 2 + mitad del torso... + margen)
 	local cf = CFrame.lookAt(pos, pos + Vector3.new(look.X, 0, look.Z))
 	local rig = buildSmith(info, cf, faction)
 	rig.Name = "Herrero_" .. faction
