@@ -82,6 +82,7 @@ local function dress(player: Player, char: Model)
 	if CharacterModels.Has(name) then
 		local okC, doneC = pcall(CharacterModels.Apply, char, name)
 		if okC and doneC then
+			pcall(CharacterModels.Extras, char, name)
 			char:SetAttribute("Outfit", name)
 			return
 		elseif not okC then
@@ -129,6 +130,7 @@ local function dress(player: Player, char: Model)
 		if not okM then
 			warn("[PlayerOutfits] piezas 3D: " .. tostring(errM))
 		end
+		pcall(CharacterModels.Extras, char, name)
 		char:SetAttribute("Outfit", name)
 	else
 		warn("[PlayerOutfits] no se pudo vestir a " .. player.Name .. " como " .. name .. ": " .. tostring(err))

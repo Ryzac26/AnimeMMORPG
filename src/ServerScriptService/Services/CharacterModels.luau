@@ -98,6 +98,13 @@ function CharacterModels.Apply(char: Model, name: string): boolean
 	end
 	if #assembled > 0 then
 		local n = 0
+		-- giro opcional alrededor del centro del personaje (atributo RotY del modelo, en grados)
+		local rotAttr = tpl:GetAttribute("RotY")
+		local root = part(char, "HumanoidRootPart")
+		local rotCF = CFrame.identity
+		if typeof(rotAttr) == "number" and rotAttr ~= 0 and root then
+			rotCF = root.CFrame * CFrame.Angles(0, math.rad(rotAttr), 0) * root.CFrame:Inverse()
+		end
 		for _, e in ipairs(assembled) do
 			local c = e[1] :: BasePart
 			local base = e[2] :: string
@@ -118,7 +125,7 @@ function CharacterModels.Apply(char: Model, name: string): boolean
 				gp.Massless = true
 				gp.Name = base .. SUFFIX
 				gp.Parent = char
-				gp.CFrame = p.CFrame * tp.CFrame:ToObjectSpace(c.CFrame)
+				gp.CFrame = rotCF * (p.CFrame * tp.CFrame:ToObjectSpace(c.CFrame))
 				local w = Instance.new("WeldConstraint")
 				w.Part0 = p
 				w.Part1 = gp
@@ -152,8 +159,7 @@ function CharacterModels.Apply(char: Model, name: string): boolean
 	local gTorso, gFoot = part(g, "Torso"), part(g, "LeftFoot")
 	if not (gTorso and gFoot) then
 		g:Destroy()
-		warn("[CharacterModels] el modelo " .. name .. " no tiene Torso o LeftFoot")
-		return false
+		return false -- rig "limpio" sin piezas de reemplazo: se usa el traje de siempre (y Extras)
 	end
 
 	-- escala: de la planta del pie a la parte alta del torso (el pelo no cuenta)
@@ -210,6 +216,29 @@ function CharacterModels.Apply(char: Model, name: string): boolean
 	end
 	char:SetAttribute("CharacterModel", name)
 	return true
+end
+
+-- Copia al personaje lo que traiga el rig de plantilla: ropa (Shirt/Pants/ShirtGraphic) y accesorios.
+-- Se llama DESPUÉS de vestir con el traje. Un rig "limpio" (sin nada de esto) no cambia nada.
+function CharacterModels.Extras(char: Model, name: string)
+	local tpl = template(name)
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not tpl or not hum then
+		return
+	end
+	for _, c in ipairs(tpl:GetChildren()) do
+		if c:IsA("Shirt") or c:IsA("Pants") or c:IsA("ShirtGraphic") then
+			local old = char:FindFirstChildOfClass(c.ClassName)
+			if old then
+				old:Destroy()
+			end
+			c:Clone().Parent = char
+		elseif c:IsA("Accessory") then
+			if not char:FindFirstChild(c.Name) then
+				hum:AddAccessory(c:Clone())
+			end
+		end
+	end
 end
 
 return CharacterModels
