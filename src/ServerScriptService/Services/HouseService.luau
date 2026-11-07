@@ -65,10 +65,10 @@ local decor: { [Player]: { Item } } = {} -- muebles colocados por el dueño (se 
 local imgCool: { [Player]: number } = {}
 local decorSeeded: { [Player]: boolean } = {}
 local FACTION_COLORS: { [string]: Color3 } = {
-	Imperio_Saiyan = Color3.fromRGB(220, 120, 40),
-	Alianza_Shinobi = Color3.fromRGB(70, 130, 220),
-	Flota_Pirata = Color3.fromRGB(200, 50, 60),
-	Corte_Shinigami = Color3.fromRGB(150, 90, 220),
+	Saiyan = Color3.fromRGB(220, 120, 40),
+	Shinobi = Color3.fromRGB(70, 130, 220),
+	Pirate = Color3.fromRGB(200, 50, 60),
+	Shinigami = Color3.fromRGB(150, 90, 220),
 }
 local wallIdx: { [Player]: number } = {} -- color de paredes elegido (índice en HouseFurniture.WallColors)
 local nightOf: { [Player]: boolean } = {} -- la casa está de noche
