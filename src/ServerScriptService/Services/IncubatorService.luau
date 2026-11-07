@@ -54,6 +54,16 @@ local function build(point: BasePart)
 	local ground = if hit then hit.Position else Vector3.new(want.X, point.Position.Y - 1, want.Z)
 	local base = CFrame.new(ground)
 
+	-- anti-duplicado: si ya hay una incubadora en este punto (dos Mercader en el mismo sitio o mapa construido dos veces), no poner otra
+	for _, other in ipairs(Workspace:GetChildren()) do
+		if other:IsA("Model") and other.Name == "Incubadora" and other.PrimaryPart then
+			local d = other.PrimaryPart.Position - ground
+			if Vector3.new(d.X, 0, d.Z).Magnitude < 12 then
+				return
+			end
+		end
+	end
+
 	local model = Instance.new("Model")
 	model.Name = "Incubadora"
 	part(model, "Base", Vector3.new(1.2, 7, 7), base * CFrame.new(0, 0.6, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(70, 66, 76), Enum.Material.Slate, Enum.PartType.Cylinder)

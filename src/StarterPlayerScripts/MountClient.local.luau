@@ -914,6 +914,38 @@ local function applySit(m)
 	end
 end
 
+-- Mientras se va montado, las animaciones de Roblox (correr/caminar/saltar/caer) se dejan con peso ~0 para que no peleen con la pose.
+-- No se paran (así al bajar vuelven solas): se guarda el peso original y se restaura al desmontar.
+local dimmed: { [AnimationTrack]: { Char: Model, W: number } } = {}
+
+local function dimTracks(char: Model)
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	local animator = hum and hum:FindFirstChildOfClass("Animator")
+	if not animator then
+		return
+	end
+	for _, tr in ipairs(animator:GetPlayingAnimationTracks()) do
+		local d = dimmed[tr]
+		if not d then
+			dimmed[tr] = { Char = char, W = if tr.WeightTarget > 0.01 then tr.WeightTarget else 1 }
+			tr:AdjustWeight(0.001, 0)
+		elseif tr.WeightTarget > 0.01 then
+			tr:AdjustWeight(0.001, 0) -- Animate lo volvió a subir
+		end
+	end
+end
+
+local function restoreTracks()
+	for tr, d in pairs(dimmed) do
+		if not d.Char.Parent or d.Char:GetAttribute("Mounted") ~= true or not tr.IsPlaying then
+			dimmed[tr] = nil
+			if tr.IsPlaying then
+				tr:AdjustWeight(d.W, 0.15)
+			end
+		end
+	end
+end
+
 RunService:BindToRenderStep("MountSitPose", Enum.RenderPriority.Last.Value + 1, function()
 	local cam = Workspace.CurrentCamera
 	local camPos = cam and cam.CFrame.Position or Vector3.zero
@@ -921,9 +953,11 @@ RunService:BindToRenderStep("MountSitPose", Enum.RenderPriority.Last.Value + 1, 
 		local char = pl.Character
 		local root = char and char:FindFirstChild("HumanoidRootPart")
 		if char and root and char:GetAttribute("Mounted") == true and (root.Position - camPos).Magnitude < VIEW_RANGE then
+			dimTracks(char)
 			applySit(char)
 		end
 	end
+	restoreTracks()
 end)
 script.Destroying:Connect(function()
 	pcall(function()
