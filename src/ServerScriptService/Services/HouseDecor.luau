@@ -1,7 +1,8 @@
 --!strict
 -- Decoración fija de la Casa VIP (salón, vestíbulo y jardín). Solo estética: nada de esto tiene prompts.
 -- Build(model, origen, ancho, alto, GZ, colorFacción, nombreDueño)
-local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HouseFurniture = require(ReplicatedStorage.Modules.HouseFurniture)
 
 local HouseDecor = {}
 
@@ -85,6 +86,10 @@ function HouseDecor.Build(m: Model, o: Vector3, W: number, H: number, GZ: number
 		part(deco, "SofaRespaldo", Vector3.new(1.6, 4, 14), at(x + side * 5.6, 4.2, -44, 0), Color3.fromRGB(120, 36, 52), Enum.Material.Fabric)
 		for _, dz in ipairs({ -6.8, 6.8 }) do
 			part(deco, "SofaBrazo", Vector3.new(6, 3.4, 1.4), at(x + side * 3, 3.2, -44 + dz, 0), Color3.fromRGB(100, 28, 44), Enum.Material.Fabric)
+		end
+		for _, dz in ipairs({ -47.5, -40.5 }) do
+			local sp = o + Vector3.new(x + side * 3, 3.9, dz)
+			HouseFurniture.MakeSeat(deco, CFrame.lookAt(sp, sp + Vector3.new(-side, 0, 0)))
 		end
 		part(deco, "MesitaTapa", Vector3.new(6, 0.5, 6), at(x - side * 2, 3.4, -44, 0), WOOD, Enum.Material.Wood)
 		part(deco, "MesitaPata", Vector3.new(1, 2.2, 1), at(x - side * 2, 2.2, -44, 0), GOLD, Enum.Material.Metal)
@@ -196,6 +201,10 @@ function HouseDecor.Build(m: Model, o: Vector3, W: number, H: number, GZ: number
 	-- BANCOS junto a la fuente
 	for _, side in ipairs({ -1, 1 }) do
 		part(deco, "BancoAsiento", Vector3.new(10, 0.8, 3), at(side * 14, 2.8, fcz + 12, 0), WOOD, Enum.Material.Wood)
+		for _, dx in ipairs({ -2.5, 2.5 }) do
+			local sp = o + Vector3.new(side * 14 + dx, 3.7, fcz + 12)
+			HouseFurniture.MakeSeat(deco, CFrame.lookAt(sp, sp + Vector3.new(0, 0, -1)))
+		end
 		part(deco, "BancoRespaldo", Vector3.new(10, 3, 0.6), at(side * 14, 4.6, fcz + 13.6, 0), WOOD, Enum.Material.Wood)
 		for _, dx in ipairs({ -4, 4 }) do
 			part(deco, "BancoPata", Vector3.new(0.8, 2.4, 2.4), at(side * 14 + dx, 1.9, fcz + 12), GOLD, Enum.Material.Metal, false)

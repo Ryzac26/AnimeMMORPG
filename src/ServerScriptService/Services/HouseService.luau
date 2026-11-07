@@ -23,6 +23,7 @@ local Workspace = game:GetService("Workspace")
 local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
 local MountCatalog = require(ReplicatedStorage.Modules.MountCatalog)
 local HouseDecor = require(script.Parent.HouseDecor)
+local HouseFurniture = require(ReplicatedStorage.Modules.HouseFurniture)
 local ProductCatalog = require(ReplicatedStorage.Modules.ProductCatalog)
 local Services = ServerScriptService.Services
 local Net = require(Services.Net)
@@ -57,6 +58,9 @@ local inside: { [Player]: Player } = {} -- jugador -> dueño de la casa donde es
 local returnCF: { [Player]: CFrame } = {}
 local portals: { [string]: Vector3 } = {}
 
+type Item = { T: string, X: number, Z: number, R: number, I: string? }
+local decor: { [Player]: { Item } } = {} -- muebles colocados por el dueño (se guardan en el perfil)
+local imgCool: { [Player]: number } = {}
 local MAX_MOUNTS_OUT = 6
 
 local function mountKeys(player: Player): { string }
@@ -299,9 +303,18 @@ local function buildHouse(owner: Player): House?
 		OpenRemote:FireClient(pl, "Guests")
 		buildPush(pl)
 	end)
-	-- Sala de DECORACIÓN reservada (Fase 3): pedestal vacío
-	local deco = part(m, "Pedestal", Vector3.new(10, 1, 10), at(0, 1.6, -46), gold, Enum.Material.Metal)
-	sign(deco, "RINCÓN DE DECORACIÓN (próximamente)", Color3.fromRGB(255, 236, 170), 4)
+	-- MESA DE DISEÑO: abre el catálogo de decoración (solo el dueño)
+	local desk = part(m, "MesaDiseno", Vector3.new(9, 3.4, 5), at(44, 3.1, -56), wood, Enum.Material.Wood)
+	part(m, "MesaDisenoTapa", Vector3.new(9.6, 0.5, 5.6), at(44, 5, -56), gold, Enum.Material.Metal)
+	sign(desk, "🛋 DECORAR", Color3.fromRGB(255, 236, 170), 4)
+	prompt(desk, "Decorar la casa", "Mesa de diseño", Enum.KeyCode.E, 0.3, function(pl)
+		if pl ~= owner then
+			say(pl, "Solo el dueño puede decorar.")
+			return
+		end
+		OpenRemote:FireClient(pl, "Decor")
+		buildPush(pl)
+	end)
 
 	-- JARDÍN DE MASCOTAS (norte, cielo abierto): césped, estanque, árboles, valla y la caseta donde se sueltan / se agarran
 	local GZ = 42 -- centro del jardín en z
@@ -334,9 +347,13 @@ local function buildHouse(owner: Player): House?
 	if not okDecor then
 		warn("[HouseService] decoración falló: " .. tostring(errDecor))
 	end
+	local placedFolder = Instance.new("Folder")
+	placedFolder.Name = "Placed"
+	placedFolder.Parent = m
 	m.Parent = Workspace
 	local h: House = { Owner = owner, Slot = slot, Origin = o, Model = m, Garden = at(0, 1.6, GZ + 6) }
 	houses[owner] = h
+	HouseService.RefreshPlaced(owner)
 	return h
 end
 
@@ -573,6 +590,10 @@ buildPush = function(player: Player)
 	if esp and typeof(eqKey) == "string" and not table.find(outKeys, eqKey) then
 		addAnimal("Mount:" .. eqKey, esp.Name, false)
 	end
+	local decorList: { any } = {}
+	for i, it in ipairs(decor[player] or {}) do
+		table.insert(decorList, { Idx = i, T = it.T, I = it.I })
+	end
 	local mailList: { any } = {}
 	for i, st in ipairs(mail[player] or {}) do
 		table.insert(mailList, { Slot = i, Id = st.Id, Count = st.Count, Plus = st.Plus or 0, Locked = st.Locked == true })
@@ -582,6 +603,9 @@ buildPush = function(player: Player)
 		TimeLeft = if lic[player] and lic[player].On and player:GetAttribute("Sub_Vip") ~= true then math.max(0, lic[player].Until - os.time()) else nil, -- mes incluido / margen
 		Grace = GRACE_SECONDS,
 		Animals = animals,
+		Decor = decorList,
+		DecorMax = HouseFurniture.MaxItems,
+		Origin = if inside[player] == player and houses[player] then houses[player].Origin else nil,
 		Mail = mailList,
 		HasPass = isOwner,
 		Cap = vaultCap(player),
@@ -672,6 +696,111 @@ local function invite(player: Player, userId: any, on: boolean)
 			say(target, "Ya no estás invitado a esa casa.")
 		end
 	end
+end
+
+function HouseService.RefreshPlaced(owner: Player)
+	local h = houses[owner]
+	if not h then
+		return
+	end
+	local folder = h.Model:FindFirstChild("Placed")
+	if not folder then
+		return
+	end
+	folder:ClearAllChildren()
+	for _, it in ipairs(decor[owner] or {}) do
+		HouseFurniture.Build(it.T, folder, CFrame.new(h.Origin + Vector3.new(it.X, HouseFurniture.FloorY, it.Z)) * CFrame.Angles(0, math.rad(it.R), 0), { Image = it.I, Interactive = true })
+	end
+end
+
+function HouseService.PlaceDecor(player: Player, data: any)
+	local h = houses[player]
+	if not h or inside[player] ~= player or typeof(data) ~= "table" then
+		return
+	end
+	local def = HouseFurniture.ById[data.T]
+	if not def or typeof(data.X) ~= "number" or typeof(data.Z) ~= "number" or typeof(data.R) ~= "number" then
+		return
+	end
+	local x = math.floor(data.X * 2 + 0.5) / 2
+	local z = math.floor(data.Z * 2 + 0.5) / 2
+	local r = (math.floor(data.R / 15 + 0.5) * 15) % 360
+	if not HouseFurniture.Valid(x, z) then
+		say(player, "No puedes poner eso ahí.")
+		return
+	end
+	local list = decor[player]
+	if not list then
+		list = {}
+		decor[player] = list
+	end
+	local idx = data.Idx
+	if typeof(idx) == "number" and list[idx] and list[idx].T == def.Id then
+		list[idx].X, list[idx].Z, list[idx].R = x, z, r
+	else
+		if #list >= HouseFurniture.MaxItems then
+			say(player, "Llegaste al máximo de " .. HouseFurniture.MaxItems .. " muebles.")
+			return
+		end
+		table.insert(list, { T = def.Id, X = x, Z = z, R = r })
+	end
+	HouseService.RefreshPlaced(player)
+end
+
+function HouseService.RemoveDecor(player: Player, idx: any)
+	local list = decor[player]
+	if not list or inside[player] ~= player or typeof(idx) ~= "number" or not list[idx] then
+		return
+	end
+	table.remove(list, idx)
+	HouseService.RefreshPlaced(player)
+end
+
+-- imagen de un Cuadro / Pantalla: el jugador pega el ID; se comprueba que sea una imagen (o calcomanía) de Roblox
+function HouseService.SetImage(player: Player, idx: any, raw: any)
+	local list = decor[player]
+	if not list or inside[player] ~= player or typeof(idx) ~= "number" or not list[idx] or typeof(raw) ~= "string" then
+		return
+	end
+	local def = HouseFurniture.ById[list[idx].T]
+	if not def or not def.Image then
+		return
+	end
+	if #raw > 120 then
+		return
+	end
+	local item = list[idx]
+	local digits = string.match(raw, "%d+")
+	if not digits or #digits > 19 then
+		if string.match(raw, "^%s*$") then
+			item.I = nil
+			HouseService.RefreshPlaced(player)
+			say(player, "Imagen quitada.")
+		else
+			say(player, "Pega solo el número (ID) de tu imagen.")
+		end
+		return
+	end
+	local now = os.clock()
+	if now - (imgCool[player] or 0) < 2 then
+		say(player, "Espera un momento antes de cambiar otra imagen.")
+		return
+	end
+	imgCool[player] = now
+	task.spawn(function()
+		local ok, info = pcall(MarketplaceService.GetProductInfo, MarketplaceService, tonumber(digits) :: number, Enum.InfoType.Asset)
+		if not ok or typeof(info) ~= "table" or (info.AssetTypeId ~= 1 and info.AssetTypeId ~= 13) then
+			say(player, "Ese ID no es una imagen válida de Roblox.")
+			return
+		end
+		if player.Parent == nil or not decor[player] or decor[player][idx] ~= item then
+			return
+		end
+		item.I = digits
+		HouseService.RefreshPlaced(player)
+		say(player, "¡Imagen puesta!")
+		buildPush(player)
+	end)
 end
 
 function HouseService.SetRelease(player: Player, key: any, on: boolean)
@@ -782,6 +911,13 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 		invite(player, a, false)
 	elseif action == "Release" then
 		HouseService.SetRelease(player, a, b == true)
+	elseif action == "Place" then
+		HouseService.PlaceDecor(player, a)
+	elseif action == "RemoveDecor" then
+		HouseService.RemoveDecor(player, a)
+	elseif action == "SetImage" then
+		HouseService.SetImage(player, a, b)
+		return
 	elseif action == "Rebuy" then
 		HouseService.RequestRebuy(player)
 		return
@@ -1064,7 +1200,7 @@ end)
 ---------------------------------------------------------------------
 PlayerData.RegisterSerializer("House", function(player: Player): any?
 	local v = vaults[player]
-	if (not v or next(v) == nil) and #(mail[player] or {}) == 0 and not lic[player] then
+	if (not v or next(v) == nil) and #(mail[player] or {}) == 0 and not lic[player] and #(decor[player] or {}) == 0 then
 		return nil
 	end
 	v = v or {}
@@ -1077,7 +1213,11 @@ PlayerData.RegisterSerializer("House", function(player: Player): any?
 		table.insert(m, { Id = st.Id, Count = st.Count, Plus = st.Plus, Locked = st.Locked })
 	end
 	local L = lic[player]
-	return { V = out, M = m, L = if L then { On = L.On, Until = L.Until } else nil }
+	local D: { any } = {}
+	for _, it in ipairs(decor[player] or {}) do
+		table.insert(D, { T = it.T, X = it.X, Z = it.Z, R = it.R, I = it.I })
+	end
+	return { V = out, M = m, L = if L then { On = L.On, Until = L.Until } else nil, D = D }
 end)
 
 local function init(player: Player)
@@ -1107,6 +1247,16 @@ local function init(player: Player)
 		end
 	end
 	mail[player] = ml
+	local dl: { Item } = {}
+	if typeof(raw) == "table" and typeof(raw.D) == "table" then
+		for _, e in ipairs(raw.D) do
+			if typeof(e) == "table" and typeof(e.T) == "string" and HouseFurniture.ById[e.T] and typeof(e.X) == "number" and typeof(e.Z) == "number" and typeof(e.R) == "number" and HouseFurniture.Valid(e.X, e.Z) and #dl < HouseFurniture.MaxItems then
+				local img: string? = if typeof(e.I) == "string" and string.match(e.I, "^%d+$") and #e.I <= 19 then e.I else nil
+				table.insert(dl, { T = e.T, X = e.X, Z = e.Z, R = e.R, I = img })
+			end
+		end
+	end
+	decor[player] = dl
 	if typeof(raw) == "table" and typeof(raw.L) == "table" and typeof(raw.L.On) == "boolean" and typeof(raw.L.Until) == "number" then
 		lic[player] = { On = raw.L.On, Until = raw.L.Until }
 	end
@@ -1133,6 +1283,8 @@ local function leave(player: Player)
 	end
 	returnCF[player] = nil
 	lastAction[player] = nil
+	decor[player] = nil
+	imgCool[player] = nil
 end
 
 -- cada 10 minutos se vuelve a consultar la suscripción de quien tiene licencia (puede vencer con la sesión abierta)

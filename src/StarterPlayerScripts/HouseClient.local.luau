@@ -4,11 +4,15 @@
     Ventana de la CASA VIP (HouseService la abre al usar el baúl o el tablón de invitados dentro de tu casa):
       Baúl        tu mochila (derecha) y el baúl privado (izquierda); clic en un objeto = lo pasa al otro lado.
       Invitados   jugadores del servidor: invitar / quitar invitación (los invitados solo pueden entrar y mirar).
+      Decorar     catálogo de muebles: se colocan con vista previa; cuadros y pantallas muestran tu imagen por ID.
       Suscripción beneficios de la Suscripción Imperial (mensual) y botón de compra.
     IMPORTANTE: está en la lista RELOAD de UIReloadClient.
 ]]
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
@@ -17,6 +21,7 @@ local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 local ItemIcon = require(script.Parent:WaitForChild("ItemIcon", 10))
 local ItemCatalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("ItemCatalog"))
+local HouseFurniture = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("HouseFurniture"))
 
 local openRemote = ClientNet.Get("HouseOpen")
 local stateRemote = ClientNet.Get("HouseState")
@@ -34,7 +39,7 @@ local state: any = nil
 local tab = "Baul"
 local hover: TextLabel? = nil
 
-local TABS_HOME = { { "Baul", "🧰 Baúl" }, { "Animals", "🐾 Animales" }, { "Guests", "👥 Invitados" }, { "Sub", "👑 Suscripción" } }
+local TABS_HOME = { { "Baul", "🧰 Baúl" }, { "Animals", "🐾 Animales" }, { "Decor", "🛋 Decorar" }, { "Guests", "👥 Invitados" }, { "Sub", "👑 Suscripción" } }
 local TABS_MAIL = { { "Mail", "📮 Buzón" } }
 local mailMode = false -- true = abierta desde el buzón de la ciudad (solo esa pestaña)
 
@@ -95,7 +100,146 @@ local function slotGrid(parent: Instance, theme: any, pal: any, list: { any }, c
 	end
 end
 
-local function build()
+---------------------------------------------------------------------
+-- MODO COLOCAR: vista previa del mueble que sigue al cursor / toque
+---------------------------------------------------------------------
+local draftImg: { [number]: string } = {}
+type Placing = { Type: string, Idx: number?, Rot: number, X: number, Z: number, Ghost: Model?, Conns: { RBXScriptConnection }, Gui: ScreenGui, Hl: Highlight }
+local placing: Placing? = nil
+local build: () -> ()
+
+local function stopPlace()
+	local pl = placing
+	if not pl then
+		return
+	end
+	placing = nil
+	for _, c in ipairs(pl.Conns) do
+		c:Disconnect()
+	end
+	if pl.Ghost then
+		pl.Ghost:Destroy()
+	end
+	pl.Gui:Destroy()
+	tab = "Decor"
+	build()
+	gui.Enabled = true
+end
+
+local function refreshGhost()
+	local pl = placing
+	if not pl or not state or not state.Origin then
+		return
+	end
+	local origin: Vector3 = state.Origin
+	if pl.Ghost then
+		pl.Ghost:PivotTo(CFrame.new(origin + Vector3.new(pl.X, HouseFurniture.FloorY, pl.Z)) * CFrame.Angles(0, math.rad(pl.Rot), 0))
+	end
+	pl.Hl.FillColor = if HouseFurniture.Valid(pl.X, pl.Z) then Color3.fromRGB(90, 230, 120) else Color3.fromRGB(235, 80, 80)
+end
+
+local function confirmPlace()
+	local pl = placing
+	if not pl or not HouseFurniture.Valid(pl.X, pl.Z) then
+		return
+	end
+	actionRemote:FireServer("Place", { T = pl.Type, X = pl.X, Z = pl.Z, R = pl.Rot, Idx = pl.Idx })
+	if pl.Idx then
+		stopPlace()
+	end
+end
+
+local function startPlace(typeId: string, idx: number?, rot: number?)
+	if placing or not state or not state.Origin then
+		return
+	end
+	local origin: Vector3 = state.Origin
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	local px, pz = 0, -20
+	if root and root:IsA("BasePart") then
+		px, pz = root.Position.X - origin.X, root.Position.Z - origin.Z
+		pz += 10
+		if pz > 6 and pz < 18 then
+			pz = -20
+		end
+	end
+	local sg = Instance.new("ScreenGui")
+	sg.Name = "HousePlaceGui"
+	sg.ResetOnSpawn = false
+	sg.DisplayOrder = 14
+	sg.Parent = player:WaitForChild("PlayerGui")
+	local theme = UITheme.For(player:GetAttribute("Faction"))
+	local pal = NpcKit.Palette(theme)
+	local bar = NpcKit.Panel(sg, theme, UDim2.fromOffset(520, 96), UDim2.new(0.5, -260, 1, -190), "inset")
+	local def = HouseFurniture.ById[typeId]
+	text(bar, (if def then def.Icon .. " " .. def.Name else typeId) .. " — toca o haz clic donde quieres ponerlo", 14, pal.Text, UDim2.fromOffset(12, 6), UDim2.fromOffset(496, 20))
+	text(bar, "R girar · Enter colocar · X cancelar · verde = se puede, rojo = no", 12, pal.FMuted, UDim2.fromOffset(12, 26), UDim2.fromOffset(496, 16))
+	local ghost = HouseFurniture.Build(typeId, Workspace, CFrame.new(origin), { Ghost = true })
+	local hl = Instance.new("Highlight")
+	hl.FillTransparency = 0.5
+	hl.OutlineTransparency = 0.2
+	hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	hl.Parent = ghost
+	local pl: Placing = { Type = typeId, Idx = idx, Rot = rot or 0, X = math.floor(px), Z = math.floor(pz), Ghost = ghost, Conns = {}, Gui = sg, Hl = hl }
+	placing = pl
+	NpcKit.Button(bar, theme, "✔ Colocar", UDim2.fromOffset(150, 34), UDim2.fromOffset(12, 50), "buy", confirmPlace)
+	NpcKit.Button(bar, theme, "↻ Girar", UDim2.fromOffset(150, 34), UDim2.fromOffset(184, 50), "buy", function()
+		pl.Rot = (pl.Rot + 45) % 360
+		refreshGhost()
+	end)
+	NpcKit.Button(bar, theme, "✖ Terminar", UDim2.fromOffset(150, 34), UDim2.fromOffset(356, 50), "danger", stopPlace)
+	gui.Enabled = false
+
+	local rp = RaycastParams.new()
+	rp.FilterType = Enum.RaycastFilterType.Exclude
+	local function updateFrom(sx: number, sy: number)
+		local cam = Workspace.CurrentCamera
+		if not cam or not state or not state.Origin then
+			return
+		end
+		rp.FilterDescendantsInstances = { player.Character :: Instance, ghost :: Instance }
+		local ray = cam:ScreenPointToRay(sx, sy)
+		local hit = Workspace:Raycast(ray.Origin, ray.Direction * 400, rp)
+		if hit then
+			local o: Vector3 = state.Origin
+			pl.X = math.floor(hit.Position.X - o.X + 0.5)
+			pl.Z = math.floor(hit.Position.Z - o.Z + 0.5)
+			refreshGhost()
+		end
+	end
+	table.insert(pl.Conns, UserInputService.InputBegan:Connect(function(input: InputObject, gp: boolean)
+		if gp then
+			return
+		end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			updateFrom(input.Position.X, input.Position.Y)
+		elseif input.KeyCode == Enum.KeyCode.R then
+			pl.Rot = (pl.Rot + 45) % 360
+			refreshGhost()
+		elseif input.KeyCode == Enum.KeyCode.Return then
+			confirmPlace()
+		elseif input.KeyCode == Enum.KeyCode.X then
+			stopPlace()
+		end
+	end))
+	table.insert(pl.Conns, UserInputService.InputChanged:Connect(function(input: InputObject, gp: boolean)
+		if gp then
+			return
+		end
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			updateFrom(input.Position.X, input.Position.Y)
+		end
+	end))
+	-- si sales de la casa (o te sacan) se cancela
+	table.insert(pl.Conns, player:GetAttributeChangedSignal("InHouse"):Connect(function()
+		if player:GetAttribute("InHouse") ~= true then
+			stopPlace()
+		end
+	end))
+	refreshGhost()
+end
+
+build = function()
 	local theme = UITheme.For(player:GetAttribute("Faction"))
 	local pal = NpcKit.Palette(theme)
 	if win then
@@ -107,7 +251,7 @@ local function build()
 	win = w
 	WindowDrag.Attach(w, "House", 40, 50)
 	for i, t in ipairs(if mailMode then TABS_MAIL else TABS_HOME) do
-		NpcKit.Tab(w, theme, t[2], UDim2.fromOffset(150, 28), UDim2.fromOffset(14 + (i - 1) * 156, 72), tab == t[1], function()
+		NpcKit.Tab(w, theme, t[2], UDim2.fromOffset(144, 28), UDim2.fromOffset(14 + (i - 1) * 150, 72), tab == t[1], function()
 			tab = t[1]
 			build()
 		end)
@@ -171,6 +315,65 @@ local function build()
 				actionRemote:FireServer("Release", a.Key, not a.Released)
 			end)
 		end
+	elseif tab == "Decor" then
+		local inHome = state.Origin ~= nil
+		text(w, if inHome then "Elige un mueble y colócalo donde quieras. Cuadros y pantallas: pega el ID de tu imagen y se genera al instante." else "Entra a tu casa para decorar (usa la mesa de diseño del salón).", 12, pal.FMuted, UDim2.fromOffset(18, top), UDim2.fromOffset(748, 30)).TextWrapped = true
+		for i, d in ipairs(HouseFurniture.Catalog) do
+			local col, row = (i - 1) % 4, math.floor((i - 1) / 4)
+			NpcKit.Button(w, theme, d.Icon .. " " .. d.Name, UDim2.fromOffset(180, 32), UDim2.fromOffset(18 + col * 186, top + 34 + row * 38), "buy", function()
+				if inHome then
+					startPlace(d.Id)
+				end
+			end)
+		end
+		local listTop = top + 34 + math.ceil(#HouseFurniture.Catalog / 4) * 38 + 4
+		text(w, string.format("Colocados: %d / %d", #state.Decor, state.DecorMax), 14, pal.Text, UDim2.fromOffset(18, listTop), UDim2.fromOffset(300, 20))
+		local sc = Instance.new("ScrollingFrame")
+		sc.BackgroundTransparency = 1
+		sc.BorderSizePixel = 0
+		sc.Position = UDim2.fromOffset(14, listTop + 24)
+		sc.Size = UDim2.fromOffset(752, 596 - (listTop + 24))
+		sc.CanvasSize = UDim2.fromOffset(0, #state.Decor * 40)
+		sc.ScrollBarThickness = 6
+		sc.ZIndex = 3
+		sc.Parent = w
+		for i, it in ipairs(state.Decor) do
+			local def = HouseFurniture.ById[it.T]
+			local row = NpcKit.Panel(sc, theme, UDim2.fromOffset(734, 36), UDim2.fromOffset(0, (i - 1) * 40), "inset")
+			text(row, (if def then def.Icon .. " " .. def.Name else it.T), 13, pal.Text, UDim2.fromOffset(10, 8), UDim2.fromOffset(170, 20))
+			if def and def.Image then
+				local box = Instance.new("TextBox")
+				box.Position = UDim2.fromOffset(184, 5)
+				box.Size = UDim2.fromOffset(190, 26)
+				box.BackgroundColor3 = pal.Slot
+				box.BorderSizePixel = 0
+				box.PlaceholderText = "Pega el ID de tu imagen"
+				box.Text = draftImg[it.Idx] or it.I or ""
+				box.TextColor3 = Color3.new(1, 1, 1)
+				box.PlaceholderColor3 = Color3.fromRGB(150, 150, 160)
+				box.TextSize = 12
+				box.Font = Enum.Font.Gotham
+				box.ClearTextOnFocus = false
+				box.ZIndex = 6
+				box.Parent = row
+				Instance.new("UICorner", box).CornerRadius = UDim.new(0, 5)
+				box:GetPropertyChangedSignal("Text"):Connect(function()
+					draftImg[it.Idx] = box.Text
+				end)
+				NpcKit.Button(row, theme, "Aplicar", UDim2.fromOffset(90, 26), UDim2.fromOffset(380, 5), "buy", function()
+					actionRemote:FireServer("SetImage", it.Idx, box.Text)
+				end)
+			end
+			NpcKit.Button(row, theme, "Mover", UDim2.fromOffset(100, 26), UDim2.fromOffset(484, 5), "buy", function()
+				if inHome then
+					startPlace(it.T, it.Idx)
+				end
+			end)
+			NpcKit.Button(row, theme, "Quitar", UDim2.fromOffset(100, 26), UDim2.fromOffset(590, 5), "danger", function()
+				draftImg[it.Idx] = nil
+				actionRemote:FireServer("RemoveDecor", it.Idx)
+			end)
+		end
 	elseif tab == "Guests" then
 		text(w, string.format("Invitados: pueden entrar a tu casa, mirar y salir. No pueden abrir ni tocar nada. (máx. %d)", state.MaxGuests), 12, pal.FMuted, UDim2.fromOffset(18, top), UDim2.fromOffset(740, 18))
 		if #state.People == 0 then
@@ -217,7 +420,7 @@ end
 if openRemote then
 	openRemote.OnClientEvent:Connect(function(kind: any)
 		mailMode = kind == "Mail"
-		tab = if kind == "Guests" then "Guests" elseif kind == "Animals" then "Animals" elseif kind == "Mail" then "Mail" else "Baul"
+		tab = if kind == "Guests" then "Guests" elseif kind == "Animals" then "Animals" elseif kind == "Decor" then "Decor" elseif kind == "Mail" then "Mail" else "Baul"
 		build()
 		gui.Enabled = true
 	end)
