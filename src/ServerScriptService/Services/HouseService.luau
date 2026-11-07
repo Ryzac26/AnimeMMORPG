@@ -63,6 +63,13 @@ local portals: { [string]: Vector3 } = {}
 type Item = { T: string, X: number, Z: number, R: number, I: string? }
 local decor: { [Player]: { Item } } = {} -- muebles colocados por el dueño (se guardan en el perfil)
 local imgCool: { [Player]: number } = {}
+local decorSeeded: { [Player]: boolean } = {}
+local FACTION_COLORS: { [string]: Color3 } = {
+	Imperio_Saiyan = Color3.fromRGB(220, 120, 40),
+	Alianza_Shinobi = Color3.fromRGB(70, 130, 220),
+	Flota_Pirata = Color3.fromRGB(200, 50, 60),
+	Corte_Shinigami = Color3.fromRGB(150, 90, 220),
+}
 local wallIdx: { [Player]: number } = {} -- color de paredes elegido (índice en HouseFurniture.WallColors)
 local nightOf: { [Player]: boolean } = {} -- la casa está de noche
 local MAX_MOUNTS_OUT = 6
@@ -363,13 +370,7 @@ local function buildHouse(owner: Player): House?
 		OpenRemote:FireClient(pl, "Animals")
 		buildPush(pl)
 	end)
-	local FACTION_COLOR: { [string]: Color3 } = {
-		Imperio_Saiyan = Color3.fromRGB(220, 120, 40),
-		Alianza_Shinobi = Color3.fromRGB(70, 130, 220),
-		Flota_Pirata = Color3.fromRGB(200, 50, 60),
-		Corte_Shinigami = Color3.fromRGB(150, 90, 220),
-	}
-	local okDecor, errDecor = pcall(HouseDecor.Build, m, o, W, H, GZ, FACTION_COLOR[tostring(owner:GetAttribute("Faction"))] or gold, owner.DisplayName, GARDEN_E)
+	local okDecor, errDecor = pcall(HouseDecor.Build, m, o, W, H, GZ, FACTION_COLORS[tostring(owner:GetAttribute("Faction"))] or gold, owner.DisplayName, GARDEN_E)
 	if not okDecor then
 		warn("[HouseService] decoración falló: " .. tostring(errDecor))
 	end
@@ -379,6 +380,20 @@ local function buildHouse(owner: Player): House?
 	m.Parent = Workspace
 	local h: House = { Owner = owner, Slot = slot, Origin = o, Model = m, Garden = at(0, 1.6, GZ + 6 + GARDEN_E / 2), Bulbs = bulbs }
 	houses[owner] = h
+	if not decorSeeded[owner] then
+		-- primera vez: el salón y el jardín se amueblan con la distribución inicial (muebles normales, editables)
+		decorSeeded[owner] = true
+		local list = decor[owner]
+		if not list then
+			list = {}
+			decor[owner] = list
+		end
+		for _, d in ipairs(HouseFurniture.Defaults) do
+			if #list < HouseFurniture.MaxItems then
+				table.insert(list, { T = d.T, X = d.X, Z = d.Z, R = d.R })
+			end
+		end
+	end
 	HouseService.RefreshPlaced(owner)
 	return h
 end
@@ -766,7 +781,7 @@ function HouseService.RefreshPlaced(owner: Player)
 	end
 	folder:ClearAllChildren()
 	for _, it in ipairs(decor[owner] or {}) do
-		HouseFurniture.Build(it.T, folder, CFrame.new(h.Origin + Vector3.new(it.X, HouseFurniture.FloorY, it.Z)) * CFrame.Angles(0, math.rad(it.R), 0), { Image = it.I, Interactive = true })
+		HouseFurniture.Build(it.T, folder, CFrame.new(h.Origin + Vector3.new(it.X, HouseFurniture.FloorY, it.Z)) * CFrame.Angles(0, math.rad(it.R), 0), { Image = it.I, Interactive = true, Accent = FACTION_COLORS[tostring(owner:GetAttribute("Faction"))], Owner = owner })
 	end
 end
 
@@ -1276,7 +1291,7 @@ PlayerData.RegisterSerializer("House", function(player: Player): any?
 	for _, it in ipairs(decor[player] or {}) do
 		table.insert(D, { T = it.T, X = it.X, Z = it.Z, R = it.R, I = it.I })
 	end
-	return { V = out, M = m, L = if L then { On = L.On, Until = L.Until } else nil, D = D, W = wallIdx[player], N = nightOf[player] }
+	return { V = out, M = m, L = if L then { On = L.On, Until = L.Until } else nil, D = D, W = wallIdx[player], N = nightOf[player], S = decorSeeded[player] }
 end)
 
 local function init(player: Player)
@@ -1309,13 +1324,14 @@ local function init(player: Player)
 	local dl: { Item } = {}
 	if typeof(raw) == "table" and typeof(raw.D) == "table" then
 		for _, e in ipairs(raw.D) do
-			if typeof(e) == "table" and typeof(e.T) == "string" and HouseFurniture.ById[e.T] and typeof(e.X) == "number" and typeof(e.Z) == "number" and typeof(e.R) == "number" and HouseFurniture.Valid(e.X, e.Z) and #dl < HouseFurniture.MaxItems then
+			if typeof(e) == "table" and typeof(e.T) == "string" and HouseFurniture.ById[e.T] and typeof(e.X) == "number" and typeof(e.Z) == "number" and typeof(e.R) == "number" and HouseFurniture.InBounds(e.X, e.Z) and #dl < HouseFurniture.MaxItems then
 				local img: string? = if typeof(e.I) == "string" and string.match(e.I, "^%d+$") and #e.I <= 19 then e.I else nil
 				table.insert(dl, { T = e.T, X = e.X, Z = e.Z, R = e.R, I = img })
 			end
 		end
 	end
 	decor[player] = dl
+	decorSeeded[player] = typeof(raw) == "table" and raw.S == true
 	if typeof(raw) == "table" and typeof(raw.W) == "number" and HouseFurniture.WallColors[raw.W] then
 		wallIdx[player] = raw.W
 	end
@@ -1352,6 +1368,7 @@ local function leave(player: Player)
 	imgCool[player] = nil
 	wallIdx[player] = nil
 	nightOf[player] = nil
+	decorSeeded[player] = nil
 end
 
 -- cada 10 minutos se vuelve a consultar la suscripción de quien tiene licencia (puede vencer con la sesión abierta)
@@ -1390,5 +1407,9 @@ PlayerData.Releasing:Connect(function(pl: Player)
 	vaults[pl] = nil
 	mail[pl] = nil
 end)
+
+HouseFurniture.Notify = function(pl: Player, text: string)
+	say(pl, text)
+end
 
 return HouseService

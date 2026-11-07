@@ -9,7 +9,10 @@ local Players = game:GetService("Players")
 
 local HouseFurniture = {}
 
-HouseFurniture.MaxItems = 60
+HouseFurniture.MaxItems = 100
+
+-- el servidor lo rellena: manda un aviso a un jugador (lo usan las interacciones de los muebles)
+HouseFurniture.Notify = nil :: ((Player, string) -> ())?
 HouseFurniture.GardenMaxZ = 122 -- el jardín mide 60 más que el original (66 -> 126)
 
 -- colores de pared a elegir (el 1 es el mármol original)
@@ -45,6 +48,8 @@ HouseFurniture.Catalog = {
 	{ Id = "Pantalla", Name = "Pantalla (tu imagen)", Icon = "📺", Image = true, Radius = 6.5 },
 	{ Id = "Farol", Name = "Farol de jardín", Icon = "🏮", Radius = 1.2 },
 	{ Id = "Fuente", Name = "Fuente pequeña", Icon = "⛲", Radius = 4 },
+	{ Id = "Estandarte", Name = "Estandarte", Icon = "🚩", Radius = 3 },
+	{ Id = "Chimenea", Name = "Chimenea", Icon = "🔥", Radius = 8 },
 } :: { Def }
 
 HouseFurniture.ById = {} :: { [string]: Def }
@@ -52,28 +57,58 @@ for _, d in ipairs(HouseFurniture.Catalog) do
 	HouseFurniture.ById[d.Id] = d
 end
 
+-- Distribución inicial del salón y el jardín (antes eran piezas fijas; ahora son muebles normales: se mueven, giran o se quitan)
+HouseFurniture.Defaults = {
+	{ T = "Sofa", X = -29, Z = -44, R = 270 }, { T = "Sofa", X = 29, Z = -44, R = 90 },
+	{ T = "Mesa", X = -21, Z = -44, R = 0 }, { T = "Mesa", X = 21, Z = -44, R = 0 },
+	{ T = "Estanteria", X = -65.5, Z = -10, R = 270 }, { T = "Estanteria", X = -65.5, Z = 0, R = 270 },
+	{ T = "Estanteria", X = 65.5, Z = -10, R = 90 }, { T = "Estanteria", X = 65.5, Z = 0, R = 90 },
+	{ T = "Planta", X = -26, Z = -58, R = 0 }, { T = "Planta", X = 26, Z = -58, R = 0 },
+	{ T = "Planta", X = -26, Z = -2, R = 0 }, { T = "Planta", X = 26, Z = -2, R = 0 },
+	{ T = "Estandarte", X = -66.5, Z = -50, R = 270 }, { T = "Estandarte", X = -66.5, Z = -57, R = 270 },
+	{ T = "Estandarte", X = 66.5, Z = -50, R = 90 }, { T = "Estandarte", X = 66.5, Z = -57, R = 90 },
+	{ T = "Chimenea", X = -26, Z = -67, R = 180 },
+	{ T = "Banco", X = -14, Z = 68, R = 0 }, { T = "Banco", X = 14, Z = 68, R = 0 },
+} :: { { T: string, X: number, Z: number, R: number } }
+
+local BOOK_LINES = {
+	"📖 «La paciencia forja más espadas que la ira.»",
+	"📖 Un viejo tratado de reiatsu: «Respira hondo antes del primer golpe.»",
+	"📖 Un bestiario: «Los jefes del mundo temen a quien nunca retrocede.»",
+	"📖 Diario de un aventurero: «Hoy encontré un metin... y salí corriendo.»",
+	"📖 «Quien cuida a su montura, cuida su camino.»",
+	"📖 Recetas del alquimista: «Nunca mezcles azul con rojo cerca del fuego.»",
+	"📖 «Las facciones pasan; las historias quedan.»",
+	"📖 Un libro sin título, con una sola frase: «Sigue subiendo.»",
+}
+
 -- ¿Se puede poner un mueble en (x, z)? (relativo al origen de la casa)
-function HouseFurniture.Valid(x: number, z: number): boolean
-	if x ~= x or z ~= z then
+-- límites del salón y el jardín (los muebles guardados solo se comprueban contra esto)
+function HouseFurniture.InBounds(x: number, z: number): boolean
+	if x ~= x or z ~= z or math.abs(x) > 67 then
 		return false
 	end
-	if math.abs(x) > 63 then
-		return false
-	end
-	local salon = z >= -66 and z <= 7
+	local salon = z >= -68 and z <= 7
 	local garden = z >= 16 and z <= HouseFurniture.GardenMaxZ
 	if not (salon or garden) then
 		return false
 	end
-	-- zonas reservadas: portal de salida, baúl, tablón, mesa de diseño, caseta, estanque
+	-- el hueco entre el salón y el jardín debe quedar libre
+	if z > 4 and z < 17 and math.abs(x) < 16 then
+		return false
+	end
+	return true
+end
+
+-- ¿Se puede colocar un mueble NUEVO en (x, z)? (relativo al origen de la casa). Evita portal, baúl, tablón, mesa de diseño, caseta y estanques.
+function HouseFurniture.Valid(x: number, z: number): boolean
+	if not HouseFurniture.InBounds(x, z) then
+		return false
+	end
 	local function near(cx: number, cz: number, r: number): boolean
 		return (x - cx) ^ 2 + (z - cz) ^ 2 < r * r
 	end
 	if near(0, -62, 11) or near(-56, -30, 13) or near(61, -30, 9) or near(44, -56, 7) or near(38, 44, 15) or near(-30, 56, 13) or near(26, 96, 17) then
-		return false
-	end
-	-- el hueco entre el salón y el jardín debe quedar libre
-	if z > 4 and z < 17 and math.abs(x) < 16 then
 		return false
 	end
 	return true
@@ -136,15 +171,16 @@ local WOOD = Color3.fromRGB(110, 76, 46)
 local GOLD = Color3.fromRGB(240, 196, 90)
 local RED = Color3.fromRGB(130, 40, 56)
 
-function HouseFurniture.Build(id: string, parent: Instance, cf: CFrame, opts: { Ghost: boolean?, Image: string?, Interactive: boolean? }?): Model?
+function HouseFurniture.Build(id: string, parent: Instance, cf: CFrame, opts: { Ghost: boolean?, Image: string?, Interactive: boolean?, Accent: Color3?, Owner: Player? }?): Model?
 	local def = HouseFurniture.ById[id]
 	if not def then
 		return nil
 	end
-	local o: { Ghost: boolean?, Image: string?, Interactive: boolean? } = opts or {}
+	local o: { Ghost: boolean?, Image: string?, Interactive: boolean?, Accent: Color3?, Owner: Player? } = opts or {}
 	local m = Instance.new("Model")
 	m.Name = "Mueble_" .. id
 	local seats: { CFrame } = {}
+	local prompts: { { Part: BasePart, Action: string, Object: string, Fn: (Player) -> () } } = {}
 	local function P(name: string, size: Vector3, off: CFrame, color: Color3, mat: Enum.Material, shape: Enum.PartType?): Part
 		return mk(m, name, size, cf * off, color, mat, shape)
 	end
@@ -223,6 +259,17 @@ function HouseFurniture.Build(id: string, parent: Instance, cf: CFrame, opts: { 
 		shade.Transparency = 0.25
 		if not o.Ghost then
 			light(shade, 26, 0.8, Color3.fromRGB(255, 226, 170))
+			local pole = m:FindFirstChild("Poste") :: BasePart
+			local on = true
+			table.insert(prompts, { Part = pole, Action = "Encender / apagar", Object = "Lámpara", Fn = function()
+				on = not on
+				shade.Material = if on then Enum.Material.Neon else Enum.Material.SmoothPlastic
+				shade.Transparency = if on then 0.25 else 0
+				local l = shade:FindFirstChildOfClass("PointLight")
+				if l then
+					l.Enabled = on
+				end
+			end })
 		end
 	elseif id == "Planta" then
 		cyl("Maceta", 3, 2.6, C(0, 1.3, 0), Color3.fromRGB(176, 92, 60), Enum.Material.Slate)
@@ -242,6 +289,11 @@ function HouseFurniture.Build(id: string, parent: Instance, cf: CFrame, opts: { 
 			end
 		end
 		P("Techo", Vector3.new(8.6, 0.6, 3.2), C(0, 11.2, 0.5), GOLD, Enum.Material.Wood)
+		table.insert(prompts, { Part = m:FindFirstChild("Fondo") :: BasePart, Action = "Leer un libro", Object = "Estantería", Fn = function(pl: Player)
+			if HouseFurniture.Notify then
+				HouseFurniture.Notify(pl, BOOK_LINES[math.random(#BOOK_LINES)])
+			end
+		end })
 	elseif id == "Cuadro" then
 		for _, sx in ipairs({ -2, 2 }) do
 			P("Pata", Vector3.new(0.4, 6, 0.4), C(sx, 3, 0.6), WOOD, Enum.Material.Wood)
@@ -260,6 +312,28 @@ function HouseFurniture.Build(id: string, parent: Instance, cf: CFrame, opts: { 
 			panel.Material = Enum.Material.Neon
 			panel.Transparency = 0.3
 		end
+		local tvOn = true
+		table.insert(prompts, { Part = m:FindFirstChild("Carcasa") :: BasePart, Action = "Encender / apagar", Object = "Pantalla", Fn = function()
+			tvOn = not tvOn
+			local dec = panel:FindFirstChildOfClass("Decal")
+			if dec then
+				dec.Transparency = if tvOn then 0 else 1
+			end
+			if tvOn then
+				if not dec then
+					panel.Color = Color3.fromRGB(30, 60, 110)
+					panel.Material = Enum.Material.Neon
+					panel.Transparency = 0.3
+				else
+					panel.Color = Color3.fromRGB(18, 22, 34)
+					panel.Material = Enum.Material.SmoothPlastic
+				end
+			else
+				panel.Color = Color3.fromRGB(10, 10, 12)
+				panel.Material = Enum.Material.SmoothPlastic
+				panel.Transparency = 0
+			end
+		end })
 	elseif id == "Farol" then
 		P("Poste", Vector3.new(0.7, 7, 0.7), C(0, 3.5, 0), Color3.fromRGB(40, 40, 48), Enum.Material.Metal)
 		local lamp = P("Luz", Vector3.new(1.8, 1.8, 1.8), C(0, 7.6, 0), Color3.fromRGB(255, 226, 150), Enum.Material.Neon)
@@ -288,6 +362,41 @@ function HouseFurniture.Build(id: string, parent: Instance, cf: CFrame, opts: { 
 		end
 	end
 
+	if id == "Estandarte" then
+		local cloth = o.Accent or Color3.fromRGB(150, 40, 56)
+		cyl("Base", 3, 0.5, C(0, 0.25, 0), GOLD, Enum.Material.Metal)
+		P("Mastil", Vector3.new(0.5, 15, 0.5), C(0, 7.8, 0), GOLD, Enum.Material.Metal)
+		P("Travesano", Vector3.new(6.4, 0.5, 0.5), C(0, 14.6, 0), GOLD, Enum.Material.Metal)
+		P("Remate", Vector3.new(1, 1, 1), C(0, 15.8, 0), GOLD, Enum.Material.Metal, Enum.PartType.Ball)
+		P("Tela", Vector3.new(5, 11, 0.3), C(0, 8.8, 0), cloth, Enum.Material.Fabric)
+		P("TelaBorde", Vector3.new(5.2, 0.7, 0.4), C(0, 3.5, 0), GOLD, Enum.Material.Metal)
+		P("TelaEmblema", Vector3.new(1.8, 1.8, 0.4), C(0, 9.5, -0.05) * CFrame.Angles(0, 0, math.rad(45)), GOLD, Enum.Material.Neon)
+	elseif id == "Chimenea" then
+		P("Marco", Vector3.new(16, 11, 2), C(0, 5.5, 0.5), Color3.fromRGB(120, 108, 96), Enum.Material.Brick)
+		P("Hueco", Vector3.new(9, 6.5, 2.2), C(0, 3.6, 0.1), Color3.fromRGB(26, 22, 22), Enum.Material.Slate)
+		P("Repisa", Vector3.new(18, 1, 3), C(0, 11.4, 0), GOLD, Enum.Material.Wood)
+		P("Leños", Vector3.new(5, 0.9, 1.2), C(0, 1.3, -0.2), Color3.fromRGB(86, 56, 36), Enum.Material.Wood)
+		local fire = P("Fuego", Vector3.new(3, 1, 1.2), C(0, 2.1, -0.2), Color3.fromRGB(255, 130, 40), Enum.Material.Neon)
+		fire.CanCollide = false
+		fire.Transparency = 0.3
+		if not o.Ghost then
+			local f = Instance.new("Fire")
+			f.Size, f.Heat = 6, 8
+			f.Parent = fire
+			light(fire, 28, 1.3, Color3.fromRGB(255, 150, 80))
+			local fon = true
+			table.insert(prompts, { Part = m:FindFirstChild("Marco") :: BasePart, Action = "Encender / apagar", Object = "Chimenea", Fn = function()
+				fon = not fon
+				f.Enabled = fon
+				fire.Transparency = if fon then 0.3 else 1
+				local l = fire:FindFirstChildOfClass("PointLight")
+				if l then
+					l.Enabled = fon
+				end
+			end })
+		end
+	end
+
 	for _, d in ipairs(m:GetDescendants()) do
 		if d:IsA("BasePart") then
 			if o.Ghost then
@@ -301,6 +410,25 @@ function HouseFurniture.Build(id: string, parent: Instance, cf: CFrame, opts: { 
 		end
 	end
 	if o.Interactive and not o.Ghost then
+		for _, pr in ipairs(prompts) do
+			local pp = Instance.new("ProximityPrompt")
+			pp.ActionText = pr.Action
+			pp.ObjectText = pr.Object
+			pp.KeyboardKeyCode = Enum.KeyCode.E
+			pp.HoldDuration = 0.2
+			pp.MaxActivationDistance = 8
+			pp.RequiresLineOfSight = false
+			pp.Parent = pr.Part
+			pp.Triggered:Connect(function(pl: Player)
+				if o.Owner and pl ~= o.Owner then
+					if HouseFurniture.Notify then
+						HouseFurniture.Notify(pl, "Solo el dueño puede usar esto.")
+					end
+					return
+				end
+				pr.Fn(pl)
+			end)
+		end
 		for _, scf in ipairs(seats) do
 			HouseFurniture.MakeSeat(m, scf)
 		end

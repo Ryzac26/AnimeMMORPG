@@ -47,6 +47,7 @@ local function label(p: BasePart, face: Enum.NormalId, text: string, color: Colo
 	l.Text = text
 	l.Font = font or Enum.Font.Fantasy
 	l.TextScaled = true
+	l.TextWrapped = false
 	l.TextColor3 = color
 	l.TextStrokeTransparency = 0.5
 	l.Parent = gui
@@ -212,7 +213,7 @@ function HouseProps.Hut(m: Instance, o: Vector3, gz: number): Part
 	part(m, "CasetaMostradorTapa", Vector3.new(12, 0.5, 2.4), A(0, 5.6, -6.8), GOLD, Enum.Material.Wood, nil, false)
 	-- letrero colgante
 	local rot = part(m, "CasetaRotulo", Vector3.new(12, 2.6, 0.5), A(0, 9.6, -8), Color3.fromRGB(70, 46, 30), Enum.Material.Wood, nil, false)
-	label(rot, Enum.NormalId.Front, "🐾 CASETA DE MASCOTAS", Color3.fromRGB(190, 255, 200))
+	label(rot, Enum.NormalId.Front, "🐾 MASCOTAS Y MONTURAS", Color3.fromRGB(190, 255, 200))
 	for _, dx in ipairs({ -5.5, 5.5 }) do
 		part(m, "RotuloCadena", Vector3.new(0.15, 1.6, 0.15), A(dx, 11.2, -8), IRON, Enum.Material.Metal, nil, false)
 	end

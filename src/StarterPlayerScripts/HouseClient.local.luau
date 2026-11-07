@@ -365,7 +365,7 @@ build = function()
 			if def and def.Image then
 				local box = Instance.new("TextBox")
 				box.Position = UDim2.fromOffset(184, 5)
-				box.Size = UDim2.fromOffset(190, 26)
+				box.Size = UDim2.fromOffset(192, 26)
 				box.BackgroundColor3 = pal.Slot
 				box.BorderSizePixel = 0
 				box.PlaceholderText = "Pega el ID de tu imagen"
@@ -381,16 +381,33 @@ build = function()
 				box:GetPropertyChangedSignal("Text"):Connect(function()
 					draftImg[it.Idx] = box.Text
 				end)
-				NpcKit.Button(row, theme, "Aplicar", UDim2.fromOffset(90, 26), UDim2.fromOffset(380, 5), "buy", function()
+				NpcKit.Button(row, theme, "Aplicar", UDim2.fromOffset(86, 26), UDim2.fromOffset(382, 5), "buy", function()
 					actionRemote:FireServer("SetImage", it.Idx, box.Text)
 				end)
 			end
-			NpcKit.Button(row, theme, "Mover", UDim2.fromOffset(100, 26), UDim2.fromOffset(484, 5), "buy", function()
+			NpcKit.Button(row, theme, "Ver", UDim2.fromOffset(60, 26), UDim2.fromOffset(478, 5), "buy", function()
+				-- resalta el mueble en la casa unos segundos
+				local house = Workspace:FindFirstChild("CasaVIP_" .. player.UserId)
+				local folder = house and house:FindFirstChild("Placed")
+				local mdl = folder and folder:GetChildren()[it.Idx]
+				if mdl then
+					local hl = Instance.new("Highlight")
+					hl.FillColor = Color3.fromRGB(255, 220, 90)
+					hl.OutlineColor = Color3.new(1, 1, 1)
+					hl.FillTransparency = 0.35
+					hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+					hl.Parent = mdl
+					task.delay(2.5, function()
+						hl:Destroy()
+					end)
+				end
+			end)
+			NpcKit.Button(row, theme, "Mover", UDim2.fromOffset(88, 26), UDim2.fromOffset(544, 5), "buy", function()
 				if inHome then
 					startPlace(it.T, it.Idx)
 				end
 			end)
-			NpcKit.Button(row, theme, "Quitar", UDim2.fromOffset(100, 26), UDim2.fromOffset(590, 5), "danger", function()
+			NpcKit.Button(row, theme, "Quitar", UDim2.fromOffset(88, 26), UDim2.fromOffset(638, 5), "danger", function()
 				draftImg[it.Idx] = nil
 				actionRemote:FireServer("RemoveDecor", it.Idx)
 			end)
