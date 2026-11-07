@@ -140,7 +140,7 @@ function HouseProps.Board(m: Instance, o: Vector3): Part
 		return CFrame.new(o + Vector3.new(bx + x, y, bz + z))
 	end
 	local back = part(m, "Tablon", Vector3.new(1.2, 9, 15), A(0, 8, 0), wood, Enum.Material.WoodPlanks, nil, false)
-	part(m, "TablonCorcho", Vector3.new(0.4, 7, 13), A(-0.7, 7.6, 0), Color3.fromRGB(176, 130, 82), Enum.Material.Cork, nil, false)
+	part(m, "TablonCorcho", Vector3.new(0.4, 7, 13), A(-0.7, 7.6, 0), Color3.fromRGB(176, 130, 82), Enum.Material.Wood, nil, false)
 	-- marco dorado
 	part(m, "TablonMarcoSup", Vector3.new(1.6, 0.8, 15.8), A(-0.2, 12.4, 0), GOLD, Enum.Material.Metal, nil, false)
 	part(m, "TablonMarcoInf", Vector3.new(1.6, 0.8, 15.8), A(-0.2, 3.6, 0), GOLD, Enum.Material.Metal, nil, false)
