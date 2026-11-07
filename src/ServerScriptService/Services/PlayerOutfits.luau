@@ -12,6 +12,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local PlayerClass = require(ReplicatedStorage.Modules.PlayerClass)
 local MobBuilder = require(ServerScriptService.Services.Mobs.MobBuilder)
 local MeshOutfits = require(ServerScriptService.Services.MeshOutfits)
+local CharacterModels = require(ServerScriptService.Services.CharacterModels)
 
 local Looks: { [string]: { [string]: any } } = {
 	Piccolo = { Skin = Color3.fromHex("#5fa845"), Torso = Color3.fromHex("#6a3fa0"), Legs = Color3.fromHex("#6a3fa0"), Boots = Color3.fromHex("#4a2d78"), Eye = Color3.fromHex("#161616"), Chest = Color3.fromHex("#6a3fa0"), Trim = Color3.fromHex("#4a2d78"), Belt = Color3.fromHex("#2a4fa8"), Shoulders = Color3.fromHex("#f2f2f2"), Wrists = Color3.fromHex("#2a4fa8"), BootCuff = Color3.fromHex("#2a4fa8"), Cape = Color3.fromHex("#f2f2f2"), Ears = Color3.fromHex("#5fa845"), Antenna = Color3.fromHex("#5fa845"), Brow = Color3.fromHex("#2b5a1c"), HatStyle = "turban", Hat = Color3.fromHex("#f2f2f2"), Scale = 1.08 },
@@ -75,6 +76,16 @@ local function dress(player: Player, char: Model)
 		end
 		if not char.Parent or player.Character ~= char then
 			return
+		end
+	end
+	-- Personaje completo (ServerStorage > CharacterModels > <Nombre>): si existe, se usa en lugar del traje de bloques
+	if CharacterModels.Has(name) then
+		local okC, doneC = pcall(CharacterModels.Apply, char, name)
+		if okC and doneC then
+			char:SetAttribute("Outfit", name)
+			return
+		elseif not okC then
+			warn("[PlayerOutfits] modelo completo: " .. tostring(doneC))
 		end
 	end
 	local ok, err = pcall(MobBuilder.Dress, look, char)
