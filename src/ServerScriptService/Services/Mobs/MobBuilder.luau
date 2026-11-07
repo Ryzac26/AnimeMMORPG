@@ -584,10 +584,7 @@ local function applyKit(look: { [string]: any }, model: Model, torso: any, head:
 	end
 	if look.Collar then
 		if clean then
-			-- solapa en V sobre el pecho (antes era una losa que rodeaba el cuello y la cabeza)
-			for _, sx in ipairs({ -1, 1 }) do
-				a("CollarLapel", v(0.7, 0.2, 0.1), look.Collar, torso, CFrame.new(sx * 0.27, 0.8, -0.56) * CFrame.Angles(0, 0, math.rad(sx * -38)))
-			end
+			-- modo limpio R15: sin cuello (el torso ya va pintado; las piezas sobre el cuello chocaban con la cara)
 		else
 			a("Collar", v(2.2, 0.55, 1.3), look.Collar, torso, CFrame.new(0, 1.05, 0.06))
 			a("CollarBack", v(2.2, 0.9, 0.2), look.Collar, torso, CFrame.new(0, 1.2, 0.6))
