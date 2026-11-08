@@ -141,7 +141,7 @@ local function yieldText(item: any, plus: number): string
 		table.insert(parts, string.format("%d %s", frag, itemName("Mat_FragArmadura")))
 	end
 	if gem > 0 then
-		table.insert(parts, string.format("%d%% de %s", math.floor(gem * 100 + 0.5), itemName("Mat_Gema")))
+		table.insert(parts, string.format("%d%% de %s", math.floor(gem * 100 + 0.5), itemName("Mat_GemaMenor")))
 	end
 	return table.concat(parts, "\n")
 end

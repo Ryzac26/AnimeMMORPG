@@ -36,9 +36,9 @@ end
 GuildCatalog.Value = {
 	Mat_Piel = 18, Mat_Colmillo = 36, Mat_Esencia = 120, Mat_Nucleo = 360,
 	Rec_1 = 24, Rec_2 = 60, Rec_3 = 150, Rec_4 = 330,
-	Mat_Gema = 300,
+	Mat_GemaMenor = 60, Mat_Gema = 300,
 } :: { [string]: number }
-GuildCatalog.MaterialOrder = { "Rec_1", "Rec_2", "Rec_3", "Rec_4", "Mat_Piel", "Mat_Colmillo", "Mat_Esencia", "Mat_Nucleo", "Mat_Gema" }
+GuildCatalog.MaterialOrder = { "Rec_1", "Rec_2", "Rec_3", "Rec_4", "Mat_Piel", "Mat_Colmillo", "Mat_Esencia", "Mat_Nucleo", "Mat_GemaMenor", "Mat_Gema" }
 
 GuildCatalog.LOG_MAX = 30
 GuildCatalog.LOG_MIN_PA = 1000 -- aportes menores no se anotan en el registro

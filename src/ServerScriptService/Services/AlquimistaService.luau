@@ -281,7 +281,7 @@ local function rollYield(item: any, plus: number, out: { [string]: number })
 		out.Mat_FragArmadura = (out.Mat_FragArmadura or 0) + frag
 	end
 	if gemChance > 0 and rng:NextNumber() < gemChance then
-		out.Mat_Gema = (out.Mat_Gema or 0) + 1
+		out.Mat_GemaMenor = (out.Mat_GemaMenor or 0) + 1
 	end
 end
 

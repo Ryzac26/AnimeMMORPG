@@ -28,7 +28,8 @@ LootTables.Materials = {
 	Mat_Esencia = { Name = "Esencia Oscura", Rarity = "Raro", Stack = 99, Desc = "Material de la Franja 3." },
 	Mat_Nucleo = { Name = "Núcleo de Poder", Rarity = "Raro", Stack = 99, Desc = "Material de la Franja 4." },
 	Mat_FragArmadura = { Name = "Fragmento de Armadura", Rarity = "Comun", Stack = 99, Desc = "Material de mejora de armaduras." },
-	Mat_Gema = { Name = "Gema de Mejora", Rarity = "Raro", Stack = 99, Desc = "Sirve para mejorar el equipo (+1 a +9)." },
+	Mat_GemaMenor = { Name = "Gema Menor", Rarity = "Comun", Stack = 99, Desc = "Sirve para mejorar el equipo de +1 a +5. La sueltan los monstruos, los mini jefes, los cofres y los altares." },
+	Mat_Gema = { Name = "Gema Mayor", Rarity = "Raro", Stack = 99, Desc = "Sirve para mejorar el equipo de +6 a +9. Solo la sueltan las piedras Metin." },
 	Pergamino_Proteccion = { Name = "Pergamino de Protección", Rarity = "Epico", Stack = 99, Desc = "Úsalo en el Herrero al intentar +7, +8 o +9: si la mejora falla, la pieza NO baja de nivel ni se rompe (el pergamino se gasta). Solo se consigue en la Tienda." },
 	Mat_Escama = { Name = "Escama del Titán", Rarity = "Epico", Stack = 99, Desc = "Material de crafteo avanzado del jefe mundial." },
 	-- Recursos de recolección (nodos del mapa). Sirven para la Ofrenda del altar y para cocinar pociones en el campamento.
@@ -76,6 +77,7 @@ LootTables.Mob = {
 		[3] = { Comun = 64, Raro = 32, Epico = 3.9, Legendario = 0.1 },
 		[4] = { Comun = 52, Raro = 41, Epico = 6.5, Legendario = 0.5 },
 	},
+	MinorGemChance = 0.04, -- Gema Menor (mejora +1 a +5): ~5 por hora a 126 kills/h
 	PetChance = 0.0008,
 	PetRarity = { Comun = 85, Raro = 15 },
 }

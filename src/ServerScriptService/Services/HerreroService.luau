@@ -242,14 +242,16 @@ local function enhance(player: Player, kind: any, key: any, useScroll: any)
 	local target = plus + 1
 	local goldCost = EnhanceCatalog.GoldCost(item, target)
 	local gems = EnhanceCatalog.Gems[target]
-	local have = Inventory.Count(player, EnhanceCatalog.GemItem)
+	local gemItem = EnhanceCatalog.GemItemFor(target)
+	local gemLabel = if target <= EnhanceCatalog.MinorGemMaxTarget then "Gemas Menores" else "Gemas Mayores"
+	local have = Inventory.Count(player, gemItem)
 	local wallet = Wallet.Get(player)
 	if not wallet or wallet.Gold < goldCost then
 		reply(player, false, string.format("Te falta oro (necesitas %d).", goldCost), plus)
 		return
 	end
 	if have < gems then
-		reply(player, false, string.format("Te faltan Gemas de Mejora (necesitas %d, tienes %d).", gems, have), plus)
+		reply(player, false, string.format("Te faltan %s (necesitas %d, tienes %d).", gemLabel, gems, have), plus)
 		return
 	end
 
@@ -258,7 +260,7 @@ local function enhance(player: Player, kind: any, key: any, useScroll: any)
 		reply(player, false, "No se pudo cobrar el oro.", plus)
 		return
 	end
-	if not Inventory.Consume(player, EnhanceCatalog.GemItem, gems) then
+	if not Inventory.Consume(player, gemItem, gems) then
 		Wallet.AddGold(player, goldCost, "Herrero") -- no debería pasar: se devuelve el oro
 		reply(player, false, "No se pudieron gastar las gemas.", plus)
 		return

@@ -174,6 +174,7 @@ local SECTIONS: { Section } = {
 					kv("Objeto (consumible o material)", frac(m.ItemChance)),
 					kv("   · si cae objeto: consumible", pct(iw.Consumible or 0)),
 					kv("   · si cae objeto: material", pct(iw.Material or 0)),
+					kv("Gema Menor (mejora +1 a +5)", frac(m.MinorGemChance)),
 					kv("Mascota", frac(m.PetChance)),
 					kv("Llave de cofre (con tope diario)", frac(LootTables.KeyDrop.Mob)),
 				}),
@@ -199,7 +200,7 @@ local SECTIONS: { Section } = {
 					perStrip("Equipo", m.GearChance),
 				}),
 				T({ "Premio", "Probabilidad" }, {
-					kv("Gema de Mejora", frac(m.GemChance)),
+					kv("Gema Menor", frac(m.GemChance)),
 					kv("Mascota", frac(m.PetChance)),
 					kv("Llave de cofre", frac(LootTables.KeyDrop.Mini)),
 					kv("Material de franja (garantizado)", range(m.StripCount)),
@@ -266,7 +267,7 @@ local SECTIONS: { Section } = {
 				T({ "Piedra", "Aparición", "Nivel" }, spawn),
 				H("Al destruirla (por jugador con al menos " .. frac(m.MinShare) .. " del daño)"),
 				T({ "Premio", "Probabilidad" }, {
-					kv("Gema de Mejora", frac(m.GemChance)),
+					kv("Gema Mayor", frac(m.GemChance)),
 					kv("Cofre (tirada extra de equipo)", frac(m.ChestChance)),
 					kv("Emblema de tu facción", frac(m.EmblemChance)),
 					kv("Mascota", frac(m.PetChance)),
@@ -276,7 +277,7 @@ local SECTIONS: { Section } = {
 				local d = m.Rarities[r.Id]
 				if d then
 					table.insert(blocks, H("Piedra " .. r.Name))
-					table.insert(blocks, P("Gemas: " .. range(d.GemCount)))
+					table.insert(blocks, P("Gemas Mayores: " .. range(d.GemCount)))
 					table.insert(blocks, T({ "Cofre: rareza", "Prob.", "Emblema: rareza", "Prob." }, (function()
 						local cn, en = normalized(d.ChestRarity), normalized(d.EmblemRarity)
 						local rows: { { Cell } } = {}
@@ -307,14 +308,14 @@ local SECTIONS: { Section } = {
 					perStrip("Equipo", c.GearChance),
 					perStrip("Cofre mejorado (+1 a +3, sube 1 rareza)", c.UpgradedChance),
 				}),
-				T({ "Premio", "Probabilidad" }, { kv("Gema de Mejora", frac(c.GemChance)) }),
+				T({ "Premio", "Probabilidad" }, { kv("Gema Menor", frac(c.GemChance)) }),
 				rarityByStrip(c.GearRarity),
 				H("Altar de ofrenda (equipo)"),
 				rarityByStrip(o.GearRarity),
 				H("Altar de desafío"),
 				T(stripCols("Dato"), { perStrip("Equipo", ch.GearChance) }),
 				T({ "Premio", "Probabilidad" }, {
-					kv("Gema de Mejora", frac(ch.GemChance)),
+					kv("Gema Menor", frac(ch.GemChance)),
 					kv("Mascota", frac(ch.PetChance)),
 				}),
 				rarityByStrip(ch.GearRarity),
@@ -356,7 +357,7 @@ local SECTIONS: { Section } = {
 				table.insert(rows, {
 					cell("+" .. n),
 					cell(frac(EnhanceCatalog.SuccessRate[n] or 0)),
-					cell(tostring(EnhanceCatalog.Gems[n] or 0)),
+					cell(tostring(EnhanceCatalog.Gems[n] or 0) .. (if n <= EnhanceCatalog.MinorGemMaxTarget then " menor" else " mayor")),
 					cell(onFail),
 				})
 			end
@@ -384,7 +385,7 @@ local SECTIONS: { Section } = {
 			end
 			return {
 				H("Al desmontar una pieza de equipo"),
-				T({ "Rareza", "Materiales", "Fragmentos", "Gema de Mejora" }, rows),
+				T({ "Rareza", "Materiales", "Fragmentos", "Gema Menor" }, rows),
 				P(string.format("Cada %d niveles de mejora (+%d, +%d…) suman 1 fragmento más.", AlchemyCatalog.PlusFragEvery, AlchemyCatalog.PlusFragEvery, AlchemyCatalog.PlusFragEvery * 2)),
 			}
 		end,

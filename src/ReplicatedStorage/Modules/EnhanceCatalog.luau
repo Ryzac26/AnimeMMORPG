@@ -4,7 +4,7 @@
     MEJORA DEL EQUIPO +1 a +9 (la hace el Herrero de cada ciudad). Un solo lugar para balancear.
       - Solo se mejora EQUIPO (armas, armaduras, cascos, zapatos, joyas, emblemas). Las mascotas no.
       - Cada +n multiplica las estadísticas del objeto: GearCatalog.EnhanceMult(n) = 1 + 0.05n + 0.01n²  (+9 = x2.26)
-      - Costo: oro (crece con n y con el nivel del objeto) + Gemas de Mejora (Mat_Gema, las sueltan los Metin).
+      - Costo: oro (crece con n y con el nivel del objeto) + Gemas: Gema Menor (Mat_GemaMenor) de +1 a +5 y Gema Mayor (Mat_Gema, solo de los Metin) de +6 a +9.
       - Éxito: +1..+3 siempre salen. Desde +4 hay riesgo.
       - Fallo: el objeto NUNCA se rompe. +4..+6: no pasa nada (pierdes el costo). +7, +8 y +9: baja 1 nivel o SE ROMPE (BreakChance); el Pergamino de Protección evita las dos.
       - Llegar de +0 a +9 (simulado, 7 nov 2026): CON Pergamino de Protección ≈ 57 intentos, ≈ 234 gemas, ≈ 46 pergaminos y ≈ 1.060.000 de oro en una pieza de nivel 100
@@ -13,7 +13,14 @@
 local EnhanceCatalog = {}
 
 EnhanceCatalog.MaxPlus = 9
-EnhanceCatalog.GemItem = "Mat_Gema"
+EnhanceCatalog.GemItem = "Mat_Gema" -- Gema MAYOR (Metin): mejoras +6 a +9
+EnhanceCatalog.MinorGemItem = "Mat_GemaMenor" -- Gema MENOR (mobs, mini jefes, cofres, altares): mejoras +1 a +5
+EnhanceCatalog.MinorGemMaxTarget = 5
+
+-- ¿Qué gema pide el intento de llegar a +target?
+function EnhanceCatalog.GemItemFor(target: number): string
+	return if target <= EnhanceCatalog.MinorGemMaxTarget then EnhanceCatalog.MinorGemItem else EnhanceCatalog.GemItem
+end
 
 -- Probabilidad de éxito al intentar llegar a +n
 -- Hasta +5 es fácil (≈5 intentos); de ahí en adelante es MUY duro: +9 es un gran mérito (≈29 intentos solo en el último tramo, ≈47 pergaminos de +6 a +9; sin pergaminos casi imposible)

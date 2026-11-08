@@ -236,6 +236,7 @@ local GearIcons: { [string]: string } = {
 	["materiales/Mat_Nucleo"] = ID(71304234867813),
 	["materiales/Mat_FragArmadura"] = ID(104842611786271),
 	["materiales/Mat_Gema"] = ID(139932789240795),
+	["materiales/Mat_GemaMenor"] = ID(139932789240795), -- provisional: mismo icono que la Gema Mayor hasta tener arte propio
 	["materiales/Pergamino_Proteccion"] = ID(134359798467479),
 	["materiales/Mat_Escama"] = ID(102426093289667),
 	["materiales/Rec_1"] = ID(112407010479191),

@@ -41,9 +41,20 @@ local Looks: { [string]: { [string]: any } } = {
 	Orihime = { Skin = Color3.fromHex("#f6d4b6"), Torso = Color3.fromHex("#f2f2f6"), Legs = Color3.fromHex("#d8d0e0"), Boots = Color3.fromHex("#e8e8f0"), Eye = Color3.fromHex("#6a5a4a"), Chest = Color3.fromHex("#f2f2f6"), Trim = Color3.fromHex("#f06fa0"), Belt = Color3.fromHex("#f06fa0"), Brow = Color3.fromHex("#7a4a22"), Hair = Color3.fromHex("#d9822a"), HairStyle = "orihime", Headband = Color3.fromHex("#58a8ff"), HeadbandPlate = false, Body = { W = 0.88, H = 0.98 } },
 }
 
+-- INTERRUPTOR: false = NO se cambia el aspecto de nadie (cada jugador se ve como su propio avatar, con su ropa y skins del catálogo)
+-- hasta que estén listos los diseños de cada personaje. No borra nada: pon true para volver a vestir a los 24 personajes.
+-- (Aun apagado se sigue marcando el atributo "Outfit" con el nombre del personaje: lo usa ClassSelectService para reaparecer en la ciudad correcta.)
+local OUTFITS_ENABLED = false
+
 local WAIT_APPEARANCE = 8 -- segundos máx. esperando al avatar (si Roblox tarda, se viste igual)
 
 local function dress(player: Player, char: Model)
+	if not OUTFITS_ENABLED then
+		if char.Parent and player.Character == char then
+			char:SetAttribute("Outfit", PlayerClass.Get(player).CharacterName)
+		end
+		return
+	end
 	local t0 = os.clock()
 	while char.Parent and not player:HasAppearanceLoaded() and os.clock() - t0 < WAIT_APPEARANCE do
 		task.wait(0.1)

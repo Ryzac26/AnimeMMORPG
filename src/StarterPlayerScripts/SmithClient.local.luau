@@ -96,10 +96,10 @@ local function withCommas(n: number): string
 	return out
 end
 
-local function gemsOwned(): number
+local function gemsOwned(itemId: string): number
 	local n = 0
 	for _, st in pairs(Store.Bag) do
-		if st.Id == EnhanceCatalog.GemItem then
+		if st.Id == itemId then
 			n += st.Count
 		end
 	end
@@ -155,7 +155,8 @@ end
 local function refreshDetail()
 	local pal = NpcKit.Palette(theme)
 	local e = currentEntry()
-	local gemsHave = gemsOwned()
+	local gemsMinor, gemsMajor = gemsOwned(EnhanceCatalog.MinorGemItem), gemsOwned(EnhanceCatalog.GemItem)
+	local gemsHave = gemsMinor -- se ajusta abajo según el +n que se intenta
 	local scrolls = scrollsOwned()
 	detail.TextColor3 = pal.Text
 	warnLabel.TextColor3 = pal.Muted
@@ -169,7 +170,7 @@ local function refreshDetail()
 		warnLabel.Text = ""
 		costLabel.Text = ""
 		rateBack.Visible = false
-		gemCount.Text = string.format("x%d", gemsHave)
+		gemCount.Text = string.format("x%d | x%d", gemsMinor, gemsMajor)
 		gemCount.TextColor3 = Color3.fromRGB(170, 170, 185)
 		gemStroke.Color = Color3.fromRGB(90, 90, 110)
 		scrollCount.Text = string.format("x%d", scrolls)
@@ -192,7 +193,7 @@ local function refreshDetail()
 		warnLabel.Text = ""
 		costLabel.Text = ""
 		rateBack.Visible = false
-		gemCount.Text = string.format("x%d", gemsHave)
+		gemCount.Text = string.format("x%d | x%d", gemsMinor, gemsMajor)
 		gemCount.TextColor3 = Color3.fromRGB(170, 170, 185)
 		gemStroke.Color = Color3.fromRGB(90, 90, 110)
 		scrollCount.Text = string.format("x%d", scrolls)
@@ -246,10 +247,11 @@ local function refreshDetail()
 	-- coste: oro (en la barra de abajo) y gemas (en su casilla)
 	local goldCost = EnhanceCatalog.GoldCost(item, target)
 	local gems = EnhanceCatalog.Gems[target]
+	gemsHave = if target <= EnhanceCatalog.MinorGemMaxTarget then gemsMinor else gemsMajor
 	local goldNow = player:GetAttribute("Gold")
 	local haveGold = if typeof(goldNow) == "number" then goldNow else 0
 	costLabel.Text = string.format('Oro: <font color="%s">%s</font> / %s', if haveGold >= goldCost then GREEN else RED, withCommas(haveGold), withCommas(goldCost))
-	gemCount.Text = string.format("%d / %d", gemsHave, gems)
+	gemCount.Text = string.format("%d / %d %s", gemsHave, gems, if target <= EnhanceCatalog.MinorGemMaxTarget then "menor" else "mayor")
 	gemCount.TextColor3 = if gemsHave >= gems then Color3.fromRGB(111, 220, 127) else Color3.fromRGB(255, 107, 107)
 	gemStroke.Color = if gemsHave >= gems then Color3.fromRGB(111, 220, 127) else Color3.fromRGB(255, 107, 107)
 	scrollCount.Text = if drop > 0 then (if useScroll then "ACTIVO" else string.format("x%d", scrolls)) else "—"
