@@ -13,6 +13,7 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
+local GearCatalog = require(ReplicatedStorage.Modules.GearCatalog)
 
 local AttackAnimator = {}
 
@@ -100,27 +101,32 @@ local STEEL = Color3.fromRGB(205, 212, 226)
 local WOOD = Color3.fromRGB(110, 76, 48)
 local DARK = Color3.fromRGB(50, 36, 28)
 local GOLD = Color3.fromRGB(214, 180, 80)
+local PAPER = Color3.fromRGB(240, 232, 205)
 
--- Hoja/mango a lo largo de -Z desde la palma (con el brazo abajo apunta al frente; con el brazo levantado, hacia arriba)
-local function buildWeapon(char: Model, style: string, rarity: Color3?)
-	local old = char:FindFirstChild("EquippedWeapon")
-	if old then
-		old:Destroy()
-	end
+-- Postura de "arma en la mano" mientras NO se ataca (la aplica CharacterAnimClient con los atributos HoldR / HoldL).
+-- Convención R6: derecho + = brazo adelante/arriba; izquierdo - = adelante/arriba.
+local HOLD: { [string]: { R: number?, L: number? } } = {
+	Sword = { R = 0.9 }, Dagger = { R = 0.7 }, Axe = { R = 1.0 }, Gun = { R = 0.9 },
+	Staff = { R = 1.3, L = -0.4 }, Bow = { L = -1.1, R = 0.35 },
+}
+
+local function hand(char: Model, right: boolean): BasePart?
 	local r15 = char:FindFirstChild("RightHand") ~= nil
-	local rArm = char:FindFirstChild(if r15 then "RightHand" else "Right Arm")
-	local lArm = char:FindFirstChild(if r15 then "LeftHand" else "Left Arm")
-	if not rArm or not rArm:IsA("BasePart") then
+	local p = char:FindFirstChild(if r15 then (if right then "RightHand" else "LeftHand") else (if right then "Right Arm" else "Left Arm"))
+	return if p and p:IsA("BasePart") then p else nil
+end
+
+-- Arma de la mano DERECHA (hoja/mango a lo largo de -Z desde la palma; con el brazo levantado, hacia arriba) y, si hace falta, de la izquierda
+local function buildWeapon(f: Folder, char: Model, style: string, glow: Color3)
+	local rArm, lArm = hand(char, true), hand(char, false)
+	if not rArm then
 		return
 	end
-	local f = Instance.new("Folder")
-	f.Name = "EquippedWeapon"
-	f.Parent = char
+	local r15 = char:FindFirstChild("RightHand") ~= nil
 	local g = if r15 then Vector3.new(0, -0.15, 0) else Vector3.new(0, -1, 0)
 	local function along(len: number, from: number): CFrame -- centro a `from + len/2` hacia -Z
 		return CFrame.new(g + Vector3.new(0, 0, -(from + len / 2)))
 	end
-	local glow = rarity or STEEL
 	if style == "Sword" then
 		block(f, rArm, Vector3.new(0.3, 0.3, 1.0), DARK, along(1.0, -0.5))
 		block(f, rArm, Vector3.new(1.3, 0.25, 0.3), GOLD, along(0.3, 0.5), Enum.Material.Metal)
@@ -129,48 +135,146 @@ local function buildWeapon(char: Model, style: string, rarity: Color3?)
 		block(f, rArm, Vector3.new(0.28, 0.28, 0.7), DARK, along(0.7, -0.3))
 		block(f, rArm, Vector3.new(0.8, 0.2, 0.2), GOLD, along(0.2, 0.4))
 		block(f, rArm, Vector3.new(0.18, 0.4, 1.6), glow, along(1.6, 0.6), Enum.Material.Metal)
-		if lArm and lArm:IsA("BasePart") then
-			block(f, lArm, Vector3.new(0.18, 0.4, 1.6), glow, CFrame.new(g.X, g.Y, -1.4), Enum.Material.Metal)
-		end
 	elseif style == "Axe" then
 		block(f, rArm, Vector3.new(0.3, 0.3, 3.4), WOOD, along(3.4, -0.6))
 		block(f, rArm, Vector3.new(0.25, 1.6, 1.3), glow, along(1.3, 2.0), Enum.Material.Metal)
 	elseif style == "Staff" then
-		block(f, rArm, Vector3.new(0.3, 0.3, 5.2), WOOD, along(5.2, -1.2))
-		local orb = block(f, rArm, Vector3.new(0.9, 0.9, 0.9), glow, along(0.9, 4.0), Enum.Material.Neon)
+		-- báculo: mango largo, remate dorado y orbe; con el brazo levantado queda casi vertical delante del pecho
+		block(f, rArm, Vector3.new(0.3, 0.3, 5.4), WOOD, along(5.4, -1.3))
+		block(f, rArm, Vector3.new(0.55, 0.55, 0.3), GOLD, along(0.3, 3.7), Enum.Material.Metal)
+		block(f, rArm, Vector3.new(0.12, 0.9, 0.12), GOLD, along(0.12, 3.95)).Name = "WeaponPart"
+		local orb = block(f, rArm, Vector3.new(0.95, 0.95, 0.95), glow, along(0.95, 4.1), Enum.Material.Neon)
 		orb.Shape = Enum.PartType.Ball
-	elseif style == "Bow" and lArm and lArm:IsA("BasePart") then
-		-- el arco se sostiene con la izquierda: arco vertical al levantar el brazo
-		block(f, lArm, Vector3.new(0.25, 0.25, 3.6), WOOD, CFrame.new(g.X, g.Y, -1.8))
-		block(f, lArm, Vector3.new(0.25, 0.9, 0.9), WOOD, CFrame.new(g.X, g.Y, -0.2))
-		block(f, lArm, Vector3.new(0.08, 0.08, 3.4), Color3.fromRGB(230, 230, 220), CFrame.new(g.X, g.Y - 0.35, -1.8))
+	elseif style == "Bow" and lArm then
+		-- arco en la mano IZQUIERDA, agarrado por el centro: dos brazos curvados hacia el arquero y la cuerda
+		local gl = if r15 then Vector3.new(0, -0.15, 0) else Vector3.new(0, -1, 0)
+		local at = CFrame.new(gl)
+		block(f, lArm, Vector3.new(0.3, 0.3, 0.9), DARK, at)
+		local bend = math.rad(14)
+		block(f, lArm, Vector3.new(0.22, 0.22, 1.35), WOOD, at * CFrame.new(0, 0.1, -1.05) * CFrame.Angles(bend, 0, 0))
+		block(f, lArm, Vector3.new(0.22, 0.22, 1.35), WOOD, at * CFrame.new(0, 0.1, 1.05) * CFrame.Angles(-bend, 0, 0))
+		block(f, lArm, Vector3.new(0.3, 0.3, 0.22), glow, at * CFrame.new(0, 0.32, -1.78) * CFrame.Angles(bend, 0, 0), Enum.Material.Neon)
+		block(f, lArm, Vector3.new(0.3, 0.3, 0.22), glow, at * CFrame.new(0, 0.32, 1.78) * CFrame.Angles(-bend, 0, 0), Enum.Material.Neon)
+		block(f, lArm, Vector3.new(0.06, 0.06, 3.55), Color3.fromRGB(235, 235, 225), at * CFrame.new(0, 0.38, 0))
 	elseif style == "Gun" then
 		block(f, rArm, Vector3.new(0.35, 0.8, 0.35), DARK, CFrame.new(g))
 		block(f, rArm, Vector3.new(0.3, 1.1, 0.3), Color3.fromRGB(80, 84, 94), CFrame.new(g.X, g.Y - 0.55, -0.3), Enum.Material.Metal)
+	elseif style == "Fist" then
+		-- guanteletes: un bloque metálico sobre cada mano
+		for _, h in ipairs({ rArm, lArm }) do
+			if h then
+				block(f, h, Vector3.new(1.2, if r15 then 0.7 else 1.2, 1.25), glow, CFrame.new(0, if r15 then -0.1 else -0.6, -0.1), Enum.Material.Metal)
+				block(f, h, Vector3.new(1.0, 0.25, 0.3), GOLD, CFrame.new(0, if r15 then -0.45 else -1.05, -0.6), Enum.Material.Metal)
+			end
+		end
 	end
 end
 
+-- Pieza de la ranura ESCUDO, en la mano izquierda (o a la espalda el Carcaj), según el rol de la pieza
+local function buildOffhand(f: Folder, char: Model, item: any, glow: Color3)
+	local lArm = hand(char, false)
+	local r15 = char:FindFirstChild("RightHand") ~= nil
+	local g = if r15 then Vector3.new(0, -0.15, 0) else Vector3.new(0, -1, 0)
+	local role = item.Role
+	if role == "Tirador" then
+		local torso = char:FindFirstChild(if r15 then "UpperTorso" else "Torso")
+		if torso and torso:IsA("BasePart") then
+			local at = CFrame.new(0.45, 0.15, 0.7) * CFrame.Angles(0, 0, math.rad(-18))
+			block(f, torso, Vector3.new(0.6, 2.0, 0.6), WOOD, at)
+			block(f, torso, Vector3.new(0.7, 0.2, 0.7), GOLD, at * CFrame.new(0, 0.95, 0), Enum.Material.Metal)
+			for k = -1, 1 do
+				block(f, torso, Vector3.new(0.1, 0.7, 0.1), glow, at * CFrame.new(k * 0.15, 1.35, 0) * CFrame.Angles(0, 0, math.rad(k * 8)))
+			end
+		end
+		return
+	end
+	if not lArm then
+		return
+	end
+	if role == "Tanque" then
+		-- escudo torre: placa grande delante del brazo
+		local at = CFrame.new(g.X - 0.15, g.Y + 0.45, -0.6)
+		block(f, lArm, Vector3.new(1.9, 2.7, 0.3), STEEL, at, Enum.Material.Metal)
+		block(f, lArm, Vector3.new(1.5, 2.3, 0.12), glow, at * CFrame.new(0, 0, -0.18), Enum.Material.Metal)
+		local boss = block(f, lArm, Vector3.new(0.6, 0.6, 0.6), GOLD, at * CFrame.new(0, 0.1, -0.3), Enum.Material.Metal)
+		boss.Shape = Enum.PartType.Ball
+	elseif role == "Guerrero" or role == nil then
+		-- escudo redondo (el genérico es más pequeño)
+		local d = if role == nil then 1.5 else 2.1
+		local at = CFrame.new(g.X - 0.1, g.Y + 0.35, -0.55) * CFrame.Angles(0, math.rad(90), 0)
+		block(f, lArm, Vector3.new(0.28, d, d), STEEL, at, Enum.Material.Metal)
+		block(f, lArm, Vector3.new(0.3, d * 0.7, d * 0.7), glow, at * CFrame.new(-0.05, 0, 0), Enum.Material.Metal)
+		local boss = block(f, lArm, Vector3.new(0.5, 0.5, 0.5), GOLD, at * CFrame.new(-0.2, 0, 0), Enum.Material.Metal)
+		boss.Shape = Enum.PartType.Ball
+	elseif role == "Asesino" then
+		block(f, lArm, Vector3.new(0.28, 0.28, 0.7), DARK, CFrame.new(g.X, g.Y, 0.2))
+		block(f, lArm, Vector3.new(0.8, 0.2, 0.2), GOLD, CFrame.new(g.X, g.Y, -0.2))
+		block(f, lArm, Vector3.new(0.18, 0.4, 1.6), glow, CFrame.new(g.X, g.Y, -1.0), Enum.Material.Metal)
+	elseif role == "Mago" then
+		-- orbe: esfera brillante flotando sobre la palma izquierda
+		local at = CFrame.new(g.X, g.Y - 0.1, -0.85)
+		local orb = block(f, lArm, Vector3.new(1.0, 1.0, 1.0), glow, at, Enum.Material.Neon)
+		orb.Shape = Enum.PartType.Ball
+		local ring = block(f, lArm, Vector3.new(0.12, 1.5, 1.5), GOLD, at * CFrame.Angles(0, math.rad(90), 0), Enum.Material.Metal)
+		ring.Shape = Enum.PartType.Cylinder
+	elseif role == "Curador" then
+		-- libro sagrado abierto hacia delante
+		local at = CFrame.new(g.X, g.Y + 0.25, -0.65)
+		block(f, lArm, Vector3.new(1.25, 1.5, 0.22), PAPER, at)
+		block(f, lArm, Vector3.new(0.18, 1.55, 0.3), GOLD, at * CFrame.new(-0.62, 0, 0), Enum.Material.Metal)
+		block(f, lArm, Vector3.new(0.4, 0.12, 0.06), glow, at * CFrame.new(0.08, 0.15, -0.14), Enum.Material.Neon)
+		block(f, lArm, Vector3.new(0.12, 0.45, 0.06), glow, at * CFrame.new(0.08, 0.15, -0.14), Enum.Material.Neon)
+	end
+end
+
+local function itemOf(player: Player, slot: string): any
+	local id = player:GetAttribute("Equip_" .. slot)
+	return if typeof(id) == "string" then (ItemCatalog.Items :: any)[id] else nil
+end
+
+local function rarityColor(item: any): Color3
+	return if item and ItemCatalog.RarityColor[item.Rarity] then ItemCatalog.RarityColor[item.Rarity] else STEEL
+end
+
+-- (Re)construye lo que lleva el personaje en las manos: arma en su mano y pieza de la ranura Escudo en la suya
 local function onEquipChanged(player: Player)
 	local char = player.Character
 	if not char then
 		return
 	end
-	local ws = AttackAnimator.WeaponStyleOf(player)
-	if ws and ws ~= "Fist" then
-		local id = player:GetAttribute("Equip_Arma")
-		local item = if typeof(id) == "string" then (ItemCatalog.Items :: any)[id] else nil
-		local col = if item and ItemCatalog.RarityColor[item.Rarity] then ItemCatalog.RarityColor[item.Rarity] else nil
-		buildWeapon(char, ws, col)
-	else
-		local old = char:FindFirstChild("EquippedWeapon")
-		if old then
-			old:Destroy()
-		end
+	local old = char:FindFirstChild("EquippedWeapon")
+	if old then
+		old:Destroy()
+	end
+	local style = AttackAnimator.WeaponStyleOf(player)
+	local weapon = itemOf(player, "Arma")
+	local off = itemOf(player, "Escudo")
+	-- arma de dos manos + escudo de verdad (datos viejos): el escudo no se dibuja
+	if off and GearCatalog.IsShield(off) and weapon and GearCatalog.IsTwoHandedWeapon(weapon) then
+		off = nil
+	end
+	local hold = if style then HOLD[style] else nil
+	char:SetAttribute("HoldR", if hold then hold.R else nil)
+	char:SetAttribute("HoldL", if hold then hold.L else nil)
+	if not style and not off then
+		return
+	end
+	local f = Instance.new("Folder")
+	f.Name = "EquippedWeapon"
+	f.Parent = char
+	if style then
+		buildWeapon(f, char, style, rarityColor(weapon))
+	end
+	if off then
+		buildOffhand(f, char, off, rarityColor(off))
 	end
 end
 
 local function hook(player: Player)
 	player:GetAttributeChangedSignal("Equip_Arma"):Connect(function()
+		onEquipChanged(player)
+	end)
+	player:GetAttributeChangedSignal("Equip_Escudo"):Connect(function()
 		onEquipChanged(player)
 	end)
 	player.CharacterAdded:Connect(function(char)

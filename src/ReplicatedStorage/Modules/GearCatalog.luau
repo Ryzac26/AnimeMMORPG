@@ -108,6 +108,16 @@ GearCatalog.WeaponStyle = {
 	Shinigami = { Tanque = "Fist", Guerrero = "Sword", Asesino = "Fist", Tirador = "Bow", Mago = "Staff", Curador = "Staff" },
 } :: { [string]: { [string]: string } }
 
+-- ARMAS DE DOS MANOS: el Báculo (Mago/Curador) y el Arco. Con una equipada no se puede llevar ESCUDO (Escudo Torre, Escudo de Guerra...).
+-- Las piezas de clase "foco" (Orbe, Libro Sagrado, Carcaj, Daga Gemela) no son escudos y sí se pueden llevar.
+GearCatalog.TwoHandedStyles = { Staff = true, Bow = true } :: { [string]: boolean }
+function GearCatalog.IsTwoHandedWeapon(item: any): boolean
+	return item ~= nil and item.Slot == "Arma" and typeof(item.Style) == "string" and GearCatalog.TwoHandedStyles[item.Style] == true
+end
+function GearCatalog.IsShield(item: any): boolean
+	return item ~= nil and item.Slot == "Escudo" and (item.Role == nil or item.Role == "Tanque" or item.Role == "Guerrero")
+end
+
 ---------------------------------------------------------------------
 -- TEMAS DE SET por PESO (Pesado: Tanque/Guerrero · Medio: Asesino/Tirador · Ligero: Mago/Curador)
 -- Cada tema es una identidad visual + elemento y cubre 2 tramos de nivel (el último, solo el 11). Los ids de los objetos NO cambian:

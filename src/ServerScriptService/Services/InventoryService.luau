@@ -467,6 +467,33 @@ local function equip(player: Player, st: State, bagIndex: number, forceSlot: str
 		end
 		slot = picked
 	end
+	-- DOS MANOS: con báculo o arco no se lleva escudo; al equipar un arma de dos manos, el escudo vuelve a la mochila
+	if slot == "Escudo" and GearCatalog.IsShield(item) then
+		local wid = st.Equip.Arma
+		local witem: any = if wid then (ItemCatalog.Items :: any)[wid] else nil
+		if witem and GearCatalog.IsTwoHandedWeapon(witem) then
+			Net.Get("Notify"):FireClient(player, "Tu arma es de dos manos (báculo o arco): no puedes usar escudo con ella")
+			return
+		end
+	elseif slot == "Arma" and GearCatalog.IsTwoHandedWeapon(item) then
+		local sid = st.Equip.Escudo
+		local sitem: any = if sid then (ItemCatalog.Items :: any)[sid] else nil
+		if sitem and GearCatalog.IsShield(sitem) then
+			local splus = st.EquipPlus.Escudo or 0
+			local slocked = st.EquipLocked.Escudo
+			if not canFit(st, sid :: string, 1, splus, slocked) then
+				Net.Get("Notify"):FireClient(player, "Mochila llena: no hay dónde guardar tu escudo (el arma es de dos manos)")
+				return
+			end
+			st.Equip.Escudo = nil
+			st.EquipPlus.Escudo = nil
+			st.EquipLocked.Escudo = nil
+			player:SetAttribute("Equip_Escudo", nil)
+			player:SetAttribute("EquipPlus_Escudo", nil)
+			Inventory.Add(player, sid :: string, 1, if splus > 0 then splus else nil, slocked)
+			Net.Get("Notify"):FireClient(player, "Tu escudo vuelve a la mochila: el arma es de dos manos")
+		end
+	end
 	if stack.Count > 1 and st.Equip[slot] and not firstFreeInside(st) then
 		Net.Get("Notify"):FireClient(player, "Mochila llena: no hay dónde dejar la pieza que llevas puesta")
 		return
@@ -515,9 +542,12 @@ local function equipBest(player: Player, st: State)
 		local curUsable = curItem ~= nil and GearService.CanEquip(player, curId :: string)
 		local bestPower = if curItem and curUsable then powerOf(player, curItem, st.EquipPlus[slotName] or 0) else 0
 		local bestIndex: number? = nil
+		local wid = st.Equip.Arma
+		local witem: any = if wid then (ItemCatalog.Items :: any)[wid] else nil
+		local twoHanded = witem ~= nil and GearCatalog.IsTwoHandedWeapon(witem)
 		for i, stack in pairs(st.Bag) do
 			local item: any = (ItemCatalog.Items :: any)[stack.Id]
-			if item and ItemCatalog.FitsSlot(item.Slot, slotName) and item.Gear and not item.Pet and GearService.CanEquip(player, stack.Id) then
+			if item and not (twoHanded and slotName == "Escudo" and GearCatalog.IsShield(item)) and ItemCatalog.FitsSlot(item.Slot, slotName) and item.Gear and not item.Pet and GearService.CanEquip(player, stack.Id) then
 				local p = powerOf(player, item, stack.Plus or 0)
 				if p > bestPower + 1e-9 then
 					bestPower, bestIndex = p, i

@@ -199,6 +199,27 @@ local function applyLocomotion(m: Model, j: Joints, dt: number, now: number)
 	setLeg(j, true, -legs)
 end
 
+-- POSTURA DE ARMA EN LA MANO (jugadores): mientras no se ataca, los brazos que sostienen arma/arco/báculo quedan en la postura que publica
+-- AttackAnimator (atributos HoldR / HoldL), así el arma no apunta al frente a ras de cadera. Se suaviza al volver de un ataque.
+local holdState: { [Model]: { R: number, L: number } } = setmetatable({}, { __mode = "k" }) :: any
+
+local function applyHold(m: Model, j: Joints, dt: number, hr: any, hl: any)
+	local st = holdState[m]
+	if not st then
+		st = { R = 0, L = 0 }
+		holdState[m] = st
+	end
+	local k = math.min(1, dt * 10)
+	if typeof(hr) == "number" then
+		st.R += (hr - st.R) * k
+		setArm(j, false, st.R)
+	end
+	if typeof(hl) == "number" then
+		st.L += (hl - st.L) * k
+		setArm(j, true, st.L)
+	end
+end
+
 local cam = Workspace.CurrentCamera
 local diagUntil = os.clock() + 45
 local diagNext = 0
@@ -271,7 +292,19 @@ local function step(dt: number)
 			if style then
 				local j = jointsOf(c)
 				if j then
+					holdState[c] = nil
 					applyAttack(j, style, p, strike, alt)
+				end
+			else
+				local hr, hl = c:GetAttribute("HoldR"), c:GetAttribute("HoldL")
+				if typeof(hr) == "number" or typeof(hl) == "number" then
+					local j = jointsOf(c)
+					local hum = c:FindFirstChildOfClass("Humanoid")
+					if j and hum and hum.Health > 0 and not hum.Sit and (j.Root.Position - camPos).Magnitude <= MAX_DIST then
+						applyHold(c, j, dt, hr, hl)
+					end
+				else
+					holdState[c] = nil
 				end
 			end
 		end

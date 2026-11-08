@@ -70,6 +70,14 @@ local function compute(player: Player): Stats
 		if item and needPass and player:GetAttribute(needPass) ~= true then
 			item = nil
 		end
+		-- arma de dos manos + escudo (datos viejos): el escudo no cuenta
+		if item and slot == "Escudo" and GearCatalog.IsShield(item) then
+			local wid = player:GetAttribute("Equip_Arma")
+			local witem: any = if typeof(wid) == "string" then (ItemCatalog.Items :: any)[wid] else nil
+			if witem and GearCatalog.IsTwoHandedWeapon(witem) then
+				item = nil
+			end
+		end
 		if item then
 			if item.Gear then
 				if GearCatalog.CanUse(item, faction, role, level) then
