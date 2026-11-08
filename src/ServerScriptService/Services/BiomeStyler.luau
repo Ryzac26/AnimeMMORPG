@@ -27,6 +27,7 @@ local Players = game:GetService("Players")
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local GB = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GameBalance"))
 local BiomeAssets = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("BiomeAssets"))
 
 local ENABLED = true
@@ -1044,8 +1045,8 @@ local function styleGates(biome: Instance, lane: Lane, faction: string)
 				end
 			end
 			-- 4) holograma de entrada sobre el arco del medio (gira; se lee de los dos lados)
-			local lo = (zone - 1) * 25 + 1
-			local hi = zone * 25
+			local lo = GB.FromOldMin((zone - 1) * 25 + 1) -- niveles en escala 1-3000 (zona 3 = 1501–2250)
+			local hi = GB.FromOld(zone * 25)
 			local lvText = string.format("MONSTRUOS NIV. %d–%d%s", lo, hi, if zone == STRIP_COUNT then " · ÉLITE" else "")
 			local signW, signH = 100, 46
 			local signPos = lp(lane, u, 0, FLOOR_TOP + 94)
@@ -1192,7 +1193,7 @@ local function buildBackWall(lane: Lane, faction: string)
 	board.CFrame = CFrame.lookAt(bpos, bpos + inward)
 	board.Parent = lane.Deco
 	local named: GateTheme = { Name = MONUMENTS[faction] or "", Wall = gth.Wall, WallCol = gth.WallCol, Accent = gth.Accent, Cap = gth.Cap, Orn = "none" }
-	gateGui(Enum.NormalId.Front, named, faction, STRIP_COUNT, gth.Accent, "FIN DEL MAPA · NIV. 76–100").Parent = board
+	gateGui(Enum.NormalId.Front, named, faction, STRIP_COUNT, gth.Accent, string.format("FIN DEL MAPA · NIV. %d–%d", GB.FromOldMin(76), GB.FromOld(100))).Parent = board
 	blk(deco, Vector3.new(126, 4, 8), gateCF(lane, u - 14, 0, FLOOR_TOP + P - 4), gth.Accent, M.Neon, false)
 	blk(deco, Vector3.new(126, 4, 8), gateCF(lane, u - 14, 0, FLOOR_TOP + P - 64), dark, th.WallMat, false)
 	-- anillo con la insignia sobre el tablero (disco que mira hacia adentro)

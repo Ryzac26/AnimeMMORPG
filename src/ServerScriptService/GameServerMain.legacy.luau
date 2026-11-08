@@ -39,6 +39,7 @@ require(Services:WaitForChild("TitleService")) -- títulos únicos (desbloqueo, 
 require(Services:WaitForChild("HallService")) -- Salón de Honor del Gremio: rankings globales por facción y maniquíes
 require(Services:WaitForChild("LevelLabelService")) -- pasa los carteles/atributos de franja del mapa ya construido a la escala 1-3000
 require(Services:WaitForChild("LevelMilestoneService")) -- hitos de nivel (cada 50) y auras
+require(Services:WaitForChild("TalentService")) -- árbol de talentos (3 builds) y auras de grupo
 require(Services:WaitForChild("GuildService")) -- gremio de facción: bendiciones por aportes (DataStore compartido)
 require(Services:WaitForChild("MasteryService")) -- maestría de rol + pase Multiclase (cambio de rol en cualquier lugar, equipo por rol)
 require(Services:WaitForChild("AlquimistaService")) -- alquimista de cada ciudad: fabrica pociones y desmonta equipo

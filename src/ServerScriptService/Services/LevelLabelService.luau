@@ -11,7 +11,8 @@ local GB = require(ReplicatedStorage.Modules.GameBalance)
 
 local LevelLabelService = {}
 
-local PATTERNS = { "(Nvl )(%d+)%-(%d+)", "(Niveles )(%d+)%-(%d+)" }
+-- también los hologramas giratorios de entrada de cada zona: "MONSTRUOS NIV. 51–75" y "FIN DEL MAPA · NIV. 76–100" (guion largo UTF-8 = \226\128\147)
+local PATTERNS = { "(Nvl )(%d+)%-(%d+)", "(Niveles )(%d+)%-(%d+)", "(NIV%. )(%d+)\226\128\147(%d+)" }
 
 local function convert(text: string): string
 	for _, pat in ipairs(PATTERNS) do
@@ -20,7 +21,8 @@ local function convert(text: string): string
 			if hi > GB.OLD_MAX_LEVEL then
 				return nil -- ya está en la escala nueva
 			end
-			return string.format("%s%d-%d", prefix, GB.FromOldMin(lo), GB.FromOld(hi))
+			local sep = if string.find(text, "\226\128\147", 1, true) then "\226\128\147" else "-"
+			return string.format("%s%d%s%d", prefix, GB.FromOldMin(lo), sep, GB.FromOld(hi))
 		end)
 	end
 	return text

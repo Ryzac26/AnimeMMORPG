@@ -39,6 +39,9 @@ local CONFIG = {
 	SlamEvery = 7, SlamRadius = 16, SlamTargets = 4, SlamMult = 2.5,
 	WaveEvery = 18, WaveRadius = 70, WaveMult = 3,
 	SummonEvery = 30, SummonCount = 5,
+	-- MECÁNICAS DE ROL: exigen tanque y soporte (un grupo de puro daño se queda sin vida)
+	PulseEvery = 28, PulseMult = 2.2, PulseWarn = 3, -- Pulso Devastador: daño a TODOS los jugadores; curación y escudos lo compensan
+	ExecEvery = 40, ExecMult = 7, ExecRadius = 10, ExecWarn = 2.2, -- Golpe del Verdugo: va contra quien tiene la provocación; sin tanque, contra el más resistente
 	EnrageBelow = 0.30, EnrageSpeed = 0.6, -- en furia los tiempos se multiplican por esto
 	WarnSeconds = { 300, 60 },
 }
@@ -125,9 +128,42 @@ local function summon(boss: Model, count: number)
 	end
 end
 
+-- Objetivo del Golpe del Verdugo: quien tiene la provocación activa; si nadie, el jugador con más vida máxima
+local function execTarget(boss: Model, near: { { Player: Player, Char: Model, Root: BasePart } }): { Player: Player, Char: Model, Root: BasePart }?
+	local by, untilT = boss:GetAttribute("TauntBy"), boss:GetAttribute("TauntUntil")
+	if typeof(by) == "string" and typeof(untilT) == "number" and untilT > os.clock() then
+		for _, e in ipairs(near) do
+			if e.Char.Name == by then
+				return e
+			end
+		end
+	end
+	local best, bestHp = nil, -1
+	for _, e in ipairs(near) do
+		local h = e.Char:FindFirstChildOfClass("Humanoid")
+		if h and h.MaxHealth > bestHp then
+			best, bestHp = e, h.MaxHealth
+		end
+	end
+	return best
+end
+
+local function pulse(boss: Model)
+	NotifyRemote:FireAllClients("💢 ¡PULSO DEVASTADOR! Curaciones y escudos para todo el grupo")
+	task.delay(CONFIG.PulseWarn, function()
+		if not boss.Parent then
+			return
+		end
+		for _, e in ipairs(playersNear(CONFIG.Center, 450)) do
+			DamageService.Deal(boss, e.Char, CONFIG.PulseMult, {})
+		end
+	end)
+end
+
 local function loop(boss: Model, hum: Humanoid, myToken: number)
 	local t0 = os.clock()
 	local nextSlam, nextWave, nextSummon = t0 + 5, t0 + CONFIG.WaveEvery, t0 + 12
+	local nextPulse, nextExec = t0 + CONFIG.PulseEvery, t0 + CONFIG.ExecEvery
 	while model == boss and token == myToken and hum.Health > 0 do
 		task.wait(0.5)
 		local now = os.clock()
@@ -153,6 +189,18 @@ local function loop(boss: Model, hum: Humanoid, myToken: number)
 				nextWave = now + CONFIG.WaveEvery * speed
 				strike(boss, CONFIG.Center, CONFIG.WaveRadius, CONFIG.WaveMult, 2.5)
 				NotifyRemote:FireAllClients("¡El jefe prepara una onda! ¡Sal del círculo rojo!")
+			end
+			if now >= nextPulse then
+				nextPulse = now + CONFIG.PulseEvery * speed
+				pulse(boss)
+			end
+			if now >= nextExec then
+				nextExec = now + CONFIG.ExecEvery * speed
+				local tg = execTarget(boss, near)
+				if tg then
+					NotifyRemote:FireAllClients(string.format("☠ ¡GOLPE DEL VERDUGO contra %s! (el tanque debe provocar)", tg.Player.DisplayName))
+					strike(boss, tg.Root.Position, CONFIG.ExecRadius, CONFIG.ExecMult, CONFIG.ExecWarn)
+				end
 			end
 			if now >= nextSummon then
 				nextSummon = now + CONFIG.SummonEvery * speed

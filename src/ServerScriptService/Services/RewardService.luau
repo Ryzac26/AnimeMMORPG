@@ -72,6 +72,7 @@ local lootEvent = Instance.new("BindableEvent")
 RewardService.MobKilled = killedEvent.Event :: RBXScriptSignal
 RewardService.BossLoot = lootEvent.Event :: RBXScriptSignal
 
+local Contribution = require(script.Parent.ContributionService)
 local damageLog: { [Model]: { Total: number, ByPlayer: { [Player]: number } } } = {}
 
 local function record(mob: Model, player: Player, amount: number)
@@ -87,6 +88,7 @@ DamageService.SetDamageListener(record)
 
 function RewardService.Forget(mob: Model)
 	damageLog[mob] = nil
+	Contribution.Forget(mob)
 end
 
 -- Llamado por MobService cuando el mob muere
@@ -94,15 +96,21 @@ function RewardService.OnMobKilled(mob: Model, mobId: string, level: number, isB
 	local log = damageLog[mob]
 	damageLog[mob] = nil
 	if not log or log.Total <= 0 or summoned then
+		Contribution.Forget(mob)
 		return -- invocados (clones/marionetas) no dan XP ni botín: evita farmeo
 	end
+	-- APORTE: daño + daño recibido (tanque) + apoyo (curación, escudos, auras). Ver ContributionService.
+	local mobRoot = mob:FindFirstChild("HumanoidRootPart")
+	local cShares = Contribution.Shares(mob, log.ByPlayer, if mobRoot and mobRoot:IsA("BasePart") then mobRoot.Position else nil)
 
 	local participants: { Player } = {}
 	if isBoss then
 		local maxHp = mob:GetAttribute("MaxHp")
 		local denom = if typeof(maxHp) == "number" and maxHp > 0 then maxHp else log.Total
-		for pl, dmg in pairs(log.ByPlayer) do
-			if pl.Parent and dmg / denom >= GB.BOSS_MIN_DAMAGE_PCT then
+		for pl in pairs(cShares) do
+			local dmg = log.ByPlayer[pl] or 0
+			-- el jefe premia el daño mínimo O un aporte mínimo de tanque/soporte (si no, solo los DPS cobrarían)
+			if pl.Parent and (dmg / denom >= GB.BOSS_MIN_DAMAGE_PCT or (cShares[pl] or 0) >= Contribution.MIN_SHARE_ELIGIBLE) then
 				table.insert(participants, pl)
 			end
 		end
@@ -114,10 +122,10 @@ function RewardService.OnMobKilled(mob: Model, mobId: string, level: number, isB
 		-- El botín del jefe (reparto garantizado + sorteo) lo hace LootService con MobKilled; ya no se elige un único ganador aquí.
 	else
 		local xp = GB.MobXp(level) * (xpMult or 1)
-		for pl, dmg in pairs(log.ByPlayer) do
+		for pl, share in pairs(cShares) do
 			if pl.Parent then
 				table.insert(participants, pl)
-				LevelService.AddXp(pl, math.max(1, math.floor(xp * dmg / log.Total * boostMult(pl) * petXpMult(pl) * gapMult(pl, level))))
+				LevelService.AddXp(pl, math.max(1, math.floor(xp * share * boostMult(pl) * petXpMult(pl) * gapMult(pl, level))))
 			end
 		end
 	end
@@ -125,7 +133,7 @@ function RewardService.OnMobKilled(mob: Model, mobId: string, level: number, isB
 		-- partes: % del daño total de cada participante (LootService lo usa para el mínimo de botín y los boletos del sorteo)
 		local shares: { [Player]: number } = {}
 		for _, pl in ipairs(participants) do
-			shares[pl] = (log.ByPlayer[pl] or 0) / log.Total
+			shares[pl] = cShares[pl] or 0
 		end
 		killedEvent:Fire(mobId, level, participants, shares)
 	end

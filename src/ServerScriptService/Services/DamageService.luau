@@ -35,6 +35,7 @@ task.defer(function()
 end)
 
 -- RewardService se inyecta (evita dependencia circular): recibe el daño que los jugadores hacen a mobs
+local Contribution = require(script.Parent.ContributionService)
 local damageListener: ((mob: Model, player: Player, amount: number) -> ())? = nil
 function DamageService.SetDamageListener(fn: (Model, Player, number) -> ())
 	damageListener = fn
@@ -396,6 +397,9 @@ function DamageService.Deal(attacker: Model, victim: Model, base: number, opts: 
 			damage = math.floor(PassiveService.PreLethal(victim, damage, vHum))
 		end
 		vHum:TakeDamage(damage)
+		if damage > 0 and aMob and vPlayer then
+			Contribution.Taken(attacker, vPlayer, damage) -- aporte del tanque: daño recibido de ESE monstruo
+		end
 		if damage > 0 and vHum.Health <= 0 and aPlayer then
 			PassiveService.OnKill(attacker)
 		end
@@ -462,6 +466,10 @@ function DamageService.Heal(caster: Model, target: Model, base: number): number
 	local healMult = GearService.HealMult(Players:GetPlayerFromCharacter(caster)) -- Curación del equipo
 	local amount = math.floor(PassiveService.HealAmount(caster, target, base * GB.PlayerHpMult(StatService.GetLevel(caster)) * healMult))
 	local overflow = hum.Health + amount - hum.MaxHealth
+	local casterPl, targetPl = Players:GetPlayerFromCharacter(caster), Players:GetPlayerFromCharacter(target)
+	if casterPl and targetPl and casterPl ~= targetPl then
+		Contribution.Support(casterPl, math.min(amount, math.max(0, hum.MaxHealth - hum.Health))) -- solo cuenta la curación REAL a otro jugador
+	end
 	hum.Health = math.min(hum.MaxHealth, hum.Health + amount)
 	if overflow > 0 then
 		PassiveService.Overheal(caster, target, overflow)
@@ -471,6 +479,10 @@ end
 
 function DamageService.AddShield(caster: Model, target: Model, base: number, duration: number)
 	local points = math.floor(base * GB.PlayerHpMult(StatService.GetLevel(caster)))
+	local casterPl, targetPl = Players:GetPlayerFromCharacter(caster), Players:GetPlayerFromCharacter(target)
+	if casterPl and targetPl and casterPl ~= targetPl then
+		Contribution.Support(casterPl, points * 0.5) -- escudo a otro jugador
+	end
 	local token = os.clock()
 	target:SetAttribute("ShieldPoints", points)
 	target:SetAttribute("ShieldToken", token)

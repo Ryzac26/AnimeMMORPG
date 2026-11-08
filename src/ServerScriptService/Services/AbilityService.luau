@@ -1224,6 +1224,14 @@ local function cast(player: Player, slot: number, hint: any)
 	PassiveService.OnCast(player, function(mult: number, secs: number)
 		applySpeed(char, mult, secs)
 	end)
+	if not pvp then
+		-- apoyo de grupo (aporte para el reparto de XP/botín): fracción de la vida máxima del lanzador
+		local SUPPORT_VALUE: { [string]: number } = { Aura = 0.25, Guard = 0.35, Taunt = 0.3, Wall = 0.25, Smoke = 0.15, Revive = 0.5, RootArea = 0.1, Silence = 0.1 }
+		local v = SUPPORT_VALUE[ab.Kind]
+		if v then
+			require(script.Parent.ContributionService).Support(player, hum.MaxHealth * v)
+		end
+	end
 	local POWER = { Buff = true, ShieldGroup = true, Aura = true, Taunt = true, Guard = true, Wall = true }
 	local CASTING = { HealGroup = true, HealOverTime = true, Revive = true, Silence = true, Mark = true, RootArea = true, Pull = true, Smoke = true, AoeBurn = true, Channel = true, Clones = true, SelfBlast = true }
 	local style = if POWER[ab.Kind] then "Power" elseif CASTING[ab.Kind] then "Cast" else AttackAnimator.StyleFor(player, false)

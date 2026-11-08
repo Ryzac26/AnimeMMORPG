@@ -190,7 +190,7 @@ export type Pass = {
 	Icon: string?,
 }
 -- Solo Studio: pases que TU cuenta tendrá "comprados" para probar. false = como un jugador sin el pase.
-ProductCatalog.DevOwnPasses = { Belt = false, Merchant = false, Multiclass = false, PetSlot = false, VipHouse = false } :: { [string]: boolean }
+ProductCatalog.DevOwnPasses = { Belt = false, Merchant = false, Multiclass = false, PetSlot = false, VipHouse = false, Talents2 = true, Talents3 = true } :: { [string]: boolean }
 
 ProductCatalog.Passes = {
 	{
@@ -245,6 +245,28 @@ ProductCatalog.Passes = {
 			"El primer mes va incluido; después se mantiene con la Suscripción Imperial (199 R$/mes). Si no se renueva, la casa vence",
 		},
 		PassId = 2075582326, PriceText = "599 R$",
+	},
+	{
+		Key = "Talents2", Attr = "Pass_Talents2", Name = "Talentos II · Segunda Build",
+		Desc = "Una segunda pestaña del árbol de talentos: arma otra build y cámbiala cuando quieras.",
+		Perks = {
+			"Desbloquea la pestaña 2 del árbol de talentos (mismos puntos, otra distribución)",
+			"Vincúlala a un rol: al cambiar de rol se activa sola (ideal con Maestría Multiclase)",
+			"Cambiar de build es gratis e instantáneo",
+			"Sin el pase: sigues con la pestaña 1 gratuita",
+		},
+		PassId = 0, PriceText = "149 R$", -- TODO: crea el Game Pass "Talentos II" y pega aquí su ID (precio provisional, lo definimos juntos)
+	},
+	{
+		Key = "Talents3", Attr = "Pass_Talents3", Name = "Talentos III · Tercera Build",
+		Desc = "Una tercera pestaña del árbol de talentos para tener tres builds listas (tanque, daño, soporte...).",
+		Perks = {
+			"Desbloquea la pestaña 3 del árbol de talentos",
+			"Vincúlala a un rol para que se active sola al cambiar de rol",
+			"Con las tres pestañas tienes una build por cada estilo de juego",
+			"Sin el pase: sigues con la pestaña 1 gratuita",
+		},
+		PassId = 0, PriceText = "199 R$", -- TODO: crea el Game Pass "Talentos III" y pega aquí su ID (precio provisional)
 	},
 } :: { Pass }
 
