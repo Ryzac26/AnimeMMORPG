@@ -173,7 +173,7 @@ Net.Get("AutoAttack").OnServerEvent:Connect(function(player: Player, action: any
 	setFlag(player, st)
 end)
 
-local function hitFx(from: Vector3, to: Vector3, ranged: boolean, color: Color3)
+local function legacyFx(from: Vector3, to: Vector3, ranged: boolean, color: Color3)
 	local p = Instance.new("Part")
 	p.Anchored = true
 	p.CanCollide = false
@@ -197,6 +197,122 @@ local function hitFx(from: Vector3, to: Vector3, ranged: boolean, color: Color3)
 		p.Parent = workspace
 		TweenService:Create(p, TweenInfo.new(0.2), { Size = Vector3.new(5, 5, 5), Transparency = 1 }):Play()
 		Debris:AddItem(p, 0.25)
+	end
+end
+
+-- EFECTOS DEL ATAQUE BÁSICO SEGÚN EL ARMA (estilo de animación): arco = flecha, pistola = bala, báculo = bola de poder,
+-- espada = tajo, daga = doble tajo rápido, hacha = golpe pesado con onda, puños = golpe con onda.
+local function fxPart(size: Vector3, color: Color3, cf: CFrame, neon: boolean, ball: boolean?): Part
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Material = if neon then Enum.Material.Neon else Enum.Material.SmoothPlastic
+	p.Color = color
+	if ball then
+		p.Shape = Enum.PartType.Ball
+	end
+	p.Size = size
+	p.CFrame = cf
+	return p
+end
+
+local function fadeOut(p: Part, life: number, goal: { [string]: any })
+	p.Parent = workspace
+	TweenService:Create(p, TweenInfo.new(life, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), goal):Play()
+	Debris:AddItem(p, life + 0.05)
+end
+
+local function spark(at: Vector3, color: Color3, size: number)
+	local s = fxPart(Vector3.one * size * 0.5, color:Lerp(Color3.new(1, 1, 1), 0.6), CFrame.new(at), true, true)
+	fadeOut(s, 0.18, { Size = Vector3.one * size * 1.6, Transparency = 1 })
+end
+
+local function ring(at: Vector3, color: Color3, diameter: number)
+	local r = fxPart(Vector3.new(0.15, 1, 1), color, CFrame.new(at) * CFrame.Angles(0, 0, math.pi / 2), true)
+	r.Shape = Enum.PartType.Cylinder
+	r.Transparency = 0.2
+	fadeOut(r, 0.28, { Size = Vector3.new(0.1, diameter, diameter), Transparency = 1 })
+end
+
+local function slashLine(at: Vector3, from: Vector3, color: Color3, length: number, thick: number, tilt: number)
+	local face = CFrame.lookAt(at, Vector3.new(from.X, at.Y, from.Z))
+	local p = fxPart(Vector3.new(thick, length, thick * 0.5), color:Lerp(Color3.new(1, 1, 1), 0.55), face * CFrame.Angles(0, 0, math.rad(tilt)), true)
+	p.Transparency = 0.05
+	fadeOut(p, 0.2, { Size = Vector3.new(thick * 0.3, length * 1.5, thick * 0.15), Transparency = 1 })
+end
+
+local function arrowFx(from: Vector3, to: Vector3, color: Color3)
+	local dir = to - from
+	local dist = dir.Magnitude
+	if dist < 0.5 then
+		return
+	end
+	local look = dir.Unit
+	local m = Instance.new("Model")
+	m.Name = "ArrowFx"
+	local shaft = fxPart(Vector3.new(0.14, 0.14, 2.4), Color3.fromRGB(205, 176, 128), CFrame.new(), false)
+	local tip = fxPart(Vector3.new(0.22, 0.22, 0.55), Color3.fromRGB(225, 228, 238), CFrame.new(0, 0, -1.45), false)
+	local f1 = fxPart(Vector3.new(0.5, 0.04, 0.55), color, CFrame.new(0, 0, 0.95), true)
+	local f2 = fxPart(Vector3.new(0.04, 0.5, 0.55), color, CFrame.new(0, 0, 0.95), true)
+	for _, part in ipairs({ shaft, tip, f1, f2 }) do
+		part.Parent = m
+	end
+	m.PrimaryPart = shaft
+	m.Parent = workspace
+	m:PivotTo(CFrame.lookAt(from, from + look))
+	local dur = math.clamp(dist / 110, 0.08, 0.4)
+	local t0 = os.clock()
+	local conn: RBXScriptConnection
+	conn = RunService.Heartbeat:Connect(function()
+		local a = math.min(1, (os.clock() - t0) / dur)
+		if not m.Parent then
+			conn:Disconnect()
+			return
+		end
+		local pos = from:Lerp(to, a)
+		m:PivotTo(CFrame.lookAt(pos, pos + look))
+		if a >= 1 then
+			conn:Disconnect()
+			m:Destroy()
+			spark(to, color, 1.1)
+		end
+	end)
+end
+
+local function weaponFx(style: string?, from: Vector3, to: Vector3, ranged: boolean, color: Color3)
+	local dir = (to - from)
+	local fwd = if dir.Magnitude > 0.1 then dir.Unit else Vector3.new(0, 0, -1)
+	local muzzle = from + fwd * 1.8
+	if style == "Bow" then
+		arrowFx(muzzle, to, color)
+	elseif style == "Shoot" then
+		local mid = (muzzle + to) / 2
+		local len = (to - muzzle).Magnitude
+		local tracer = fxPart(Vector3.new(0.12, 0.12, len), Color3.fromRGB(255, 236, 160), CFrame.lookAt(mid, to), true)
+		fadeOut(tracer, 0.12, { Transparency = 1, Size = Vector3.new(0.02, 0.02, len) })
+		spark(muzzle, Color3.fromRGB(255, 220, 120), 1.2)
+		spark(to, Color3.fromRGB(255, 220, 120), 0.9)
+	elseif style == "Slash" then
+		slashLine(to, from, color, 4, 0.34, 35)
+		spark(to, color, 1.4)
+	elseif style == "Stab" then
+		slashLine(to, from, color, 2.6, 0.2, 40)
+		task.delay(0.05, function()
+			slashLine(to, from, color, 2.6, 0.2, -40)
+		end)
+		spark(to, color, 1)
+	elseif style == "Slam" then
+		slashLine(to, from, color, 5, 0.55, 0)
+		ring(to - Vector3.new(0, 2.6, 0), color, 8)
+		spark(to, color, 1.8)
+	elseif style == "Punch" then
+		spark(to, color, 1.8)
+		ring(to - Vector3.new(0, 1, 0), color, 5)
+	else
+		legacyFx(from, to, ranged, color) -- báculo y resto: bola de poder
 	end
 end
 
@@ -238,12 +354,13 @@ RunService.Heartbeat:Connect(function(dt)
 					local spd = char:GetAttribute("AtkSpeed") -- (futuro: buffs/equipo de velocidad de ataque; 1 = normal)
 					st.Next = now + cfg.Interval / ((if typeof(spd) == "number" and spd > 0.2 then spd else 1) * ClassStats.AttackSpeed(class.Role)) -- Destreza
 					faceTowards(root, tRoot.Position)
-					AttackAnimator.Play(char, AttackAnimator.StyleFor(player, cfg.Ranged), math.min(cfg.Interval * 0.8, 0.55), 0.4)
+					local animStyle = AttackAnimator.StyleFor(player, cfg.Ranged)
+					AttackAnimator.Play(char, animStyle, math.min(cfg.Interval * 0.8, 0.55), 0.4)
 					local dealt = DamageService.Deal(char, target, class.PrimarySkill.BaseValue * cfg.Fraction, nil)
 					if dealt > 0 then
 						local max = select(2, EnergyRegenService.GetEnergy(player))
 						EnergyRegenService.Gain(player, max * ENERGY_GAIN_PCT)
-						hitFx(root.Position + Vector3.new(0, 1, 0), tRoot.Position, cfg.Ranged, FACTION_COLOR[class.Faction] or Color3.new(1, 1, 1))
+						weaponFx(animStyle, root.Position + Vector3.new(0, 1, 0), tRoot.Position, cfg.Ranged, FACTION_COLOR[class.Faction] or Color3.new(1, 1, 1))
 					end
 				end
 			end

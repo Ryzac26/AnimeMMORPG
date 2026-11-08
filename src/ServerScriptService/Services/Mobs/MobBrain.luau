@@ -20,6 +20,11 @@ local PassiveService = require(ServerScriptService.Services.PassiveService)
 
 local AGGRO_RANGE = 55
 local LEASH_RANGE = 80 -- si se aleja tanto de su punto, abandona la persecución y regresa
+local LEASH_RANGE_HURT = 130 -- correa ampliada mientras el jugador le está pegando: perseguir a un jefe que se aleja ya no lo reinicia
+local HURT_WINDOW = 8 -- s desde el último golpe recibido en los que cuenta la correa ampliada
+local KITE_LIMIT = 28 -- los mobs a distancia solo retroceden mientras estén a menos de esto de su punto (jefes: KITE_LIMIT_BOSS)
+local KITE_LIMIT_BOSS = 36
+local KITE_STEP = 6 -- cuánto retroceden por paso (antes 8)
 local LOSE_DISTANCE = 65 -- objetivo más lejos que esto = "lo perdió de vista"
 local LOSE_TARGET_AFTER = 4 -- s seguidos fuera de alcance antes de rendirse
 local RETURN_HEAL_PER_SEC = 0.25 -- % de vida máxima que recupera por segundo mientras vuelve (inmune)
@@ -54,6 +59,7 @@ export type Mob = {
 	Returning: boolean,
 	ReturnSince: number,
 	OutOfReach: number,
+	LastHurtAt: number?,
 }
 
 local MobBrain = {}
@@ -142,6 +148,7 @@ function MobBrain.OnDamaged(mob: Mob, newHealth: number)
 	end
 	mob.Provoked = true
 	local now = os.clock()
+	mob.LastHurtAt = now
 	local attackerName = mob.Model:GetAttribute("LastHitBy")
 	if typeof(attackerName) == "string" and not mob.Target then
 		local pl = Players:FindFirstChild(attackerName)
@@ -392,7 +399,8 @@ function MobBrain.Step(mob: Mob, dt: number, now: number): boolean
 	else
 		mob.OutOfReach = 0
 	end
-	if homeDist > LEASH_RANGE or (mob.OutOfReach > 0 and now - mob.OutOfReach > LOSE_TARGET_AFTER) then
+	local leash = if now - (mob.LastHurtAt or -100) < HURT_WINDOW then LEASH_RANGE_HURT else LEASH_RANGE
+	if homeDist > leash or (mob.OutOfReach > 0 and now - mob.OutOfReach > LOSE_TARGET_AFTER) then
 		startReturn(mob, now)
 		return true
 	end
@@ -449,9 +457,14 @@ function MobBrain.Step(mob: Mob, dt: number, now: number): boolean
 	if dist > pref then
 		hum:MoveTo(troot.Position)
 	elseif dist < pref * 0.5 and pref > 10 then
+		-- retrocede para mantener la distancia, pero solo dentro de su zona: si ya se alejó demasiado de su punto, aguanta y pelea
+		-- (así quien ataca cuerpo a cuerpo lo alcanza y el jefe no se reinicia a mitad de pelea)
+		local kiteLimit = if mob.Def.Boss then KITE_LIMIT_BOSS else KITE_LIMIT
 		local away = (root.Position - troot.Position) * Vector3.new(1, 0, 1)
-		if away.Magnitude > 0.1 then
-			hum:MoveTo(root.Position + away.Unit * 8)
+		if away.Magnitude > 0.1 and homeDist < kiteLimit then
+			hum:MoveTo(root.Position + away.Unit * KITE_STEP)
+		else
+			hum:MoveTo(root.Position)
 		end
 	else
 		hum:MoveTo(root.Position)

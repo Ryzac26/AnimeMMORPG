@@ -119,6 +119,9 @@ end
 -- ARCOS CON MALLA (5 modelos de Roblox, creador oficial; solo se usan malla y textura, sin sus scripts).
 -- Tier = tramo de nivel del arma (1-11). Dir = hacia dónde van los ejes de la malla en el brazo izquierdo:
 --   X = a lo ancho, Y = a lo largo del arco, Z = hacia donde "abulta" el arco. Si se ve girado o al revés, solo cambia Orient/Flip.
+-- Agarre: la malla se centra por su caja, pero la mano agarra el arco por el medio de la PANZA (más hacia delante).
+-- Z positivo = acerca el arco al cuerpo (la panza queda en la palma). Cada skin puede traer su propio Grip.
+local BOW_GRIP = Vector3.new(0, 0.1, 0.45)
 local BOW_SCALE = 0.65 -- multiplicador general del tamaño de todos los arcos (antes 1.0: se veían enormes)
 -- El arco se lleva VERTICAL en la mano (largo = eje del brazo), con la panza hacia delante y la cuerda hacia el cuerpo.
 -- (Ya no depende de que el brazo se levante: se ve bien con el brazo colgando.)
@@ -181,7 +184,7 @@ local function buildWeapon(f: Folder, char: Model, style: string, glow: Color3, 
 			if skin.Flip then
 				orient = orient * CFrame.Angles(0, 0, math.pi)
 			end
-			local piece = block(f, lArm, Vector3.new(1, 1, 1), Color3.new(1, 1, 1), at * CFrame.new(0, 0.1, -0.2) * orient)
+			local piece = block(f, lArm, Vector3.new(1, 1, 1), Color3.new(1, 1, 1), at * CFrame.new(skin.Grip or BOW_GRIP) * orient)
 			piece.Name = "WeaponPart"
 			local m = Instance.new("SpecialMesh")
 			m.MeshType = Enum.MeshType.FileMesh
