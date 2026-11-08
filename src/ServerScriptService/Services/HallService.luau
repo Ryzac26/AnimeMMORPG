@@ -81,6 +81,7 @@ local levelStores: { [string]: OrderedDataStore? } = {}
 local dmgStores: { [string]: OrderedDataStore? } = {}
 local nameCache: { [number]: string } = {}
 local best: { [Player]: number } = {}
+local saveUntil: { [Player]: number } = {} -- tras un récord nuevo: hasta cuándo se fuerza el guardado del perfil cada pocos segundos
 local lastLevelWritten: { [Player]: number } = {}
 local lastDmgWritten: { [Player]: number } = {}
 local warnedNoStore = false
@@ -295,8 +296,14 @@ local function writeDmg(pl: Player)
 	if not store or not b or b <= 0 or lastDmgWritten[pl] == b then
 		return
 	end
+	-- UpdateAsync con máximo: jamás pisa un récord más alto que ya esté en el ranking (otro servidor, o un récord que el perfil no llegó a guardar)
 	local ok = pcall(function()
-		store:SetAsync(tostring(pl.UserId), math.floor(b))
+		store:UpdateAsync(tostring(pl.UserId), function(old: any)
+			if typeof(old) == "number" and old >= math.floor(b) then
+				return old
+			end
+			return math.floor(b)
+		end)
 	end)
 	if ok then
 		lastDmgWritten[pl] = b
@@ -328,6 +335,7 @@ local function finish(pl: Player)
 		return
 	end
 	sessions[pl] = nil
+	s.Dummy:SetAttribute("HallBusyBy", nil) -- el maniquí vuelve a estar libre
 	cooldown[pl] = os.clock() + COOLDOWN
 	local total = math.floor(s.Total)
 	local dps = math.floor(total / TEST_SECONDS)
@@ -337,6 +345,8 @@ local function finish(pl: Player)
 		best[pl] = total
 		pl:SetAttribute("HallBest", total)
 		task.spawn(writeDmg, pl)
+		saveUntil[pl] = os.clock() + 35 -- el perfil se guarda ya y se repite cada 10 s un rato (ver bucle de autoguardado)
+		PlayerData.Save(pl)
 		local fac = pl:GetAttribute("Faction")
 		if typeof(fac) == "string" then
 			task.spawn(refreshFaction, fac) -- récord nuevo: el tablero y el podio se actualizan al instante
@@ -360,6 +370,10 @@ DamageService.AddDamageListener(function(mob: Model, player: Player, amount: num
 		hum.Health = hum.MaxHealth
 	end
 	local now = os.clock()
+	local owner = mob:GetAttribute("HallBusyBy")
+	if typeof(owner) == "string" and owner ~= player.Name then
+		return -- maniquí ocupado por otro jugador: su daño no cuenta (DamageService ya lo bloquea, esto es red de seguridad)
+	end
 	local s = sessions[player]
 	if s and now - s.Start >= TEST_SECONDS then
 		finish(player)
@@ -376,6 +390,7 @@ DamageService.AddDamageListener(function(mob: Model, player: Player, amount: num
 		end
 		s = { Dummy = mob, Start = now, Total = 0 }
 		sessions[player] = s
+		mob:SetAttribute("HallBusyBy", player.Name) -- mientras dure la prueba nadie más puede pegarle ni marcarlo
 		notify(player, "🎯 ¡Prueba iniciada! Tienes " .. TEST_SECONDS .. " s: pega con todo.")
 	end
 	if (s :: Session).Dummy ~= mob then
@@ -390,6 +405,7 @@ task.spawn(function()
 		local now = os.clock()
 		for pl, s in pairs(sessions) do
 			if not pl.Parent then
+				s.Dummy:SetAttribute("HallBusyBy", nil)
 				sessions[pl] = nil
 			elseif now - s.Start >= TEST_SECONDS then
 				finish(pl)
@@ -976,20 +992,49 @@ local function init(player: Player)
 	if typeof(raw) == "table" and typeof(raw.Dmg) == "number" and raw.Dmg > 0 then
 		best[player] = raw.Dmg
 		player:SetAttribute("HallBest", raw.Dmg)
-		task.spawn(writeDmg, player)
 	end
+	-- Reconciliar con el ranking global: si allí hay un récord más alto (p. ej. no llegó a guardarse en el perfil), se recupera.
+	task.spawn(function()
+		local waited = 0
+		while player.Parent and typeof(player:GetAttribute("Faction")) ~= "string" and waited < 40 do
+			task.wait(1)
+			waited += 1
+		end
+		local f = player:GetAttribute("Faction")
+		local store = if typeof(f) == "string" then dmgStores[f] else nil
+		if store and player.Parent then
+			local ok, g = pcall(function()
+				return store:GetAsync(tostring(player.UserId))
+			end)
+			if ok and typeof(g) == "number" and g > (best[player] or 0) then
+				best[player] = g
+				player:SetAttribute("HallBest", g)
+				PlayerData.Save(player)
+			end
+		end
+		writeDmg(player)
+	end)
 	task.wait(5)
 	writeLevel(player)
 end
 
 local function leave(player: Player)
 	writeLevel(player)
+	writeDmg(player)
+	local s = sessions[player]
+	if s then
+		s.Dummy:SetAttribute("HallBusyBy", nil)
+	end
 	sessions[player] = nil
 	cooldown[player] = nil
+end
+-- El récord (best) se borra SOLO cuando PlayerData ya tomó la foto final del perfil (antes se borraba en PlayerRemoving y el récord nuevo no se guardaba)
+PlayerData.Releasing:Connect(function(player: Player)
 	best[player] = nil
 	lastLevelWritten[player] = nil
 	lastDmgWritten[player] = nil
-end
+	saveUntil[player] = nil
+end)
 
 Players.PlayerAdded:Connect(function(p)
 	task.spawn(init, p)
@@ -1004,6 +1049,19 @@ task.spawn(function()
 		task.wait(REFRESH_SECONDS)
 		for faction in pairs(halls) do
 			task.spawn(refreshFaction, faction)
+		end
+	end
+end)
+task.spawn(function()
+	while true do
+		task.wait(10)
+		local now = os.clock()
+		for _, pl in ipairs(Players:GetPlayers()) do
+			local untilT = saveUntil[pl]
+			if untilT and now < untilT then
+				PlayerData.Save(pl) -- récord reciente: se guarda en el perfil cada 10 s por si el guardado anterior estaba ocupado
+				task.spawn(writeDmg, pl)
+			end
 		end
 	end
 end)

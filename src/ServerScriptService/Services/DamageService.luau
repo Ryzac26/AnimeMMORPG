@@ -310,6 +310,13 @@ function DamageService.Deal(attacker: Model, victim: Model, base: number, opts: 
 		victim:SetAttribute("LastHitFaction", fa)
 	end
 
+	-- Maniquí de entrenamiento del salón: mientras alguien hace su prueba, nadie más puede dañarlo (no se mezclan daños)
+	if aPlayer and victim:GetAttribute("HallDummy") == true then
+		local owner = victim:GetAttribute("HallBusyBy")
+		if typeof(owner) == "string" and owner ~= aPlayer.Name then
+			return 0
+		end
+	end
 	if aPlayer and vMob and attackGate and not attackGate(aPlayer, victim) then
 		return 0
 	end

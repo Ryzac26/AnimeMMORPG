@@ -84,6 +84,10 @@ local function validTarget(player: Player, m: Model): boolean
 	if m == player.Character then
 		return false
 	end
+	local busy = m:GetAttribute("HallBusyBy") -- maniquí de entrenamiento ocupado por otro jugador
+	if typeof(busy) == "string" and busy ~= player.Name then
+		return false
+	end
 	local other = Players:GetPlayerFromCharacter(m)
 	if other and other:GetAttribute("Faction") == player:GetAttribute("Faction") then
 		return false -- aliados no
