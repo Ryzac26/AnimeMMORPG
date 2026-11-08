@@ -14,6 +14,7 @@ local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local Modules = ReplicatedStorage:WaitForChild("Modules", 10)
 local FactionClasses = require(Modules:WaitForChild("FactionClassesModule", 10))
+local ClassStats = require(Modules:WaitForChild("ClassStats", 10))
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local Platform = require(script.Parent:WaitForChild("Platform", 10))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
@@ -375,9 +376,11 @@ showRoles = function()
 					c.Name.TextColor3 = if on then accent else Color3.new(1, 1, 1)
 				end
 				detail.Text = string.format(
-					"<b>%s</b> (%s) — Vida %d · %s %d · Defensa %d · Velocidad %d\n<b>%s:</b> %s",
-					class.CharacterName, class.AnimeSource, class.BaseHP, theme.Resource, class.BaseEnergy,
-					class.BaseDefense, class.WalkSpeed, class.PrimarySkill.Name, class.PrimarySkill.Description
+					"<b>%s</b> (%s) — Vida %d · %s %d · Reducción de daño %d%% · Velocidad %d\n<b>Atributos:</b> FUE %d · DES %d · INT %d · VIT %d · ESP %d  (principal: %s)\n<b>%s:</b> %s",
+					class.CharacterName, class.AnimeSource, ClassStats.BaseHp(class.Role), theme.Resource, class.BaseEnergy,
+					math.floor(ClassStats.Mitigation(class.Role) * 100 + 0.5), class.WalkSpeed,
+					ClassStats.Get(class.Role).FUE, ClassStats.Get(class.Role).DES, ClassStats.Get(class.Role).INT, ClassStats.Get(class.Role).VIT, ClassStats.Get(class.Role).ESP,
+					ClassStats.Names[ClassStats.Main(class.Role)], class.PrimarySkill.Name, class.PrimarySkill.Description
 				)
 				confirm.BackgroundColor3 = accent
 				confirm.TextColor3 = INK

@@ -16,6 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PlayerClass = require(ReplicatedStorage.Modules.PlayerClass)
 local GB = require(ReplicatedStorage.Modules.GameBalance)
+local ClassStats = require(ReplicatedStorage.Modules.ClassStats)
 local GearService = require(script.Parent.GearService) -- mascota de facción: +% de regeneración de energía
 
 local REGEN_PCT_PER_SEC = 0.05
@@ -23,6 +24,7 @@ local REGEN_PCT_PER_SEC = 0.05
 local Energy = {}
 local current: { [Player]: number } = {}
 local maxOf: { [Player]: number } = {}
+local regenOf: { [Player]: number } = {} -- Espíritu del rol
 
 local function publish(player: Player)
 	player:SetAttribute("Energy", math.floor(current[player] or 0))
@@ -31,10 +33,12 @@ end
 
 local function recalc(player: Player, refill: boolean)
 	local lvl = player:GetAttribute("Level")
-	local m = math.floor(PlayerClass.Get(player).BaseEnergy * GB.KiMult(if typeof(lvl) == "number" then lvl else 1))
+	local cls = PlayerClass.Get(player)
+	local m = math.floor(cls.BaseEnergy * ClassStats.EnergyMax(cls.Role) * GB.KiMult(if typeof(lvl) == "number" then lvl else 1))
 	local oldMax = maxOf[player]
 	local oldCur = current[player]
 	maxOf[player] = m
+	regenOf[player] = ClassStats.EnergyRegen(cls.Role)
 	if refill or oldMax == nil or oldCur == nil then
 		current[player] = m
 	else
@@ -106,6 +110,7 @@ end
 Players.PlayerRemoving:Connect(function(p)
 	current[p] = nil
 	maxOf[p] = nil
+	regenOf[p] = nil
 end)
 
 local acc = 0
@@ -121,7 +126,7 @@ RunService.Heartbeat:Connect(function(dt)
 		if c < m then
 			local mult = p:GetAttribute("EnergyRegenMult")
 			local shrine = p:GetAttribute("ShrineEnergy") -- santuario de Aliento (ArenaStyler)
-			current[p] = math.min(m, c + m * REGEN_PCT_PER_SEC * (if typeof(mult) == "number" then mult else 1) * (if typeof(shrine) == "number" then shrine else 1) * (1 + GearService.Get(p).Energia) * step)
+			current[p] = math.min(m, c + m * REGEN_PCT_PER_SEC * (regenOf[p] or 1) * (if typeof(mult) == "number" then mult else 1) * (if typeof(shrine) == "number" then shrine else 1) * (1 + GearService.Get(p).Energia) * step)
 			publish(p)
 		end
 	end

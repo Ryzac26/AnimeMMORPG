@@ -47,7 +47,7 @@ GB.PLAYER_DMG_GROWTH = 1.057
 GB.PLAYER_HP_GROWTH = 1.0315
 GB.MOB_HP_GROWTH = 1.057
 GB.MOB_HP_LINEAR = 0.0202 -- factor extra (1 + 0.0202*(L-1)) para que un mob nivel 100 nunca muera en 1-2 golpes
-GB.MOB_HIT_GROWTH = 1.0485
+GB.MOB_HIT_GROWTH = 1.045 -- (antes 1.0485) suaviza las franjas 3 y 4 junto con los atributos de rol (ClassStats)
 GB.MOB_BASE_HP = 205
 GB.MOB_BASE_HIT = 47
 

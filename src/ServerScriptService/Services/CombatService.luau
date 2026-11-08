@@ -55,7 +55,7 @@ local STUN_DURATION = 2
 local SHIELD_DURATION = 6
 -- Balance: el Curador se cura a sí mismo con la mitad (los aliados reciben el valor completo).
 -- El Índice de Poder del módulo asume cura a terceros; sin esto el Curador sería inmortal en solitario.
-local SELF_HEAL_FACTOR = 0.5
+local SELF_HEAL_FACTOR = 0.6
 
 -- DIAGNÓSTICO: imprime en el Output del SERVIDOR por qué se acepta o se rechaza cada habilidad
 local DEBUG = true

@@ -23,6 +23,8 @@ local StatService = require(Services.StatService)
 local ArenaService = require(Services.ArenaService)
 local PassiveService = require(Services.PassiveService)
 local GearService = require(Services.GearService)
+local PlayerClass = require(ReplicatedStorage.Modules.PlayerClass)
+local ClassStats = require(ReplicatedStorage.Modules.ClassStats)
 
 local FragilityRemote = Net.Get("Fragility")
 local FloatingRemote = Net.Get("Floating")
@@ -314,6 +316,7 @@ function DamageService.Deal(attacker: Model, victim: Model, base: number, opts: 
 
 	if aPlayer and vMob then
 		damage = base * GB.PlayerDamageMult(StatService.GetLevel(aPlayer))
+		damage *= ClassStats.DamageMult(PlayerClass.Get(aPlayer).Role) -- atributo principal del rol (Fuerza/Destreza/Inteligencia)
 		damage = GearService.Outgoing(aPlayer, damage, false) -- Ataque y Crítico del equipo
 		local red = victim:GetAttribute("DamageReduction")
 		if typeof(red) == "number" then
@@ -322,6 +325,11 @@ function DamageService.Deal(attacker: Model, victim: Model, base: number, opts: 
 	elseif aMob and vPlayer then
 		local buff = attacker:GetAttribute("DmgBuff")
 		damage = base * GB.MobHit(StatService.GetLevel(attacker)) * (if typeof(buff) == "number" then buff else 1)
+		local vRole = PlayerClass.Get(vPlayer).Role
+		if math.random() < ClassStats.Dodge(vRole) then -- Destreza: esquiva
+			return 0
+		end
+		damage *= 1 - ClassStats.Mitigation(vRole) -- Vitalidad/Fuerza: defensa de la clase
 		damage = GearService.Incoming(vPlayer, damage, false) -- Defensa del equipo
 	elseif aPlayer and vPlayer then
 		if not ArenaService.PvpAllowed(aPlayer, vPlayer) then
@@ -463,7 +471,11 @@ function DamageService.Heal(caster: Model, target: Model, base: number): number
 	if not hum then
 		return 0
 	end
-	local healMult = GearService.HealMult(Players:GetPlayerFromCharacter(caster)) -- Curación del equipo
+	local casterPlayer = Players:GetPlayerFromCharacter(caster)
+	local healMult = GearService.HealMult(casterPlayer) -- Curación del equipo
+	if casterPlayer then
+		healMult *= ClassStats.HealMult(PlayerClass.Get(casterPlayer).Role) -- Inteligencia
+	end
 	local amount = math.floor(PassiveService.HealAmount(caster, target, base * GB.PlayerHpMult(StatService.GetLevel(caster)) * healMult))
 	local overflow = hum.Health + amount - hum.MaxHealth
 	local casterPl, targetPl = Players:GetPlayerFromCharacter(caster), Players:GetPlayerFromCharacter(target)

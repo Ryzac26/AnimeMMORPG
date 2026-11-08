@@ -25,6 +25,7 @@ local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
 local PetCatalog = require(ReplicatedStorage.Modules.PetCatalog)
 local GearCatalog = require(ReplicatedStorage.Modules.GearCatalog)
 local PlayerClass = require(ReplicatedStorage.Modules.PlayerClass)
+local ClassStats = require(ReplicatedStorage.Modules.ClassStats)
 
 export type Stats = {
 	Ataque: number, Defensa: number, Vida: number, Critico: number, Curacion: number,
@@ -201,7 +202,7 @@ function GearService.Outgoing(player: Player?, damage: number, pvp: boolean): nu
 	local s = GearService.Get(player)
 	local f = if pvp then GearCatalog.PVP_GEAR_FACTOR else 1
 	local out = damage * (1 + s.Ataque * f)
-	local crit = s.Critico * f
+	local crit = (s.Critico + (if pvp then 0 else ClassStats.CritChance(PlayerClass.Get(player).Role))) * f -- + crítico base por Destreza (solo PvE)
 	if crit > 0 and rng:NextNumber() < crit then
 		out *= GearCatalog.CRIT_MULT + s.CritDmg * f
 	end

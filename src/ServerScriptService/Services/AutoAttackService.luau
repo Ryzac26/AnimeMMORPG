@@ -19,6 +19,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 
 local Services = ServerScriptService.Services
 local PlayerClass = require(ReplicatedStorage.Modules.PlayerClass)
+local ClassStats = require(ReplicatedStorage.Modules.ClassStats)
 local Net = require(Services.Net)
 local DamageService = require(Services.DamageService)
 local EnergyRegenService = require(Services.EnergyRegenService)
@@ -235,7 +236,7 @@ RunService.Heartbeat:Connect(function(dt)
 					setFlag(player, st)
 				elseif dist <= cfg.Range * ((char:GetAttribute("RangeMult") :: number?) or 1) * ((char:GetAttribute("SetRange") :: number?) or 1) and now >= st.Next and not DamageService.IsStunned(char) and not DamageService.IsSilenced(char) and not target:GetAttribute("Immune") then
 					local spd = char:GetAttribute("AtkSpeed") -- (futuro: buffs/equipo de velocidad de ataque; 1 = normal)
-					st.Next = now + cfg.Interval / (if typeof(spd) == "number" and spd > 0.2 then spd else 1)
+					st.Next = now + cfg.Interval / ((if typeof(spd) == "number" and spd > 0.2 then spd else 1) * ClassStats.AttackSpeed(class.Role)) -- Destreza
 					faceTowards(root, tRoot.Position)
 					AttackAnimator.Play(char, AttackAnimator.StyleFor(player, cfg.Ranged), math.min(cfg.Interval * 0.8, 0.55), 0.4)
 					local dealt = DamageService.Deal(char, target, class.PrimarySkill.BaseValue * cfg.Fraction, nil)

@@ -2,7 +2,7 @@
 --[[
     StatService (ModuleScript) -> ServerScriptService.Services.StatService
     Convierte NIVEL en ESTADÍSTICAS del personaje:
-      - Vida máxima = BaseHP de la clase × GameBalance.PlayerHpMult(nivel)
+      - Vida máxima = Vitalidad de la clase × 10 (ClassStats) × GameBalance.PlayerHpMult(nivel)
       - Copia el nivel al personaje (atributo Level) y lo etiqueta "Targetable"
     También responde "¿de qué nivel es esto?" para jugadores, personajes y mobs: StatService.GetLevel(instancia)
 ]]
@@ -13,6 +13,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 
 local GB = require(ReplicatedStorage.Modules.GameBalance)
 local PlayerClass = require(ReplicatedStorage.Modules.PlayerClass)
+local ClassStats = require(ReplicatedStorage.Modules.ClassStats)
 local LevelService = require(ServerScriptService.Services.LevelService)
 local GearService = require(ServerScriptService.Services.GearService)
 
@@ -34,7 +35,7 @@ local function applyToCharacter(player: Player, char: Model)
 	end
 	local level = LevelService.GetLevel(player)
 	local class = PlayerClass.Get(player)
-	local maxHp = math.floor(class.BaseHP * GB.PlayerHpMult(level) * (1 + GearService.Get(player).Vida)) -- Vida del equipo y la mascota
+	local maxHp = math.floor(ClassStats.BaseHp(class.Role) * GB.PlayerHpMult(level) * (1 + GearService.Get(player).Vida)) -- Vida del equipo y la mascota
 	local ratio = if hum.MaxHealth > 0 then hum.Health / hum.MaxHealth else 1
 	hum.MaxHealth = maxHp
 	hum.Health = math.max(1, maxHp * math.clamp(ratio, 0, 1))

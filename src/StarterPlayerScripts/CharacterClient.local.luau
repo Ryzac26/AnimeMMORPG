@@ -19,6 +19,7 @@ local Modules = ReplicatedStorage:WaitForChild("Modules", 10)
 local ItemCatalog = require(Modules:WaitForChild("ItemCatalog", 10))
 local GB = require(Modules:WaitForChild("GameBalance", 10))
 local PlayerClass = require(Modules:WaitForChild("PlayerClass", 10))
+local ClassStats = require(Modules:WaitForChild("ClassStats", 10))
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local Store = require(script.Parent:WaitForChild("InventoryStore", 10))
 local GearView = require(script.Parent:WaitForChild("GearView", 10))
@@ -406,10 +407,26 @@ local function refreshStats()
 	local gold, points = player:GetAttribute("Gold"), player:GetAttribute("FactionPoints")
 	addStat("Oro", withCommas(if typeof(gold) == "number" then gold else 0))
 	addStat("Pts. de facción", withCommas(if typeof(points) == "number" then points else 0))
-	local power = math.floor(class.PrimarySkill.BaseValue * GB.PlayerDamageMult(level) * (1 + (total.Ataque or 0)))
+	local power = math.floor(class.PrimarySkill.BaseValue * GB.PlayerDamageMult(level) * ClassStats.DamageMult(class.Role) * (1 + (total.Ataque or 0)))
 	addStat("Poder básico", tostring(power), if total.Ataque then GearView.Format("Ataque", total.Ataque) else nil)
-	addStat("Defensa base", tostring(class.BaseDefense))
 	addStat("Velocidad", tostring(if hum then math.floor(hum.WalkSpeed) else 0))
+
+	-- ATRIBUTOS DE ROL (ClassStats): el principal de tu rol lleva ★
+	addHeader("Atributos de rol")
+	local main = ClassStats.Main(class.Role)
+	for _, key in ipairs(ClassStats.Order) do
+		local shown = ClassStats.Shown(class.Role, key, GB.Eq(level))
+		addStat(ClassStats.Names[key] .. (if key == main then "  ★" else ""), tostring(shown), nil)
+	end
+	addNote("★ = atributo principal: da el daño de tu rol.", GRAY)
+	addStat("Reducción de daño", string.format("%.0f%%", ClassStats.Mitigation(class.Role) * 100))
+	addStat("Crítico base", string.format("%.1f%%", ClassStats.CritChance(class.Role) * 100), if total.Critico then GearView.Format("Critico", total.Critico) else nil)
+	addStat("Vel. de ataque", string.format("x%.2f", ClassStats.AttackSpeed(class.Role)))
+	addStat("Esquiva", string.format("%.1f%%", ClassStats.Dodge(class.Role) * 100))
+	if ClassStats.HealMult(class.Role) > 1 then
+		addStat("Potencia de curación", string.format("x%.2f", ClassStats.HealMult(class.Role)))
+	end
+	addStat("Regen. de " .. theme.Resource, string.format("x%.2f", ClassStats.EnergyRegen(class.Role)))
 
 	-- HISTORIAL DE ORO: de dónde viene y en qué se gastó (WalletService publica GoldIn_<motivo> / GoldOut_<motivo>)
 	local earned, spent = {}, {}
