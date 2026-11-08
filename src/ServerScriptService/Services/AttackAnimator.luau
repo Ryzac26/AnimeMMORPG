@@ -116,8 +116,32 @@ local function hand(char: Model, right: boolean): BasePart?
 	return if p and p:IsA("BasePart") then p else nil
 end
 
+-- ARCOS CON MALLA (5 modelos de Roblox, creador oficial; solo se usan malla y textura, sin sus scripts).
+-- Tier = tramo de nivel del arma (1-11). Dir = hacia dónde van los ejes de la malla en el brazo izquierdo:
+--   X = a lo ancho, Y = a lo largo del arco, Z = hacia donde "abulta" el arco. Si se ve girado o al revés, solo cambia Orient/Flip.
+local BOW_SCALE = 1.0 -- multiplicador general del tamaño de todos los arcos
+local ORIENT_Y_LONG = CFrame.fromMatrix(Vector3.zero, Vector3.new(1, 0, 0), Vector3.new(0, 0, 1), Vector3.new(0, -1, 0)) -- mallas largas en Y
+local ORIENT_X_LONG = CFrame.fromMatrix(Vector3.zero, Vector3.new(0, 0, 1), Vector3.new(-1, 0, 0), Vector3.new(0, -1, 0)) -- mallas largas en X (Death Sling)
+local BOW_SKINS: { { MinTier: number, Name: string, Mesh: number, Tex: number, Scale: number, Orient: CFrame, Flip: boolean } } = {
+	{ MinTier = 1, Name = "Icshard Bow", Mesh = 192454317, Tex = 192454363, Scale = 1.0, Orient = ORIENT_Y_LONG, Flip = false },
+	{ MinTier = 3, Name = "Goldstriked Bow", Mesh = 183684389, Tex = 183684472, Scale = 1.0, Orient = ORIENT_Y_LONG, Flip = false },
+	{ MinTier = 5, Name = "Darkness Bow", Mesh = 95920116, Tex = 95920067, Scale = 0.8, Orient = ORIENT_Y_LONG, Flip = false },
+	{ MinTier = 7, Name = "Death Sling", Mesh = 111502843, Tex = 111502821, Scale = 0.7, Orient = ORIENT_X_LONG, Flip = false },
+	{ MinTier = 9, Name = "Imperial Bow", Mesh = 121945106, Tex = 121945146, Scale = 0.6, Orient = ORIENT_Y_LONG, Flip = false },
+}
+local function bowSkinFor(weapon: any): any
+	local tier = if weapon and typeof(weapon.Tier) == "number" then weapon.Tier else 1
+	local pick = BOW_SKINS[1]
+	for _, s in ipairs(BOW_SKINS) do
+		if tier >= s.MinTier then
+			pick = s
+		end
+	end
+	return pick
+end
+
 -- Arma de la mano DERECHA (hoja/mango a lo largo de -Z desde la palma; con el brazo levantado, hacia arriba) y, si hace falta, de la izquierda
-local function buildWeapon(f: Folder, char: Model, style: string, glow: Color3)
+local function buildWeapon(f: Folder, char: Model, style: string, glow: Color3, weapon: any?)
 	local rArm, lArm = hand(char, true), hand(char, false)
 	if not rArm then
 		return
@@ -149,6 +173,22 @@ local function buildWeapon(f: Folder, char: Model, style: string, glow: Color3)
 		-- arco en la mano IZQUIERDA, agarrado por el centro: dos brazos curvados hacia el arquero y la cuerda
 		local gl = if r15 then Vector3.new(0, -0.15, 0) else Vector3.new(0, -1, 0)
 		local at = CFrame.new(gl)
+		local skin = bowSkinFor(weapon)
+		if skin then
+			local orient: CFrame = skin.Orient
+			if skin.Flip then
+				orient = orient * CFrame.Angles(0, 0, math.pi)
+			end
+			local piece = block(f, lArm, Vector3.new(1, 1, 1), Color3.new(1, 1, 1), at * CFrame.new(0, -0.2, 0) * orient)
+			piece.Name = "WeaponPart"
+			local m = Instance.new("SpecialMesh")
+			m.MeshType = Enum.MeshType.FileMesh
+			m.MeshId = "rbxassetid://" .. skin.Mesh
+			m.TextureId = "rbxassetid://" .. skin.Tex
+			m.Scale = Vector3.one * (skin.Scale * BOW_SCALE)
+			m.Parent = piece
+			return
+		end
 		block(f, lArm, Vector3.new(0.3, 0.3, 0.9), DARK, at)
 		local bend = math.rad(14)
 		block(f, lArm, Vector3.new(0.22, 0.22, 1.35), WOOD, at * CFrame.new(0, 0.1, -1.05) * CFrame.Angles(bend, 0, 0))
@@ -263,7 +303,7 @@ local function onEquipChanged(player: Player)
 	f.Name = "EquippedWeapon"
 	f.Parent = char
 	if style then
-		buildWeapon(f, char, style, rarityColor(weapon))
+		buildWeapon(f, char, style, rarityColor(weapon), weapon)
 	end
 	if off then
 		buildOffhand(f, char, off, rarityColor(off))

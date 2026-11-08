@@ -416,9 +416,11 @@ local function refreshStats()
 	local main = ClassStats.Main(class.Role)
 	for _, key in ipairs(ClassStats.Order) do
 		local shown = ClassStats.Shown(class.Role, key, GB.Eq(level))
-		addStat(ClassStats.Names[key] .. (if key == main then "  ★" else ""), tostring(shown), nil)
+		local eqStep = GB.Eq(level + 1) - GB.Eq(level)
+		local perLevel = ClassStats.PointsPerLevel(class.Role, eqStep) * ClassStats.Share(class.Role, key)
+		addStat(ClassStats.Names[key] .. (if key == main then "  ★" else ""), tostring(shown), string.format("+%.1f/nv · %d%%", perLevel, math.floor(ClassStats.Share(class.Role, key) * 100 + 0.5)))
 	end
-	addNote("★ = atributo principal: da el daño de tu rol.", GRAY)
+	addNote("★ = atributo principal: da el daño de tu rol. Los puntos se reparten solos en cada nivel según tu clase (derecha: puntos por nivel y % del reparto).", GRAY)
 	addStat("Reducción de daño", string.format("%.0f%%", ClassStats.Mitigation(class.Role) * 100))
 	addStat("Crítico base", string.format("%.1f%%", ClassStats.CritChance(class.Role) * 100), if total.Critico then GearView.Format("Critico", total.Critico) else nil)
 	addStat("Vel. de ataque", string.format("x%.2f", ClassStats.AttackSpeed(class.Role)))

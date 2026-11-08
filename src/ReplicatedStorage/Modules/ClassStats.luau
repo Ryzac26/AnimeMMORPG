@@ -107,10 +107,27 @@ function ClassStats.EnergyRegen(role: string): number
 	return statsOf(role).ESP / 100
 end
 
+-- REPARTO AUTOMÁTICO DE PUNTOS: cada nivel sube todos los atributos solos, en proporción a la identidad del rol.
+-- Share = % de los puntos de cada nivel que va a ese atributo (= su peso en la fila de STATS: el Tanque pone el 40% en Vitalidad,
+-- el Mago el 31% en Inteligencia, etc.). Los efectos usan siempre las proporciones de STATS, así que subir de nivel no desbalancea nada.
+ClassStats.POINT_RATE = 0.1 -- cada nivel equivalente (escala vieja) suma 10% del valor base de cada atributo
+
+function ClassStats.Share(role: string, stat: string): number
+	local s = statsOf(role)
+	local total = s.FUE + s.DES + s.INT + s.VIT + s.ESP
+	return ((s :: any)[stat] or 0) / total
+end
+
+-- Puntos totales que reparte la clase por nivel (eqStep = GB.Eq(nivel+1) - GB.Eq(nivel))
+function ClassStats.PointsPerLevel(role: string, eqStep: number): number
+	local s = statsOf(role)
+	return (s.FUE + s.DES + s.INT + s.VIT + s.ESP) * ClassStats.POINT_RATE * eqStep
+end
+
 -- Valor que se muestra en pantalla: crece con el nivel (solo estético; los efectos usan las proporciones de arriba)
 function ClassStats.Shown(role: string, stat: string, eqLevel: number): number
 	local base = (statsOf(role) :: any)[stat] or 0
-	return math.floor(base * (1 + (eqLevel - 1) * 0.1) + 0.5)
+	return math.floor(base * (1 + (eqLevel - 1) * ClassStats.POINT_RATE) + 0.5)
 end
 
 return ClassStats
