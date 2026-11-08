@@ -26,6 +26,7 @@ local changedEvent = Instance.new("BindableEvent")
 LevelService.LevelChanged = changedEvent.Event :: RBXScriptSignal
 
 type Progress = { Level: number, XP: number }
+local SCALE_VERSION = 2 -- 2 = escala de niveles 1-3000. Sin esta marca, la cuenta se guardó con la escala vieja 1-100 y se migra al cargar.
 local data: { [Player]: Progress } = {}
 
 local function push(player: Player)
@@ -104,8 +105,17 @@ local function load(player: Player)
 	local progress: Progress = { Level = 1, XP = 0 }
 	local section = saved.Progress
 	if typeof(section) == "table" then
-		progress.Level = math.clamp(math.floor(tonumber(section.Level) or 1), 1, GB.MAX_LEVEL)
-		progress.XP = math.max(0, math.floor(tonumber(section.XP) or 0))
+		local lvl = math.floor(tonumber(section.Level) or 1)
+		local xp = math.max(0, math.floor(tonumber(section.XP) or 0))
+		if tonumber(section.V) ~= SCALE_VERSION then
+			-- MIGRACIÓN 1-100 -> 1-3000: el nivel viejo n pasa a n x 30 y se conserva el % de la barra que llevaba
+			local old = math.clamp(lvl, 1, GB.OLD_MAX_LEVEL)
+			local frac = if old >= GB.OLD_MAX_LEVEL then 0 else math.clamp(xp / GB.LegacyXpToNext(old), 0, 0.999)
+			lvl = GB.FromOld(old)
+			xp = if lvl >= GB.MAX_LEVEL then 0 else math.floor(frac * GB.XpToNext(lvl))
+		end
+		progress.Level = math.clamp(lvl, 1, GB.MAX_LEVEL)
+		progress.XP = xp
 	end
 	data[player] = progress
 	push(player)
@@ -116,7 +126,7 @@ end
 PlayerData.RegisterSerializer("Progress", function(player: Player): any?
 	local p = data[player]
 	if p then
-		return { Level = p.Level, XP = p.XP }
+		return { Level = p.Level, XP = p.XP, V = SCALE_VERSION }
 	end
 	return nil
 end)

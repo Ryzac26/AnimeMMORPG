@@ -144,6 +144,8 @@ local function play(pl: Player, level: number)
 end
 
 local last: { [Player]: number } = {}
+local lastFx: { [Player]: number } = {}
+local FX_COOLDOWN = 6 -- s: con 3000 niveles se sube muy seguido al inicio; el efecto no se repite a cada kill
 
 local function watch(pl: Player)
 	local v = pl:GetAttribute("Level")
@@ -158,7 +160,11 @@ local function watch(pl: Player)
 		local prev = last[pl]
 		last[pl] = n
 		if prev and n > prev then -- la primera carga (nil -> nivel) y las bajadas no cuentan
-			play(pl, n)
+			local now = os.clock()
+			if now - (lastFx[pl] or -100) >= FX_COOLDOWN or n % 50 == 0 then -- los múltiplos de 50 siempre lucen
+				lastFx[pl] = now
+				play(pl, n)
+			end
 		end
 	end)
 end
@@ -169,4 +175,5 @@ for _, pl in ipairs(Players:GetPlayers()) do
 end
 Players.PlayerRemoving:Connect(function(pl)
 	last[pl] = nil
+	lastFx[pl] = nil
 end)

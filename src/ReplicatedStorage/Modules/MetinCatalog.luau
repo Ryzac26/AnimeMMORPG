@@ -24,22 +24,22 @@ local MetinCatalog = {}
 
 MetinCatalog.Rarities = {
 	{
-		Id = "Comun", Name = "Común", Color = Color3.fromRGB(200, 200, 210), Weight = 50, Level = 55, HpMult = 30, XpKills = 6,
+		Id = "Comun", Name = "Común", Color = Color3.fromRGB(200, 200, 210), Weight = 50, Level = 1650, HpMult = 30, XpKills = 6,
 		Pool = { 3 },
 		Waves = { { At = 0.70, Count = 3 }, { At = 0.35, Count = 3 } },
 	},
 	{
-		Id = "PocoComun", Name = "Poco común", Color = Color3.fromRGB(90, 220, 120), Weight = 28, Level = 65, HpMult = 45, XpKills = 10,
+		Id = "PocoComun", Name = "Poco común", Color = Color3.fromRGB(90, 220, 120), Weight = 28, Level = 1950, HpMult = 45, XpKills = 10,
 		Pool = { 3 },
 		Waves = { { At = 0.75, Count = 4 }, { At = 0.50, Count = 4 }, { At = 0.25, Count = 4 } },
 	},
 	{
-		Id = "Raro", Name = "Raro", Color = Color3.fromRGB(80, 160, 255), Weight = 14, Level = 75, HpMult = 70, XpKills = 16,
+		Id = "Raro", Name = "Raro", Color = Color3.fromRGB(80, 160, 255), Weight = 14, Level = 2250, HpMult = 70, XpKills = 16,
 		Pool = { 3, 4 },
 		Waves = { { At = 0.80, Count = 5 }, { At = 0.60, Count = 5 }, { At = 0.40, Count = 5 }, { At = 0.20, Count = 5 } },
 	},
 	{
-		Id = "Epico", Name = "Épico", Color = Color3.fromRGB(190, 90, 255), Weight = 6, Level = 88, HpMult = 110, XpKills = 26,
+		Id = "Epico", Name = "Épico", Color = Color3.fromRGB(190, 90, 255), Weight = 6, Level = 2640, HpMult = 110, XpKills = 26,
 		Pool = { 4 },
 		Waves = {
 			{ At = 0.80, Count = 6 }, { At = 0.65, Count = 6 }, { At = 0.50, Count = 6 }, { At = 0.35, Count = 6 },
@@ -47,7 +47,7 @@ MetinCatalog.Rarities = {
 		},
 	},
 	{
-		Id = "Legendario", Name = "Legendario", Color = Color3.fromRGB(255, 190, 50), Weight = 2, Level = 100, HpMult = 180, XpKills = 45,
+		Id = "Legendario", Name = "Legendario", Color = Color3.fromRGB(255, 190, 50), Weight = 2, Level = 3000, HpMult = 180, XpKills = 45,
 		Pool = { 4 },
 		Waves = {
 			{ At = 0.90, Count = 7 }, { At = 0.75, Count = 7 }, { At = 0.60, Count = 7 }, { At = 0.45, Count = 7 },
@@ -67,7 +67,7 @@ MetinCatalog.Settings = {
 	RespawnDelay = 45, -- segundos para que aparezca una nueva cuando destruyen una
 	WaveRadiusMin = 14, -- los monstruos de cada oleada aparecen en un anillo alrededor de la piedra
 	WaveRadiusMax = 24,
-	LevelSpread = 2, -- nivel de los monstruos = nivel de la piedra ± esto
+	LevelSpread = 60, -- nivel de los monstruos = nivel de la piedra ± esto (antes 2 niveles viejos)
 	EliteLevelBonus = 0,
 }
 

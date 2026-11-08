@@ -139,10 +139,10 @@ local TELEPORT_ON_FACTION_CHANGE = true
 type Strip = { Id: string, MinLevel: number, MaxLevel: number }
 
 local STRIPS: { Strip } = {
-	{ Id = "Franja1", MinLevel = 1, MaxLevel = 25 },
-	{ Id = "Franja2", MinLevel = 26, MaxLevel = 50 },
-	{ Id = "Franja3", MinLevel = 51, MaxLevel = 75 },
-	{ Id = "Franja4", MinLevel = 76, MaxLevel = 100 },
+	{ Id = "Franja1", MinLevel = 1, MaxLevel = 750 },
+	{ Id = "Franja2", MinLevel = 751, MaxLevel = 1500 },
+	{ Id = "Franja3", MinLevel = 1501, MaxLevel = 2250 },
+	{ Id = "Franja4", MinLevel = 2251, MaxLevel = 3000 },
 }
 
 type BiomeDef = {

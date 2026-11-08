@@ -9,6 +9,7 @@
       Multiplicador de rareza: Común 1 · Raro 2 · Épico 4 · Legendario 8 · Mítico 16
     Referencia (equipo +0): nivel 50 Común 165 · Épico 660 · Mítico 2.640 · nivel 100 Común 315 · Mítico 5.040
 ]]
+local GB = require(script.Parent.GameBalance)
 local ShopCatalog = {}
 
 ShopCatalog.Stock = { "Pocion_Vida", "Pocion_Energia" }
@@ -22,7 +23,7 @@ ShopCatalog.PotionSell = 10
 ShopCatalog.MAX_BUY = 999 -- máximo de unidades por compra
 
 function ShopCatalog.BuyPrice(level: number): number
-	return math.floor(25 * (1 + 0.15 * level) + 0.5)
+	return math.floor(25 * (1 + 0.15 * GB.Eq(level)) + 0.5)
 end
 
 -- Precio al que el mercader te compra UNA unidad. nil = no lo compra.
@@ -37,7 +38,7 @@ function ShopCatalog.SellPrice(itemId: string, item: { [string]: any }?, plus: n
 		local req = item.ReqLevel
 		local level = if typeof(req) == "number" then req else 1
 		local mult = ShopCatalog.RarityMult[item.Rarity] or 1
-		return math.floor(15 * (1 + level / 5) * mult * (1 + 0.5 * (plus or 0)) + 0.5)
+		return math.floor(15 * (1 + GB.Eq(level) / 5) * mult * (1 + 0.5 * (plus or 0)) + 0.5)
 	end
 	local fixed = ShopCatalog.MaterialSell[itemId]
 	if fixed then

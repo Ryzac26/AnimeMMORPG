@@ -7,6 +7,7 @@
       - MARCOS DE PERFIL: se desbloquean por misiones completadas (Frames). Se equipan en el NPC y se ven en tu retrato.
     Tipos: Kill (monstruos) · Metin (piedras Metin) · Boss (jefe mundial) · Donate (PA al Gremio) · Online (minutos) · Enhance (mejoras exitosas).
 ]]
+local GB = require(script.Parent.GameBalance)
 local MissionCatalog = {}
 
 export type Def = { Id: string, Type: string, Goal: number, Text: string, GoldBase: number, GoldPerLevel: number }
@@ -51,7 +52,7 @@ function MissionCatalog.Pick(pool: { Def }, count: number, index: number): { Def
 end
 
 function MissionCatalog.Gold(def: Def, level: number): number
-	return def.GoldBase + def.GoldPerLevel * math.max(1, math.floor(level))
+	return def.GoldBase + def.GoldPerLevel * math.max(1, math.floor(GB.Eq(level)))
 end
 
 -- Marcos de perfil: Need = misiones completadas en total

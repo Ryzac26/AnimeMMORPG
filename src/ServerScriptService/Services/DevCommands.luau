@@ -4,7 +4,7 @@
     COMANDOS DE PRUEBA PARA TODOS LOS JUGADORES (también en el juego publicado, para que los invitados prueben).
     Para apagarlos antes del lanzamiento final pon DEV_COMMANDS_FOR_ALL = false (entonces solo funcionan en Studio).
     Escribe en el chat:
-      /nivel 50          fija tu nivel
+      /nivel 1500        fija tu nivel (1-3000)
       /xp 5000           suma XP
       /mob Saiyan_Nappa 30   crea un enemigo delante de ti (nivel opcional)
       /mobs              lista los Id disponibles en la Output

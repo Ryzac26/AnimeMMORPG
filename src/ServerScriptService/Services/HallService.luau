@@ -5,7 +5,7 @@
     Cuartel de Divisiones: el NPCSlot con Role "Clanes").
       - Decora el interior (alfombra, columnas, lámparas, estandartes, braseros) y pone un SECRETARIO NPC que abre la ventana del Gremio.
       - Dos CARTELES de ranking GLOBAL de todos los jugadores de esa facción (no solo del servidor):
-          · NIVEL  -> OrderedDataStore "HallLevel_v1_<Facción>" (se actualiza al salir y cada pocos minutos).
+          · NIVEL  -> OrderedDataStore "HallLevel_v2_<Facción> (v2: nivel en escala 1-3000)" (se actualiza al salir y cada pocos minutos).
           · DAÑO   -> OrderedDataStore "HallDmg_v1_<Facción>" (mejor prueba de 30 s en un maniquí). Récord personal en el perfil ("Hall").
         Se leen cada ~60 s y se mezclan con los jugadores conectados para que se vea en vivo.
       - 4 MANIQUÍES DE ENTRENAMIENTO por salón: el primer golpe abre una prueba de 30 s; al terminar muestra el daño total y los DPS.
@@ -86,7 +86,7 @@ local warnedNoStore = false
 
 for faction in pairs(THEMES) do
 	local okL, sL = pcall(function()
-		return DataStoreService:GetOrderedDataStore("HallLevel_v1_" .. faction)
+		return DataStoreService:GetOrderedDataStore("HallLevel_v2_" .. faction)
 	end)
 	local okD, sD = pcall(function()
 		return DataStoreService:GetOrderedDataStore("HallDmg_v1_" .. faction)

@@ -6,6 +6,7 @@
     y cada jugador tiene un límite diario de aporte (DailyCap). Todos los números para balancear están aquí; lo leen servidor y cliente.
       PA: 1 de oro = 1 PA · los materiales valen más que su precio de venta (ver Value) para que los recursos sirvan de algo.
 ]]
+local GB = require(script.Parent.GameBalance)
 local GuildCatalog = {}
 
 GuildCatalog.MAX_LEVEL = 10
@@ -14,7 +15,7 @@ GuildCatalog.LEVEL_COST = { 50000, 90000, 150000, 250000, 400000, 650000, 100000
 
 -- Límite de aporte por jugador y día (PA): crece con el nivel del jugador
 function GuildCatalog.DailyCap(playerLevel: number): number
-	return 5000 + 400 * math.max(1, math.floor(playerLevel))
+	return 5000 + 400 * math.max(1, math.floor(GB.Eq(playerLevel)))
 end
 
 -- Bendiciones. Effect = bono POR NIVEL (fracciones de GearService: Oro, Xp, Vida, Ataque, Defensa, Suerte)

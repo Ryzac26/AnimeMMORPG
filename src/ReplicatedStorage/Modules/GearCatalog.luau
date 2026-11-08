@@ -31,7 +31,7 @@ GearCatalog.Roles = { "Tanque", "Guerrero", "Asesino", "Tirador", "Mago", "Curad
 GearCatalog.Factions = { "Saiyan", "Shinobi", "Pirate", "Shinigami" }
 GearCatalog.FactionDisplay = { Saiyan = "Saiyan", Shinobi = "Shinobi", Pirate = "Pirata", Shinigami = "Shinigami" } :: { [string]: string }
 
-GearCatalog.TierLevels = { 1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 }
+GearCatalog.TierLevels = { 1, 300, 600, 900, 1200, 1500, 1800, 2100, 2400, 2700, 3000 } -- (antes 1,10,20...100; x30)
 GearCatalog.TierNames = { "Cobre", "Bronce", "Hierro", "Acero", "Plata", "Oro", "Platino", "Cristal", "Obsidiana", "Celestial", "Divino" }
 
 GearCatalog.Rarities = { "Comun", "Raro", "Epico", "Legendario", "Mitico" }

@@ -18,7 +18,7 @@ MasteryCatalog.THRESHOLDS = { 300, 900, 2000, 4000, 7000, 11000, 17000, 25000, 3
 -- Bono por rango (fracciones; rango 10 = x10): +4% daño, +3% defensa, +4% vida
 MasteryCatalog.BONUS_PER_RANK = { Ataque = 0.004, Defensa = 0.003, Vida = 0.004 } :: { [string]: number }
 MasteryCatalog.PASS_MULT = 1.25
-MasteryCatalog.LEVEL_WINDOW = 15
+MasteryCatalog.LEVEL_WINDOW = 450 -- niveles (escala 1-3000); antes 15
 MasteryCatalog.SPECIAL_KILL_POINTS = 5 -- Metin y mini jefes
 MasteryCatalog.SWITCH_COOLDOWN = 20 -- s entre cambios de rol (pase)
 MasteryCatalog.COMBAT_LOCK = 10 -- s sin recibir golpes para poder cambiar

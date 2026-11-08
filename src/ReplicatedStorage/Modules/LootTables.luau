@@ -13,6 +13,7 @@
     Los rangos { min, max } son enteros inclusivos.
 ]]
 local GearCatalog = require(script.Parent.GearCatalog)
+local GB = require(script.Parent.GameBalance)
 local PetCatalog = require(script.Parent.PetCatalog)
 
 export type RNG = { NextNumber: (RNG) -> number, NextInteger: (RNG, number, number) -> number }
@@ -263,7 +264,7 @@ function LootTables.Count(range: { number }, rng: RNG): number
 end
 
 function LootTables.GoldFor(level: number, mult: number, rng: RNG): number
-	local base = LootTables.GoldBase * LootTables.GoldGrowth ^ (math.max(1, level) - 1)
+	local base = LootTables.GoldBase * LootTables.GoldGrowth ^ (GB.Eq(level) - 1)
 	local jitter = 1 + (rng:NextNumber() * 2 - 1) * LootTables.GoldJitter
 	return math.max(1, math.floor(base * mult * jitter))
 end

@@ -33,7 +33,7 @@ local CONFIG = {
 	Interval = 6 * 3600, -- cada cuánto aparece
 	Duration = 30 * 60, -- si nadie lo mata, se retira
 	Name = "TITÁN DE LA ARENA",
-	Level = 100,
+	Level = 3000, -- nivel máximo (antes 100)
 	HpMult = 600, -- vida = vida de un mob de su nivel x esto
 	Center = Vector3.new(0, 12, 0),
 	SlamEvery = 7, SlamRadius = 16, SlamTargets = 4, SlamMult = 2.5,
@@ -107,7 +107,7 @@ end
 local function summon(boss: Model, count: number)
 	local pool: { MobCatalog.MobDef } = {}
 	for _, d in ipairs(MobCatalog.All) do
-		if d.MinLevel >= 76 and not d.Boss then
+		if d.MinLevel >= 2251 and not d.Boss then -- franja 4 (antes nv.76+)
 			table.insert(pool, d)
 		end
 	end

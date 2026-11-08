@@ -44,14 +44,14 @@ export type Product = {
 
 ProductCatalog.MIN_LEVEL_HOURS = 20
 -- Tope de niveles por hora del paquete (0,6): a nivel bajo el paquete da menos que jugar (protege el inicio); desde ~nivel 45 ya no se nota.
-ProductCatalog.LEVELS_CAP_PER_HOUR = 0.6
+ProductCatalog.LEVELS_CAP_PER_HOUR = 18 -- niveles (escala 1-3000) por hora del paquete; antes 0,6 niveles viejos
 
 -- CALIBRACIÓN con jugadores reales (nov 2026): XP por hora de juego REAL ÷ lo que dice el modelo de GameBalance.
---   nivel 20: 15,6 % de nivel en 3 min y 1 nivel en 18 min  -> ≈ 62.000 XP/h  (modelo 10.206)  -> x6,1
---   nivel 50: 10,9 % (74.369 XP) en 20 min                   -> ≈ 223.000 XP/h (modelo 77.616)  -> x2,87
---   nivel 100: SIN MEDIR (estimado x1,6). Volver a medir a nivel 80+ y corregir esta tabla.
+--   nivel 20 (= 600 en la escala nueva): 15,6 % de nivel en 3 min y 1 nivel en 18 min  -> ≈ 62.000 XP/h  (modelo 10.206)  -> x6,1
+--   nivel 50 (= 1500): 10,9 % (74.369 XP) en 20 min                   -> ≈ 223.000 XP/h (modelo 77.616)  -> x2,87
+--   nivel 100 (= 3000): SIN MEDIR (estimado x1,6). Volver a medir a nivel 80+ y corregir esta tabla.
 -- Así un paquete de N horas da lo mismo que jugar N horas a ritmo normal. Entre puntos se interpola (logarítmico).
-ProductCatalog.RATE_POINTS = { { 20, 6.1 }, { 50, 2.87 }, { 100, 1.6 } } :: { { number } }
+ProductCatalog.RATE_POINTS = { { 600, 6.1 }, { 1500, 2.87 }, { 3000, 1.6 } } :: { { number } }
 
 function ProductCatalog.RateFactor(level: number): number
 	local pts = ProductCatalog.RATE_POINTS
@@ -92,36 +92,36 @@ ProductCatalog.Products = {
 	{
 		Key = "Horas3", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 59, Name = "Paquete de 3 horas",
 		Desc = "Recupera la XP de 3 horas de juego a tu nivel actual.",
-		ProductId = 2064189703, PriceText = "59 R$", DailyLimit = 2, MinLevel = 20, Hours = 3,
+		ProductId = 2064189703, PriceText = "59 R$", DailyLimit = 2, MinLevel = 600, Hours = 3,
 	},
 	{
 		Key = "Horas5", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 89, Name = "Paquete de 5 horas",
 		Desc = "Recupera la XP de 5 horas de juego a tu nivel actual.",
-		ProductId = 2063976038, PriceText = "89 R$", DailyLimit = 1, MinLevel = 20, Hours = 5,
+		ProductId = 2063976038, PriceText = "89 R$", DailyLimit = 1, MinLevel = 600, Hours = 5,
 	},
 	{
 		Key = "Horas8", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 139, Name = "Paquete de 8 horas",
 		Desc = "Recupera la XP de 8 horas de juego a tu nivel actual.",
-		ProductId = 2064089903, PriceText = "139 R$", DailyLimit = 1, MinLevel = 20, Hours = 8,
+		ProductId = 2064089903, PriceText = "139 R$", DailyLimit = 1, MinLevel = 600, Hours = 8,
 	},
 	{
 		Key = "Horas12", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 199, Name = "Paquete de 12 horas",
 		Desc = "Recupera la XP de 12 horas de juego a tu nivel actual.",
-		ProductId = 2063992040, PriceText = "199 R$", DailyLimit = 1, MinLevel = 20, Hours = 12,
+		ProductId = 2063992040, PriceText = "199 R$", DailyLimit = 1, MinLevel = 600, Hours = 12,
 	},
 	{
 		Key = "ComboDespegue", Group = "Progreso", Kind = "Combo", Lane = "Horas", Price = 99,
 		Components = { "Boost4h", "Horas3" },
 		Name = "Combo Despegue",
 		Desc = "Boost de XP +50% (4 h) y paquete de 3 horas en una sola compra.",
-		ProductId = 2064342565, PriceText = "99 R$", DailyLimit = 1, MinLevel = 20, Seconds = 4 * 3600, Mult = 1.5, Hours = 3,
+		ProductId = 2064342565, PriceText = "99 R$", DailyLimit = 1, MinLevel = 600, Seconds = 4 * 3600, Mult = 1.5, Hours = 3,
 	},
 	{
 		Key = "ComboMaraton", Group = "Progreso", Kind = "Combo", Lane = "Horas", Price = 169,
 		Components = { "Boost4h", "Horas8" },
 		Name = "Combo Maratón",
 		Desc = "Boost de XP +50% (4 h) y paquete de 8 horas en una sola compra.",
-		ProductId = 2063900141, PriceText = "169 R$", DailyLimit = 1, MinLevel = 20, Seconds = 4 * 3600, Mult = 1.5, Hours = 8,
+		ProductId = 2063900141, PriceText = "169 R$", DailyLimit = 1, MinLevel = 600, Seconds = 4 * 3600, Mult = 1.5, Hours = 8,
 	},
 	-- OBJETOS (sin bloqueo entre sí ni con los paquetes): se entregan en la mochila
 	{

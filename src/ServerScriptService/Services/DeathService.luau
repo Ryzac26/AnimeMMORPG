@@ -2,7 +2,7 @@
 --[[
     DeathService (ModuleScript) -> ServerScriptService.Services.DeathService
     Qué pasa cuando muere un JUGADOR:
-      - Pierde XP del nivel actual: 3% si murió por mob (PvE), 2% si por otro jugador (PvP). Nunca baja de nivel; nada bajo nivel 10.
+      - Pierde XP del nivel actual: 3% si murió por mob (PvE), 2% si por otro jugador (PvP). Nunca baja de nivel; nada bajo nivel 300 (antes 10).
       - Si murió dentro de la Arena: pierde 1 vida de arena (ArenaService). Al perder la última (5ª), al reaparecer
         va directo a la GRADA de su facción y no puede volver a la arena hasta el próximo evento.
       - Reaparece en el punto de su ciudad (player.RespawnLocation lo fija ProjectBootstrapper).

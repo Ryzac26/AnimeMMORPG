@@ -10,6 +10,7 @@
       - Llegar de +0 a +9 (simulado, 7 nov 2026): CON Pergamino de Protección ≈ 57 intentos, ≈ 234 gemas, ≈ 46 pergaminos y ≈ 1.060.000 de oro en una pieza de nivel 100
         (≈ 190.000 de oro en nivel 10). SIN pergaminos es prácticamente imposible (≈ 9.700 intentos y ≈ 290 piezas rotas por camino).
 ]]
+local GB = require(script.Parent.GameBalance)
 local EnhanceCatalog = {}
 
 EnhanceCatalog.MaxPlus = 9
@@ -45,7 +46,7 @@ EnhanceCatalog.Gems = { [1] = 1, [2] = 1, [3] = 1, [4] = 2, [5] = 2, [6] = 3, [7
 function EnhanceCatalog.GoldCost(item: { [string]: any }, target: number): number
 	local req = item.ReqLevel
 	local level = if typeof(req) == "number" then req else 1
-	return math.floor(40 * target ^ 1.8 * (1 + level / 10) + 0.5)
+	return math.floor(40 * target ^ 1.8 * (1 + GB.Eq(level) / 10) + 0.5)
 end
 
 -- ¿Se puede mejorar este objeto?

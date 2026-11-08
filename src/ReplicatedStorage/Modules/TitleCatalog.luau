@@ -37,11 +37,11 @@ TitleCatalog.Categories = { "Progreso", "Combate", "Forja", "Salón", "Facción"
 
 TitleCatalog.List = {
 	-- PROGRESO (nivel)
-	{ Id = "Lv10", Name = "Estrella Naciente", Desc = "Llega al nivel 10.", Rarity = "Comun", Cat = "Progreso", Kind = "Level", Value = 10, Icon = "🌟", Fx = "simple" },
-	{ Id = "Lv25", Name = "Vanguardia del Alba", Desc = "Llega al nivel 25.", Rarity = "Raro", Cat = "Progreso", Kind = "Level", Value = 25, Icon = "🌅", Fx = "aurora" },
-	{ Id = "Lv50", Name = "Filo de Medianoche", Desc = "Llega al nivel 50.", Rarity = "Epico", Cat = "Progreso", Kind = "Level", Value = 50, Icon = "🌙", Fx = "estrellas" },
-	{ Id = "Lv75", Name = "Tormenta Viviente", Desc = "Llega al nivel 75.", Rarity = "Legendario", Cat = "Progreso", Kind = "Level", Value = 75, Icon = "⚡", Fx = "rayos" },
-	{ Id = "Lv100", Name = "Leyenda Inmortal", Desc = "Llega al nivel máximo (100).", Rarity = "Mitico", Cat = "Progreso", Kind = "Level", Value = 100, Icon = "👑", Fx = "oro" },
+	{ Id = "Lv10", Name = "Estrella Naciente", Desc = "Llega al nivel 300.", Rarity = "Comun", Cat = "Progreso", Kind = "Level", Value = 300, Icon = "🌟", Fx = "simple" },
+	{ Id = "Lv25", Name = "Vanguardia del Alba", Desc = "Llega al nivel 750.", Rarity = "Raro", Cat = "Progreso", Kind = "Level", Value = 750, Icon = "🌅", Fx = "aurora" },
+	{ Id = "Lv50", Name = "Filo de Medianoche", Desc = "Llega al nivel 1500.", Rarity = "Epico", Cat = "Progreso", Kind = "Level", Value = 1500, Icon = "🌙", Fx = "estrellas" },
+	{ Id = "Lv75", Name = "Tormenta Viviente", Desc = "Llega al nivel 2250.", Rarity = "Legendario", Cat = "Progreso", Kind = "Level", Value = 2250, Icon = "⚡", Fx = "rayos" },
+	{ Id = "Lv100", Name = "Leyenda Inmortal", Desc = "Llega al nivel máximo (3000).", Rarity = "Mitico", Cat = "Progreso", Kind = "Level", Value = 3000, Icon = "👑", Fx = "oro" },
 	{ Id = "Min600", Name = "Compañero Eterno", Desc = "Pasa 10 horas conectado.", Rarity = "Raro", Cat = "Progreso", Kind = "Min", Value = 600, Icon = "⏳", Fx = "simple" },
 
 	-- COMBATE
@@ -66,10 +66,10 @@ TitleCatalog.List = {
 	{ Id = "Campeon", Name = "Campeón del Salón", Desc = "Sé el nº 1 del ranking de daño de tu facción.", Rarity = "Mitico", Cat = "Salón", Kind = "Grant", Icon = "🥇", Fx = "oro" },
 
 	-- FACCIÓN (uno exclusivo por facción, nivel 30)
-	{ Id = "F_Saiyan", Name = "Guerrero del Cielo Roto", Desc = "Exclusivo del Imperio Saiyan. Llega al nivel 30.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 30, Faction = "Saiyan", Icon = "⭐", Fx = "ki" },
-	{ Id = "F_Shinobi", Name = "Susurro de las Hojas", Desc = "Exclusivo de la Alianza Shinobi. Llega al nivel 30.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 30, Faction = "Shinobi", Icon = "🍃", Fx = "hojas" },
-	{ Id = "F_Pirate", Name = "Lobo de la Marea Negra", Desc = "Exclusivo de la Flota Pirata. Llega al nivel 30.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 30, Faction = "Pirate", Icon = "⚓", Fx = "olas" },
-	{ Id = "F_Shinigami", Name = "Guardián del Velo Pálido", Desc = "Exclusivo de la Corte Shinigami. Llega al nivel 30.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 30, Faction = "Shinigami", Icon = "🦋", Fx = "niebla" },
+	{ Id = "F_Saiyan", Name = "Guerrero del Cielo Roto", Desc = "Exclusivo del Imperio Saiyan. Llega al nivel 900.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 900, Faction = "Saiyan", Icon = "⭐", Fx = "ki" },
+	{ Id = "F_Shinobi", Name = "Susurro de las Hojas", Desc = "Exclusivo de la Alianza Shinobi. Llega al nivel 900.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 900, Faction = "Shinobi", Icon = "🍃", Fx = "hojas" },
+	{ Id = "F_Pirate", Name = "Lobo de la Marea Negra", Desc = "Exclusivo de la Flota Pirata. Llega al nivel 900.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 900, Faction = "Pirate", Icon = "⚓", Fx = "olas" },
+	{ Id = "F_Shinigami", Name = "Guardián del Velo Pálido", Desc = "Exclusivo de la Corte Shinigami. Llega al nivel 900.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 900, Faction = "Shinigami", Icon = "🦋", Fx = "niebla" },
 
 	-- ESPECIAL
 	-- VIP: se compran con Sellos Imperiales en la Tienda VIP del Mes (VipShopCatalog)

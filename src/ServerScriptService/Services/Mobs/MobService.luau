@@ -237,7 +237,7 @@ function MobService.SummonAround(owner: Model, defId: string, count: number)
 		return
 	end
 	local ownerLevel = (owner:GetAttribute("Level") :: number?) or 1
-	local lvl = math.clamp(ownerLevel - 3, def.MinLevel, def.MaxLevel)
+	local lvl = math.clamp(ownerLevel - GB.FromOld(3), def.MinLevel, def.MaxLevel)
 	for i = 1, count do
 		local a = (i / count) * math.pi * 2
 		local pos = root.Position + Vector3.new(math.cos(a) * 8, -3, math.sin(a) * 8)
