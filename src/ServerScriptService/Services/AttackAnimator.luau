@@ -107,7 +107,7 @@ local PAPER = Color3.fromRGB(240, 232, 205)
 -- Convención R6: derecho + = brazo adelante/arriba; izquierdo - = adelante/arriba.
 local HOLD: { [string]: { R: number?, L: number? } } = {
 	Sword = { R = 0.9 }, Dagger = { R = 0.7 }, Axe = { R = 1.0 }, Gun = { R = 0.9 },
-	Staff = { R = 1.3, L = -0.4 }, Bow = { L = -1.1, R = 0.35 },
+	Staff = { R = 1.3, L = -0.4 }, Bow = { R = 0.35 },
 }
 
 local function hand(char: Model, right: boolean): BasePart?
@@ -119,9 +119,11 @@ end
 -- ARCOS CON MALLA (5 modelos de Roblox, creador oficial; solo se usan malla y textura, sin sus scripts).
 -- Tier = tramo de nivel del arma (1-11). Dir = hacia dónde van los ejes de la malla en el brazo izquierdo:
 --   X = a lo ancho, Y = a lo largo del arco, Z = hacia donde "abulta" el arco. Si se ve girado o al revés, solo cambia Orient/Flip.
-local BOW_SCALE = 1.0 -- multiplicador general del tamaño de todos los arcos
-local ORIENT_Y_LONG = CFrame.fromMatrix(Vector3.zero, Vector3.new(1, 0, 0), Vector3.new(0, 0, 1), Vector3.new(0, -1, 0)) -- mallas largas en Y
-local ORIENT_X_LONG = CFrame.fromMatrix(Vector3.zero, Vector3.new(0, 0, 1), Vector3.new(-1, 0, 0), Vector3.new(0, -1, 0)) -- mallas largas en X (Death Sling)
+local BOW_SCALE = 0.65 -- multiplicador general del tamaño de todos los arcos (antes 1.0: se veían enormes)
+-- El arco se lleva VERTICAL en la mano (largo = eje del brazo), con la panza hacia delante y la cuerda hacia el cuerpo.
+-- (Ya no depende de que el brazo se levante: se ve bien con el brazo colgando.)
+local ORIENT_Y_LONG = CFrame.identity -- mallas largas en Y
+local ORIENT_X_LONG = CFrame.fromMatrix(Vector3.zero, Vector3.new(0, 1, 0), Vector3.new(-1, 0, 0), Vector3.new(0, 0, 1)) -- mallas largas en X (Death Sling)
 local BOW_SKINS: { { MinTier: number, Name: string, Mesh: number, Tex: number, Scale: number, Orient: CFrame, Flip: boolean } } = {
 	{ MinTier = 1, Name = "Icshard Bow", Mesh = 192454317, Tex = 192454363, Scale = 1.0, Orient = ORIENT_Y_LONG, Flip = false },
 	{ MinTier = 3, Name = "Goldstriked Bow", Mesh = 183684389, Tex = 183684472, Scale = 1.0, Orient = ORIENT_Y_LONG, Flip = false },
@@ -179,7 +181,7 @@ local function buildWeapon(f: Folder, char: Model, style: string, glow: Color3, 
 			if skin.Flip then
 				orient = orient * CFrame.Angles(0, 0, math.pi)
 			end
-			local piece = block(f, lArm, Vector3.new(1, 1, 1), Color3.new(1, 1, 1), at * CFrame.new(0, -0.2, 0) * orient)
+			local piece = block(f, lArm, Vector3.new(1, 1, 1), Color3.new(1, 1, 1), at * CFrame.new(0, 0.1, -0.2) * orient)
 			piece.Name = "WeaponPart"
 			local m = Instance.new("SpecialMesh")
 			m.MeshType = Enum.MeshType.FileMesh
