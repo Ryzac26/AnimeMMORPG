@@ -14,12 +14,14 @@
                     Grant  (lo entrega el servidor por un hecho: podio del Salón, Casa VIP, etc.)
       Faction   : si existe, solo esa facción puede tenerlo.
       Icon / Fx : emoji del título (usa solo emojis que Roblox dibuja) y fondo animado de TitleBadge:
+      Bonus     : { Xp = 0.005 } etc. Solo los títulos por nivel lo tienen; se suma al texto de Desc automáticamente.
                   simple · rayos · llamas · aurora · estrellas · petalos · eclipse · cristal · oro · ki · hojas · olas · niebla
 ]]
 local TitleCatalog = {}
 
 export type Title = {
 	Id: string, Name: string, Desc: string, Rarity: string, Cat: string, Kind: string, Value: number?, Faction: string?, Icon: string?, Fx: string?,
+	Bonus: { [string]: number }?, -- bonus pequeño y permanente mientras el título está EQUIPADO (Xp, Oro, Suerte, Vida, Ataque, Defensa)
 }
 
 TitleCatalog.Rarities = { "Comun", "Raro", "Epico", "Legendario", "Mitico" }
@@ -37,6 +39,22 @@ TitleCatalog.Categories = { "Progreso", "Combate", "Forja", "Salón", "Facción"
 
 TitleCatalog.List = {
 	-- PROGRESO (nivel)
+	-- Un título cada 150 niveles (20 en total); cada uno da un bonus pequeño equipado (se calcula abajo)
+	{ Id = "Lv150", Name = "Chispa Despierta", Desc = "Llega al nivel 150.", Rarity = "Comun", Cat = "Progreso", Kind = "Level", Value = 150, Icon = "🔥", Fx = "simple" },
+	{ Id = "Lv450", Name = "Caminante de Cenizas", Desc = "Llega al nivel 450.", Rarity = "Comun", Cat = "Progreso", Kind = "Level", Value = 450, Icon = "🌫", Fx = "niebla" },
+	{ Id = "Lv600", Name = "Cazador de Horizontes", Desc = "Llega al nivel 600.", Rarity = "Raro", Cat = "Progreso", Kind = "Level", Value = 600, Icon = "🏹", Fx = "hojas" },
+	{ Id = "Lv900", Name = "Voluntad Inquebrantable", Desc = "Llega al nivel 900.", Rarity = "Raro", Cat = "Progreso", Kind = "Level", Value = 900, Icon = "🛡", Fx = "cristal" },
+	{ Id = "Lv1050", Name = "Furia del Alba Roja", Desc = "Llega al nivel 1050.", Rarity = "Raro", Cat = "Progreso", Kind = "Level", Value = 1050, Icon = "🌋", Fx = "llamas" },
+	{ Id = "Lv1200", Name = "Eco de Mil Batallas", Desc = "Llega al nivel 1200.", Rarity = "Epico", Cat = "Progreso", Kind = "Level", Value = 1200, Icon = "🔔", Fx = "olas" },
+	{ Id = "Lv1350", Name = "Señor de las Tormentas", Desc = "Llega al nivel 1350.", Rarity = "Epico", Cat = "Progreso", Kind = "Level", Value = 1350, Icon = "🌩", Fx = "rayos" },
+	{ Id = "Lv1650", Name = "Heraldo del Vacío", Desc = "Llega al nivel 1650.", Rarity = "Epico", Cat = "Progreso", Kind = "Level", Value = 1650, Icon = "🌀", Fx = "eclipse" },
+	{ Id = "Lv1800", Name = "Portador de Estrellas", Desc = "Llega al nivel 1800.", Rarity = "Epico", Cat = "Progreso", Kind = "Level", Value = 1800, Icon = "💫", Fx = "estrellas" },
+	{ Id = "Lv1950", Name = "Coloso Imparable", Desc = "Llega al nivel 1950.", Rarity = "Legendario", Cat = "Progreso", Kind = "Level", Value = 1950, Icon = "🗿", Fx = "cristal" },
+	{ Id = "Lv2100", Name = "Dragón de Ceniza Dorada", Desc = "Llega al nivel 2100.", Rarity = "Legendario", Cat = "Progreso", Kind = "Level", Value = 2100, Icon = "🐉", Fx = "llamas" },
+	{ Id = "Lv2400", Name = "Muralla del Reino", Desc = "Llega al nivel 2400.", Rarity = "Legendario", Cat = "Progreso", Kind = "Level", Value = 2400, Icon = "🏰", Fx = "oro" },
+	{ Id = "Lv2550", Name = "Voz del Trueno Eterno", Desc = "Llega al nivel 2550.", Rarity = "Legendario", Cat = "Progreso", Kind = "Level", Value = 2550, Icon = "📯", Fx = "rayos" },
+	{ Id = "Lv2700", Name = "Soberano de la Aurora", Desc = "Llega al nivel 2700.", Rarity = "Mitico", Cat = "Progreso", Kind = "Level", Value = 2700, Icon = "🌠", Fx = "aurora" },
+	{ Id = "Lv2850", Name = "Último Umbral", Desc = "Llega al nivel 2850.", Rarity = "Mitico", Cat = "Progreso", Kind = "Level", Value = 2850, Icon = "🔱", Fx = "eclipse" },
 	{ Id = "Lv10", Name = "Estrella Naciente", Desc = "Llega al nivel 300.", Rarity = "Comun", Cat = "Progreso", Kind = "Level", Value = 300, Icon = "🌟", Fx = "simple" },
 	{ Id = "Lv25", Name = "Vanguardia del Alba", Desc = "Llega al nivel 750.", Rarity = "Raro", Cat = "Progreso", Kind = "Level", Value = 750, Icon = "🌅", Fx = "aurora" },
 	{ Id = "Lv50", Name = "Filo de Medianoche", Desc = "Llega al nivel 1500.", Rarity = "Epico", Cat = "Progreso", Kind = "Level", Value = 1500, Icon = "🌙", Fx = "estrellas" },
@@ -81,6 +99,40 @@ TitleCatalog.List = {
 	{ Id = "V_Corona", Name = "Portador de la Corona de Cristal", Desc = "Tienda VIP del Mes.", Rarity = "Mitico", Cat = "VIP", Kind = "Grant", Icon = "💎", Fx = "cristal" },
 	{ Id = "Casa", Name = "Señor del Pabellón", Desc = "Posee tu Casa VIP.", Rarity = "Epico", Cat = "Especial", Kind = "Grant", Icon = "🏯", Fx = "aurora" },
 } :: { Title }
+
+-- BONUS por nivel (solo títulos de la categoría Progreso con Kind Level y sin facción): rota Xp, Oro, Suerte, Vida, Ataque, Defensa
+-- y crece con el nivel (0,4% en el 150 -> 1% en el 2850); el de nivel 3000 da +2% de XP y de oro.
+local STAT_ORDER = { "Xp", "Oro", "Suerte", "Vida", "Ataque", "Defensa" }
+local STAT_NAME = { Xp = "XP", Oro = "oro", Suerte = "suerte", Vida = "vida", Ataque = "ataque", Defensa = "defensa" } :: { [string]: string }
+local function pct(v: number): string
+	return string.gsub(string.format("%.1f", v * 100), "%.", ",")
+end
+do
+	local lv: { Title } = {}
+	for _, t in ipairs(TitleCatalog.List) do
+		if t.Cat == "Progreso" and t.Kind == "Level" and not t.Faction and t.Value then
+			table.insert(lv, t)
+		end
+	end
+	table.sort(lv, function(a, b)
+		return (a.Value :: number) < (b.Value :: number)
+	end)
+	for i, t in ipairs(lv) do
+		local v = math.floor((0.004 + 0.006 * ((t.Value :: number) / 3000)) * 1000 + 0.5) / 1000
+		local bonus: { [string]: number } = {}
+		local text
+		if i == #lv then
+			bonus = { Xp = 0.02, Oro = 0.02 }
+			text = "+2% XP y +2% oro"
+		else
+			local st = STAT_ORDER[(i - 1) % #STAT_ORDER + 1]
+			bonus[st] = v
+			text = string.format("+%s%% %s", pct(v), STAT_NAME[st])
+		end
+		t.Bonus = bonus
+		t.Desc = t.Desc .. " Equipado: " .. text .. "."
+	end
+end
 
 TitleCatalog.ById = {} :: { [string]: Title }
 for _, t in ipairs(TitleCatalog.List) do

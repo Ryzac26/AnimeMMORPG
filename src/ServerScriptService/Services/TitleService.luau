@@ -51,6 +51,13 @@ local function applyTag(player: Player)
 	local def = if p and p.E then TitleCatalog.ById[p.E] else nil
 	player:SetAttribute("TitleEquipped", if def then def.Id else nil)
 	player:SetAttribute("TitleText", if def then def.Name else nil)
+	-- bonus pequeño del título equipado (GearService lo suma a las estadísticas, como el Maestría)
+	local okG, gear = pcall(function()
+		return require(Services.GearService)
+	end)
+	if okG and type(gear) == "table" and gear.SetTemp then
+		gear.SetTemp(player, if def then def.Bonus else nil, "Titulo")
+	end
 	-- la placa animada sobre la cabeza la dibuja cada cliente (TitleTagClient) a partir de estos atributos
 	local head = player.Character and player.Character:FindFirstChild("Head")
 	local legacy = head and head:FindFirstChild("TituloTag")

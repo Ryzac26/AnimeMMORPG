@@ -130,14 +130,18 @@ local function build()
 	head2.TextStrokeTransparency = 1
 	y += 28
 	local card2 = NpcKit.Panel(w, theme, UDim2.fromOffset(W - 28, 60), UDim2.fromOffset(14, y), "card")
-	local hint2 = UITheme.Text(card2, "Tus títulos y las probabilidades reales de botín, huevos y mejoras.", 11, pal.Muted, UDim2.fromOffset(12, 6), UDim2.new(1, -24, 0, 16))
+	local hint2 = UITheme.Text(card2, "Tus títulos, hitos de nivel con auras y las probabilidades reales.", 11, pal.Muted, UDim2.fromOffset(12, 6), UDim2.new(1, -24, 0, 16))
 	hint2.TextStrokeTransparency = 1
-	local half = math.floor((W - 52 - 8) / 2)
-	NpcKit.Button(card2, theme, "🏷  Mis títulos", UDim2.fromOffset(half, 28), UDim2.fromOffset(12, 26), "buy", function()
+	local third = math.floor((W - 52 - 16) / 3)
+	NpcKit.Button(card2, theme, "🏷  Mis títulos", UDim2.fromOffset(third, 28), UDim2.fromOffset(12, 26), "buy", function()
 		gui.Enabled = false
 		MenuBus.Fire("Titles")
 	end)
-	NpcKit.Button(card2, theme, "📊  Probabilidades", UDim2.fromOffset(half, 28), UDim2.fromOffset(20 + half, 26), "buy", function()
+	NpcKit.Button(card2, theme, "🎁  Hitos y auras", UDim2.fromOffset(third, 28), UDim2.fromOffset(20 + third, 26), "buy", function()
+		gui.Enabled = false
+		MenuBus.Fire("Milestones")
+	end)
+	NpcKit.Button(card2, theme, "📊  Probabilidades", UDim2.fromOffset(third, 28), UDim2.fromOffset(28 + third * 2, 26), "buy", function()
 		gui.Enabled = false
 		MenuBus.Fire("Probs")
 	end)
