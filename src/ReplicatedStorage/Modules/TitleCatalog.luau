@@ -13,11 +13,13 @@
                     Forja9 (Value = piezas +9)
                     Grant  (lo entrega el servidor por un hecho: podio del Salón, Casa VIP, etc.)
       Faction   : si existe, solo esa facción puede tenerlo.
+      Icon / Fx : emoji del título (usa solo emojis que Roblox dibuja) y fondo animado de TitleBadge:
+                  simple · rayos · llamas · aurora · estrellas · petalos · eclipse · cristal · oro · ki · hojas · olas · niebla
 ]]
 local TitleCatalog = {}
 
 export type Title = {
-	Id: string, Name: string, Desc: string, Rarity: string, Cat: string, Kind: string, Value: number?, Faction: string?, Icon: string?,
+	Id: string, Name: string, Desc: string, Rarity: string, Cat: string, Kind: string, Value: number?, Faction: string?, Icon: string?, Fx: string?,
 }
 
 TitleCatalog.Rarities = { "Comun", "Raro", "Epico", "Legendario", "Mitico" }
@@ -35,49 +37,49 @@ TitleCatalog.Categories = { "Progreso", "Combate", "Forja", "Salón", "Facción"
 
 TitleCatalog.List = {
 	-- PROGRESO (nivel)
-	{ Id = "Lv10", Name = "Estrella Naciente", Desc = "Llega al nivel 10.", Rarity = "Comun", Cat = "Progreso", Kind = "Level", Value = 10, Icon = "✦" },
-	{ Id = "Lv25", Name = "Vanguardia del Alba", Desc = "Llega al nivel 25.", Rarity = "Raro", Cat = "Progreso", Kind = "Level", Value = 25, Icon = "☀" },
-	{ Id = "Lv50", Name = "Filo de Medianoche", Desc = "Llega al nivel 50.", Rarity = "Epico", Cat = "Progreso", Kind = "Level", Value = 50, Icon = "☾" },
-	{ Id = "Lv75", Name = "Tormenta Viviente", Desc = "Llega al nivel 75.", Rarity = "Legendario", Cat = "Progreso", Kind = "Level", Value = 75, Icon = "⚡" },
-	{ Id = "Lv100", Name = "Leyenda Inmortal", Desc = "Llega al nivel máximo (100).", Rarity = "Mitico", Cat = "Progreso", Kind = "Level", Value = 100, Icon = "♛" },
-	{ Id = "Min600", Name = "Compañero Eterno", Desc = "Pasa 10 horas conectado.", Rarity = "Raro", Cat = "Progreso", Kind = "Min", Value = 600, Icon = "⌛" },
+	{ Id = "Lv10", Name = "Estrella Naciente", Desc = "Llega al nivel 10.", Rarity = "Comun", Cat = "Progreso", Kind = "Level", Value = 10, Icon = "🌟", Fx = "simple" },
+	{ Id = "Lv25", Name = "Vanguardia del Alba", Desc = "Llega al nivel 25.", Rarity = "Raro", Cat = "Progreso", Kind = "Level", Value = 25, Icon = "🌅", Fx = "aurora" },
+	{ Id = "Lv50", Name = "Filo de Medianoche", Desc = "Llega al nivel 50.", Rarity = "Epico", Cat = "Progreso", Kind = "Level", Value = 50, Icon = "🌙", Fx = "estrellas" },
+	{ Id = "Lv75", Name = "Tormenta Viviente", Desc = "Llega al nivel 75.", Rarity = "Legendario", Cat = "Progreso", Kind = "Level", Value = 75, Icon = "⚡", Fx = "rayos" },
+	{ Id = "Lv100", Name = "Leyenda Inmortal", Desc = "Llega al nivel máximo (100).", Rarity = "Mitico", Cat = "Progreso", Kind = "Level", Value = 100, Icon = "👑", Fx = "oro" },
+	{ Id = "Min600", Name = "Compañero Eterno", Desc = "Pasa 10 horas conectado.", Rarity = "Raro", Cat = "Progreso", Kind = "Min", Value = 600, Icon = "⏳", Fx = "simple" },
 
 	-- COMBATE
-	{ Id = "Kill100", Name = "Cazador Incansable", Desc = "Derrota 100 monstruos.", Rarity = "Comun", Cat = "Combate", Kind = "Kill", Value = 100, Icon = "⚔" },
-	{ Id = "Kill1000", Name = "Segador de Bestias", Desc = "Derrota 1.000 monstruos.", Rarity = "Raro", Cat = "Combate", Kind = "Kill", Value = 1000, Icon = "☠" },
-	{ Id = "Kill10000", Name = "Azote del Mapa", Desc = "Derrota 10.000 monstruos.", Rarity = "Epico", Cat = "Combate", Kind = "Kill", Value = 10000, Icon = "🔥" },
-	{ Id = "Metin10", Name = "Rompepiedras", Desc = "Destruye 10 piedras Metin.", Rarity = "Comun", Cat = "Combate", Kind = "Metin", Value = 10, Icon = "◆" },
-	{ Id = "Metin100", Name = "Demoledor de Sellos", Desc = "Destruye 100 piedras Metin.", Rarity = "Epico", Cat = "Combate", Kind = "Metin", Value = 100, Icon = "◈" },
-	{ Id = "Boss1", Name = "Cazador de Titanes", Desc = "Participa en la caída de un jefe mundial.", Rarity = "Raro", Cat = "Combate", Kind = "Boss", Value = 1, Icon = "🐉" },
-	{ Id = "Boss10", Name = "Terror de los Titanes", Desc = "Participa en la caída de 10 jefes mundiales.", Rarity = "Legendario", Cat = "Combate", Kind = "Boss", Value = 10, Icon = "🐲" },
+	{ Id = "Kill100", Name = "Cazador Incansable", Desc = "Derrota 100 monstruos.", Rarity = "Comun", Cat = "Combate", Kind = "Kill", Value = 100, Icon = "🗡️", Fx = "simple" },
+	{ Id = "Kill1000", Name = "Segador de Bestias", Desc = "Derrota 1.000 monstruos.", Rarity = "Raro", Cat = "Combate", Kind = "Kill", Value = 1000, Icon = "💀", Fx = "simple" },
+	{ Id = "Kill10000", Name = "Azote del Mapa", Desc = "Derrota 10.000 monstruos.", Rarity = "Epico", Cat = "Combate", Kind = "Kill", Value = 10000, Icon = "🔥", Fx = "llamas" },
+	{ Id = "Metin10", Name = "Rompepiedras", Desc = "Destruye 10 piedras Metin.", Rarity = "Comun", Cat = "Combate", Kind = "Metin", Value = 10, Icon = "🔷", Fx = "simple" },
+	{ Id = "Metin100", Name = "Demoledor de Sellos", Desc = "Destruye 100 piedras Metin.", Rarity = "Epico", Cat = "Combate", Kind = "Metin", Value = 100, Icon = "💠", Fx = "cristal" },
+	{ Id = "Boss1", Name = "Cazador de Titanes", Desc = "Participa en la caída de un jefe mundial.", Rarity = "Raro", Cat = "Combate", Kind = "Boss", Value = 1, Icon = "🐉", Fx = "simple" },
+	{ Id = "Boss10", Name = "Terror de los Titanes", Desc = "Participa en la caída de 10 jefes mundiales.", Rarity = "Legendario", Cat = "Combate", Kind = "Boss", Value = 10, Icon = "🐲", Fx = "rayos" },
 
 	-- FORJA
-	{ Id = "Forja9", Name = "Maestro Forjador", Desc = "Forja una pieza +9.", Rarity = "Legendario", Cat = "Forja", Kind = "Forja9", Value = 1, Icon = "🔨" },
-	{ Id = "Forja9x5", Name = "Yunque Eterno", Desc = "Forja 5 piezas +9.", Rarity = "Mitico", Cat = "Forja", Kind = "Forja9", Value = 5, Icon = "⚒" },
+	{ Id = "Forja9", Name = "Maestro Forjador", Desc = "Forja una pieza +9.", Rarity = "Legendario", Cat = "Forja", Kind = "Forja9", Value = 1, Icon = "🔨", Fx = "llamas" },
+	{ Id = "Forja9x5", Name = "Yunque Eterno", Desc = "Forja 5 piezas +9.", Rarity = "Mitico", Cat = "Forja", Kind = "Forja9", Value = 5, Icon = "🛠️", Fx = "oro" },
 
 	-- SALÓN DE HONOR (maniquíes y ranking)
-	{ Id = "Dmg10k", Name = "Puños de Hierro", Desc = "Haz 10.000 de daño en una prueba de 30 s.", Rarity = "Comun", Cat = "Salón", Kind = "Dmg", Value = 10000, Icon = "✊" },
-	{ Id = "Dmg100k", Name = "Golpe Devastador", Desc = "Haz 100.000 de daño en una prueba de 30 s.", Rarity = "Raro", Cat = "Salón", Kind = "Dmg", Value = 100000, Icon = "💥" },
-	{ Id = "Dmg1m", Name = "Fuerza Imparable", Desc = "Haz 1.000.000 de daño en una prueba de 30 s.", Rarity = "Epico", Cat = "Salón", Kind = "Dmg", Value = 1000000, Icon = "🌋" },
-	{ Id = "Dmg10m", Name = "Destructor de Mundos", Desc = "Haz 10.000.000 de daño en una prueba de 30 s.", Rarity = "Legendario", Cat = "Salón", Kind = "Dmg", Value = 10000000, Icon = "☄" },
-	{ Id = "Podio", Name = "Elegido del Podio", Desc = "Llega al podio de daño de tu facción (top 3).", Rarity = "Legendario", Cat = "Salón", Kind = "Grant", Icon = "🏆" },
-	{ Id = "Campeon", Name = "Campeón del Salón", Desc = "Sé el nº 1 del ranking de daño de tu facción.", Rarity = "Mitico", Cat = "Salón", Kind = "Grant", Icon = "👑" },
+	{ Id = "Dmg10k", Name = "Puños de Hierro", Desc = "Haz 10.000 de daño en una prueba de 30 s.", Rarity = "Comun", Cat = "Salón", Kind = "Dmg", Value = 10000, Icon = "👊", Fx = "simple" },
+	{ Id = "Dmg100k", Name = "Golpe Devastador", Desc = "Haz 100.000 de daño en una prueba de 30 s.", Rarity = "Raro", Cat = "Salón", Kind = "Dmg", Value = 100000, Icon = "💥", Fx = "simple" },
+	{ Id = "Dmg1m", Name = "Fuerza Imparable", Desc = "Haz 1.000.000 de daño en una prueba de 30 s.", Rarity = "Epico", Cat = "Salón", Kind = "Dmg", Value = 1000000, Icon = "🌋", Fx = "llamas" },
+	{ Id = "Dmg10m", Name = "Destructor de Mundos", Desc = "Haz 10.000.000 de daño en una prueba de 30 s.", Rarity = "Legendario", Cat = "Salón", Kind = "Dmg", Value = 10000000, Icon = "🌠", Fx = "rayos" },
+	{ Id = "Podio", Name = "Elegido del Podio", Desc = "Llega al podio de daño de tu facción (top 3).", Rarity = "Legendario", Cat = "Salón", Kind = "Grant", Icon = "🏆", Fx = "oro" },
+	{ Id = "Campeon", Name = "Campeón del Salón", Desc = "Sé el nº 1 del ranking de daño de tu facción.", Rarity = "Mitico", Cat = "Salón", Kind = "Grant", Icon = "🥇", Fx = "oro" },
 
 	-- FACCIÓN (uno exclusivo por facción, nivel 30)
-	{ Id = "F_Saiyan", Name = "Guerrero del Cielo Roto", Desc = "Exclusivo del Imperio Saiyan. Llega al nivel 30.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 30, Faction = "Saiyan", Icon = "⭐" },
-	{ Id = "F_Shinobi", Name = "Susurro de las Hojas", Desc = "Exclusivo de la Alianza Shinobi. Llega al nivel 30.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 30, Faction = "Shinobi", Icon = "🍃" },
-	{ Id = "F_Pirate", Name = "Lobo de la Marea Negra", Desc = "Exclusivo de la Flota Pirata. Llega al nivel 30.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 30, Faction = "Pirate", Icon = "☠" },
-	{ Id = "F_Shinigami", Name = "Guardián del Velo Pálido", Desc = "Exclusivo de la Corte Shinigami. Llega al nivel 30.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 30, Faction = "Shinigami", Icon = "⚔" },
+	{ Id = "F_Saiyan", Name = "Guerrero del Cielo Roto", Desc = "Exclusivo del Imperio Saiyan. Llega al nivel 30.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 30, Faction = "Saiyan", Icon = "⭐", Fx = "ki" },
+	{ Id = "F_Shinobi", Name = "Susurro de las Hojas", Desc = "Exclusivo de la Alianza Shinobi. Llega al nivel 30.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 30, Faction = "Shinobi", Icon = "🍃", Fx = "hojas" },
+	{ Id = "F_Pirate", Name = "Lobo de la Marea Negra", Desc = "Exclusivo de la Flota Pirata. Llega al nivel 30.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 30, Faction = "Pirate", Icon = "⚓", Fx = "olas" },
+	{ Id = "F_Shinigami", Name = "Guardián del Velo Pálido", Desc = "Exclusivo de la Corte Shinigami. Llega al nivel 30.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 30, Faction = "Shinigami", Icon = "🦋", Fx = "niebla" },
 
 	-- ESPECIAL
 	-- VIP: se compran con Sellos Imperiales en la Tienda VIP del Mes (VipShopCatalog)
-	{ Id = "V_Noble", Name = "Noble de la Corte", Desc = "Tienda VIP del Mes.", Rarity = "Epico", Cat = "VIP", Kind = "Grant", Icon = "⚜" },
-	{ Id = "V_Luna", Name = "Señor de la Luna Nueva", Desc = "Tienda VIP del Mes.", Rarity = "Epico", Cat = "VIP", Kind = "Grant", Icon = "🌙" },
-	{ Id = "V_Mecenas", Name = "Mecenas del Reino", Desc = "Tienda VIP del Mes.", Rarity = "Legendario", Cat = "VIP", Kind = "Grant", Icon = "💰" },
-	{ Id = "V_Alba", Name = "Heraldo del Amanecer Dorado", Desc = "Tienda VIP del Mes.", Rarity = "Legendario", Cat = "VIP", Kind = "Grant", Icon = "🌅" },
-	{ Id = "V_Eclipse", Name = "Guardián del Eclipse", Desc = "Tienda VIP del Mes.", Rarity = "Legendario", Cat = "VIP", Kind = "Grant", Icon = "🌑" },
-	{ Id = "V_Corona", Name = "Portador de la Corona de Cristal", Desc = "Tienda VIP del Mes.", Rarity = "Mitico", Cat = "VIP", Kind = "Grant", Icon = "💎" },
-	{ Id = "Casa", Name = "Señor del Pabellón", Desc = "Posee tu Casa VIP.", Rarity = "Epico", Cat = "Especial", Kind = "Grant", Icon = "🏯" },
+	{ Id = "V_Noble", Name = "Noble de la Corte", Desc = "Tienda VIP del Mes.", Rarity = "Epico", Cat = "VIP", Kind = "Grant", Icon = "🌸", Fx = "petalos" },
+	{ Id = "V_Luna", Name = "Señor de la Luna Nueva", Desc = "Tienda VIP del Mes.", Rarity = "Epico", Cat = "VIP", Kind = "Grant", Icon = "🌜", Fx = "estrellas" },
+	{ Id = "V_Mecenas", Name = "Mecenas del Reino", Desc = "Tienda VIP del Mes.", Rarity = "Legendario", Cat = "VIP", Kind = "Grant", Icon = "💰", Fx = "oro" },
+	{ Id = "V_Alba", Name = "Heraldo del Amanecer Dorado", Desc = "Tienda VIP del Mes.", Rarity = "Legendario", Cat = "VIP", Kind = "Grant", Icon = "🌄", Fx = "aurora" },
+	{ Id = "V_Eclipse", Name = "Guardián del Eclipse", Desc = "Tienda VIP del Mes.", Rarity = "Legendario", Cat = "VIP", Kind = "Grant", Icon = "🌘", Fx = "eclipse" },
+	{ Id = "V_Corona", Name = "Portador de la Corona de Cristal", Desc = "Tienda VIP del Mes.", Rarity = "Mitico", Cat = "VIP", Kind = "Grant", Icon = "💎", Fx = "cristal" },
+	{ Id = "Casa", Name = "Señor del Pabellón", Desc = "Posee tu Casa VIP.", Rarity = "Epico", Cat = "Especial", Kind = "Grant", Icon = "🏯", Fx = "aurora" },
 } :: { Title }
 
 TitleCatalog.ById = {} :: { [string]: Title }

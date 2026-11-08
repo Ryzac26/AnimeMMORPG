@@ -51,41 +51,12 @@ local function applyTag(player: Player)
 	local def = if p and p.E then TitleCatalog.ById[p.E] else nil
 	player:SetAttribute("TitleEquipped", if def then def.Id else nil)
 	player:SetAttribute("TitleText", if def then def.Name else nil)
-	local char = player.Character
-	local head = char and char:FindFirstChild("Head")
-	if not head or not head:IsA("BasePart") then
-		return
+	-- la placa animada sobre la cabeza la dibuja cada cliente (TitleTagClient) a partir de estos atributos
+	local head = player.Character and player.Character:FindFirstChild("Head")
+	local legacy = head and head:FindFirstChild("TituloTag")
+	if legacy then
+		legacy:Destroy()
 	end
-	local old = head:FindFirstChild("TituloTag")
-	if old then
-		old:Destroy()
-	end
-	if not def then
-		return
-	end
-	local cols = TitleCatalog.RarityColors[def.Rarity] or TitleCatalog.RarityColors.Comun
-	local bb = Instance.new("BillboardGui")
-	bb.Name = "TituloTag"
-	bb.Adornee = head
-	bb.Size = UDim2.fromOffset(300, 30)
-	bb.StudsOffsetWorldSpace = Vector3.new(0, 3.6, 0)
-	bb.MaxDistance = 60
-	bb.AlwaysOnTop = false
-	bb.Parent = head
-	local l = Instance.new("TextLabel")
-	l.BackgroundTransparency = 1
-	l.Size = UDim2.fromScale(1, 1)
-	l.Font = Enum.Font.GothamBlack
-	l.TextSize = 20
-	l.Text = string.format("%s %s %s", def.Icon or "✦", def.Name, def.Icon or "✦")
-	l.TextColor3 = Color3.new(1, 1, 1)
-	l.TextStrokeColor3 = Color3.fromRGB(10, 10, 18)
-	l.TextStrokeTransparency = 0.25
-	l.Parent = bb
-	local g = Instance.new("UIGradient")
-	g.Color = ColorSequence.new(cols[1], cols[2])
-	g.Rotation = 90
-	g.Parent = l
 end
 
 ---------------------------------------------------------------------

@@ -16,6 +16,7 @@ local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 local TitleCatalog: any = require(Modules:WaitForChild("TitleCatalog", 10))
+local TitleBadge: any = require(Modules:WaitForChild("TitleBadge", 10))
 
 local stateRemote = ClientNet.Get("TitleState")
 local actionRemote = ClientNet.Get("TitleAction")
@@ -137,7 +138,8 @@ local function build()
 
 	local innerW = WW - sideW - 28 - 8 - 14
 	local cardW = math.floor((innerW - 10) / 2)
-	local cardH = 92
+	local cardH = 138
+	local myFrame = player:GetAttribute("ProfileFrame")
 	for i, t in ipairs(list) do
 		local col = (i - 1) % 2
 		local row = (i - 1) // 2
@@ -145,61 +147,63 @@ local function build()
 		local equipped = state.Equipped == t.Id
 		local card = NpcKit.Panel(scroll, theme, UDim2.fromOffset(cardW, cardH), UDim2.fromOffset(6 + col * (cardW + 10), 6 + row * (cardH + 8)), "inset")
 		local cols = TitleCatalog.RarityColors[t.Rarity] or TitleCatalog.RarityColors.Comun
-		-- franja de rareza
-		local bar = Instance.new("Frame")
-		bar.Size = UDim2.fromOffset(5, cardH)
-		bar.BackgroundColor3 = cols[2]
-		bar.BackgroundTransparency = if unlocked then 0 else 0.6
-		bar.BorderSizePixel = 0
-		bar.Parent = card
-		local icon = UITheme.Text(card, t.Icon or "✦", 28, if unlocked then cols[1] else Color3.fromRGB(120, 120, 130), UDim2.fromOffset(12, 8), UDim2.fromOffset(40, 40), Enum.TextXAlignment.Center)
-		icon.TextStrokeTransparency = 1
-		local name = UITheme.Text(card, t.Name, 16, Color3.new(1, 1, 1), UDim2.fromOffset(58, 6), UDim2.fromOffset(cardW - 70, 22))
-		name.Font = Enum.Font.GothamBlack
-		name.TextStrokeTransparency = 1
-		name.TextTruncate = Enum.TextTruncate.AtEnd
-		if unlocked then
-			local g = Instance.new("UIGradient")
-			g.Color = ColorSequence.new(cols[1], cols[2])
-			g.Rotation = 90
-			g.Parent = name
-		else
-			name.TextColor3 = Color3.fromRGB(125, 125, 138)
+		-- la placa tal como se verá sobre tu personaje (con tu marco de perfil); bloqueada: sin movimiento y oscurecida
+		local bw = math.min(cardW - 16, TitleBadge.SizeFor(t, 56))
+		local badge = TitleBadge.Build(card, t, {
+			Width = bw, Height = 56, Static = not unlocked,
+			Frame = if typeof(myFrame) == "string" and myFrame ~= "" then myFrame else nil,
+			Position = UDim2.fromOffset(8, 8),
+		})
+		if not unlocked then
+			local dim = Instance.new("Frame")
+			dim.Size = UDim2.fromScale(1, 1)
+			dim.BackgroundColor3 = Color3.new(0, 0, 0)
+			dim.BackgroundTransparency = 0.45
+			dim.BorderSizePixel = 0
+			dim.ZIndex = 20
+			local dc = Instance.new("UICorner")
+			dc.CornerRadius = UDim.new(0, 10)
+			dc.Parent = dim
+			dim.Parent = badge
+			local lock = UITheme.Text(dim, "🔒", 20, Color3.new(1, 1, 1), UDim2.fromOffset(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
+			lock.ZIndex = 21
+			lock.TextStrokeTransparency = 1
 		end
-		local rar = UITheme.Text(card, TitleCatalog.RarityName[t.Rarity] or "", 10, cols[2], UDim2.fromOffset(58, 27), UDim2.fromOffset(cardW - 70, 12))
+		local rar = UITheme.Text(card, (TitleCatalog.RarityName[t.Rarity] or "") .. " · " .. t.Cat, 11, cols[2], UDim2.fromOffset(bw + 16, 12), UDim2.fromOffset(cardW - bw - 24, 14))
 		rar.TextStrokeTransparency = 1
-		local desc = UITheme.Text(card, t.Desc, 11, pal.Muted, UDim2.fromOffset(58, 40), UDim2.fromOffset(cardW - 70, 28))
+		rar.Font = Enum.Font.GothamBold
+		local desc = UITheme.Text(card, t.Desc, 11, pal.Muted, UDim2.fromOffset(10, 70), UDim2.fromOffset(cardW - 20, 28))
 		desc.TextWrapped = true
 		desc.TextYAlignment = Enum.TextYAlignment.Top
 		desc.TextStrokeTransparency = 1
 		if unlocked then
-			NpcKit.Button(card, theme, if equipped then "✔ Equipado" else "Equipar", UDim2.fromOffset(110, 20), UDim2.fromOffset(cardW - 120, cardH - 26), if equipped then "danger" else "buy", function()
+			NpcKit.Button(card, theme, if equipped then "✔ Equipado · Quitar" else "Equipar", UDim2.fromOffset(cardW - 20, 26), UDim2.fromOffset(10, cardH - 34), if equipped then "danger" else "buy", function()
 				actionRemote:FireServer("Equip", if equipped then "" else t.Id)
 			end)
 		elseif t.Kind ~= "Grant" and t.Value then
 			local cur = math.min(current(t.Kind), t.Value)
 			local txt = string.format("%s / %s %s", thousands(cur), thousands(t.Value), UNIT[t.Kind] or "")
 			local back = Instance.new("Frame")
-			back.Position = UDim2.fromOffset(58, cardH - 24)
-			back.Size = UDim2.fromOffset(cardW - 72, 14)
+			back.Position = UDim2.fromOffset(10, cardH - 30)
+			back.Size = UDim2.fromOffset(cardW - 20, 18)
 			back.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
 			back.BorderSizePixel = 0
 			back.Parent = card
-			Instance.new("UICorner", back).CornerRadius = UDim.new(0, 4)
+			Instance.new("UICorner", back).CornerRadius = UDim.new(0, 5)
 			local fill = Instance.new("Frame")
 			fill.Size = UDim2.fromScale(math.clamp(cur / t.Value, 0, 1), 1)
 			fill.BackgroundColor3 = cols[2]
 			fill.BorderSizePixel = 0
 			fill.Parent = back
-			Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 4)
-			local pt = UITheme.Text(back, txt, 10, Color3.new(1, 1, 1), UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
+			Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 5)
+			local pt = UITheme.Text(back, txt, 11, Color3.new(1, 1, 1), UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
 			pt.ZIndex = 3
 		else
-			local lk = UITheme.Text(card, "🔒 Título especial", 11, Color3.fromRGB(150, 150, 165), UDim2.fromOffset(58, cardH - 24), UDim2.fromOffset(cardW - 70, 16))
+			local lk = UITheme.Text(card, "Título especial: " .. (if t.Cat == "VIP" then "Tienda VIP del Mes" else "se consigue por un logro"), 11, Color3.fromRGB(165, 165, 180), UDim2.fromOffset(10, cardH - 30), UDim2.fromOffset(cardW - 20, 18))
 			lk.TextStrokeTransparency = 1
 		end
 	end
-	scroll.CanvasSize = UDim2.fromOffset(0, 12 + math.ceil(#list / 2) * (cardH + 8))
+	scroll.CanvasSize = UDim2.fromOffset(0, 12 + math.ceil(#list / 2) * (138 + 8))
 end
 
 stateRemote.OnClientEvent:Connect(function(s: any)
