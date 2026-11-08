@@ -339,15 +339,25 @@ build = function()
 				end
 			end)
 		end
-		for i, d in ipairs(HouseFurniture.Catalog) do
+		local vipOwned: { [string]: boolean } = {}
+		for _, id in ipairs(state.VipOwned or {}) do
+			vipOwned[id] = true
+		end
+		local shown: { any } = {}
+		for _, d in ipairs(HouseFurniture.Catalog) do
+			if not d.Vip or vipOwned[d.Id] then
+				table.insert(shown, d)
+			end
+		end
+		for i, d in ipairs(shown) do
 			local col, row = (i - 1) % 4, math.floor((i - 1) / 4)
-			NpcKit.Button(w, theme, d.Icon .. " " .. d.Name, UDim2.fromOffset(180, 32), UDim2.fromOffset(18 + col * 186, top + 68 + row * 36), "buy", function()
+			NpcKit.Button(w, theme, d.Icon .. " " .. d.Name, UDim2.fromOffset(180, 32), UDim2.fromOffset(18 + col * 186, top + 68 + row * 36), if d.Vip then "neutral" else "buy", function()
 				if inHome then
 					startPlace(d.Id)
 				end
 			end)
 		end
-		local listTop = top + 68 + math.ceil(#HouseFurniture.Catalog / 4) * 36 + 4
+		local listTop = top + 68 + math.ceil(#shown / 4) * 36 + 4
 		text(w, string.format("Colocados: %d / %d", #state.Decor, state.DecorMax), 14, pal.Text, UDim2.fromOffset(18, listTop), UDim2.fromOffset(300, 20))
 		local sc = Instance.new("ScrollingFrame")
 		sc.BackgroundTransparency = 1

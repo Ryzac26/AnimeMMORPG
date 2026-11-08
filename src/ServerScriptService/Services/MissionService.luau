@@ -143,6 +143,14 @@ local function claim(player: Player, id: any)
 	Wallet.AddGold(player, gold, "Misiones")
 	d.Total += 1
 	NotifyRemote:FireClient(player, string.format("Misión completada: %s · +%d oro", def.Text, gold))
+	task.spawn(function() -- Sellos Imperiales de la Tienda VIP (solo suscriptores)
+		local ok, VS = pcall(function()
+			return require(Services.VipShopService)
+		end)
+		if ok and VS then
+			(VS :: any).Earn(player, if d.D[def.Id] then "Daily" else "Weekly")
+		end
+	end)
 	for _, f in ipairs(MissionCatalog.Frames) do
 		if d.Total == f.Need then
 			NotifyRemote:FireClient(player, "¡Desbloqueaste el " .. f.Name .. "! Equípalo con el NPC del Pabellón.")

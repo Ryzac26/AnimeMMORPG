@@ -35,6 +35,7 @@ require(Services:WaitForChild("InstructorService")) -- instructor de cada ciudad
 require(Services:WaitForChild("MercaderService")) -- mercader de cada ciudad: compra pociones, vende botín
 require(Services:WaitForChild("MissionService")) -- misiones del Pabellón VIP (NPC en cada ciudad) y marcos de perfil
 require(Services:WaitForChild("HouseService")) -- Casa VIP (Pabellón Imperial): portal, salón privado, baúl, invitados
+require(Services:WaitForChild("VipShopService")) -- Tienda VIP del Mes (Sellos Imperiales, solo cosméticos)
 require(Services:WaitForChild("TitleService")) -- títulos únicos (desbloqueo, equipado y cartel sobre la cabeza)
 require(Services:WaitForChild("HallService")) -- Salón de Honor del Gremio: rankings globales por facción y maniquíes
 require(Services:WaitForChild("GuildService")) -- gremio de facción: bendiciones por aportes (DataStore compartido)

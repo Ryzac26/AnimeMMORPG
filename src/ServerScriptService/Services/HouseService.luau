@@ -662,6 +662,12 @@ buildPush = function(player: Player)
 		HasPass = isOwner,
 		Cap = vaultCap(player),
 		Sub = player:GetAttribute("Sub_Vip") == true,
+		VipOwned = (function()
+			local okV, VS = pcall(function()
+				return require(script.Parent.VipShopService)
+			end)
+			return if okV then (VS :: any).OwnedFurniture(player) else {}
+		end)(),
 		SubPrice = ProductCatalog.VipSub.PriceText,
 		Vault = vault,
 		Bag = bag,
@@ -801,6 +807,15 @@ function HouseService.PlaceDecor(player: Player, data: any)
 	local def = HouseFurniture.ById[data.T]
 	if not def or typeof(data.X) ~= "number" or typeof(data.Z) ~= "number" or typeof(data.R) ~= "number" then
 		return
+	end
+	if def.Vip then
+		local okV, VS = pcall(function()
+			return require(script.Parent.VipShopService)
+		end)
+		if not okV or not (VS :: any).OwnsFurniture(player, def.Id) then
+			say(player, "Ese mueble es exclusivo de la Tienda VIP del Mes.")
+			return
+		end
 	end
 	local x = math.floor(data.X * 2 + 0.5) / 2
 	local z = math.floor(data.Z * 2 + 0.5) / 2

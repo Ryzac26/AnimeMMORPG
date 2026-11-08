@@ -31,7 +31,7 @@ TitleCatalog.RarityColors = {
 	Mitico = { Color3.fromRGB(255, 130, 170), Color3.fromRGB(255, 60, 90) },
 } :: { [string]: { Color3 } }
 
-TitleCatalog.Categories = { "Progreso", "Combate", "Forja", "Salón", "Facción", "Especial" }
+TitleCatalog.Categories = { "Progreso", "Combate", "Forja", "Salón", "Facción", "Especial", "VIP" }
 
 TitleCatalog.List = {
 	-- PROGRESO (nivel)
@@ -70,6 +70,13 @@ TitleCatalog.List = {
 	{ Id = "F_Shinigami", Name = "Guardián del Velo Pálido", Desc = "Exclusivo de la Corte Shinigami. Llega al nivel 30.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 30, Faction = "Shinigami", Icon = "⚔" },
 
 	-- ESPECIAL
+	-- VIP: se compran con Sellos Imperiales en la Tienda VIP del Mes (VipShopCatalog)
+	{ Id = "V_Noble", Name = "Noble de la Corte", Desc = "Tienda VIP del Mes.", Rarity = "Epico", Cat = "VIP", Kind = "Grant", Icon = "⚜" },
+	{ Id = "V_Luna", Name = "Señor de la Luna Nueva", Desc = "Tienda VIP del Mes.", Rarity = "Epico", Cat = "VIP", Kind = "Grant", Icon = "🌙" },
+	{ Id = "V_Mecenas", Name = "Mecenas del Reino", Desc = "Tienda VIP del Mes.", Rarity = "Legendario", Cat = "VIP", Kind = "Grant", Icon = "💰" },
+	{ Id = "V_Alba", Name = "Heraldo del Amanecer Dorado", Desc = "Tienda VIP del Mes.", Rarity = "Legendario", Cat = "VIP", Kind = "Grant", Icon = "🌅" },
+	{ Id = "V_Eclipse", Name = "Guardián del Eclipse", Desc = "Tienda VIP del Mes.", Rarity = "Legendario", Cat = "VIP", Kind = "Grant", Icon = "🌑" },
+	{ Id = "V_Corona", Name = "Portador de la Corona de Cristal", Desc = "Tienda VIP del Mes.", Rarity = "Mitico", Cat = "VIP", Kind = "Grant", Icon = "💎" },
 	{ Id = "Casa", Name = "Señor del Pabellón", Desc = "Posee tu Casa VIP.", Rarity = "Epico", Cat = "Especial", Kind = "Grant", Icon = "🏯" },
 } :: { Title }
 

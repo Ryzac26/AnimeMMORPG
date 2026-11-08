@@ -32,7 +32,7 @@ HouseFurniture.WallColors = {
 } :: { { Name: string, Color: Color3 } }
 HouseFurniture.FloorY = 1.45
 
-export type Def = { Id: string, Name: string, Icon: string, Image: boolean?, Radius: number }
+export type Def = { Id: string, Name: string, Icon: string, Image: boolean?, Radius: number, Vip: boolean? }
 
 HouseFurniture.Catalog = {
 	{ Id = "Sofa", Name = "Sofá", Icon = "🛋️", Radius = 6 },
@@ -50,6 +50,10 @@ HouseFurniture.Catalog = {
 	{ Id = "Fuente", Name = "Fuente pequeña", Icon = "⛲", Radius = 4 },
 	{ Id = "Estandarte", Name = "Estandarte", Icon = "🚩", Radius = 3 },
 	{ Id = "Chimenea", Name = "Chimenea", Icon = "🔥", Radius = 8 },
+	-- EXCLUSIVOS de la Tienda VIP del Mes (solo los puede colocar quien los compró)
+	{ Id = "Trono", Name = "Trono Imperial", Icon = "👑", Radius = 4, Vip = true },
+	{ Id = "Estatua", Name = "Estatua Dorada", Icon = "🗿", Radius = 3.5, Vip = true },
+	{ Id = "Cristal", Name = "Cristal Flotante", Icon = "💎", Radius = 3, Vip = true },
 } :: { Def }
 
 HouseFurniture.ById = {} :: { [string]: Def }
@@ -359,6 +363,56 @@ function HouseFurniture.Build(id: string, parent: Instance, cf: CFrame, opts: { 
 			pe.Color = ColorSequence.new(Color3.fromRGB(180, 225, 255))
 			pe.Transparency = NumberSequence.new(0.2, 1)
 			pe.Parent = spout
+		end
+	elseif id == "Trono" then
+		P("Escalon", Vector3.new(7, 0.8, 6), C(0, 0.4, 0), Color3.fromRGB(120, 38, 56), Enum.Material.Fabric)
+		P("Base", Vector3.new(5, 1.6, 4.4), C(0, 1.6, 0), GOLD, Enum.Material.Metal)
+		P("Cojin", Vector3.new(4.2, 0.9, 3.6), C(0, 2.7, -0.1), Color3.fromRGB(150, 36, 60), Enum.Material.Fabric)
+		P("Respaldo", Vector3.new(5, 8.6, 1), C(0, 6, 2.1), Color3.fromRGB(150, 36, 60), Enum.Material.Fabric)
+		P("RespaldoMarco", Vector3.new(5.6, 9.2, 0.7), C(0, 6.2, 2.6), GOLD, Enum.Material.Metal)
+		for _, sx in ipairs({ -2.8, 2.8 }) do
+			P("Brazo", Vector3.new(0.9, 2.2, 4.2), C(sx, 3.4, -0.1), GOLD, Enum.Material.Metal)
+			P("Pomo", Vector3.new(1.3, 1.3, 1.3), C(sx, 4.7, -1.8), GOLD, Enum.Material.Metal, Enum.PartType.Ball)
+			P("Pilar", Vector3.new(0.9, 9.6, 0.9), C(sx * 0.95, 5.6, 2.8), GOLD, Enum.Material.Metal)
+			P("Punta", Vector3.new(1.4, 1.4, 1.4), C(sx * 0.95, 10.7, 2.8), Color3.fromRGB(110, 225, 255), Enum.Material.Neon, Enum.PartType.Ball)
+		end
+		P("Corona", Vector3.new(3, 1, 0.5), C(0, 11, 2.6), GOLD, Enum.Material.Metal)
+		P("Gema", Vector3.new(1, 1, 0.6), C(0, 11.2, 2.3), Color3.fromRGB(255, 70, 110), Enum.Material.Neon, Enum.PartType.Ball)
+		table.insert(seats, cf * C(0, 3.4, -0.2))
+	elseif id == "Estatua" then
+		P("Pedestal", Vector3.new(4.4, 1.6, 4.4), C(0, 0.8, 0), Color3.fromRGB(60, 58, 66), Enum.Material.Marble)
+		P("PedestalOro", Vector3.new(4.8, 0.4, 4.8), C(0, 1.8, 0), GOLD, Enum.Material.Metal)
+		P("Piernas", Vector3.new(2, 4, 1.4), C(0, 4, 0), GOLD, Enum.Material.Metal)
+		P("Torso", Vector3.new(2.6, 3.4, 1.5), C(0, 7.7, 0), GOLD, Enum.Material.Metal)
+		P("Cabeza", Vector3.new(1.7, 1.7, 1.7), C(0, 10.3, 0), GOLD, Enum.Material.Metal, Enum.PartType.Ball)
+		P("BrazoIzq", Vector3.new(0.9, 3.2, 0.9), C(-1.8, 7.9, 0), GOLD, Enum.Material.Metal)
+		P("BrazoDer", Vector3.new(0.9, 3.2, 0.9), C(1.8, 9.6, 0) * CFrame.Angles(0, 0, math.rad(25)), GOLD, Enum.Material.Metal)
+		local orb = P("Orbe", Vector3.new(1.6, 1.6, 1.6), C(2.6, 11.4, 0), Color3.fromRGB(255, 226, 140), Enum.Material.Neon, Enum.PartType.Ball)
+		if not o.Ghost then
+			light(orb, 16, 0.8, Color3.fromRGB(255, 220, 140))
+		end
+	elseif id == "Cristal" then
+		P("Base", Vector3.new(0.8, 5, 5), C(0, 0.4, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(50, 50, 62), Enum.Material.Slate, Enum.PartType.Cylinder)
+		P("BaseOro", Vector3.new(0.4, 5.6, 5.6), C(0, 0.9, 0) * CFrame.Angles(0, 0, math.rad(90)), GOLD, Enum.Material.Metal, Enum.PartType.Cylinder)
+		local main = P("Cristal", Vector3.new(2.6, 5.6, 2.6), C(0, 6, 0) * CFrame.Angles(0, math.rad(45), math.rad(45)), Color3.fromRGB(120, 230, 255), Enum.Material.Neon)
+		main.Transparency = 0.2
+		for i = 1, 3 do
+			local a = i / 3 * math.pi * 2
+			local sh = P("Esquirla" .. i, Vector3.new(0.9, 2.4, 0.9), C(math.cos(a) * 2.4, 5.2 + i * 0.5, math.sin(a) * 2.4) * CFrame.Angles(math.rad(20 * i), a, math.rad(30)), Color3.fromRGB(190, 150, 255), Enum.Material.Neon)
+			sh.Transparency = 0.25
+		end
+		if not o.Ghost then
+			light(main, 22, 1, Color3.fromRGB(140, 220, 255))
+			local pe = Instance.new("ParticleEmitter")
+			pe.Rate = 8
+			pe.Lifetime = NumberRange.new(1.5, 2.5)
+			pe.Speed = NumberRange.new(0.5, 1.5)
+			pe.SpreadAngle = Vector2.new(180, 180)
+			pe.Size = NumberSequence.new(0.35, 0)
+			pe.LightEmission = 1
+			pe.Color = ColorSequence.new(Color3.fromRGB(170, 235, 255), Color3.fromRGB(200, 160, 255))
+			pe.Transparency = NumberSequence.new(0.1, 1)
+			pe.Parent = main
 		end
 	end
 

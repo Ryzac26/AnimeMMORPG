@@ -12,6 +12,7 @@ local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
+local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 local MissionCatalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("MissionCatalog"))
 
 local openRemote = ClientNet.Get("MissionOpen")
@@ -61,8 +62,13 @@ local function build()
 		end)
 	win = w
 	WindowDrag.Attach(w, "Missions", 40, 50)
-	for i, t in ipairs({ { "Misiones", "📜 Misiones" }, { "Marcos", "🖼 Marcos" } }) do
-		NpcKit.Tab(w, theme, t[2], UDim2.fromOffset(150, 28), UDim2.fromOffset(14 + (i - 1) * 156, 72), tab == t[1], function()
+	for i, t in ipairs({ { "Misiones", "📜 Misiones" }, { "Marcos", "🖼 Marcos" }, { "Tienda", "🛍 Tienda VIP del Mes" } }) do
+		NpcKit.Tab(w, theme, t[2], UDim2.fromOffset(if i == 3 then 200 else 150, 28), UDim2.fromOffset(14 + (i - 1) * 156, 72), tab == t[1], function()
+			if t[1] == "Tienda" then
+				gui.Enabled = false
+				MenuBus.Fire("VipShop")
+				return
+			end
 			tab = t[1]
 			build()
 		end)
