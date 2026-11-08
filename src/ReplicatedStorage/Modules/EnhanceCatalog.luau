@@ -7,7 +7,8 @@
       - Costo: oro (crece con n y con el nivel del objeto) + Gemas de Mejora (Mat_Gema, las sueltan los Metin).
       - Éxito: +1..+3 siempre salen. Desde +4 hay riesgo.
       - Fallo: el objeto NUNCA se rompe. +4..+6: no pasa nada (pierdes el costo). +7, +8 y +9: baja 1 nivel o SE ROMPE (BreakChance); el Pergamino de Protección evita las dos.
-      - Llegar de +0 a +9 cuesta en promedio ~31 intentos, ~99 gemas y ~450.000 de oro en una pieza de nivel 100 (~45.000 en nivel 10).
+      - Llegar de +0 a +9 (simulado, 7 nov 2026): CON Pergamino de Protección ≈ 57 intentos, ≈ 234 gemas, ≈ 46 pergaminos y ≈ 1.060.000 de oro en una pieza de nivel 100
+        (≈ 190.000 de oro en nivel 10). SIN pergaminos es prácticamente imposible (≈ 9.700 intentos y ≈ 290 piezas rotas por camino).
 ]]
 local EnhanceCatalog = {}
 

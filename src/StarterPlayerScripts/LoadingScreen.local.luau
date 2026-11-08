@@ -74,6 +74,103 @@ bar.BorderSizePixel = 0
 bar.Parent = barBack
 Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
 
+---------------------------------------------------------------------
+-- CONSEJOS: uno distinto cada pocos segundos mientras carga. {Nombre} se cambia por la tecla real (la del jugador si la cambió en Ajustes).
+-- Solo datos ciertos del juego; para agregar uno, añade una línea a TIPS.
+---------------------------------------------------------------------
+local TIPS = {
+	"Pulsa {Perfil} para ver tu perfil y {Mochila} para abrir la mochila.",
+	"{AutoFarm} activa el auto-farmeo y {AutoAtaque} pausa el auto-ataque.",
+	"Tus poderes van del 1 al 7. El 7 son Primeros Auxilios.",
+	"{Mercader} abre al Mercader: vende y compra sin ir a buscarlo.",
+	"{Maestria} abre la Maestría de rol y {Faccion} tu facción.",
+	"{Grupo} abre el grupo y las invitaciones: en equipo se juega mejor.",
+	"{Notas} muestra las novedades del último parche.",
+	"Si mueres no bajas de nivel: solo pierdes un poco de la experiencia del nivel actual.",
+	"Tras reaparecer tienes unos segundos de protección.",
+	"El PvP solo existe en la Arena Central y entre naciones distintas.",
+	"En la Arena tienes 5 vidas. Elige bien tus peleas.",
+	"Para repartirse el botín de un jefe hay que hacerle al menos el 1% del daño.",
+	"Tus mascotas te siguen, crecen y pueden darte poderes.",
+}
+local FOOTER = "¿Algo falla? Usa el botón REPORTAR del borde derecho de la pantalla. Nos ayuda muchísimo."
+
+local function keyLabel(id: string): string
+	local label: string? = nil
+	pcall(function()
+		local KeyBinds = require(script.Parent:WaitForChild("KeyBinds", 5))
+		label = KeyBinds.Label(id)
+	end)
+	if not label then
+		pcall(function()
+			local cat = require(game:GetService("ReplicatedStorage").Modules.KeyBindCatalog)
+			label = cat.ById[id].Default
+		end)
+	end
+	return label or "?"
+end
+
+local function tipText(raw: string): string
+	return (string.gsub(raw, "{(%w+)}", keyLabel))
+end
+
+local tipLabel = Instance.new("TextLabel")
+tipLabel.AnchorPoint = Vector2.new(0.5, 0)
+tipLabel.Position = UDim2.fromScale(0.5, 0.64)
+tipLabel.Size = UDim2.new(0.8, 0, 0, 44)
+tipLabel.BackgroundTransparency = 1
+tipLabel.Font = Enum.Font.Gotham
+tipLabel.TextSize = 18
+tipLabel.TextWrapped = true
+tipLabel.TextColor3 = Color3.fromRGB(235, 235, 245)
+tipLabel.Text = ""
+tipLabel.Parent = back
+local tipSize = Instance.new("UITextSizeConstraint")
+tipSize.MaxTextSize = 20
+tipSize.MinTextSize = 12
+tipSize.Parent = tipLabel
+
+local footer = Instance.new("TextLabel")
+footer.AnchorPoint = Vector2.new(0.5, 1)
+footer.Position = UDim2.new(0.5, 0, 1, -24)
+footer.Size = UDim2.new(0.9, 0, 0, 40)
+footer.BackgroundTransparency = 1
+footer.Font = Enum.Font.GothamMedium
+footer.TextSize = 14
+footer.TextWrapped = true
+footer.TextColor3 = Color3.fromRGB(150, 150, 170)
+footer.Text = FOOTER
+footer.Parent = back
+
+local tipsRunning = true
+task.spawn(function()
+	local order = {}
+	for i = 1, #TIPS do
+		order[i] = i
+	end
+	for i = #order, 2, -1 do
+		local j = math.random(1, i)
+		order[i], order[j] = order[j], order[i]
+	end
+	local n = 0
+	while tipsRunning and gui.Parent do
+		n = n % #order + 1
+		tipLabel.Text = tipText(TIPS[order[n]])
+		tipLabel.TextTransparency = 1
+		TweenService:Create(tipLabel, TweenInfo.new(0.4), { TextTransparency = 0 }):Play()
+		for _ = 1, 50 do -- ~5 s
+			if not tipsRunning then
+				return
+			end
+			task.wait(0.1)
+		end
+		if tipsRunning then
+			TweenService:Create(tipLabel, TweenInfo.new(0.3), { TextTransparency = 1 }):Play()
+			task.wait(0.35)
+		end
+	end
+end)
+
 local function setProgress(ratio: number, text: string)
 	bar.Size = UDim2.fromScale(math.clamp(ratio, 0, 1), 1)
 	status.Text = text
@@ -152,6 +249,7 @@ end
 setProgress(1, "¡Listo!")
 print(string.format("[LoadingScreen] Mundo cargado en %.1f s (servidor=%s, streaming=%s).", elapsed(), tostring(serverReady), tostring(streaming)))
 
+tipsRunning = false
 local info = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 TweenService:Create(back, info, { BackgroundTransparency = 1 }):Play()
 for _, d in ipairs(back:GetDescendants()) do
