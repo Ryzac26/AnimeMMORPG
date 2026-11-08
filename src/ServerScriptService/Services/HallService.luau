@@ -7,7 +7,7 @@
       - Dos CARTELES de ranking GLOBAL de todos los jugadores de esa facción (no solo del servidor):
           · NIVEL  -> OrderedDataStore "HallLevel_v2_<Facción> (v2: nivel en escala 1-3000)" (se actualiza al salir y cada pocos minutos).
           · DAÑO   -> OrderedDataStore "HallDmg_v1_<Facción>" (mejor prueba de 30 s en un maniquí). Récord personal en el perfil ("Hall").
-        Se leen cada ~60 s y se mezclan con los jugadores conectados para que se vea en vivo.
+        Cada 10 s se revisan en memoria (con los jugadores conectados) y solo se redibujan si el ranking cambió; el DataStore se relee cada 60 s (otros servidores).
       - 4 MANIQUÍES DE ENTRENAMIENTO por salón: el primer golpe abre una prueba de 30 s; al terminar muestra el daño total y los DPS.
         Los maniquíes son objetivos normales (tag Targetable, IsMob) con vida enorme que se rellena: nunca mueren ni dan recompensas.
     Remote: HallOpen (servidor -> cliente): abre la ventana del Gremio (HallClient). Sin acceso a DataStore (Studio) funciona solo con los
@@ -42,8 +42,9 @@ local NotifyRemote = Net.Get("Notify")
 
 local TEST_SECONDS = 30
 local COOLDOWN = 2
-local REFRESH_SECONDS = 60
-local LEVEL_FLUSH_SECONDS = 180
+local REFRESH_SECONDS = 10 -- cada cuánto se revisan los tableros (en memoria: no gasta cuota de DataStore)
+local STORE_FETCH_SECONDS = 60 -- cada cuánto se vuelve a leer el DataStore (datos de OTROS servidores); límite de Roblox para GetSortedAsync
+local LEVEL_FLUSH_SECONDS = 30 -- subida de nivel -> se guarda en el ranking global como máximo cada 30 s (solo si el nivel cambió)
 local TOP = 10
 local USE_DISTANCE = 16
 
@@ -199,10 +200,28 @@ local function paint(rows: Rows, list: { Entry }, asDamage: boolean)
 	end
 end
 
+-- Caché de lo leído del DataStore y firma de lo último dibujado: cada 10 s se recalcula con los jugadores conectados
+-- y el tablero SOLO se redibuja si el ranking cambió ("firma" distinta).
+local storeCache: { [string]: { Level: { Entry }, Dmg: { Entry }, At: number } } = {}
+local lastSig: { [string]: { Level: string, Dmg: string } } = {}
+
+local function signature(list: { Entry }): string
+	local parts = table.create(#list)
+	for i, e in ipairs(list) do
+		parts[i] = e.UserId .. ":" .. e.Value
+	end
+	return table.concat(parts, "|")
+end
+
 local function refreshFaction(faction: string)
 	local hall = halls[faction]
 	if not hall then
 		return
+	end
+	local cache = storeCache[faction]
+	if not cache or os.clock() - cache.At >= STORE_FETCH_SECONDS then
+		cache = { Level = fetchTop(levelStores[faction]), Dmg = fetchTop(dmgStores[faction]), At = os.clock() }
+		storeCache[faction] = cache
 	end
 	local liveLevel: { [number]: number } = {}
 	local liveDmg: { [number]: number } = {}
@@ -215,10 +234,31 @@ local function refreshFaction(faction: string)
 			end
 		end
 	end
-	paint(hall.LevelRows, merge(fetchTop(levelStores[faction]), liveLevel), false)
-	local dmgList = merge(fetchTop(dmgStores[faction]), liveDmg)
-	paint(hall.DmgRows, dmgList, true)
-	hall.Podium(dmgList)
+	local sigs = lastSig[faction]
+	if not sigs then
+		sigs = { Level = "", Dmg = "" }
+		lastSig[faction] = sigs
+	end
+	-- merge modifica las entradas: se trabaja con copias para no ensuciar la caché
+	local function copy(list: { Entry }): { Entry }
+		local out = table.create(#list)
+		for i, e in ipairs(list) do
+			out[i] = { UserId = e.UserId, Name = e.Name, Value = e.Value }
+		end
+		return out
+	end
+	local levelList = merge(copy(cache.Level), liveLevel)
+	local dmgList = merge(copy(cache.Dmg), liveDmg)
+	local levelSig, dmgSig = signature(levelList), signature(dmgList)
+	if levelSig ~= sigs.Level then
+		sigs.Level = levelSig
+		paint(hall.LevelRows, levelList, false)
+	end
+	if dmgSig ~= sigs.Dmg then
+		sigs.Dmg = dmgSig
+		paint(hall.DmgRows, dmgList, true)
+		hall.Podium(dmgList)
+	end
 	for i = 1, math.min(3, #dmgList) do
 		local pl = Players:GetPlayerByUserId(dmgList[i].UserId)
 		if pl and pl:GetAttribute("Faction") == faction then
@@ -297,6 +337,10 @@ local function finish(pl: Player)
 		best[pl] = total
 		pl:SetAttribute("HallBest", total)
 		task.spawn(writeDmg, pl)
+		local fac = pl:GetAttribute("Faction")
+		if typeof(fac) == "string" then
+			task.spawn(refreshFaction, fac) -- récord nuevo: el tablero y el podio se actualizan al instante
+		end
 	end
 	notify(pl, string.format("🎯 Prueba terminada: %s de daño en %d s (%s DPS)%s", fmt(total), TEST_SECONDS, fmt(dps), if record then " · ¡NUEVO RÉCORD!" else ""))
 	if ui then
@@ -868,6 +912,7 @@ local function buildHall(model: Model, marker: BasePart, faction: string)
 	paint(levelRows, {}, false)
 	paint(dmgRows, {}, true)
 	print("[HallService] Salón de Honor construido: " .. faction)
+	lastSig[faction] = nil -- tablero nuevo: hay que dibujarlo completo
 	task.spawn(refreshFaction, faction)
 end
 

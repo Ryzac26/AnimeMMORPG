@@ -32,6 +32,7 @@ local DealDamageEvent = ClientNet.Get("DealDamageEvent")
 local AutoAttackRemote = ClientNet.Get("AutoAttack")
 local UseAbilityRemote = ClientNet.Get("UseAbility")
 local AbilityCatalog = require(Modules:WaitForChild("AbilityCatalog", 10))
+local AbilityIcons = require(Modules:WaitForChild("AbilityIcons", 10))
 local MOBILE = require(script.Parent:WaitForChild("Platform", 10)).IsMobile() -- en celular la interfaz la dibuja MobileClient
 
 local function listen(name: string, fn: (...any) -> ())
@@ -143,6 +144,12 @@ local function build()
 		UITheme.Border(f, theme, 3)
 		local icon = UITheme.Text(f, if skill then string.sub(skill.Name, 1, 2):upper() else "🔒", 15, theme.Primary, UDim2.fromScale(0, 0.1), UDim2.fromScale(1, 0.6), Enum.TextXAlignment.Center)
 		icon.TextStrokeTransparency = 0.3
+		-- icono real del poder (láminas de AbilityIcons); si aún no hay ID, quedan las 2 letras
+		local art = AbilityIcons.Make(f, if i == 7 then "General/7" else class.CharacterName .. "/" .. i)
+		if art then
+			icon.Visible = false
+			Instance.new("UICorner", art).CornerRadius = UDim.new(0, 10)
+		end
 		local num = UITheme.Text(f, KeyBinds.Label("Poder" .. i), 12, Color3.new(1, 1, 1), UDim2.fromOffset(4, 1), UDim2.fromOffset(14, 14))
 		num.ZIndex = 4
 		KeyBinds.Changed:Connect(function(id: string)
