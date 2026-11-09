@@ -20,6 +20,7 @@ local Platform = require(script.Parent:WaitForChild("Platform", 10))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
 local chooseRemote = Remotes:WaitForChild("ChooseClass", 10) :: RemoteEvent
 local MOBILE = Platform.IsMobile()
+local Workspace = game:GetService("Workspace")
 
 local FACTIONS = { "Saiyan", "Shinobi", "Pirate", "Shinigami" }
 local ROLES = { "Tanque", "Guerrero", "Asesino", "Tirador", "Mago", "Curador" }
@@ -174,6 +175,25 @@ showFactions = function()
 	sub.TextStrokeTransparency = 1
 
 	local cards: { [string]: { Card: TextButton, Stroke: UIStroke, Badge: Frame, Base: UDim2 } } = {}
+	local countLabels: { [string]: TextLabel } = {}
+	-- cupo por facción en este servidor (FactionBalance publica FactionCap y FactionCount_<facción> en Workspace; cap 0 = sin tope)
+	local function isFull(f: string): boolean
+		local cap = Workspace:GetAttribute("FactionCap")
+		local n = Workspace:GetAttribute("FactionCount_" .. f)
+		return typeof(cap) == "number" and cap > 0 and typeof(n) == "number" and n >= cap
+	end
+	local function refreshCounts()
+		local cap = Workspace:GetAttribute("FactionCap")
+		for f, lbl in pairs(countLabels) do
+			local n = Workspace:GetAttribute("FactionCount_" .. f)
+			if typeof(cap) == "number" and cap > 0 and typeof(n) == "number" then
+				lbl.Text = if n >= cap then string.format("LLENA  %d/%d", n, cap) else string.format("Jugadores  %d/%d", n, cap)
+				lbl.TextColor3 = if n >= cap then Color3.fromRGB(255, 110, 110) else Color3.fromRGB(170, 176, 200)
+			else
+				lbl.Text = ""
+			end
+		end
+	end
 	local cont: TextButton
 	local pickedLabel: TextLabel
 
@@ -248,14 +268,32 @@ showFactions = function()
 		local en = text(card, "ENERGÍA  " .. theme.Resource, if MOBILE then 12 else 16, theme.ResourceColor, UDim2.fromScale(0, 0.84), UDim2.fromScale(1, 0.1))
 		en.Font = Enum.Font.GothamBold
 
+		local cnt = text(card, "", if MOBILE then 11 else 14, GREY, UDim2.fromScale(0, 0.93), UDim2.fromScale(1, 0.06))
+		cnt.Font = Enum.Font.GothamBold
+		cnt.TextStrokeTransparency = 1
+		countLabels[f] = cnt
 		cards[f] = { Card = card, Stroke = st, Badge = badge, Base = base }
 		card.Activated:Connect(function()
+			if isFull(f) then
+				pickedLabel.Text = f .. " está llena en este servidor"
+				pickedLabel.TextColor3 = Color3.fromRGB(255, 110, 110)
+				return
+			end
 			selectedFaction = f
 			selectedRole = nil
 			applySelection()
 		end)
 	end
 
+	refreshCounts()
+	local conn: RBXScriptConnection
+	conn = Workspace.AttributeChanged:Connect(function()
+		if cont and cont.Parent then
+			refreshCounts()
+		else
+			conn:Disconnect()
+		end
+	end)
 	local bottomY = if MOBILE then 0.9 else 0.88
 	pickedLabel = text(r, "", if MOBILE then 14 else 18, GREY, UDim2.fromScale(0.08, bottomY), UDim2.fromScale(if MOBILE then 0.4 else 0.35, 0.07), Enum.TextXAlignment.Left)
 	pickedLabel.TextStrokeTransparency = 1

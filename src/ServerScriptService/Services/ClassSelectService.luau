@@ -7,6 +7,7 @@
       - Remote "ChooseClass"(faction, role): el servidor valida contra FactionClassesModule, guarda,
         pone los atributos y reaparece al jugador en la ciudad de su facción (RespawnLocation lo fija ProjectBootstrapper).
       - Solo se puede elegir una vez. Para pruebas: workspace:SetAttribute("AllowReselect", true) permite volver a elegir
+        TOPE POR FACCIÓN: FactionBalance (15 por facción y servidor por defecto, config "factionCap"): si tu facción está llena te mandan a otro servidor con lugar.
         Cambio de clase GRATIS: el Instructor de tu ciudad (InstructorService) llama a Allow(player) y el jugador puede elegir otro rol de SU facción.
         (y en Studio puedes borrar tu elección con player:SetAttribute("ClassChosen", false) desde la consola del servidor).
 ]]
@@ -18,6 +19,7 @@ local Workspace = game:GetService("Workspace")
 local Net = require(ServerScriptService.Services.Net)
 local PlayerData = require(ServerScriptService.Services.PlayerData)
 local FactionClasses = require(ReplicatedStorage.Modules.FactionClassesModule)
+local FactionBalance = require(ServerScriptService.Services.FactionBalance)
 
 local choose = Net.Get("ChooseClass")
 
@@ -68,6 +70,17 @@ local function load(player: Player)
 	local saved: any = data.Class
 	if typeof(saved) == "table" and typeof(saved.Faction) == "string" and typeof(saved.Role) == "string"
 		and FactionClasses.FindClass(saved.Faction, saved.Role) then
+		-- tope por facción: si tu facción está llena aquí y hay otro servidor con lugar, te mandamos allí (si no hay, entras igual)
+		if FactionBalance.IsFull(saved.Faction, player) then
+			local job = FactionBalance.FindServer(saved.Faction)
+			if job and FactionBalance.Teleport(player, job) then
+				Net.Get("Notify"):FireClient(player, "Tu facción está llena en este servidor: te llevamos a otro con lugar.")
+				task.wait(10) -- si el viaje falla, sigue aquí (el tope es suave)
+				if player.Parent == nil then
+					return
+				end
+			end
+		end
 		applyChoice(player, saved.Faction, saved.Role)
 		loaded[player] = true
 		-- Si el personaje ya había aparecido ANTES de cargar tu perfil (con la facción por defecto: Goku, ciudad Saiyan),
@@ -115,6 +128,16 @@ choose.OnServerEvent:Connect(function(player: Player, faction: any, role: any)
 	if not FactionClasses.FindClass(faction, role) then
 		return
 	end
+	local isNew = player:GetAttribute("ClassChosen") ~= true
+	local sendTo: string? = nil
+	if isNew and FactionBalance.IsFull(faction, player) then
+		-- facción llena en este servidor: si hay otro con lugar, guardamos tu elección y te mandamos allí; si no, pedimos elegir otra
+		sendTo = FactionBalance.FindServer(faction)
+		if not sendTo then
+			Net.Get("Notify"):FireClient(player, string.format("%s está llena en este servidor (%d/%d). Elige otra facción.", faction, FactionBalance.Count(faction, player), FactionBalance.Cap()))
+			return
+		end
+	end
 	if player:GetAttribute("ClassChosen") == true and Workspace:GetAttribute("AllowReselect") ~= true then
 		-- cambio de clase: solo con permiso del Instructor, misma facción y otro rol
 		local ticket = tickets[player]
@@ -126,6 +149,13 @@ choose.OnServerEvent:Connect(function(player: Player, faction: any, role: any)
 	busy[player] = true
 	applyChoice(player, faction, role)
 	PlayerData.Save(player) -- la elección se guarda al instante
+	if sendTo and FactionBalance.Teleport(player, sendTo) then
+		Net.Get("Notify"):FireClient(player, "Tu facción está llena en este servidor: te llevamos a otro con lugar.")
+		task.wait(10)
+		if player.Parent == nil then
+			return
+		end
+	end
 	task.wait(0.25) -- deja que ProjectBootstrapper actualice RespawnLocation de la nueva facción
 	if player.Parent then
 		player:LoadCharacter() -- reaparece en la ciudad de su facción con su clase nueva
