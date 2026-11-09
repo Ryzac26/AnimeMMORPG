@@ -18,7 +18,7 @@ local WeaponSkins = require(script.Parent.WeaponSkins)
 local ShieldSkins = {}
 
 local GRIP = Vector3.new(0, 0.52, -0.578)
-local GRIP_SHIFT = Vector3.new(0, 0.3, 0)
+local GRIP_SHIFT = Vector3.new(0, 0.3, -0.6) -- Z negativa = más adelante
 local FACE = math.pi
 local BASE_HEIGHT = 11.797 -- alto original de la placa base
 
