@@ -52,10 +52,18 @@ local function push(player: Player)
 	end
 end
 
+-- Auras de facción: solo las puede usar quien sea de esa facción (atributo Faction del jugador)
+local function canUseAura(player: Player, def: any): boolean
+	if levelOf(player) < def.Need then
+		return false
+	end
+	return def.Faction == nil or player:GetAttribute("Faction") == def.Faction
+end
+
 local function applyAura(player: Player)
 	local p = profiles[player]
 	local def = if p and p.Aura then Milestones.AuraById[p.Aura] else nil
-	if def and levelOf(player) < def.Need then
+	if def and not canUseAura(player, def) then
 		def = nil
 	end
 	player:SetAttribute("Aura", if def then def.Id else nil)
@@ -99,6 +107,9 @@ local function loadProfile(player: Player)
 		end
 	end
 	profiles[player] = p
+	player:GetAttributeChangedSignal("Faction"):Connect(function()
+		applyAura(player)
+	end)
 	applyAura(player)
 	push(player)
 end
@@ -131,7 +142,7 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, arg: an
 			p.Aura = nil
 		else
 			local def = Milestones.AuraById[arg]
-			if def and levelOf(player) >= def.Need then
+			if def and canUseAura(player, def) then
 				p.Aura = def.Id
 			end
 		end

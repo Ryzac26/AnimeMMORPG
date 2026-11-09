@@ -157,7 +157,14 @@ local function build()
 		scroll.CanvasSize = UDim2.fromOffset(0, 8 + Milestones.COUNT * rowH)
 	else
 		local cardH = 96
-		for i, a in ipairs(Milestones.Auras) do
+		local myFaction = Players.LocalPlayer:GetAttribute("Faction")
+		local shown = {}
+		for _, a in ipairs(Milestones.Auras) do
+			if a.Faction == nil or a.Faction == myFaction then
+				table.insert(shown, a)
+			end
+		end
+		for i, a in ipairs(shown) do
 			local unlocked = lvl >= a.Need
 			local equipped = state.Aura == a.Id
 			local card = NpcKit.Panel(scroll, theme, UDim2.fromOffset(innerW - 8, cardH - 6), UDim2.fromOffset(4, 4 + (i - 1) * cardH), "inset")
@@ -194,7 +201,7 @@ local function build()
 				lk.TextStrokeTransparency = 1
 			end
 		end
-		scroll.CanvasSize = UDim2.fromOffset(0, 8 + #Milestones.Auras * cardH)
+		scroll.CanvasSize = UDim2.fromOffset(0, 8 + #shown * cardH)
 	end
 end
 
