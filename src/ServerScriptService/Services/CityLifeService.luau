@@ -132,6 +132,27 @@ end
 ---------------------------------------------------------------------
 -- Personajes
 ---------------------------------------------------------------------
+local function dropProps(model: Model, names: { string })
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("BasePart") and table.find(names, d.Name) then
+			d:Destroy()
+		end
+	end
+end
+local HAMMER = { "MartilloMango", "MartilloCabeza" }
+local FLASK = { "MatrazCuerpo", "MatrazCuello", "MatrazLiquido" }
+
+-- inclinación de reposo (grados) de cada brazo según el oficio en NpcBuilder
+local ROLE_BIAS: { [string]: { L: number, R: number } } = {
+	Herrero = { L = 0, R = -48 },
+	Alquimista = { L = -38, R = 0 },
+	Mayordomo = { L = 0, R = -42 },
+	Instructor = { L = 0, R = -6 },
+	Mercader = { L = 0, R = 0 },
+}
+local STRIP: { [string]: { string } } = {
+	Mayordomo = { "Pergamino", "PergaminoVaraA", "PergaminoVaraB", "Linea" },
+}
 local function tool(model: Model, cf: CFrame, grp: string, off: CFrame, size: Vector3, color: Color3, mat: Enum.Material, shape: Enum.PartType?): Part
 	local p = Instance.new("Part")
 	p.Name = "Herramienta"
@@ -160,6 +181,19 @@ local function actor(ctx: Ctx, role: string, lx: number, lz: number, yawDeg: num
 	model:SetAttribute("Act", act)
 	model:SetAttribute("Phase", phase)
 	model:SetAttribute("Period", period)
+	local bias = ROLE_BIAS[role]
+	if bias then
+		model:SetAttribute("BiasL", math.rad(bias.L))
+		model:SetAttribute("BiasR", math.rad(bias.R))
+	end
+	-- el accesorio de mano que NpcBuilder le da al oficio se quita (menos el martillo del herrero): cada escena trae el suyo
+	if STRIP[role] then
+		for _, d in ipairs(model:GetDescendants()) do
+			if d:IsA("BasePart") and table.find(STRIP[role], d.Name) then
+				d:Destroy()
+			end
+		end
+	end
 	local root = model.PrimaryPart
 	if root then
 		root.CanCollide = false
@@ -298,6 +332,7 @@ local function buildDojo(ctx: Ctx)
 	-- los dos luchadores (uno ataca mientras el otro bloquea, y al revés)
 	local m1, _, h1 = actor(ctx, "Instructor", 2, 8, 90, "Spar", 0, 3)
 	local m2, _, h2 = actor(ctx, "Herrero", -2, 8, -90, "Spar", 0.5, 3)
+	dropProps(m2, HAMMER) -- peleando no lleva martillo
 	runChat({ m1, m2 }, { h1, h2 }, LINES_DOJO, 4)
 	-- estandarte en la pared del fondo
 	sign(ctx, Vector3.new(0, 7.5, ctx.D / 2 - 1.6), Vector3.new(18, 6, 0.2), p.Word, p.Cloth, Color3.fromRGB(250, 240, 220), 64)
@@ -350,12 +385,10 @@ local function buildForge(ctx: Ctx)
 	local heads: { Part } = {}
 	-- 3 herreros, cada uno con su yunque a la derecha-adelante (el martillo cae justo sobre la hoja al rojo)
 	for i, x in ipairs({ -6, 4, 13 }) do
-		local m, cf, h = actor(ctx, if i == 2 then "Instructor" else "Herrero", x, 17, 0, "Hammer", (i - 1) * 0.31, 1.25 + (i - 2) * 0.12)
+		local m, cf, h = actor(ctx, "Herrero", x, 17, 0, "Hammer", (i - 1) * 0.31, 1.25 + (i - 2) * 0.12)
 		table.insert(models, m)
 		table.insert(heads, h)
-		-- martillo (mano derecha) y tenazas (mano izquierda)
-		tool(m, cf, "ArmR", CFrame.new(1.5, -0.88, -0.9), Vector3.new(0.28, 0.28, 2.1), p.Wood, Enum.Material.Wood)
-		tool(m, cf, "ArmR", CFrame.new(1.5, -0.88, -1.9), Vector3.new(1.4, 0.8, 0.8), Color3.fromRGB(70, 72, 80), Enum.Material.Metal)
+		-- el martillo ya viene en la mano derecha del Herrero (NpcBuilder); solo se añaden las tenazas
 		tool(m, cf, "ArmL", CFrame.new(-1.5, -0.88, -0.8), Vector3.new(0.2, 0.2, 1.9), Color3.fromRGB(60, 60, 66), Enum.Material.Metal)
 		-- yunque y espada incandescente
 		local floorCF = cf * CFrame.new(1.5, -3, -2.66)
@@ -539,8 +572,8 @@ end
 local function buildVip(ctx: Ctx)
 	local p = ctx.Pal
 	-- alfombra roja hasta el fondo
-	part(ctx, "Alfombra", Vector3.new(0, 0.08, 0), Vector3.new(7, 0.12, ctx.D - 4), Color3.fromRGB(150, 26, 44), Enum.Material.Fabric)
-	part(ctx, "AlfombraBorde", Vector3.new(0, 0.1, 0), Vector3.new(7.8, 0.08, ctx.D - 3.4), p.Glow, Enum.Material.Fabric)
+	part(ctx, "Alfombra", Vector3.new(0, 0.2, 0), Vector3.new(7, 0.1, ctx.D - 4), Color3.fromRGB(150, 26, 44), Enum.Material.Fabric)
+	part(ctx, "AlfombraBorde", Vector3.new(0, 0.12, 0), Vector3.new(7.8, 0.06, ctx.D - 3.4), p.Glow, Enum.Material.Fabric)
 	-- corrillo A: 3 personas alrededor de una mesa
 	local models: { Model } = {}
 	local heads: { Part } = {}
@@ -552,6 +585,7 @@ local function buildVip(ctx: Ctx)
 		local dx, dz = cxA - nx, czA - nz
 		local yaw = math.deg(math.atan2(-dx, -dz))
 		local m, cf, h = actor(ctx, roles[k], nx, nz, yaw, "Chat", (k - 1) * 0.33, 1)
+		dropProps(m, FLASK)
 		glassCup(m, cf, "ArmL", Color3.fromRGB(255, 215, 120), 1.15)
 		table.insert(models, m)
 		table.insert(heads, h)
@@ -561,6 +595,7 @@ local function buildVip(ctx: Ctx)
 	-- corrillo B: pareja frente a frente
 	local cxB, czB = 9, 13
 	local mB1, cfB1, hB1 = actor(ctx, "Alquimista", cxB + 2.2, czB, 90, "Chat", 0.1, 1)
+	dropProps(mB1, FLASK)
 	local mB2, cfB2, hB2 = actor(ctx, "Mayordomo", cxB - 2.2, czB, -90, "Chat", 0.6, 1)
 	glassCup(mB1, cfB1, "ArmL", Color3.fromRGB(255, 120, 160), 1.15)
 	glassCup(mB2, cfB2, "ArmL", Color3.fromRGB(255, 215, 120), 1.15)

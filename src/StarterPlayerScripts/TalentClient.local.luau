@@ -300,17 +300,24 @@ local function build()
 		if canBuy then
 			table.insert(glowing, sk)
 		end
+		local ic = UITheme.Text(btn, n.Icon, if n.Key then 32 else 28, Color3.new(1, 1, 1), UDim2.fromOffset(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
+		ic.TextStrokeTransparency = 1
+		ic.TextTransparency = if ok or lit then 0 else 0.6
 		local art = TalentIcons.Make(btn, n.Id)
 		if art then
-			-- icono real: la casilla es el propio icono (se apaga si está bloqueado)
-			btn.BackgroundTransparency = 1
+			-- icono real encima del emoji: el emoji solo se oculta cuando la imagen YA cargó (si falla, se sigue viendo el emoji)
 			art.ImageTransparency = if ok or lit then 0 else 0.55
 			art.ImageColor3 = if ok or lit then Color3.new(1, 1, 1) else Color3.fromRGB(150, 150, 160)
-			cr.CornerRadius = UDim.new(0, 14)
-		else
-			local ic = UITheme.Text(btn, n.Icon, if n.Key then 32 else 28, Color3.new(1, 1, 1), UDim2.fromOffset(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
-			ic.TextStrokeTransparency = 1
-			ic.TextTransparency = if ok or lit then 0 else 0.6
+			task.spawn(function()
+				for _ = 1, 40 do
+					if art.IsLoaded then
+						ic.Visible = false
+						btn.BackgroundTransparency = 1
+						return
+					end
+					task.wait(0.1)
+				end
+			end)
 		end
 		-- rango
 		local rk = UITheme.Text(tree, if n.Key then (if rank > 0 then "ACTIVA" else "CLAVE") else string.format("%d/%d", rank, maxR), 11, if rank >= maxR then Color3.fromRGB(255, 214, 90) elseif lit then bcol else pal.Muted, UDim2.fromOffset(p.X - 40, p.Y + size / 2 + 2), UDim2.fromOffset(80, 14), Enum.TextXAlignment.Center)

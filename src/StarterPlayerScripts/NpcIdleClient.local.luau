@@ -21,7 +21,7 @@ local LOOK_RANGE = 22
 
 type Piece = { Part: BasePart, Rel: CFrame, Grp: string }
 type Fx = { Part: Part, Emitter: ParticleEmitter, Light: PointLight }
-type Rig = { Model: Model, Root: BasePart, Pieces: { Piece }, Seed: number, Yaw: number, Pitch: number, Count: number, Check: number, Act: string?, Phase: number, Period: number, PrevU: number, Fx: { [string]: Fx } }
+type Rig = { Model: Model, Root: BasePart, Pieces: { Piece }, Seed: number, Yaw: number, Pitch: number, Count: number, Check: number, Act: string?, BiasL: number, BiasR: number, Phase: number, Period: number, PrevU: number, Fx: { [string]: Fx } }
 local rigs: { [Model]: Rig } = {}
 
 local function collect(model: Model, rig: Rig)
@@ -49,6 +49,8 @@ local function add(model: Instance)
 		local rig: Rig = {
 			Model = model, Root = root, Pieces = {}, Seed = math.random() * 10, Yaw = 0, Pitch = 0, Count = 0, Check = 0,
 			Act = if typeof(act) == "string" then act else nil,
+			BiasL = (model:GetAttribute("BiasL") :: number?) or 0,
+			BiasR = (model:GetAttribute("BiasR") :: number?) or 0,
 			Phase = (model:GetAttribute("Phase") :: number?) or 0,
 			Period = (model:GetAttribute("Period") :: number?) or 1.2,
 			PrevU = 0, Fx = {},
@@ -250,7 +252,8 @@ RunService.RenderStepped:Connect(function(dt: number)
 		local lift = CFrame.new(0, breath, 0)
 		if rig.Act then
 			local aL, aR, sh, ha, lg = scene(rig, t)
-			armL, armR, headAdd, leg = aL, aR, ha, lg
+			-- los brazos de algunos oficios nacen ya inclinados (mazo, pergamino...): se resta ese reposo para que la pose sea la pedida
+			armL, armR, headAdd, leg = CFrame.Angles(-rig.BiasL, 0, 0) * aL, CFrame.Angles(-rig.BiasR, 0, 0) * aR, ha, lg
 			lift = CFrame.new(sh.X, breath + sh.Y, sh.Z)
 		end
 		local headRot = CFrame.Angles(-rig.Pitch + headAdd, rig.Yaw + headIdle, 0)

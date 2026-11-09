@@ -1,18 +1,160 @@
 --!strict
 --[[
     AbilityIcons (ModuleScript) -> ReplicatedStorage.Modules.AbilityIcons
-    Iconos de los PODERES (barra de habilidades 1-7). 145 iconos en 3 láminas PNG de 1024x1024 (8x8 iconos de 128 px cada una):
-    sube cada lámina a Roblox y pega su ID en SheetIds (1, 2, 3). Mientras un ID sea 0 el HUD usa las 2 letras del nombre de siempre.
-    Clave: "<Personaje>/<slot 1-6>" y "General/7" (Primeros Auxilios).  Número = posición en la lámina (de izquierda a derecha, de arriba a abajo).
+    Iconos de los PODERES (barra de habilidades 1-7): 145 imágenes sueltas (carpeta poderes/, nombre = NNN_Personaje-slot_Poder.png).
+    Sube cada PNG a Roblox y pega su ID en Ids[NNN]. Mientras un ID falte o sea 0 el HUD usa las 2 letras del nombre de siempre.
+    Clave: "<Personaje>/<slot 1-6>" y "General/7" (Primeros Auxilios). Número NNN = el del nombre de archivo (ver Index).
 ]]
-local ICON = 128
-local PER_SHEET = 64
-local COLS = 8
-
 local AbilityIcons = {}
 
--- IDs de las láminas: poderes_1.png, poderes_2.png, poderes_3.png (pégalos aquí cuando los subas)
-AbilityIcons.SheetIds = { [1] = 131465115340620, [2] = 127350918844347, [3] = 139303001796735 } :: { [number]: number }
+-- IDs por número de icono: Ids[1] = 123456789, Ids[2] = ... (se rellena cuando se suban las imágenes)
+AbilityIcons.Ids = {
+	[1] = 74438541335995, -- 001_Piccolo-1_Barrera-de-Ki
+	[2] = 86169134748285, -- 002_Piccolo-2_Brazo-Elastico
+	[3] = 93762107874466, -- 003_Piccolo-3_Provocacion-Namekiana
+	[4] = 78536138850937, -- 004_Piccolo-4_Fusion-de-Kami
+	[5] = 91103723995563, -- 005_Piccolo-5_Makankosappo
+	[6] = 107232545500044, -- 006_Piccolo-6_Regeneracion-Namekiana
+	[7] = 108003073968680, -- 007_Goku-1_Kamehameha
+	[8] = 107346477878220, -- 008_Goku-2_Puno-del-Dragon
+	[9] = 92040818213893, -- 009_Goku-3_Teletransportacion-Instantanea
+	[10] = 128939154653521, -- 010_Goku-4_Super-Saiyan
+	[11] = 94054931823740, -- 011_Goku-5_Kaioken
+	[12] = 123688038314732, -- 012_Goku-6_Genkidama
+	[13] = 77296043217459, -- 013_Vegeta-1_Big-Bang-Attack
+	[14] = 133713237109481, -- 014_Vegeta-2_Final-Flash
+	[15] = 118165865140544, -- 015_Vegeta-3_Impulso-Saiyan
+	[16] = 78903014439262, -- 016_Vegeta-4_Final-Explosion
+	[17] = 118811197037887, -- 017_Vegeta-5_Big-Bang-Attack
+	[18] = 85297262702510, -- 018_Vegeta-6_Galick-Ho
+	[19] = 98568385413380, -- 019_Trunks-1_Buster-Cannon
+	[20] = 94462268657200, -- 020_Trunks-2_Burning-Attack
+	[21] = 128054844333456, -- 021_Trunks-3_Espada-del-Futuro
+	[22] = 76627221584018, -- 022_Trunks-4_Finish-Buster
+	[23] = 100670703372460, -- 023_Trunks-5_Rafaga-de-Espada
+	[24] = 83799559304730, -- 024_Trunks-6_Heat-Dome-Attack
+	[25] = 104554870551221, -- 025_Gohan-1_Masenko
+	[26] = 74906701294928, -- 026_Gohan-2_Explosion-Mistica
+	[27] = 108612451770394, -- 027_Gohan-3_Aura-Mistica
+	[28] = 80147031418075, -- 028_Gohan-4_Kamehameha-Padre-e-Hijo
+	[29] = 106627998182471, -- 029_Gohan-5_Masenko
+	[30] = 125585110971840, -- 030_Gohan-6_Ira-Oculta
+	[31] = 121147183323045, -- 031_Bulma-1_Capsula-Hoi-Poi
+	[32] = 105268613194092, -- 032_Bulma-2_Campo-de-Nanodrones
+	[33] = 136024177480345, -- 033_Bulma-3_Capsula-de-Emergencia
+	[34] = 98819576099236, -- 034_Bulma-4_Esferas-del-Dragon
+	[35] = 93879464713695, -- 035_Bulma-5_Pistola-Laser
+	[36] = 82799340294140, -- 036_Bulma-6_Capsula-Explosiva
+	[37] = 92740348968423, -- 037_Gaara-1_Escudo-de-Arena
+	[38] = 128431908195653, -- 038_Gaara-2_Ataud-de-Arena
+	[39] = 111202017460835, -- 039_Gaara-3_Armadura-de-Arena
+	[40] = 137117254384698, -- 040_Gaara-4_Mausoleo-de-Arena
+	[41] = 99255996754993, -- 041_Gaara-5_Llamado-de-la-Arena
+	[42] = 86976549529405, -- 042_Gaara-6_Desierto-Sepulcral
+	[43] = 94863774601527, -- 043_Naruto-1_Rasengan
+	[44] = 112088104013751, -- 044_Naruto-2_Rasenshuriken
+	[45] = 124596747707671, -- 045_Naruto-3_Clones-de-Sombra
+	[46] = 114187212957629, -- 046_Naruto-4_Modo-Kurama
+	[47] = 104637215852046, -- 047_Naruto-5_Rasengan-Gigante
+	[48] = 120106638308450, -- 048_Naruto-6_Biju-Dama
+	[49] = 123850253540726, -- 049_Sasuke-1_Chidori
+	[50] = 135303875857924, -- 050_Sasuke-2_Kirin
+	[51] = 98915367816759, -- 051_Sasuke-3_Paso-del-Relampago
+	[52] = 131018836330971, -- 052_Sasuke-4_Mangekyo-Marca-de-Ejecucion
+	[53] = 124612809124188, -- 053_Sasuke-5_Katon-Gokakyu
+	[54] = 74096333941642, -- 054_Sasuke-6_Chidori-Nagashi
+	[55] = 124645860821289, -- 055_Itachi-1_Bola-de-Fuego
+	[56] = 135917131324724, -- 056_Itachi-2_Amaterasu
+	[57] = 139172487316972, -- 057_Itachi-3_Tsukuyomi
+	[58] = 98311251944890, -- 058_Itachi-4_Susanoo
+	[59] = 121870494414272, -- 059_Itachi-5_Amaterasu
+	[60] = 99638997026059, -- 060_Itachi-6_Totsuka-no-Tsurugi
+	[61] = 113677496718474, -- 061_Kakashi-1_Cadena-de-Rayos
+	[62] = 72697922894016, -- 062_Kakashi-2_Kamui
+	[63] = 86352221902055, -- 063_Kakashi-3_Jutsu-de-los-Ninken
+	[64] = 138450535674650, -- 064_Kakashi-4_Vortice-de-Kamui
+	[65] = 140513748310516, -- 065_Kakashi-5_Raikiri
+	[66] = 85843908500957, -- 066_Kakashi-6_Sharingan-Copiado
+	[67] = 71646410645117, -- 067_Sakura-1_Palma-Mistica
+	[68] = 86219594974096, -- 068_Sakura-2_Sello-Byakugo
+	[69] = 123544869638210, -- 069_Sakura-3_Bisturi-de-Chakra
+	[70] = 137771014039237, -- 070_Sakura-4_Katsuyu-Cura-Divisoria
+	[71] = 109718478412380, -- 071_Sakura-5_Golpe-de-Tsunade
+	[72] = 98006141108278, -- 072_Sakura-6_Impacto-Divisor
+	[73] = 86780033469354, -- 073_Jinbe-1_Bloqueo-Gyojin
+	[74] = 94256472464745, -- 074_Jinbe-2_Vortice-Marino
+	[75] = 92983023451418, -- 075_Jinbe-3_Pared-de-Agua
+	[76] = 80749898339511, -- 076_Jinbe-4_Juramento-de-Jinbe
+	[77] = 137476535325201, -- 077_Jinbe-5_Desafio-del-Gyojin
+	[78] = 140150459467149, -- 078_Jinbe-6_Ola-de-Marea
+	[79] = 123418362121524, -- 079_Luffy-1_Gomu-Gomu-Pistol
+	[80] = 106258944259807, -- 080_Luffy-2_Red-Hawk
+	[81] = 110652971755258, -- 081_Luffy-3_Gomu-Gomu-Rocket
+	[82] = 93689759760109, -- 082_Luffy-4_Gear-Cuarto
+	[83] = 124837836370642, -- 083_Luffy-5_Gomu-Gomu-Gatling
+	[84] = 110758404585638, -- 084_Luffy-6_Gigant-Bazooka
+	[85] = 138647253990746, -- 085_Zoro-1_Oni-Giri
+	[86] = 96927813507328, -- 086_Zoro-2_Sanzen-Sekai
+	[87] = 76773020813294, -- 087_Zoro-3_Shishi-Sonson
+	[88] = 117775074998472, -- 088_Zoro-4_Ashura-Rengoku-Oni-Giri
+	[89] = 132285154439125, -- 089_Zoro-5_Tatsu-Maki
+	[90] = 131047754661319, -- 090_Zoro-6_Santoryu-Ogi
+	[91] = 100366501105911, -- 091_Usopp-1_Firebird-Star
+	[92] = 80546539282703, -- 092_Usopp-2_Dokuroboshi
+	[93] = 104872420762094, -- 093_Usopp-3_Kemuri-Boshi
+	[94] = 105688962161363, -- 094_Usopp-4_Pop-Green-Rafflesia
+	[95] = 127314204789718, -- 095_Usopp-5_Tabasco-Star
+	[96] = 132711312977347, -- 096_Usopp-6_Kaen-Boshi
+	[97] = 115331408742649, -- 097_Sanji-1_Flambage-Shot
+	[98] = 94028888828902, -- 098_Sanji-2_Hell-Memories
+	[99] = 123352640974170, -- 099_Sanji-3_Diable-Jambe
+	[100] = 95046139545469, -- 100_Sanji-4_Ifrit-Jambe
+	[101] = 126656162102475, -- 101_Sanji-5_Collier-Strike
+	[102] = 76744533561326, -- 102_Sanji-6_Venaison-Shot
+	[103] = 121428051642889, -- 103_Chopper-1_Botica-Milagrosa
+	[104] = 107889519684870, -- 104_Chopper-2_Monster-Point
+	[105] = 127769038139649, -- 105_Chopper-3_Guard-Point
+	[106] = 79172094426574, -- 106_Chopper-4_Rumble-Ball-Medicina-Mayor
+	[107] = 138408506904241, -- 107_Chopper-5_Heavy-Point
+	[108] = 110832543991182, -- 108_Chopper-6_Kokutei-Roseo
+	[109] = 92572935322617, -- 109_Chad-1_Brazo-del-Gigante
+	[110] = 76895431582646, -- 110_Chad-2_Brazo-del-Diablo
+	[111] = 103987259489419, -- 111_Chad-3_Armadura-de-Reiatsu
+	[112] = 72689472547033, -- 112_Chad-4_Brazo-del-Gigante-Defensa-Total
+	[113] = 132286487190141, -- 113_Chad-5_Muralla-de-Reiatsu
+	[114] = 85430833443825, -- 114_Chad-6_La-Muerte
+	[115] = 108808963553834, -- 115_Ichigo-1_Getsuga-Tensho
+	[116] = 83638741864492, -- 116_Ichigo-2_Getsuga-Jujisho
+	[117] = 93881546985360, -- 117_Ichigo-3_Shunpo
+	[118] = 102613503865862, -- 118_Ichigo-4_Bankai-Tensa-Zangetsu
+	[119] = 115476057093516, -- 119_Ichigo-5_Corte-Veloz-de-Zangetsu
+	[120] = 84691009026125, -- 120_Ichigo-6_Mugetsu
+	[121] = 115994935634397, -- 121_Yoruichi-1_Shunko-Golpe
+	[122] = 73268991561000, -- 122_Yoruichi-2_Shunko-Torbellino
+	[123] = 75080543569865, -- 123_Yoruichi-3_Shunko-Paso-del-Rayo
+	[124] = 134645375968610, -- 124_Yoruichi-4_Shunko-Shunko-Absoluto
+	[125] = 85728552779746, -- 125_Yoruichi-5_Shunko-Cadena-de-Patadas
+	[126] = 130503546497551, -- 126_Yoruichi-6_Shunko-Segunda-Etapa
+	[127] = 129801685784585, -- 127_Uryu-1_Ginrei-Kojaku
+	[128] = 104734005894020, -- 128_Uryu-2_Licht-Regen
+	[129] = 106630987189467, -- 129_Uryu-3_Hirenkyaku
+	[130] = 125721249362463, -- 130_Uryu-4_Sprenger
+	[131] = 99052816508473, -- 131_Uryu-5_Seele-Schneider
+	[132] = 82036999492706, -- 132_Uryu-6_Quincy-Vollstandig
+	[133] = 119189234807449, -- 133_Hitsugaya-1_Hyorinmaru
+	[134] = 93216594468442, -- 134_Hitsugaya-2_Guncho-Tsurara
+	[135] = 116350635420752, -- 135_Hitsugaya-3_Sokatsui-de-Hielo
+	[136] = 127543896231064, -- 136_Hitsugaya-4_Daiguren-Hyorinmaru
+	[137] = 131206525749489, -- 137_Hitsugaya-5_Hyoryu-Senbi
+	[138] = 94673970149178, -- 138_Hitsugaya-6_Tenso-Jurin
+	[139] = 75136995553219, -- 139_Orihime-1_Hinagiku-y-Baigon
+	[140] = 123281479548449, -- 140_Orihime-2_Shun-Shun-Rikka
+	[141] = 134908421549106, -- 141_Orihime-3_Santen-Kesshun
+	[142] = 76146253300593, -- 142_Orihime-4_Soten-Kisshun
+	[143] = 76731721321200, -- 143_Orihime-5_Tsubaki
+	[144] = 94781692651340, -- 144_Orihime-6_Koten-Zanshun
+	[145] = 119079900678589, -- 145_General-7_Primeros-Auxilios
+} :: { [number]: number }
 
 AbilityIcons.Index = {
 	["Piccolo/1"] = 1,
@@ -162,25 +304,18 @@ AbilityIcons.Index = {
 	["General/7"] = 145,
 } :: { [string]: number }
 
--- Devuelve un ImageLabel con el icono (recortado de su lámina) o nil si todavía no hay ID cargado
+-- Devuelve un ImageLabel con el icono o nil si todavía no hay ID cargado
 function AbilityIcons.Make(parent: Instance, key: string): ImageLabel?
 	local n = AbilityIcons.Index[key]
-	if not n then
-		return nil
-	end
-	local sheet = (n - 1) // PER_SHEET + 1
-	local id = AbilityIcons.SheetIds[sheet]
+	local id = if n then AbilityIcons.Ids[n] else nil
 	if not id or id == 0 then
 		return nil
 	end
-	local pos = (n - 1) % PER_SHEET
 	local img = Instance.new("ImageLabel")
 	img.Name = "AbilityIcon"
 	img.BackgroundTransparency = 1
 	img.Size = UDim2.fromScale(1, 1)
 	img.Image = "rbxassetid://" .. tostring(id)
-	img.ImageRectSize = Vector2.new(ICON, ICON)
-	img.ImageRectOffset = Vector2.new((pos % COLS) * ICON, (pos // COLS) * ICON)
 	img.ScaleType = Enum.ScaleType.Fit
 	img.ZIndex = 2
 	img.Parent = parent
