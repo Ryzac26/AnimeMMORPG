@@ -356,7 +356,8 @@ end)
 for _, pl in ipairs(Players:GetPlayers()) do
 	task.spawn(loadProfile, pl)
 end
-Players.PlayerRemoving:Connect(function(pl)
+-- OJO: se limpia en Releasing (después de la foto final del guardado), no en PlayerRemoving, o el árbol se guardaría vacío
+PlayerData.Releasing:Connect(function(pl: Player)
 	profiles[pl] = nil
 	lastAction[pl] = nil
 	appliedAura[pl] = nil

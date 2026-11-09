@@ -50,6 +50,7 @@ require(Services:WaitForChild("MetinService")) -- piedras Metin del evento de la
 require(Services:WaitForChild("BossService")) -- jefe mundial (cada 6 h)
 require(Services:WaitForChild("AutoFarmService")) -- Auto-farm PvE (Semi / Metin / Jefe)
 require(Services:WaitForChild("CityStyler")) -- estilo anime de las 4 ciudades (usa CityAssets)
+require(Services:WaitForChild("CityLifeService")) -- vida en las ciudades: luchadores en el dojo, herreros con chispas, góndolas, charla VIP, laboratorio
 require(Services:WaitForChild("ArenaStyler")) -- Arena: campamentos, altares, santuarios y temas rotativos
 require(Services:WaitForChild("BiomeStyler")) -- biomas PvE de las 4 franjas de cada facción (suelo, muros, ríos, árboles, escenografía)
 require(Services:WaitForChild("PveZoneService")) -- campamentos, altares de ofrenda y desafío, cofres, mini jefes y recolección de las 16 franjas

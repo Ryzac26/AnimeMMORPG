@@ -149,7 +149,8 @@ end)
 for _, pl in ipairs(Players:GetPlayers()) do
 	task.spawn(loadProfile, pl)
 end
-Players.PlayerRemoving:Connect(function(pl)
+-- Releasing = después de la foto final del guardado (PlayerRemoving corría antes y se guardaba vacío)
+PlayerData.Releasing:Connect(function(pl: Player)
 	profiles[pl] = nil
 end)
 

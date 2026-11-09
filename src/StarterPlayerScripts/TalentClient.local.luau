@@ -18,6 +18,7 @@ local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 local Catalog: any = require(Modules:WaitForChild("TalentCatalog", 10))
+local TalentIcons = require(Modules:WaitForChild("TalentIcons", 10))
 
 local stateRemote = ClientNet.Get("TalentState")
 local actionRemote = ClientNet.Get("TalentAction")
@@ -299,9 +300,18 @@ local function build()
 		if canBuy then
 			table.insert(glowing, sk)
 		end
-		local ic = UITheme.Text(btn, n.Icon, if n.Key then 32 else 28, Color3.new(1, 1, 1), UDim2.fromOffset(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
-		ic.TextStrokeTransparency = 1
-		ic.TextTransparency = if ok or lit then 0 else 0.6
+		local art = TalentIcons.Make(btn, n.Id)
+		if art then
+			-- icono real: la casilla es el propio icono (se apaga si está bloqueado)
+			btn.BackgroundTransparency = 1
+			art.ImageTransparency = if ok or lit then 0 else 0.55
+			art.ImageColor3 = if ok or lit then Color3.new(1, 1, 1) else Color3.fromRGB(150, 150, 160)
+			cr.CornerRadius = UDim.new(0, 14)
+		else
+			local ic = UITheme.Text(btn, n.Icon, if n.Key then 32 else 28, Color3.new(1, 1, 1), UDim2.fromOffset(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
+			ic.TextStrokeTransparency = 1
+			ic.TextTransparency = if ok or lit then 0 else 0.6
+		end
 		-- rango
 		local rk = UITheme.Text(tree, if n.Key then (if rank > 0 then "ACTIVA" else "CLAVE") else string.format("%d/%d", rank, maxR), 11, if rank >= maxR then Color3.fromRGB(255, 214, 90) elseif lit then bcol else pal.Muted, UDim2.fromOffset(p.X - 40, p.Y + size / 2 + 2), UDim2.fromOffset(80, 14), Enum.TextXAlignment.Center)
 		rk.Font = Enum.Font.GothamBold
@@ -349,7 +359,17 @@ local function build()
 	else
 		local rank = ranks[sel.Id] or 0
 		local maxR = Catalog.MaxRankOf(sel)
-		local nm = UITheme.Text(det, sel.Icon .. "  " .. sel.Name, 17, bcol, UDim2.fromOffset(14, 12), UDim2.fromOffset(detailW - 28, 44), Enum.TextXAlignment.Left)
+		local detArt: Frame? = nil
+		if TalentIcons.Has(sel.Id) then
+			local holder = Instance.new("Frame")
+			holder.BackgroundTransparency = 1
+			holder.Position = UDim2.fromOffset(14, 8)
+			holder.Size = UDim2.fromOffset(48, 48)
+			holder.Parent = det
+			TalentIcons.Make(holder, sel.Id)
+			detArt = holder
+		end
+		local nm = UITheme.Text(det, if detArt then sel.Name else sel.Icon .. "  " .. sel.Name, 17, bcol, UDim2.fromOffset(if detArt then 70 else 14, 12), UDim2.fromOffset(detailW - (if detArt then 84 else 28), 44), Enum.TextXAlignment.Left)
 		nm.Font = Enum.Font.GothamBold
 		nm.TextWrapped = true
 		nm.TextYAlignment = Enum.TextYAlignment.Top
