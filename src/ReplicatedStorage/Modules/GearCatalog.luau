@@ -102,10 +102,18 @@ GearCatalog.WeaponNames = { Sword = "Espada", Dagger = "Daga", Bow = "Arco", Sta
 
 -- Arma por facción y rol (coincide con las animaciones de AttackAnimator)
 GearCatalog.WeaponStyle = {
-	Saiyan = { Tanque = "Fist", Guerrero = "Fist", Asesino = "Fist", Tirador = "Staff", Mago = "Staff", Curador = "Staff" },
-	Shinobi = { Tanque = "Fist", Guerrero = "Sword", Asesino = "Dagger", Tirador = "Dagger", Mago = "Staff", Curador = "Staff" },
-	Pirate = { Tanque = "Fist", Guerrero = "Sword", Asesino = "Dagger", Tirador = "Gun", Mago = "Staff", Curador = "Staff" },
-	Shinigami = { Tanque = "Fist", Guerrero = "Sword", Asesino = "Fist", Tirador = "Bow", Mago = "Staff", Curador = "Staff" },
+	Saiyan = { Tanque = "Axe", Guerrero = "Sword", Asesino = "Dagger", Tirador = "Staff", Mago = "Staff", Curador = "Staff" },
+	Shinobi = { Tanque = "Axe", Guerrero = "Sword", Asesino = "Dagger", Tirador = "Dagger", Mago = "Staff", Curador = "Staff" },
+	Pirate = { Tanque = "Axe", Guerrero = "Sword", Asesino = "Dagger", Tirador = "Bow", Mago = "Staff", Curador = "Staff" },
+	Shinigami = { Tanque = "Axe", Guerrero = "Sword", Asesino = "Dagger", Tirador = "Bow", Mago = "Staff", Curador = "Staff" },
+} :: { [string]: { [string]: string } }
+
+-- Reparto ANTERIOR (guanteletes y pistola, que no tienen modelo 3D): ya no cae como botín ni se puede equipar,
+-- pero sus objetos siguen existiendo en el catálogo para que los que ya los tienen en la mochila no los pierdan.
+local LEGACY_WEAPON_STYLE = {
+	Saiyan = { Tanque = "Fist", Guerrero = "Fist", Asesino = "Fist" },
+	Pirate = { Tanque = "Fist", Tirador = "Gun" },
+	Shinigami = { Tanque = "Fist", Asesino = "Fist" },
 } :: { [string]: { [string]: string } }
 
 -- ARMAS DE DOS MANOS: el Báculo (Mago/Curador) y el Arco. Con una equipada no se puede llevar ESCUDO (Escudo Torre, Escudo de Guerra...).
@@ -299,10 +307,12 @@ function GearCatalog.StylesForRole(role: string): { string }
 	local seen: { [string]: boolean } = {}
 	local out: { string } = {}
 	for _, faction in ipairs(GearCatalog.Factions) do
-		local style = GearCatalog.WeaponStyle[faction][role]
-		if style and not seen[style] then
-			seen[style] = true
-			table.insert(out, style)
+		for _, map in ipairs({ GearCatalog.WeaponStyle, LEGACY_WEAPON_STYLE }) do
+			local style = if map[faction] then map[faction][role] else nil
+			if style and not seen[style] then
+				seen[style] = true
+				table.insert(out, style)
+			end
 		end
 	end
 	table.sort(out)
