@@ -6,7 +6,7 @@
       - Report(player, tipo, cantidad): otros sistemas avisan aquí (Kill/Metin/Boss se leen solos de RewardService; Donate: GuildService;
         Enhance: HerreroService; Online: este servicio).
       - Marcos de perfil: se desbloquean por misiones completadas; el elegido se publica en el atributo "ProfileFrame" (lo dibuja PortraitKit).
-      - Remotes: MissionOpen (servidor -> cliente) · MissionState · MissionAction ("State" | "Claim", id | "Frame", idMarco | "").
+      - Remotes: MissionOpen (servidor -> cliente) · MissionState · MissionAction ("State" | "Claim", id | "Accept", id o "ALL" | "Frame", idMarco | "").
 ]]
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -28,7 +28,7 @@ local StateRemote = Net.Get("MissionState")
 local ActionRemote = Net.Get("MissionAction")
 local NotifyRemote = Net.Get("Notify")
 
-type Prog = { P: number, C: boolean } -- progreso, reclamada
+type Prog = { P: number, C: boolean, A: boolean } -- progreso, reclamada, aceptada (solo cuenta si la aceptaste con el Mayordomo)
 type Data = { Day: number, Week: number, D: { [string]: Prog }, W: { [string]: Prog }, Total: number, Frame: string? }
 
 local MissionService = {}
@@ -64,12 +64,12 @@ local function roll(d: Data)
 	end
 	for _, def in ipairs(MissionCatalog.Pick(MissionCatalog.DailyPool, MissionCatalog.DAILY_COUNT, di)) do
 		if not d.D[def.Id] then
-			d.D[def.Id] = { P = 0, C = false }
+			d.D[def.Id] = { P = 0, C = false, A = false }
 		end
 	end
 	for _, def in ipairs(MissionCatalog.Pick(MissionCatalog.WeeklyPool, MissionCatalog.WEEKLY_COUNT, wi)) do
 		if not d.W[def.Id] then
-			d.W[def.Id] = { P = 0, C = false }
+			d.W[def.Id] = { P = 0, C = false, A = false }
 		end
 	end
 end
@@ -92,7 +92,7 @@ local function push(player: Player)
 		local out: { any } = {}
 		for _, def in ipairs(picks) do
 			local p = src[def.Id]
-			table.insert(out, { Id = def.Id, Text = def.Text, Goal = def.Goal, P = if p then math.min(p.P, def.Goal) else 0, Claimed = p ~= nil and p.C, Gold = MissionCatalog.Gold(def, lv) })
+			table.insert(out, { Id = def.Id, Text = def.Text, Goal = def.Goal, P = if p then math.min(p.P, def.Goal) else 0, Claimed = p ~= nil and p.C, Accepted = p ~= nil and p.A, Gold = MissionCatalog.Gold(def, lv) })
 		end
 		return out
 	end
@@ -117,7 +117,7 @@ function MissionService.Report(player: Player, kind: string, amount: number?)
 	local function add(src: { [string]: Prog })
 		for id, p in pairs(src) do
 			local def = MissionCatalog.ById[id]
-			if def and def.Type == kind and not p.C and p.P < def.Goal then
+			if def and def.Type == kind and p.A and not p.C and p.P < def.Goal then
 				p.P = math.min(def.Goal, p.P + n)
 				dirty[player] = true
 			end
@@ -159,6 +159,31 @@ local function claim(player: Player, id: any)
 	PlayerData.Save(player)
 end
 
+-- aceptar una misión (o todas las del periodo): desde ese momento cuenta el progreso
+local function accept(player: Player, id: any)
+	local d = data[player]
+	if not d then
+		return
+	end
+	roll(d)
+	if id == "ALL" then
+		for _, src in ipairs({ d.D, d.W }) do
+			for _, p in pairs(src) do
+				if not p.C then
+					p.A = true
+				end
+			end
+		end
+	else
+		local p = if typeof(id) == "string" then (d.D[id] or d.W[id]) else nil
+		if p and not p.C then
+			p.A = true
+		end
+	end
+	dirty[player] = true
+	PlayerData.Save(player)
+end
+
 local function setFrame(player: Player, id: any)
 	local d = data[player]
 	if not d then
@@ -185,6 +210,8 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any)
 	lastAction[player] = now
 	if action == "Claim" then
 		claim(player, a)
+	elseif action == "Accept" then
+		accept(player, a)
 	elseif action == "Frame" then
 		setFrame(player, a)
 	end
@@ -348,7 +375,7 @@ local function cleanProg(raw: any): { [string]: Prog }
 	if typeof(raw) == "table" then
 		for id, p in pairs(raw) do
 			if typeof(id) == "string" and MissionCatalog.ById[id] and typeof(p) == "table" and typeof(p.P) == "number" then
-				out[id] = { P = math.max(0, p.P), C = p.C == true }
+				out[id] = { P = math.max(0, p.P), C = p.C == true, A = p.A == true or p.P > 0 or p.C == true }
 			end
 		end
 	end

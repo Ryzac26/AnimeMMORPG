@@ -29,6 +29,7 @@ gui.Parent = player:WaitForChild("PlayerGui", 10)
 local win: Frame? = nil
 local state: any = nil
 local tab = "Misiones"
+local viewLog = false -- true = "Diario" abierto desde el botón Misiones del menú (solo las aceptadas)
 
 local function text(parent: Instance, t: string, size: number, color: Color3, pos: UDim2, dim: UDim2, align: Enum.TextXAlignment?): TextLabel
 	local l = UITheme.Text(parent, t, size, color, pos, dim, align)
@@ -56,13 +57,17 @@ local function build()
 	if win then
 		win:Destroy()
 	end
-	local w = NpcKit.Window(gui, theme, UDim2.fromOffset(780, 620), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "Pabellón Imperial",
-		"Misiones para todos · el Pabellón privado es el pase VIP", "📜", function()
+	local w = NpcKit.Window(gui, theme, UDim2.fromOffset(780, 620), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5),
+		if viewLog then "Diario de misiones" else "Pabellón Imperial",
+		if viewLog then "Las misiones que aceptaste · se aceptan con el Mayordomo Imperial del Pabellón VIP" else "Acepta las misiones que quieras · el Pabellón privado es el pase VIP", "📜", function()
 			gui.Enabled = false
 		end)
 	win = w
 	WindowDrag.Attach(w, "Missions", 40, 50)
-	for i, t in ipairs({ { "Misiones", "📜 Misiones" }, { "Marcos", "🖼 Marcos" }, { "Tienda", "🛍 Tienda VIP del Mes" } }) do
+	if viewLog then
+		tab = "Misiones"
+	end
+	for i, t in ipairs(if viewLog then {} else { { "Misiones", "📜 Misiones" }, { "Marcos", "🖼 Marcos" }, { "Tienda", "🛍 Tienda VIP del Mes" } }) do
 		NpcKit.Tab(w, theme, t[2], UDim2.fromOffset(if i == 3 then 200 else 150, 28), UDim2.fromOffset(14 + (i - 1) * 156, 72), tab == t[1], function()
 			if t[1] == "Tienda" then
 				gui.Enabled = false
@@ -73,18 +78,47 @@ local function build()
 			build()
 		end)
 	end
-	local top = 110
+	local top = if viewLog then 80 else 110
 	if not state then
 		text(w, "Cargando…", 14, pal.FText, UDim2.fromOffset(18, top), UDim2.fromOffset(300, 20))
 		return
 	end
 	if tab == "Misiones" then
 		local y = top
+		local shown = 0
+		if not viewLog then
+			local pending = false
+			for _, src in ipairs({ state.Daily, state.Weekly }) do
+				for _, m in ipairs(src) do
+					if not m.Accepted and not m.Claimed then
+						pending = true
+					end
+				end
+			end
+			if pending then
+				NpcKit.Button(w, theme, "Aceptar todas", UDim2.fromOffset(150, 28), UDim2.fromOffset(616, 72), "buy", function()
+					actionRemote:FireServer("Accept", "ALL")
+				end)
+			end
+		end
 		local function section(title: string, reset: string, list: { any })
+			local any = false
+			for _, m in ipairs(list) do
+				if not viewLog or m.Accepted then
+					any = true
+				end
+			end
+			if not any then
+				return
+			end
 			text(w, title, 14, pal.FText, UDim2.fromOffset(18, y), UDim2.fromOffset(300, 18))
 			text(w, reset, 12, pal.FMuted, UDim2.fromOffset(420, y), UDim2.fromOffset(340, 18), Enum.TextXAlignment.Right)
 			y += 24
 			for _, m in ipairs(list) do
+				if viewLog and not m.Accepted then
+					continue
+				end
+				shown += 1
 				local row = NpcKit.Panel(w, theme, UDim2.fromOffset(748, 62), UDim2.fromOffset(14, y), "card")
 				text(row, tostring(m.Text), 14, pal.Text, UDim2.fromOffset(12, 6), UDim2.fromOffset(520, 20))
 				text(row, string.format("%s / %s", thousands(m.P), thousands(m.Goal)), 12, pal.Muted, UDim2.fromOffset(12, 36), UDim2.fromOffset(160, 18))
@@ -103,8 +137,13 @@ local function build()
 				Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 4)
 				text(row, "+" .. thousands(m.Gold) .. " oro", 13, Color3.fromRGB(240, 190, 70), UDim2.fromOffset(440, 34), UDim2.fromOffset(150, 20))
 				local done = m.P >= m.Goal
-				NpcKit.Button(row, theme, if m.Claimed then "✔ Reclamada" elseif done then "Reclamar" else "En curso", UDim2.fromOffset(130, 34), UDim2.fromOffset(606, 14), if done and not m.Claimed then "buy" else "neutral", function()
-					if done and not m.Claimed then
+				local label = if m.Claimed then "✔ Reclamada" elseif not m.Accepted then "Aceptar" elseif done then "Reclamar" else "En curso"
+				NpcKit.Button(row, theme, label, UDim2.fromOffset(130, 34), UDim2.fromOffset(606, 14), if (not m.Accepted and not m.Claimed) or (done and not m.Claimed) then "buy" else "neutral", function()
+					if m.Claimed then
+						return
+					elseif not m.Accepted then
+						actionRemote:FireServer("Accept", m.Id)
+					elseif done then
 						actionRemote:FireServer("Claim", m.Id)
 					end
 				end)
@@ -114,6 +153,10 @@ local function build()
 		end
 		section("MISIONES DE HOY", "Se renuevan en " .. clock(state.DailyReset), state.Daily)
 		section("MISIONES DE LA SEMANA", "Se renuevan en " .. clock(state.WeeklyReset), state.Weekly)
+		if viewLog and shown == 0 then
+			local e = text(w, "No tienes misiones activas.\nHabla con el Mayordomo Imperial del Pabellón VIP de tu ciudad y acepta las que quieras: aparecerán aquí con su progreso.", 15, pal.FMuted, UDim2.fromOffset(40, 200), UDim2.fromOffset(700, 100), Enum.TextXAlignment.Center)
+			e.TextWrapped = true
+		end
 		text(w, string.format("Misiones completadas: %d · los marcos se desbloquean con ellas", state.Total), 12, pal.FMuted, UDim2.fromOffset(18, 586), UDim2.fromOffset(740, 18))
 	else
 		text(w, string.format("Misiones completadas: %d. Los marcos rodean tu retrato. Son iguales para todos los jugadores.", state.Total), 13, pal.FMuted, UDim2.fromOffset(18, top), UDim2.fromOffset(740, 18))
@@ -155,8 +198,22 @@ local function build()
 	end
 end
 
+MenuBus.Event:Connect(function(name: string)
+	if name == "Quests" then
+		if gui.Enabled and viewLog then
+			gui.Enabled = false
+			return
+		end
+		viewLog = true
+		actionRemote:FireServer("State")
+		build()
+		gui.Enabled = true
+	end
+end)
+
 if openRemote then
 	openRemote.OnClientEvent:Connect(function()
+		viewLog = false
 		build()
 		gui.Enabled = true
 	end)

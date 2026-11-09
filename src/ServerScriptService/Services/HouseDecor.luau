@@ -81,12 +81,19 @@ function HouseDecor.Build(m: Model, o: Vector3, W: number, H: number, GZ: number
 
 	-- SALONES: sofás con mesita a cada lado de la alfombra
 	for _, side in ipairs({ -1, 1 }) do
-		-- VENTANALES con luz de atardecer
+		-- VENTANALES CERRADOS (postigos de madera oscura con marco dorado): no dejan pasar luz brillante de noche
 		for _, dz in ipairs({ -52, -6 }) do
-			local win = part(deco, "Ventana", Vector3.new(0.6, 12, 8), at(side * (W / 2 - 0.8), 16, dz), Color3.fromRGB(255, 214, 150), Enum.Material.Neon, false)
-			win.Transparency = 0.35
+			local wx = side * (W / 2 - 0.8)
+			part(deco, "Ventana", Vector3.new(0.6, 12, 8), at(wx, 16, dz), Color3.fromRGB(58, 38, 34), Enum.Material.Wood, false)
 			part(deco, "VentanaMarco", Vector3.new(0.9, 13, 1), at(side * (W / 2 - 0.9), 16, dz - 4), GOLD, Enum.Material.Metal, false)
 			part(deco, "VentanaMarco", Vector3.new(0.9, 13, 1), at(side * (W / 2 - 0.9), 16, dz + 4), GOLD, Enum.Material.Metal, false)
+			part(deco, "VentanaMarco", Vector3.new(0.9, 1, 9), at(side * (W / 2 - 0.9), 22.2, dz), GOLD, Enum.Material.Metal, false)
+			part(deco, "VentanaMarco", Vector3.new(0.9, 1, 9), at(side * (W / 2 - 0.9), 9.8, dz), GOLD, Enum.Material.Metal, false)
+			-- listones de los postigos
+			part(deco, "VentanaListon", Vector3.new(0.8, 12, 0.4), at(side * (W / 2 - 0.95), 16, dz), GOLD:Lerp(Color3.new(0, 0, 0), 0.3), Enum.Material.Metal, false)
+			for _, ly in ipairs({ 12, 16, 20 }) do
+				part(deco, "VentanaListon", Vector3.new(0.8, 0.4, 8), at(side * (W / 2 - 0.95), ly, dz), GOLD:Lerp(Color3.new(0, 0, 0), 0.3), Enum.Material.Metal, false)
+			end
 		end
 	end
 

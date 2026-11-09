@@ -297,7 +297,7 @@ local function drawerButton(parent: Instance, text: string, enabled: boolean, on
 	return b
 end
 
--- sección 1: toda la barra de la PC (Perfil, Mochila, Habilidades, Misiones, Mapa, Facción, Ajustes) + Grupo
+-- sección 1: toda la barra de la PC (Perfil, Mochila, Habilidades, Misiones, Facción, Ajustes) + Grupo
 local grid = Instance.new("Frame")
 grid.LayoutOrder = 2
 grid.BackgroundTransparency = 1
@@ -312,8 +312,8 @@ gl.SortOrder = Enum.SortOrder.LayoutOrder
 gl.Parent = grid
 -- { texto, evento de MenuBus ("" = todavía no existe) }  (misma lista que el menú de HudClient; súmale las nuevas aquí)
 local ITEMS: { { string } } = {
-	{ "Perfil", "Character" }, { "Mochila", "Inventory" }, { "Grupo", "Party" }, { "Habilidades", "" },
-	{ "Misiones", "" }, { "Mapa", "" }, { "Facción", "Guild" }, { "Mascota", "Pets" }, { "Monturas", "Mounts" }, { "Ajustes", "Settings" },
+	{ "Perfil", "Character" }, { "Mochila", "Inventory" }, { "Grupo", "Party" }, { "Habilidades", "Skills" },
+	{ "Misiones", "Quests" }, { "Facción", "Guild" }, { "Mascota", "Pets" }, { "Monturas", "Mounts" }, { "Ajustes", "Settings" },
 }
 for _, it in ipairs(ITEMS) do
 	local label, ev = it[1], it[2]

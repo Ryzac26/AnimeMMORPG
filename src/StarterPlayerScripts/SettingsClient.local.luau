@@ -58,12 +58,12 @@ local function build()
 	table.clear(refreshers)
 	local theme = UITheme.For(player:GetAttribute("Faction"))
 	local pal = NpcKit.Palette(theme)
-	local W = 420
+	local W = 460
 	local height = NpcKit.TOP + 14
 	for _, sec in ipairs(SETTINGS) do
 		height += 28 + #sec.Items * 112
 	end
-	height += 28 + 74 + 28 + 74
+	height += 28 + 74 + 28 + 134 + 14
 	local w = NpcKit.Window(gui, theme, UDim2.fromOffset(W, height), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "Ajustes", "Se guardan en tu perfil", "⚙", function()
 		gui.Enabled = false
 	end)
@@ -121,37 +121,28 @@ local function build()
 	local card = NpcKit.Panel(w, theme, UDim2.fromOffset(W - 28, 60), UDim2.fromOffset(14, y), "card")
 	local hint = UITheme.Text(card, "Cambia las teclas de Perfil, Mochila, poderes y más.", 11, pal.Muted, UDim2.fromOffset(12, 6), UDim2.new(1, -24, 0, 16))
 	hint.TextStrokeTransparency = 1
-	NpcKit.Button(card, theme, "⌨  Abrir teclado de atajos", UDim2.fromOffset(W - 52, 28), UDim2.fromOffset(12, 26), "buy", function()
+	NpcKit.Button(card, theme, "Abrir teclado de atajos", UDim2.fromOffset(W - 52, 28), UDim2.fromOffset(12, 26), "buy", function()
 		openKeyboard()
 	end)
 	y += 74
-	-- EXTRAS: títulos y probabilidades
+	-- ACCESOS: 2 x 2, botones grandes y legibles
 	local head2 = UITheme.Text(w, "PERFIL Y TRANSPARENCIA", 13, pal.FText, UDim2.fromOffset(18, y), UDim2.fromOffset(W - 36, 18))
 	head2.TextStrokeTransparency = 1
 	y += 28
-	local card2 = NpcKit.Panel(w, theme, UDim2.fromOffset(W - 28, 60), UDim2.fromOffset(14, y), "card")
-	local hint2 = UITheme.Text(card2, "Tus títulos, hitos de nivel con auras y las probabilidades reales.", 11, pal.Muted, UDim2.fromOffset(12, 6), UDim2.new(1, -24, 0, 16))
+	local card2 = NpcKit.Panel(w, theme, UDim2.fromOffset(W - 28, 134), UDim2.fromOffset(14, y), "card")
+	local hint2 = UITheme.Text(card2, "Títulos, árbol de talentos, hitos de nivel con auras y probabilidades reales.", 11, pal.Muted, UDim2.fromOffset(12, 6), UDim2.new(1, -24, 0, 16))
 	hint2.TextStrokeTransparency = 1
-	local q = math.floor((W - 52 - 24) / 4)
-	local function px(i: number): UDim2
-		return UDim2.fromOffset(12 + (i - 1) * (q + 8), 26)
+	local bw2 = math.floor((W - 28 - 24 - 8) / 2)
+	local links = {
+		{ "Títulos", "Titles" }, { "Talentos", "Talents" }, { "Hitos y auras", "Milestones" }, { "Probabilidades", "Probs" },
+	}
+	for i, l in ipairs(links) do
+		local col, row = (i - 1) % 2, (i - 1) // 2
+		NpcKit.Button(card2, theme, l[1], UDim2.fromOffset(bw2, 40), UDim2.fromOffset(12 + col * (bw2 + 8), 28 + row * 48), "action", function()
+			gui.Enabled = false
+			MenuBus.Fire(l[2])
+		end)
 	end
-	NpcKit.Button(card2, theme, "🏷  Títulos", UDim2.fromOffset(q, 28), px(1), "buy", function()
-		gui.Enabled = false
-		MenuBus.Fire("Titles")
-	end)
-	NpcKit.Button(card2, theme, "🌳  Talentos", UDim2.fromOffset(q, 28), px(2), "buy", function()
-		gui.Enabled = false
-		MenuBus.Fire("Talents")
-	end)
-	NpcKit.Button(card2, theme, "🎁  Hitos y auras", UDim2.fromOffset(q, 28), px(3), "buy", function()
-		gui.Enabled = false
-		MenuBus.Fire("Milestones")
-	end)
-	NpcKit.Button(card2, theme, "📊  Probabilidades", UDim2.fromOffset(q, 28), px(4), "buy", function()
-		gui.Enabled = false
-		MenuBus.Fire("Probs")
-	end)
 end
 
 ---------------------------------------------------------------------

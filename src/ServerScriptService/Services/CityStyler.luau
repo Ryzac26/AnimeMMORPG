@@ -96,8 +96,8 @@ local THEMES: { [string]: Theme } = {
 	},
 	Shinigami = {
 		Faction = "Shinigami", Emblem = "死",
-		Floor = C(207, 210, 216), FloorMat = Enum.Material.Slate,
-		Plaza = C(225, 227, 232), PlazaMat = Enum.Material.Marble,
+		Floor = C(132, 140, 160), FloorMat = Enum.Material.Slate, -- más oscuro para que se vean las auras
+		Plaza = C(150, 156, 176), PlazaMat = Enum.Material.Marble,
 		Road = C(120, 128, 150), RoadMat = Enum.Material.Slate,
 		Wall = C(241, 241, 243), WallMat = Enum.Material.Concrete,
 		Tower = C(241, 241, 243), TowerMat = Enum.Material.Concrete,

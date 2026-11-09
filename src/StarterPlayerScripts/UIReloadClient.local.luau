@@ -8,7 +8,7 @@
 local Players = game:GetService("Players")
 
 local player = Players.LocalPlayer
-local RELOAD = { "HudClient", "AutoFarmClient", "BoostClient", "PartyClient", "InventoryClient", "CharacterClient", "ShrineClient", "MobileClient", "SmithClient", "GearAlertClient", "ShopClient", "ClassChangeClient", "TiendaClient", "AlquimiaClient", "BossBarClient", "DeathScreenClient", "DamageRankClient", "SettingsClient", "PetClient", "MountClient", "MasteryClient", "GuildClient", "HouseClient", "MissionClient", "ProbabilityClient", "TitleClient", "MilestoneClient", "TalentClient", "VipShopClient", "ReportClient" }
+local RELOAD = { "HudClient", "AutoFarmClient", "BoostClient", "PartyClient", "InventoryClient", "CharacterClient", "ShrineClient", "MobileClient", "SmithClient", "GearAlertClient", "ShopClient", "ClassChangeClient", "TiendaClient", "AlquimiaClient", "BossBarClient", "DeathScreenClient", "DamageRankClient", "SettingsClient", "PetClient", "MountClient", "MasteryClient", "GuildClient", "HouseClient", "MissionClient", "SkillsClient", "ProbabilityClient", "TitleClient", "MilestoneClient", "TalentClient", "VipShopClient", "ReportClient" }
 local KEEP_GUIS = { ClassSelect = true, ClassSelectGui = true, PatchNotesGui = true, PatchNotes = true, LoadingScreen = true, TouchGui = true }
 
 local token = 0

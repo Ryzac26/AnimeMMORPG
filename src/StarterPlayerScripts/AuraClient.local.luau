@@ -37,11 +37,12 @@ type Upd = (number, number, CFrame) -> ()
 type Live = {
 	Folder: Folder, Root: BasePart, Char: Model, AuraId: string, Upd: { Upd }, Emitters: { ParticleEmitter },
 	Extra: { Instance }, Hl: Highlight?, HlBase: number, Light: PointLight?, LightBase: number, Flicker: number,
-	Visible: boolean, Bloom: BloomEffect?, Dist: number,
+	Visible: boolean, Bloom: BloomEffect?, Dist: number, Floor: number, NextRay: number,
 }
 local live: { [Player]: Live } = {}
 local rng = Random.new()
 local camLook = Vector3.new(0, 0, -1)
+local floorNow = FLOOR -- piso real bajo el jugador que se está dibujando (raycast), respecto al centro del HumanoidRootPart
 
 -- ───────── colores ─────────
 local function rainbowSeq(): ColorSequence
@@ -182,7 +183,7 @@ local function layerGround(c: Ctx, s: any, back: boolean)
 		if back then
 			p.CFrame = base * CFrame.new(0, y, 1.1) * rot * CFrame.Angles(0, 0, t * spin)
 		else
-			p.CFrame = base * CFrame.new(0, FLOOR + y, 0) * rot * CFrame.Angles(0, t * spin, 0)
+			p.CFrame = base * CFrame.new(0, floorNow + y + 0.08 + idx * 0.02, 0) * rot * CFrame.Angles(0, t * spin, 0)
 		end
 		for _, d in ipairs(p:GetChildren()) do
 			if d:IsA("Decal") then
@@ -223,7 +224,7 @@ local function host(c: Ctx, kind: string, hosts: { [string]: Part }): Part
 	h = fxPart(c.L.Folder, size)
 	hosts[kind] = h
 	table.insert(c.L.Upd, function(_t, _dt, base)
-		local off = if kind == "feet" then FLOOR + 0.2 elseif kind == "head" then 2.6 else 0
+		local off = if kind == "feet" then floorNow + 0.2 elseif kind == "head" then 2.6 else 0
 		(h :: Part).CFrame = base * CFrame.new(0, off, 0)
 	end)
 	return h :: Part
@@ -488,11 +489,22 @@ local function build(pl: Player, root: BasePart, def: any): Live
 	folder.Parent = FX
 	local l: Live = {
 		Folder = folder, Root = root, Char = char, AuraId = def.Id, Upd = {}, Emitters = {}, Extra = {},
-		Hl = nil, HlBase = 0.8, Light = nil, LightBase = 1, Flicker = 0, Visible = true, Bloom = nil, Dist = 0,
+		Hl = nil, HlBase = 0.8, Light = nil, LightBase = 1, Flicker = 0, Visible = true, Bloom = nil, Dist = 0, Floor = FLOOR, NextRay = 0,
 	}
 	local c: Ctx = { L = l, A = def.A, B = def.B, Idx = 0 }
 	local hosts: { [string]: Part } = {}
 	local spec = Specs[def.Style] or Specs[def.Id] or {}
+	-- sombra suave bajo los círculos del piso: da contraste en suelos claros (nieve, mármol, arena)
+	local maxGround = 0
+	for _, s in ipairs(spec) do
+		if s.T == "ground" and (s.Y or 0.1) < 1 then
+			maxGround = math.max(maxGround, s.Size or 0)
+		end
+	end
+	if maxGround > 0 then
+		c.Idx = -1
+		pcall(layerGround, c, { Tex = "Brillo-suave", C = Color3.new(0, 0, 0), Size = maxGround * 1.05, Alpha = 0.5, Y = -0.04 }, false)
+	end
 	for i, s in ipairs(spec) do
 		c.Idx = i
 		local ok, err = pcall(function()
@@ -608,6 +620,9 @@ Players.PlayerRemoving:Connect(function(pl)
 	clear(pl)
 end)
 
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+rayParams.IgnoreWater = true
 local nextRank = 0.0
 RunService.RenderStepped:Connect(function(dt)
 	local cam = Workspace.CurrentCamera
@@ -642,6 +657,15 @@ RunService.RenderStepped:Connect(function(dt)
 		if not l.Visible then
 			continue
 		end
+		if t >= l.NextRay then
+			l.NextRay = t + 0.15
+			rayParams.FilterDescendantsInstances = { l.Char, FX }
+			local hit = Workspace:Raycast(l.Root.Position, Vector3.new(0, -14, 0), rayParams)
+			if hit then
+				l.Floor = hit.Position.Y - l.Root.Position.Y
+			end
+		end
+		floorNow = l.Floor
 		local look = l.Root.CFrame.LookVector
 		local base = CFrame.new(l.Root.Position) * CFrame.Angles(0, math.atan2(-look.X, -look.Z), 0)
 		for _, u in ipairs(l.Upd) do
