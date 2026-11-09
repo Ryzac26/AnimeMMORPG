@@ -1,7 +1,7 @@
 --!nonstrict
 --[[
     WeaponSkins (ModuleScript) -> ServerScriptService.Services.WeaponSkins
-    MODELOS 3D para las armas del avatar (espadas, dagas, hachas/martillos/mazas/alabardas y báculos). Solo se usan MALLA y TEXTURA (ids de Roblox); los scripts de los
+    MODELOS 3D para las armas del avatar (espadas, dagas, hachas/martillos/mazas, lanzas/alabardas y báculos). Solo se usan MALLA y TEXTURA (ids de Roblox); los scripts de los
     paquetes originales NO se usan. La malla se crea en el servidor con AssetService:CreateMeshPartAsync: si no carga
     (privada, borrada, sin permiso), el arma se dibuja como siempre (AttackAnimator conserva el modelo con bloques).
     Reparto: cada arma del catálogo tiene Tier (1..N) y Rareza; a esa combinación le toca una skin de la lista (de menos a más
@@ -19,10 +19,10 @@ local GearCatalog = require(ReplicatedStorage.Modules.GearCatalog)
 local WeaponSkins = {}
 
 WeaponSkins.TARGET_LEN = { Sword = 4.0, Dagger = 2.2 }
-WeaponSkins.REF_K = { Sword = 0.65, Dagger = 0.65, Axe = 0.6, Staff = 0.8 }
-WeaponSkins.MIN_LEN = { Sword = 3.0, Dagger = 1.6, Axe = 2.6, Staff = 4.5 }
-WeaponSkins.MAX_LEN = { Sword = 4.6, Dagger = 2.8, Axe = 4.8, Staff = 6.0 }
-WeaponSkins.GRIP_FRAC = { Sword = 0.17, Dagger = 0.25, Axe = 0.2, Staff = 0.35 }
+WeaponSkins.REF_K = { Sword = 0.65, Dagger = 0.65, Axe = 0.6, Staff = 0.8, Spear = 0.7 }
+WeaponSkins.MIN_LEN = { Sword = 3.0, Dagger = 1.6, Axe = 2.6, Staff = 4.5, Spear = 5.0 }
+WeaponSkins.MAX_LEN = { Sword = 4.6, Dagger = 2.8, Axe = 4.8, Staff = 6.0, Spear = 6.5 }
+WeaponSkins.GRIP_FRAC = { Sword = 0.17, Dagger = 0.25, Axe = 0.2, Staff = 0.35, Spear = 0.3 }
 WeaponSkins.TIP_SIGN = { Sword = 1, Dagger = 1 }
 local LP_TIP = 1
 local LP_TEX = 2913129928 -- textura única del paquete Low Poly
@@ -128,11 +128,15 @@ local LP_AXES = {
 	{ "Hammer_Large_Wood_01", 2913167095 }, { "Goblin_Bone_Axe_01", 2913166381 }, { "Hammer_Mace_Stone_01", 2913164793 },
 	{ "Goblin_Axe_Spikes_01", 2913165216 }, { "Hammer_Large_Stone_01", 2913166669 }, { "Hammer_Mace_Sphere_01", 2913167266 },
 	{ "Hammer_Mace_Spikes_01", 2913167637 }, { "Axe_Nature_01", 2913163970 }, { "Mace_Blades_01", 2913164038 },
-	{ "Goblin_Axe_Large_01", 2913167727 }, { "Goblin_Halberd_01", 2913164587 }, { "Goblin_Gem_Hammer_01", 2913166481 },
-	{ "Hammer_Large_Metal_01", 2913164683 }, { "Hammer_Large_Metal_010", 2913164898 }, { "Halberd_06", 2913166268 },
+	{ "Goblin_Axe_Large_01", 2913167727 }, { "Goblin_Gem_Hammer_01", 2913166481 },
+	{ "Hammer_Large_Metal_01", 2913164683 }, { "Hammer_Large_Metal_010", 2913164898 },
 	{ "Ornate_Axe_01", 2913166524 }, { "Ornate_Axe_02", 2913164392 }, { "Axe_Rune_01", 2913164947 },
 	{ "Ornate_GreatAxe_01", 2913164487 }, { "Crystal_Axe_01", 2913164535 }, { "Crystal_Axe_Large_01", 2913167149 },
-	{ "Crysta_Halberdl_01", 2913166222 },
+}
+-- lanzas, alabardas y estandarte (de menos a más poderosa)
+local LP_SPEARS = {
+	{ "Spear_02", 2913164094 }, { "Spear_01", 2913165270 }, { "Goblin_Spear_01", 2913166608 }, { "Goblin_Halberd_01", 2913164587 },
+	{ "Halberd_06", 2913166268 }, { "Banner_01", 2913166957 }, { "Ornate_Spear_01", 2913167051 }, { "Crysta_Halberdl_01", 2913166222 },
 }
 local LP_STAFFS = {
 	{ "Goblin_Staff", 2913164641 }, { "Staff_Gem", 2913164343 },
@@ -169,6 +173,7 @@ local POOLS = {
 	Sword = ordered(entries(SWORDS, 4.0, 1), entries(LP_SWORDS, nil, LP_TIP, LP_TEX)),
 	Dagger = ordered(entries(DAGGERS, 2.2, 1), entries(LP_DAGGERS, nil, LP_TIP, LP_TEX)),
 	Axe = entries(LP_AXES, nil, LP_TIP, LP_TEX),
+	Spear = entries(LP_SPEARS, nil, LP_TIP, LP_TEX),
 	Staff = entries(LP_STAFFS, nil, LP_TIP, LP_TEX),
 }
 

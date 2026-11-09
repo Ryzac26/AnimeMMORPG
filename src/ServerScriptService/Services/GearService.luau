@@ -6,7 +6,8 @@
 
     Get(player) -> { Ataque, Defensa, Vida, Critico, Curacion, Suerte, Oro, Xp, Regen }   (fracciones: 0.05 = 5%)
       - Solo cuentan las piezas que tu personaje PUEDE usar (nivel, rol, facción, arma de su clase).
-      - Bono de set: piezas equipadas del set de TU rol (2-3: +5% / 4: +15% a todo el equipo + efecto propio del rol: GearCatalog.SetFull).
+      - Bono de set: piezas equipadas del set de TU rol (2: +5% · 3: +8% · 4: +15% + efecto propio del rol (GearCatalog.SetFull) · 5/6: +17%/+19% · 7 piezas = set maestro +22% y efecto mayor (GearCatalog.SetMaster); las 7 son Arma, Armadura, Casco, Zapatos, Escudo, Cinturón y Capa de TU rol).
+        Combo de joyería: 3/4/5 joyas con el mismo foco = bono plano (GearCatalog.JewelCombo).
       - Defensa y Crítico tienen tope (GearCatalog.DEFENSE_CAP / CRIT_CAP).
     Aplicación:
       Outgoing(player, daño, pvp)  daño x (1+Ataque) y crítico x1.5    -> DamageService (jugador -> mob / PvP)
@@ -61,6 +62,7 @@ local function compute(player: Player): Stats
 	local pet: { [string]: number } = {}
 	local setPieces = 0
 	local themeItems: { any } = {}
+	local jewelItems: { any } = {}
 
 	local petFamilies: { [string]: boolean } = {}
 	for _, slot in ipairs(ItemCatalog.EquipSlots) do
@@ -93,6 +95,9 @@ local function compute(player: Player): Stats
 					if item.Theme then
 						table.insert(themeItems, item)
 					end
+					if item.Kind == "Jewel" then
+						table.insert(jewelItems, item)
+					end
 				end
 			elseif item.Pet then
 				-- la mascota de facción solo vale para su facción; el nivel (Plus) multiplica los efectos
@@ -113,7 +118,8 @@ local function compute(player: Player): Stats
 	end
 
 	local themeSum = GearCatalog.ThemeSummary(themeItems)
-	local setMult = 1 + (GearCatalog.SetBonus[math.min(setPieces, 4)] or 0) + themeSum.Mult
+	local jewelCombo = GearCatalog.JewelComboSummary(jewelItems)
+	local setMult = 1 + (GearCatalog.SetBonus[math.min(setPieces, GearCatalog.SET_MAX)] or 0) + themeSum.Mult
 	local s = zero()
 	local out = s :: any
 	for stat, v in pairs(gear) do
@@ -125,6 +131,9 @@ local function compute(player: Player): Stats
 	for stat, v in pairs(themeSum.Extra) do
 		out[stat] = (out[stat] or 0) + v
 	end
+	for stat, v in pairs(jewelCombo.Extra) do
+		out[stat] = (out[stat] or 0) + v
+	end
 	local sources = temp[player]
 	if sources then
 		for _, extra in pairs(sources) do
@@ -133,8 +142,8 @@ local function compute(player: Player): Stats
 			end
 		end
 	end
-	-- bono de set COMPLETO (4/4): efecto propio del rol
-	local full = if setPieces >= 4 then GearCatalog.SetFull[role] else nil
+	-- bono de set COMPLETO (4+ piezas) o MAESTRO (7/7): efecto propio del rol
+	local full = GearCatalog.SetEffectFor(role, setPieces)
 	if full then
 		s.Critico += full.Critico or 0
 		s.Curacion += full.Curacion or 0

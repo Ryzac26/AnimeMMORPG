@@ -63,7 +63,27 @@ GearCatalog.SetFull = {
 	Asesino = { Text = "+12% de crítico y críticos +0,25 de daño (x1,75)", Critico = 0.12, CritDmg = 0.25 },
 	Curador = { Text = "+20% de curación y +25% de alcance", Curacion = 0.20, Range = 1.25 },
 } :: { [string]: { [string]: any } }
-GearCatalog.SetBonus = { [0] = 0, [1] = 0, [2] = 0.05, [3] = 0.05, [4] = 0.15 } :: { [number]: number } -- piezas del set de TU rol equipadas -> +% a todo el equipo
+-- piezas del set de TU rol equipadas (hasta 7: Arma, Armadura, Casco, Zapatos + Escudo, Cinturón y Capa de tu rol) -> +% a todo el equipo
+GearCatalog.SetBonus = { [0] = 0, [1] = 0, [2] = 0.05, [3] = 0.08, [4] = 0.15, [5] = 0.17, [6] = 0.19, [7] = 0.22 } :: { [number]: number }
+GearCatalog.SET_MAX = 7
+-- SET MAESTRO (7/7 piezas): reemplaza al efecto de 4 piezas por uno MAYOR (mismas claves que SetFull).
+GearCatalog.SetMaster = {
+	Tirador = { Text = "+35% de alcance en ataques y poderes y +6% de crítico", Range = 1.35, Critico = 0.06 },
+	Mago = { Text = "+30% de radio en sus poderes de área y críticos +0,20 de daño", Radius = 1.30, CritDmg = 0.20 },
+	Guerrero = { Text = "12% del daño que haces te cura", Lifesteal = 0.12 },
+	Tanque = { Text = "20% del daño cuerpo a cuerpo recibido se refleja", Reflect = 0.20 },
+	Asesino = { Text = "+16% de crítico y críticos +0,40 de daño (x1,90)", Critico = 0.16, CritDmg = 0.40 },
+	Curador = { Text = "+30% de curación y +35% de alcance", Curacion = 0.30, Range = 1.35 },
+} :: { [string]: { [string]: any } }
+-- Efecto de set que corresponde a N piezas del set de un rol (7 = maestro, 4-6 = completo, menos = ninguno)
+function GearCatalog.SetEffectFor(role: string, pieces: number): { [string]: any }?
+	if pieces >= GearCatalog.SET_MAX then
+		return GearCatalog.SetMaster[role]
+	elseif pieces >= 4 then
+		return GearCatalog.SetFull[role]
+	end
+	return nil
+end
 
 -- Pesos de estadísticas por rol (suman 1)
 GearCatalog.RoleWeights = {
@@ -83,8 +103,8 @@ GearCatalog.RoleMix = {
 	Mago = { 0.70, 0.30, 0.00 },
 	Curador = { 0.15, 0.35, 0.50 },
 } :: { [string]: { number } }
--- Calibración de paridad (ver ValidateBalance)
-GearCatalog.RoleScale = { Tanque = 0.704, Guerrero = 1.079, Asesino = 1.061, Tirador = 1.067, Mago = 1.022, Curador = 1.293 } :: { [string]: number }
+-- Calibración de paridad (ver ValidateBalance). Tanque 0.704 -> 0.66 al pasar el set a 7 piezas: la defensa rinde de forma no lineal y con el set maestro se pasaba ~6%.
+GearCatalog.RoleScale = { Tanque = 0.66, Guerrero = 1.079, Asesino = 1.061, Tirador = 1.067, Mago = 1.022, Curador = 1.293 } :: { [string]: number }
 
 -- Foco de las joyas (universales). El Crítico rinde la mitad que el resto por punto, por eso lleva más %.
 GearCatalog.JewelFocus = { "Ataque", "Defensa", "Vida", "Critico", "Curacion" }
@@ -98,14 +118,19 @@ GearCatalog.EmblemNames = { Saiyan = "Emblema Saiyan", Shinobi = "Banda Shinobi"
 
 GearCatalog.SetNames = { Tanque = "Baluarte", Guerrero = "Vanguardia", Asesino = "Sombra", Tirador = "Cazador", Mago = "Arcano", Curador = "Santuario" } :: { [string]: string }
 GearCatalog.PieceNames = { Armadura = "Coraza", Casco = "Casco", Zapatos = "Botas" } :: { [string]: string }
-GearCatalog.WeaponNames = { Sword = "Espada", Dagger = "Daga", Bow = "Arco", Staff = "Báculo", Gun = "Pistola", Axe = "Hacha", Fist = "Guanteletes" } :: { [string]: string }
+GearCatalog.WeaponNames = { Sword = "Espada", Dagger = "Daga", Bow = "Arco", Staff = "Báculo", Gun = "Pistola", Axe = "Hacha", Spear = "Lanza", Fist = "Guanteletes" } :: { [string]: string }
 
 -- Arma por facción y rol (coincide con las animaciones de AttackAnimator)
 GearCatalog.WeaponStyle = {
-	Saiyan = { Tanque = "Axe", Guerrero = "Sword", Asesino = "Dagger", Tirador = "Staff", Mago = "Staff", Curador = "Staff" },
+	Saiyan = { Tanque = "Axe", Guerrero = "Spear", Asesino = "Dagger", Tirador = "Staff", Mago = "Staff", Curador = "Staff" },
 	Shinobi = { Tanque = "Axe", Guerrero = "Sword", Asesino = "Dagger", Tirador = "Dagger", Mago = "Staff", Curador = "Staff" },
 	Pirate = { Tanque = "Axe", Guerrero = "Sword", Asesino = "Dagger", Tirador = "Bow", Mago = "Staff", Curador = "Staff" },
 	Shinigami = { Tanque = "Axe", Guerrero = "Sword", Asesino = "Dagger", Tirador = "Bow", Mago = "Staff", Curador = "Staff" },
+} :: { [string]: { [string]: string } }
+
+-- Estilo que usaba el rol ANTES del último cambio y que sigue pudiéndose EQUIPAR (los objetos que ya tenían los jugadores no se invalidan)
+local PREV_WEAPON_STYLE = {
+	Saiyan = { Guerrero = "Sword" },
 } :: { [string]: { [string]: string } }
 
 -- Reparto ANTERIOR (guanteletes y pistola, que no tienen modelo 3D): ya no cae como botín ni se puede equipar,
@@ -272,6 +297,34 @@ function GearCatalog.ThemeSummary(items: { any }): ThemeSummary
 	return out
 end
 
+-- COMBO DE JOYERÍA: 3, 4 o 5 joyas (Collar, Brazalete, Pendientes, 2 Anillos) con el MISMO foco -> bono plano a esa estadística
+-- (el Crítico lleva más % porque rinde la mitad por punto; la Defensa sigue topada por DEFENSE_CAP)
+GearCatalog.JewelCombo = { [3] = 0.02, [4] = 0.04, [5] = 0.06 } :: { [number]: number }
+function GearCatalog.JewelComboSummary(items: { any }): { Extra: { [string]: number }, Lines: { string } }
+	local counts: { [string]: number } = {}
+	for _, it in ipairs(items) do
+		if typeof(it.Focus) == "string" then
+			counts[it.Focus] = (counts[it.Focus] or 0) + 1
+		end
+	end
+	local out = { Extra = {} :: { [string]: number }, Lines = {} :: { string } }
+	for focus, n in pairs(counts) do
+		local best = 0
+		for need, v in pairs(GearCatalog.JewelCombo) do
+			if n >= need and v > best then
+				best = v
+			end
+		end
+		if best > 0 then
+			local v = best * (GearCatalog.FocusMult[focus] or 1)
+			out.Extra[focus] = (out.Extra[focus] or 0) + v
+			table.insert(out.Lines, string.format("Joyería %s %d/5: +%s%% %s", GearCatalog.JewelFocusName[focus] or focus, n, tostring(math.floor(v * 1000 + 0.5) / 10), GearCatalog.StatShort[focus] or focus))
+		end
+	end
+	table.sort(out.Lines)
+	return out
+end
+
 -- Mejora +0..+9: multiplica las estadísticas de la pieza. (Probabilidades sugeridas para cuando se implemente:
 -- +1..+3 100% · +4 85% · +5 70% · +6 55% · +7 40% · +8 30% · +9 20%)
 function GearCatalog.EnhanceMult(plus: number): number
@@ -307,7 +360,7 @@ function GearCatalog.StylesForRole(role: string): { string }
 	local seen: { [string]: boolean } = {}
 	local out: { string } = {}
 	for _, faction in ipairs(GearCatalog.Factions) do
-		for _, map in ipairs({ GearCatalog.WeaponStyle, LEGACY_WEAPON_STYLE }) do
+		for _, map in ipairs({ GearCatalog.WeaponStyle, PREV_WEAPON_STYLE, LEGACY_WEAPON_STYLE }) do
 			local style = if map[faction] then map[faction][role] else nil
 			if style and not seen[style] then
 				seen[style] = true
@@ -382,10 +435,38 @@ function GearCatalog.FullSetGear(role: string, tier: number, rarity: string): Ge
 	return total
 end
 
+-- Suma de las 7 piezas del set de un rol (las 4 del set + Escudo, Cinturón y Capa)
+function GearCatalog.FullSetGear7(role: string, tier: number, rarity: string): Gear
+	local total = GearCatalog.FullSetGear(role, tier, rarity)
+	for _, slot in ipairs(GearCatalog.ClassExtraOrder) do
+		for stat, v in pairs(GearCatalog.SetPieceGear(role, slot, tier, rarity)) do
+			total[stat] = (total[stat] or 0) + v
+		end
+	end
+	return total
+end
+
 -- Dispersión del poder del set completo entre los 6 roles en varios puntos (tramo, rareza). Debe ser <= 3%.
+-- Revisa el set de 4 piezas SIN bono y el de 7 piezas CON el bono de set maestro (+SetBonus[7]).
 function GearCatalog.ValidateBalance(): (boolean, string)
 	local worst = 0
 	local lines: { string } = {}
+	for _, tier in ipairs({ 1, 6, 11 }) do
+		for _, rarity in ipairs({ "Comun", "Epico", "Mitico" }) do
+			local lo: number, hi: number = math.huge, 0
+			for _, role in ipairs(GearCatalog.Roles) do
+				local g = GearCatalog.FullSetGear7(role, tier, rarity)
+				for stat, v in pairs(g) do
+					g[stat] = v * (1 + GearCatalog.SetBonus[GearCatalog.SET_MAX])
+				end
+				local pg = GearCatalog.PowerGain(role, g)
+				lo, hi = math.min(lo, pg), math.max(hi, pg)
+			end
+			local spread = hi / lo - 1
+			worst = math.max(worst, spread)
+			table.insert(lines, string.format("7 piezas tramo %2d %-10s %.3f-%.3f (%.1f%%)", tier, rarity, lo, hi, spread * 100))
+		end
+	end
 	for _, tier in ipairs({ 1, 6, 11 }) do
 		for _, rarity in ipairs({ "Comun", "Epico", "Mitico" }) do
 			local lo: number, hi: number = math.huge, 0
@@ -418,7 +499,8 @@ function GearCatalog.CanUse(item: { [string]: any }, faction: string, role: stri
 	if typeof(itemRole) == "string" and item.Slot == "Arma" and typeof(item.Style) == "string" then
 		local byFaction = GearCatalog.WeaponStyle[faction]
 		local want = if byFaction then byFaction[role] else nil
-		if want and want ~= item.Style then
+		local prev = if PREV_WEAPON_STYLE[faction] then PREV_WEAPON_STYLE[faction][role] else nil
+		if want and want ~= item.Style and prev ~= item.Style then
 			return false, "Tu personaje no usa esa arma"
 		end
 	end
@@ -505,6 +587,7 @@ for tier, req in ipairs(GearCatalog.TierLevels) do
 					Gear = gear,
 					ReqLevel = req,
 					Role = role,
+					Set = role, -- cuenta para el set de rol (hasta 7 piezas)
 					Tier = tier,
 					Kind = "ClassPiece",
 					Desc = describe(string.format("Nv %d · Solo %s", req, role), gear),
@@ -522,6 +605,7 @@ for tier, req in ipairs(GearCatalog.TierLevels) do
 					Gear = gear,
 					ReqLevel = req,
 					Tier = tier,
+					Focus = focus, -- para el combo de joyería
 					Kind = "Jewel",
 					ArtKey = string.format("joyas/%s_%s", string.lower(slot), string.lower(focus)),
 					Desc = describe(string.format("Nv %d · Todas las clases", req), gear),

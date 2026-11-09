@@ -6,7 +6,7 @@
       Play(modelo, estilo, duración?, momentoDelGolpe?)   estilos: Slash Stab Punch Bow Cast Shoot Slam Power Throw
       StyleFor(jugador, aDistancia)  -> estilo según arma equipada (ranura Arma); sin arma, por facción/rol
       Atributos que escribe: AnimStyle, AnimAt, AnimLen, AnimStrike, AnimAlt
-    Armas (ItemCatalog.Items[id].Style): Sword->Slash, Dagger->Stab, Axe->Slam, Bow->Bow, Staff->Cast, Gun->Shoot, Fist->Punch
+    Armas (ItemCatalog.Items[id].Style): Sword->Slash, Dagger->Stab, Axe->Slam, Spear->Thrust, Bow->Bow, Staff->Cast, Gun->Shoot, Fist->Punch
 ]]
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -20,7 +20,7 @@ local ShieldSkins = require(script.Parent.ShieldSkins)
 local AttackAnimator = {}
 
 local WEAPON_TO_STYLE: { [string]: string } = {
-	Sword = "Slash", Dagger = "Stab", Axe = "Slam", Bow = "Bow", Staff = "Cast", Gun = "Shoot", Fist = "Punch",
+	Sword = "Slash", Dagger = "Stab", Axe = "Slam", Spear = "Thrust", Bow = "Bow", Staff = "Cast", Gun = "Shoot", Fist = "Punch",
 }
 
 -- Sin arma: cuerpo a cuerpo / a distancia por facción y rol
@@ -51,7 +51,7 @@ function AttackAnimator.StyleFor(player: Player, ranged: boolean): string
 		local s = WEAPON_TO_STYLE[ws]
 		-- un arma cuerpo a cuerpo usada con un poder a distancia se anima como lanzamiento de energía
 		if s then
-			if ranged and (s == "Slash" or s == "Stab" or s == "Slam" or s == "Punch") then
+			if ranged and (s == "Slash" or s == "Stab" or s == "Slam" or s == "Punch" or s == "Thrust") then
 				return "Cast"
 			end
 			return s
@@ -108,7 +108,7 @@ local PAPER = Color3.fromRGB(240, 232, 205)
 -- Postura de "arma en la mano" mientras NO se ataca (la aplica CharacterAnimClient con los atributos HoldR / HoldL).
 -- Convención R6: derecho + = brazo adelante/arriba; izquierdo - = adelante/arriba.
 local HOLD: { [string]: { R: number?, L: number? } } = {
-	Sword = { R = 0.9 }, Dagger = { R = 0.7 }, Axe = { R = 1.0 }, Gun = { R = 0.9 },
+	Sword = { R = 0.9 }, Dagger = { R = 0.7 }, Axe = { R = 1.0 }, Spear = { R = 1.0 }, Gun = { R = 0.9 },
 	Staff = { R = 1.3, L = -0.4 }, Bow = { R = 0.35 },
 }
 
@@ -156,7 +156,7 @@ local function buildWeapon(f: Folder, char: Model, style: string, glow: Color3, 
 	local r15 = char:FindFirstChild("RightHand") ~= nil
 	local g = if r15 then Vector3.new(0, -0.15, 0) else Vector3.new(0, -1, 0)
 	-- modelo 3D (espada/daga/hacha/báculo) si carga; si no, sigue el dibujo con bloques de abajo
-	if style == "Sword" or style == "Dagger" or style == "Axe" or style == "Staff" then
+	if style == "Sword" or style == "Dagger" or style == "Axe" or style == "Staff" or style == "Spear" then
 		local skin = WeaponSkins.Pick(style, weapon)
 		if skin and WeaponSkins.Attach(f, rArm, skin, g, retry) then
 			return
@@ -176,6 +176,11 @@ local function buildWeapon(f: Folder, char: Model, style: string, glow: Color3, 
 	elseif style == "Axe" then
 		block(f, rArm, Vector3.new(0.3, 0.3, 3.4), WOOD, along(3.4, -0.6))
 		block(f, rArm, Vector3.new(0.25, 1.6, 1.3), glow, along(1.3, 2.0), Enum.Material.Metal)
+	elseif style == "Spear" then
+		-- lanza: asta larga con punta de acero (se empuña por el tercio de atrás)
+		block(f, rArm, Vector3.new(0.26, 0.26, 4.6), WOOD, along(4.6, -1.2))
+		block(f, rArm, Vector3.new(0.2, 0.7, 1.1), glow, along(1.1, 3.4), Enum.Material.Metal)
+		block(f, rArm, Vector3.new(0.6, 0.2, 0.2), GOLD, along(0.2, 3.35), Enum.Material.Metal)
 	elseif style == "Staff" then
 		-- báculo: mango largo, remate dorado y orbe; con el brazo levantado queda casi vertical delante del pecho
 		block(f, rArm, Vector3.new(0.3, 0.3, 5.4), WOOD, along(5.4, -1.3))

@@ -180,7 +180,7 @@ local function updateCompare(slotIndex: number?)
 		body ..= string.format('\n\n<b>Equipado</b>  <font color="#%s">%s</font>\n%s', ecol:ToHex(), GearView.DisplayName(eq, c.EquippedPlus), eqText)
 	end
 	if c.Item.Set and c.Item.Set ~= "" then
-		body ..= string.format('\n\n<font size="11" color="%s">Set de %s: con 2 piezas +5%%, con 4 piezas +15%%.</font>', GRAY, tostring(c.Item.Set))
+		body ..= string.format('\n\n<font size="11" color="%s">Set de %s: 2 piezas +5%%, 4 piezas +15%%, 7 piezas +22%% y efecto maestro.</font>', GRAY, tostring(c.Item.Set))
 	end
 	if c.Item.Theme then
 		local th = GearCatalog.ThemeById[c.Item.Theme]

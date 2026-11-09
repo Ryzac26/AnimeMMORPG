@@ -344,23 +344,38 @@ local function refreshStats()
 		local role = PlayerClass.Get(player).Role
 		local br0 = GearView.Breakdown()
 		local full: any = (GearCatalog.SetFull :: any)[role]
-		addHeader(string.format("Set de %s  ·  %d/4 piezas", role, math.min(br0.SetPieces, 4)))
+		local master: any = (GearCatalog.SetMaster :: any)[role]
+		addHeader(string.format("Set de %s  ·  %d/%d piezas", role, math.min(br0.SetPieces, GearCatalog.SET_MAX), GearCatalog.SET_MAX))
 		local count = 0
 		for _, slotName in ipairs(ItemCatalog.EquipSlots) do
 			local id = Store.Equip[slotName]
 			local it: any = if id then ItemCatalog.Items[id] else nil
 			if it and it.Set == role then
 				count += 1
-				addStat((if count <= 4 then "✔ " else "• ") .. GearView.DisplayName(it, Store.EquipPlus[slotName]), "", ItemCatalog.SlotDisplay[slotName] or slotName, GRAY)
+				addStat((if count <= GearCatalog.SET_MAX then "✔ " else "• ") .. GearView.DisplayName(it, Store.EquipPlus[slotName]), "", ItemCatalog.SlotDisplay[slotName] or slotName, GRAY)
 			end
 		end
 		if count == 0 then
 			addNote("No llevas piezas del set de tu rol.")
 		end
-		addStat("2 piezas", "", "+5% al equipo", if br0.SetPieces >= 2 then GREEN else GRAY)
-		addStat("4 piezas", "", "+15% al equipo", if br0.SetPieces >= 4 then GREEN else GRAY)
+		for _, n in ipairs({ 2, 3, 4, 5, 6, 7 }) do
+			addStat(n .. " piezas", "", string.format("+%d%% al equipo", math.floor((GearCatalog.SetBonus[n] or 0) * 100 + 0.5)), if br0.SetPieces >= n then GREEN else GRAY)
+		end
 		if full then
-			addNote((if br0.SetPieces >= 4 then "✔ Set completo: " else "Set completo (4/4): ") .. full.Text, if br0.SetPieces >= 4 then GREEN else GRAY)
+			addNote((if br0.SetPieces >= 4 then "✔ " else "") .. "4+ piezas: " .. full.Text, if br0.SetPieces >= 4 and br0.SetPieces < GearCatalog.SET_MAX then GREEN else GRAY)
+		end
+		if master then
+			addNote((if br0.SetPieces >= GearCatalog.SET_MAX then "✔ " else "") .. "SET MAESTRO (7/7): " .. master.Text, if br0.SetPieces >= GearCatalog.SET_MAX then GREEN else GRAY)
+		end
+		addNote("Las 7 piezas son: Arma, Armadura, Casco, Zapatos, Escudo, Cinturón y Capa de tu rol.")
+		addHeader("Joyería")
+		local jc: any = br0.Jewel
+		if jc and #jc.Lines > 0 then
+			for _, line in ipairs(jc.Lines) do
+				addNote("✔ " .. line, GREEN)
+			end
+		else
+			addNote("Combo de joyería: 3, 4 o 5 joyas con el mismo foco dan +2%, +4% o +6% a esa estadística.")
 		end
 		addHeader("Temas y combinaciones")
 		local ts: any = br0.Theme
@@ -493,14 +508,14 @@ local function refreshStats()
 		end
 	end
 	if br.SetPieces >= 2 then
-		addNote(string.format("Bono de set activo: %d/4 piezas de tu rol (+%d%% al equipo).", br.SetPieces, math.floor(br.SetBonus * 100 + 0.5)), GREEN)
-		local full: any = (GearCatalog.SetFull :: any)[PlayerClass.Get(player).Role]
-		if br.SetPieces >= 4 and full then
-			addNote("Set completo: " .. full.Text, GREEN)
+		addNote(string.format("Bono de set activo: %d/%d piezas de tu rol (+%d%% al equipo).", br.SetPieces, GearCatalog.SET_MAX, math.floor(br.SetBonus * 100 + 0.5)), GREEN)
+		local full: any = GearCatalog.SetEffectFor(PlayerClass.Get(player).Role, br.SetPieces)
+		if full then
+			addNote((if br.SetPieces >= GearCatalog.SET_MAX then "Set maestro: " else "Set completo: ") .. full.Text, GREEN)
 		end
 	elseif br.SetPieces == 0 then
 		local fullHint: any = (GearCatalog.SetFull :: any)[PlayerClass.Get(player).Role]
-		addNote("Equipa piezas del set de tu rol: 2 dan +5%, 4 dan +15%" .. (if fullHint then " y " .. string.lower(string.sub(fullHint.Text, 1, 1)) .. string.sub(fullHint.Text, 2) else "") .. ".")
+		addNote("Equipa piezas del set de tu rol: 2 dan +5%, 4 dan +15% y 7 el set maestro (+22%)" .. (if fullHint then " y " .. string.lower(string.sub(fullHint.Text, 1, 1)) .. string.sub(fullHint.Text, 2) else "") .. ".")
 	else
 		addNote("1 pieza de set: con 2 piezas se activa +5%.")
 	end

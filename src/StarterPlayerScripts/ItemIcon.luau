@@ -36,7 +36,7 @@ local SLOT_GLYPH = {
 } :: { [string]: { [string]: string } }
 
 local SHIELD_GLYPH = { Tanque = "🛡️", Guerrero = "⚔️", Asesino = "🗡️", Tirador = "🏹", Mago = "🔮", Curador = "📖" } :: { [string]: string }
-local STYLE_GLYPH = { Sword = "🗡️", Dagger = "🔪", Bow = "🏹", Staff = "🪄", Gun = "🔫", Axe = "🪓", Fist = "👊" } :: { [string]: string }
+local STYLE_GLYPH = { Sword = "🗡️", Dagger = "🔪", Bow = "🏹", Staff = "🪄", Gun = "🔫", Axe = "🪓", Spear = "🔱", Fist = "👊" } :: { [string]: string }
 local FIXED_GLYPH = {
 	Collar = "📿", Pendientes = "🧿", Anillo = "💍", Anillo2 = "💍", Alas = "🪽", Montura = "🐎", Traje = "👕",
 	Accesorio1 = "🏵️", Accesorio2 = "🐾", Accesorio3 = "🐾",

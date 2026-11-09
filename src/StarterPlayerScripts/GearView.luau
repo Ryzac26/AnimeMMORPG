@@ -177,6 +177,7 @@ export type Breakdown = {
 	SetPieces: number,
 	SetBonus: number,
 	Theme: any, -- GearCatalog.ThemeSummary (bonos de tema, mestizo y peso)
+	Jewel: any, -- GearCatalog.JewelComboSummary (combo de joyería)
 	Capped: { [string]: boolean },
 	Ignored: { string }, -- objetos equipados que no cuentan (no puedes usarlos)
 }
@@ -190,6 +191,7 @@ function GearView.Breakdown(): Breakdown
 	local ignored: { string } = {}
 	local setPieces = 0
 	local themeItems: { any } = {}
+	local jewelItems: { any } = {}
 
 	local function addSource(stat: string, label: string, v: number)
 		local list = sources[stat]
@@ -223,6 +225,9 @@ function GearView.Breakdown(): Breakdown
 						if item.Theme then
 							table.insert(themeItems, item)
 						end
+						if item.Kind == "Jewel" then
+							table.insert(jewelItems, item)
+						end
 					else
 						for stat, v in pairs(effects) do
 							pet[stat] = (pet[stat] or 0) + v
@@ -236,13 +241,14 @@ function GearView.Breakdown(): Breakdown
 		end
 	end
 
-	local setBonus = GearCatalog.SetBonus[math.min(setPieces, 4)] or 0
+	local setBonus = GearCatalog.SetBonus[math.min(setPieces, GearCatalog.SET_MAX)] or 0
 	local themeSum = GearCatalog.ThemeSummary(themeItems)
+	local jewelCombo = GearCatalog.JewelComboSummary(jewelItems)
 	local total: { [string]: number } = {}
 	for stat, v in pairs(gear) do
 		total[stat] = v * (1 + setBonus + themeSum.Mult)
 		if setBonus > 0 then
-			addSource(stat, string.format("Set %d/4", setPieces), v * setBonus)
+			addSource(stat, string.format("Set %d/%d", setPieces, GearCatalog.SET_MAX), v * setBonus)
 		end
 		if themeSum.Mult > 0 then
 			addSource(stat, "Temas", v * themeSum.Mult)
@@ -251,6 +257,10 @@ function GearView.Breakdown(): Breakdown
 	for stat, v in pairs(themeSum.Extra) do
 		total[stat] = (total[stat] or 0) + v
 		addSource(stat, "Tema/peso", v)
+	end
+	for stat, v in pairs(jewelCombo.Extra) do
+		total[stat] = (total[stat] or 0) + v
+		addSource(stat, "Combo de joyas", v)
 	end
 	for stat, v in pairs(pet) do
 		total[stat] = (total[stat] or 0) + v
@@ -265,7 +275,7 @@ function GearView.Breakdown(): Breakdown
 		capped.Critico = true
 	end
 
-	return { Total = total, Sources = sources, SetPieces = setPieces, SetBonus = setBonus, Theme = themeSum, Capped = capped, Ignored = ignored }
+	return { Total = total, Sources = sources, SetPieces = setPieces, SetBonus = setBonus, Theme = themeSum, Jewel = jewelCombo, Capped = capped, Ignored = ignored }
 end
 
 return GearView

@@ -2,7 +2,8 @@
 --[[
     ReportClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > ReportClient
     Botón "REPORTAR" (borde derecho de la pantalla) -> ventana para escribir el problema y enviarlo (ver ReportService).
-    Si eres el dueño del juego (o admin) aparece también "Ver reportes": una caja con todos los reportes; pulsa "Seleccionar todo" y Ctrl+C para copiarlos.
+    Si eres el dueño del juego (o admin) aparece también "Ver reportes": cada reporte muestra solo quién lo mandó, motivo y descripción, en bloques
+    (cada bloque tiene su botón "Seleccionar" y luego Ctrl+C). No hay tope de caracteres en el formulario (el servidor guarda hasta 4000).
     IMPORTANTE: está en la lista RELOAD de UIReloadClient.
 ]]
 local Players = game:GetService("Players")
@@ -158,7 +159,7 @@ box.Size = UDim2.new(1, -32, 0, 170)
 box.BackgroundColor3 = PANEL
 box.TextColor3 = TXT
 box.PlaceholderColor3 = Color3.fromRGB(150, 150, 165)
-box.PlaceholderText = "Qué pasó, dónde estabas y qué esperabas que pasara."
+box.PlaceholderText = "Cuéntanos con detalle: qué pasó, dónde estabas, qué esperabas que pasara, o tu idea para mejorar el juego."
 box.Font = Enum.Font.Gotham
 box.TextSize = 15
 box.TextWrapped = true
@@ -172,12 +173,6 @@ corner(box, 8)
 local pad = Instance.new("UIPadding")
 pad.PaddingLeft, pad.PaddingTop, pad.PaddingRight = UDim.new(0, 8), UDim.new(0, 6), UDim.new(0, 8)
 pad.Parent = box
-box:GetPropertyChangedSignal("Text"):Connect(function()
-	if #box.Text > 600 then
-		box.Text = string.sub(box.Text, 1, 600)
-	end
-end)
-
 label(form, "Se adjuntan solos: personaje, nivel, posición y errores recientes.", 12, UDim2.fromOffset(16, 260), UDim2.new(1, -32, 0, 30), Color3.fromRGB(165, 165, 180))
 local status = label(form, "", 13, UDim2.fromOffset(16, 292), UDim2.new(1, -32, 0, 20), Color3.fromRGB(255, 220, 120))
 local send = button(form, "Enviar", UDim2.new(1, -126, 1, -44), UDim2.fromOffset(110, 32), ACCENT)
@@ -231,45 +226,94 @@ scroll.ScrollBarThickness = 8
 scroll.Parent = admin
 corner(scroll, 8)
 
-local shown = ""
-local all = Instance.new("TextBox")
-all.Size = UDim2.new(1, -12, 0, 0)
-all.AutomaticSize = Enum.AutomaticSize.Y
-all.BackgroundTransparency = 1
-all.TextColor3 = TXT
-all.Font = Enum.Font.Code
-all.TextSize = 13
-all.TextWrapped = true
-all.MultiLine = true
-all.ClearTextOnFocus = false
-all.TextXAlignment = Enum.TextXAlignment.Left
-all.TextYAlignment = Enum.TextYAlignment.Top
-all.Text = "Cargando..."
-all.Parent = scroll
--- solo lectura: si se edita, vuelve al texto original (así se puede seleccionar y copiar con Ctrl+C)
-all:GetPropertyChangedSignal("Text"):Connect(function()
-	if all.Text ~= shown then
-		all.Text = shown
+local list = Instance.new("UIListLayout")
+list.Padding = UDim.new(0, 10)
+list.SortOrder = Enum.SortOrder.LayoutOrder
+list.Parent = scroll
+local listPad = Instance.new("UIPadding")
+listPad.PaddingLeft, listPad.PaddingTop, listPad.PaddingRight, listPad.PaddingBottom = UDim.new(0, 6), UDim.new(0, 6), UDim.new(0, 6), UDim.new(0, 6)
+listPad.Parent = scroll
+
+local blocks: { Instance } = {}
+local function clearBlocks()
+	for _, b in ipairs(blocks) do
+		b:Destroy()
 	end
-end)
-
-local refresh = button(admin, "Actualizar", UDim2.fromOffset(16, 470 - 46), UDim2.fromOffset(100, 32), PANEL)
-local selectAll = button(admin, "Seleccionar todo (luego Ctrl+C)", UDim2.fromOffset(126, 470 - 46), UDim2.fromOffset(250, 32), ACCENT)
-local clear = button(admin, "Borrar todos", UDim2.new(1, -126, 1, -46), UDim2.fromOffset(110, 32), Color3.fromRGB(120, 50, 50))
-
-local function setText(t)
-	shown = t
-	all.Text = t
+	table.clear(blocks)
 end
 
+local function info(text: string)
+	clearBlocks()
+	local l = label(scroll, text, 14, UDim2.new(), UDim2.new(1, 0, 0, 24), Color3.fromRGB(190, 190, 205))
+	table.insert(blocks, l)
+end
+
+-- Cada bloque es una caja de solo lectura (Roblox corta una caja a ~16000 caracteres, por eso se reparte en bloques de <12000)
+local BLOCK_CHARS = 12000
+local function render(items: { string })
+	clearBlocks()
+	if #items == 0 then
+		info("No hay reportes.")
+		return
+	end
+	local idx, blockNo = 1, 0
+	while idx <= #items do
+		local first, parts, len = idx, {}, 0
+		while idx <= #items and (len == 0 or len + #items[idx] < BLOCK_CHARS) do
+			table.insert(parts, items[idx])
+			len += #items[idx] + 2
+			idx += 1
+		end
+		blockNo += 1
+		local holder = Instance.new("Frame")
+		holder.BackgroundTransparency = 1
+		holder.Size = UDim2.new(1, 0, 0, 0)
+		holder.AutomaticSize = Enum.AutomaticSize.Y
+		holder.LayoutOrder = blockNo
+		holder.Parent = scroll
+		local lay = Instance.new("UIListLayout")
+		lay.Padding = UDim.new(0, 4)
+		lay.SortOrder = Enum.SortOrder.LayoutOrder
+		lay.Parent = holder
+		local text = table.concat(parts, "\n\n")
+		local sel = button(holder, ("Seleccionar reportes %d a %d (luego Ctrl+C)"):format(first, idx - 1), UDim2.new(), UDim2.fromOffset(330, 28), ACCENT)
+		sel.LayoutOrder = 1
+		local box2 = Instance.new("TextBox")
+		box2.Size = UDim2.new(1, 0, 0, 0)
+		box2.AutomaticSize = Enum.AutomaticSize.Y
+		box2.BackgroundTransparency = 1
+		box2.TextColor3 = TXT
+		box2.Font = Enum.Font.Code
+		box2.TextSize = 14
+		box2.TextWrapped = true
+		box2.MultiLine = true
+		box2.ClearTextOnFocus = false
+		box2.TextXAlignment = Enum.TextXAlignment.Left
+		box2.TextYAlignment = Enum.TextYAlignment.Top
+		box2.Text = text
+		box2.LayoutOrder = 2
+		box2.Parent = holder
+		-- solo lectura: si se edita vuelve al texto original (así se puede seleccionar y copiar)
+		box2:GetPropertyChangedSignal("Text"):Connect(function()
+			if box2.Text ~= text then
+				box2.Text = text
+			end
+		end)
+		sel.Activated:Connect(function()
+			box2:CaptureFocus()
+			box2.CursorPosition = 1
+			box2.SelectionStart = #box2.Text + 1
+		end)
+		table.insert(blocks, holder)
+	end
+end
+
+local refresh = button(admin, "Actualizar", UDim2.fromOffset(16, 470 - 46), UDim2.fromOffset(100, 32), PANEL)
+local clear = button(admin, "Borrar todos", UDim2.new(1, -126, 1, -46), UDim2.fromOffset(110, 32), Color3.fromRGB(120, 50, 50))
+
 refresh.Activated:Connect(function()
-	setText("Cargando...")
+	info("Cargando...")
 	adminR:FireServer("list")
-end)
-selectAll.Activated:Connect(function()
-	all:CaptureFocus()
-	all.CursorPosition = 1
-	all.SelectionStart = #all.Text + 1
 end)
 local armed = false
 clear.Activated:Connect(function()
@@ -284,20 +328,20 @@ clear.Activated:Connect(function()
 	end
 	armed = false
 	clear.Text = "Borrar todos"
-	setText("Borrando...")
+	info("Borrando...")
 	adminR:FireServer("clear")
 end)
 adminR.OnClientEvent:Connect(function(kind, text, n)
 	if kind == "list" then
-		setText(text)
-		countLbl.Text = n .. " reporte(s) (los " .. "más nuevos primero)"
+		render(if typeof(text) == "table" then text else {})
+		countLbl.Text = tostring(n) .. " reporte(s) · los más nuevos primero"
 	end
 end)
 
 viewBtn.Activated:Connect(function()
 	form.Visible = false
 	admin.Visible = true
-	setText("Cargando...")
+	info("Cargando...")
 	adminR:FireServer("list")
 end)
 

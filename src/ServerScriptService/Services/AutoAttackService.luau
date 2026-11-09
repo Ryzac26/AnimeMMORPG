@@ -308,6 +308,9 @@ local function weaponFx(style: string?, from: Vector3, to: Vector3, ranged: bool
 			slashLine(to, from, color, 2.6, 0.2, -40)
 		end)
 		spark(to, color, 1)
+	elseif style == "Thrust" then
+		slashLine(to, from, color, 6.5, 0.16, 0) -- estocada larga y fina
+		spark(to, color, 1.3)
 	elseif style == "Slam" then
 		slashLine(to, from, color, 5, 0.55, 0)
 		ring(to - Vector3.new(0, 2.6, 0), color, 8)

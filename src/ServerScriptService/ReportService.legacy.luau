@@ -2,7 +2,8 @@
 --[[
     ReportService (Script) -> ServerScriptService > ReportService
     REPORTES de jugadores/colaboradores. El jugador escribe el problema en el botón "REPORTAR" (ReportClient) y aquí se guarda con datos útiles
-    (versión, personaje, nivel, atributos, posición, errores recientes del servidor y del cliente).
+    (versión, personaje, nivel, atributos, posición, errores recientes del servidor y del cliente). Esos datos quedan guardados, pero la ventana
+    "Ver reportes" muestra SOLO: quién lo mandó, motivo y descripción (más limpio para copiar).
     Solo el DUEÑO del juego (game.CreatorId, o rango 254+ si el juego es de un grupo) y los de la lista ADMINS ven la ventana "Ver reportes"
     (en Studio siempre se ve). Los reportes se guardan en el DataStore "Reports_v1"; si no hay acceso (Studio sin API) se guardan en memoria.
     Remotes: ReportSubmit (cliente -> servidor, y respuesta) · ReportAdmin (lista / borrar, solo admins).
@@ -21,7 +22,7 @@ local AdminRemote = Net.Get("ReportAdmin")
 
 local ADMINS: { [number]: boolean } = {} -- ej.: [123456789] = true
 local COOLDOWN = 45 -- s entre reportes de un mismo jugador
-local MAX_LEN = 600
+local MAX_LEN = 4000 -- tope de seguridad por reporte (el jugador puede escribir con detalle)
 local KEEP_LIST = 40 -- cuántos reportes se muestran en la ventana
 local CATEGORIES = { Error = "Error", Visual = "Se ve mal", Balance = "Balance", Idea = "Idea" }
 
@@ -185,16 +186,36 @@ local function listAll(): { { Key: string, Data: any } }
 	return out
 end
 
-local function format(list: { { Key: string, Data: any } }): string
-	if #list == 0 then
-		return "No hay reportes."
+local nameCache: { [number]: string } = {}
+local function nameOf(d: any): string
+	if typeof(d.N) == "string" then
+		return d.N
 	end
-	local parts = {}
+	local fromCtx = if typeof(d.X) == "string" then string.match(d.X, "Jugador: ([^%s%(]+) %(") else nil
+	if fromCtx then
+		return fromCtx
+	end
+	local uid = d.U
+	if typeof(uid) ~= "number" then
+		return "?"
+	end
+	if not nameCache[uid] then
+		local ok, n = pcall(function()
+			return Players:GetNameFromUserIdAsync(uid)
+		end)
+		nameCache[uid] = if ok and n then n else ("ID " .. uid)
+	end
+	return nameCache[uid]
+end
+
+-- Una cadena corta por reporte: quién, motivo y descripción (el cliente las reparte en bloques para que se vean todas)
+local function format(list: { { Key: string, Data: any } }): { string }
+	local out = {}
 	for i, it in ipairs(list) do
 		local d = it.Data
-		table.insert(parts, string.format("===== REPORTE %d · %s · %s =====\n%s\n\n%s", i, os.date("!%Y-%m-%d %H:%M", d.T or 0) .. " UTC", tostring(d.C), tostring(d.M), tostring(d.X)))
+		table.insert(out, string.format("[%d] De: %s (%s)\nMotivo: %s\nDescripción: %s", i, nameOf(d), tostring(d.U), tostring(d.C), tostring(d.M)))
 	end
-	return table.concat(parts, "\n\n")
+	return out
 end
 
 SubmitRemote.OnServerEvent:Connect(function(pl: Player, category: any, msg: any, clientLog: any)
@@ -216,7 +237,7 @@ SubmitRemote.OnServerEvent:Connect(function(pl: Player, category: any, msg: any,
 	local cat = if typeof(category) == "string" and CATEGORIES[category] then CATEGORIES[category] else "Error"
 	counter += 1
 	local key = string.format("R%010d_%d_%d", os.time(), pl.UserId, counter)
-	save(key, { T = os.time(), U = pl.UserId, C = cat, M = string.sub(msg, 1, MAX_LEN), X = context(pl, clientLog) })
+	save(key, { T = os.time(), U = pl.UserId, N = pl.Name, C = cat, M = string.sub(msg, 1, MAX_LEN), X = context(pl, clientLog) })
 	SubmitRemote:FireClient(pl, "ok")
 end)
 
