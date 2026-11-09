@@ -15,6 +15,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
 local GearCatalog = require(ReplicatedStorage.Modules.GearCatalog)
 local WeaponSkins = require(script.Parent.WeaponSkins)
+local ShieldSkins = require(script.Parent.ShieldSkins)
 
 local AttackAnimator = {}
 
@@ -224,7 +225,7 @@ local function buildWeapon(f: Folder, char: Model, style: string, glow: Color3, 
 end
 
 -- Pieza de la ranura ESCUDO, en la mano izquierda (o a la espalda el Carcaj), según el rol de la pieza
-local function buildOffhand(f: Folder, char: Model, item: any, glow: Color3)
+local function buildOffhand(f: Folder, char: Model, item: any, glow: Color3, retry: (() -> ())?)
 	local lArm = hand(char, false)
 	local r15 = char:FindFirstChild("RightHand") ~= nil
 	local g = if r15 then Vector3.new(0, -0.15, 0) else Vector3.new(0, -1, 0)
@@ -243,6 +244,14 @@ local function buildOffhand(f: Folder, char: Model, item: any, glow: Color3)
 	end
 	if not lArm then
 		return
+	end
+	-- escudos con modelo 3D (Tanque, Guerrero y el genérico); si no cargan, se dibuja el escudo de bloques de abajo
+	if role == "Tanque" or role == "Guerrero" or role == nil then
+		local skin = ShieldSkins.Pick(item)
+		local height = if role == "Tanque" then 3.6 elseif role == "Guerrero" then 3.1 else 2.6
+		if skin and ShieldSkins.Attach(f, lArm, skin, g, height, retry) then
+			return
+		end
 	end
 	if role == "Tanque" then
 		-- escudo torre: placa grande delante del brazo
@@ -315,15 +324,17 @@ local function onEquipChanged(player: Player)
 	local f = Instance.new("Folder")
 	f.Name = "EquippedWeapon"
 	f.Parent = char
+	-- si un modelo 3D termina de cargar después, se reconstruye lo que lleva en las manos
+	local function retry()
+		if player.Character == char and f.Parent == char then
+			onEquipChanged(player)
+		end
+	end
 	if style then
-		buildWeapon(f, char, style, rarityColor(weapon), weapon, function()
-			if player.Character == char and f.Parent == char then
-				onEquipChanged(player)
-			end
-		end)
+		buildWeapon(f, char, style, rarityColor(weapon), weapon, retry)
 	end
 	if off then
-		buildOffhand(f, char, off, rarityColor(off))
+		buildOffhand(f, char, off, rarityColor(off), retry)
 	end
 end
 

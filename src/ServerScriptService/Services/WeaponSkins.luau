@@ -243,6 +243,24 @@ local function orientFor(native: Vector3, tipSign: number): CFrame
 	return CFrame.fromMatrix(Vector3.zero, v[1], v[2], v[3])
 end
 
+-- Malla ya creada por id (para otros módulos, p. ej. escudos): MeshPart si está lista, false si no carga, nil si aún carga (se llama onReady al terminar)
+function WeaponSkins.MeshFor(meshId: number, onReady: (() -> ())?): any
+	local mp = meshCache[meshId]
+	if mp ~= nil then
+		return mp
+	end
+	if onReady then
+		local w = waiters[meshId]
+		if not w then
+			w = {}
+			waiters[meshId] = w
+		end
+		table.insert(w, onReady)
+	end
+	load(meshId)
+	return nil
+end
+
 -- Pone la skin en la mano. Devuelve true si quedó puesta; false si aún carga (se llama onReady al terminar) o no carga nunca.
 function WeaponSkins.Attach(parent: Instance, hand: BasePart, skin: any, grip: Vector3, onReady: (() -> ())?): boolean
 	local mp = meshCache[skin.Mesh]
