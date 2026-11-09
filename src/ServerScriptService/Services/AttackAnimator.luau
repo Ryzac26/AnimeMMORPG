@@ -14,6 +14,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
 local GearCatalog = require(ReplicatedStorage.Modules.GearCatalog)
+local WeaponSkins = require(script.Parent.WeaponSkins)
 
 local AttackAnimator = {}
 
@@ -146,13 +147,20 @@ local function bowSkinFor(weapon: any): any
 end
 
 -- Arma de la mano DERECHA (hoja/mango a lo largo de -Z desde la palma; con el brazo levantado, hacia arriba) y, si hace falta, de la izquierda
-local function buildWeapon(f: Folder, char: Model, style: string, glow: Color3, weapon: any?)
+local function buildWeapon(f: Folder, char: Model, style: string, glow: Color3, weapon: any?, retry: (() -> ())?)
 	local rArm, lArm = hand(char, true), hand(char, false)
 	if not rArm then
 		return
 	end
 	local r15 = char:FindFirstChild("RightHand") ~= nil
 	local g = if r15 then Vector3.new(0, -0.15, 0) else Vector3.new(0, -1, 0)
+	-- modelo 3D (espada/daga/hacha/báculo) si carga; si no, sigue el dibujo con bloques de abajo
+	if style == "Sword" or style == "Dagger" or style == "Axe" or style == "Staff" then
+		local skin = WeaponSkins.Pick(style, weapon)
+		if skin and WeaponSkins.Attach(f, rArm, skin, g, retry) then
+			return
+		end
+	end
 	local function along(len: number, from: number): CFrame -- centro a `from + len/2` hacia -Z
 		return CFrame.new(g + Vector3.new(0, 0, -(from + len / 2)))
 	end
@@ -308,7 +316,11 @@ local function onEquipChanged(player: Player)
 	f.Name = "EquippedWeapon"
 	f.Parent = char
 	if style then
-		buildWeapon(f, char, style, rarityColor(weapon), weapon)
+		buildWeapon(f, char, style, rarityColor(weapon), weapon, function()
+			if player.Character == char and f.Parent == char then
+				onEquipChanged(player)
+			end
+		end)
 	end
 	if off then
 		buildOffhand(f, char, off, rarityColor(off))
