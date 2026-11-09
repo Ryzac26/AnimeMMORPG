@@ -6,7 +6,10 @@
         (fuente "Blessing" de GearService: Xp, Oro, Suerte). El tiempo solo corre si hay jugadores de la facción conectados.
       - Si dos grupos dan el mismo bono, vale el mayor. Tope por facción y día: ProductCatalog.BLESS_DAILY_SECONDS.
       - Cierre del servidor CON jugadores dentro: el tiempo sobrante se reparte entre quienes lo compraron (DataStore "BlessRefund_v1",
-        clave = UserId) y se entrega como bendición PERSONAL al volver a entrar. Si el servidor se cierra vacío, no se devuelve.
+        clave = UserId, cada grupo = { S = segundos, T = fecha }). Si el servidor se cierra vacío, no se devuelve.
+      - CARTA: al volver a entrar, el comprador ve una carta (atributo "BlessMail", la dibuja BlessMailClient) y la RECLAMA (remote "BlessClaim"):
+        el tiempo vuelve a ser una bendición de FACCIÓN (para todos los de su facción en ese servidor). Se puede reclamar hasta CLAIM_DAYS días después.
+        Si ese mismo grupo ya está activo en su facción en este servidor NO deja reclamar ("espera a que termine"). Reclamar no gasta el tope diario (ya se contó al comprar).
       - Bendición personal: se guarda en el perfil (sección "Blessing" = { P = { grupo = segundos } }); el tiempo corre con el jugador conectado.
       - Atributo del jugador "BlessInfo" (texto "Grupo:segundos;...") para mostrar lo activo.
 ]]
@@ -32,6 +35,10 @@ local BlessingService = {}
 local lines: { [string]: { [string]: Line } } = {} -- facción -> grupo -> línea
 local used: { [string]: Day } = {} -- facción -> segundos comprados hoy (UTC)
 local personal: { [Player]: { [string]: number } } = {}
+local CLAIM_DAYS = 7 -- días que la devolución espera en la carta
+local CLAIM_SECONDS = CLAIM_DAYS * 86400
+local pending: { [Player]: { [string]: { S: number, T: number } } } = {} -- devoluciones por reclamar (carta)
+local claiming: { [Player]: boolean } = {}
 
 local refundStore: DataStore? = nil
 do
@@ -50,6 +57,31 @@ end
 local function factionOf(player: Player): string?
 	local f = player:GetAttribute("Faction")
 	return if typeof(f) == "string" then f else nil
+end
+
+-- una entrada del DataStore: formato nuevo { S = seg, T = fecha } o el viejo (solo el número de segundos)
+local function entryOf(v: any): (number?, number)
+	if typeof(v) == "number" then
+		return v, os.time()
+	elseif typeof(v) == "table" and typeof(v.S) == "number" then
+		return v.S, if typeof(v.T) == "number" then v.T else os.time()
+	end
+	return nil, 0
+end
+
+-- Publica la carta del jugador (atributo BlessMail = JSON; vacío = sin carta)
+local function publishMail(player: Player)
+	local list: { any } = {}
+	for g, e in pairs(pending[player] or {}) do
+		local def = ProductCatalog.BlessGroups[g]
+		if def and e.S > 0 and os.time() <= e.T + CLAIM_SECONDS then
+			table.insert(list, { g = g, n = def.Name, s = def.Short, sec = math.floor(e.S), exp = e.T + CLAIM_SECONDS })
+		end
+	end
+	table.sort(list, function(a, b)
+		return a.g < b.g
+	end)
+	player:SetAttribute("BlessMail", if #list > 0 then HttpService:JSONEncode(list) else "")
 end
 
 local function usedToday(f: string): number
@@ -235,7 +267,8 @@ game:BindToClose(function()
 				rs:UpdateAsync(uid, function(old: any)
 					local out: { [string]: number } = if typeof(old) == "table" then old else {}
 					for g, secs in pairs(groups) do
-						out[g] = math.min((out[g] or 0) + secs, ProductCatalog.BLESS_MAX_PERSONAL)
+						local prev = entryOf(out[g])
+						out[g] = { S = math.min((prev or 0) + secs, ProductCatalog.BLESS_MAX_PERSONAL), T = os.time() }
 					end
 					return out
 				end)
@@ -279,22 +312,23 @@ local function init(player: Player)
 		end
 	end
 	personal[player] = pp
-	-- devoluciones por cierre de servidor (RemoveAsync devuelve lo que quitó: no se entrega dos veces)
+	-- devoluciones por cierre de servidor: quedan en la CARTA hasta que el jugador las reclame (no se entregan solas)
 	if refundStore then
 		local ok, got = pcall(function()
-			return (refundStore :: DataStore):RemoveAsync(tostring(player.UserId))
+			return (refundStore :: DataStore):GetAsync(tostring(player.UserId))
 		end)
 		if ok and typeof(got) == "table" and player.Parent then
-			local any = false
-			for g, secs in pairs(got) do
-				if ProductCatalog.BlessGroups[g] and typeof(secs) == "number" and secs > 0 then
-					pp[g] = math.min((pp[g] or 0) + secs, ProductCatalog.BLESS_MAX_PERSONAL)
-					any = true
+			local mine: { [string]: { S: number, T: number } } = {}
+			for g, v in pairs(got) do
+				local secs, stamp = entryOf(v)
+				if ProductCatalog.BlessGroups[g] and secs and secs > 0 and os.time() <= stamp + CLAIM_SECONDS then
+					mine[g] = { S = secs, T = stamp }
 				end
 			end
-			if any then
-				NotifyRemote:FireClient(player, "El servidor se cerró y te devolvimos el tiempo sobrante de tu bendición de facción (bendición personal).")
-				PlayerData.Save(player)
+			if next(mine) then
+				pending[player] = mine
+				publishMail(player)
+				NotifyRemote:FireClient(player, "Tienes tiempo de bendición de facción por reclamar: abre la carta ✉ (debajo de Reportar).")
 			end
 		end
 	end
@@ -310,8 +344,82 @@ end)
 for _, pl in ipairs(Players:GetPlayers()) do
 	task.spawn(init, pl)
 end
+-- Reclamar la carta: el tiempo vuelve a ser bendición de FACCIÓN en este servidor
+Net.Get("BlessClaim").OnServerEvent:Connect(function(player: Player, group: any)
+	if typeof(group) ~= "string" or claiming[player] or not refundStore then
+		return
+	end
+	local def = ProductCatalog.BlessGroups[group]
+	local mine = pending[player]
+	local f = factionOf(player)
+	if not def or not mine or not f then
+		return
+	end
+	local ent = mine[group]
+	if not ent then
+		return
+	end
+	if os.time() > ent.T + CLAIM_SECONDS then
+		mine[group] = nil
+		publishMail(player)
+		NotifyRemote:FireClient(player, "Esa bendición venció (pasaron más de " .. CLAIM_DAYS .. " días).")
+		return
+	end
+	local active = if lines[f] then lines[f][group] else nil
+	if active and active.Left > 0 then
+		NotifyRemote:FireClient(player, string.format("Tu facción ya tiene activa la %s: espera a que termine para reclamar la tuya.", def.Name))
+		return
+	end
+	claiming[player] = true
+	local claimed = 0
+	local ok = pcall(function()
+		(refundStore :: DataStore):UpdateAsync(tostring(player.UserId), function(old: any)
+			claimed = 0 -- UpdateAsync puede repetir la función: se calcula de nuevo cada vez
+			if typeof(old) ~= "table" then
+				return nil
+			end
+			local secs, stamp = entryOf(old[group])
+			if not secs or os.time() > stamp + CLAIM_SECONDS then
+				return nil
+			end
+			old[group] = nil
+			claimed = secs
+			return old
+		end)
+	end)
+	claiming[player] = nil
+	if not ok then
+		NotifyRemote:FireClient(player, "No se pudo reclamar ahora, inténtalo de nuevo en unos segundos.")
+		return
+	end
+	mine[group] = nil
+	publishMail(player)
+	if claimed <= 0 or player.Parent == nil then
+		return
+	end
+	-- pudo activarse la misma bendición mientras se guardaba: en ese caso se SUMA, no se pierde nada
+	lines[f] = lines[f] or {}
+	local l = lines[f][group]
+	if not l then
+		l = { Left = 0, Buyers = {}, Last = player.DisplayName }
+		lines[f][group] = l
+	end
+	l.Left += claimed
+	l.Last = player.DisplayName
+	local uid = tostring(player.UserId)
+	l.Buyers[uid] = (l.Buyers[uid] or 0) + claimed
+	for _, pl in ipairs(Players:GetPlayers()) do
+		if factionOf(pl) == f then
+			NotifyRemote:FireClient(pl, string.format("%s reclamó %s para la facción (%s) · %.1f h", player.DisplayName, def.Name, def.Short, claimed / 3600))
+		end
+	end
+	applyFaction(f)
+end)
+
 PlayerData.Releasing:Connect(function(pl: Player)
 	personal[pl] = nil
+	pending[pl] = nil
+	claiming[pl] = nil
 end)
 
 return BlessingService

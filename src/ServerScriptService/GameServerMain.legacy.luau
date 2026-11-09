@@ -11,6 +11,7 @@ require(Services:WaitForChild("Net"))
 require(Services:WaitForChild("PlayerData")) -- perfil único de cada jugador (nivel, clase, inventario): debe cargar antes que los servicios que lo usan
 require(Services:WaitForChild("PlayerDefaults"))
 require(Services:WaitForChild("ClassSelectService")) -- pantalla de selección de facción/rol
+require(Services:WaitForChild("UpdateNotice")) -- cartel de actualización (reinicio programado / versión nueva) y botón de cambiar de servidor
 require(Services:WaitForChild("PlayerOutfits")) -- trajes de los 18 personajes
 require(Services:WaitForChild("BridgeSigns")) -- carteles en el arco de cada puente
 require(Services:WaitForChild("EnergyRegenService"))

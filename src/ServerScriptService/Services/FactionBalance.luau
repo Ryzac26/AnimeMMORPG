@@ -28,6 +28,7 @@ local EXPIRE = 60 -- el aviso de un servidor caduca a los 60 s (si el servidor m
 local MARGIN = 1 -- al elegir otro servidor se exige que le sobre este margen (los números tienen hasta 20 s de retraso)
 
 local cap = DEFAULT_CAP
+local latestVersion = 0 -- versión de lugar más nueva que ven los demás servidores (la usa UpdateNotice)
 local studio = RunService:IsStudio()
 
 local function enforced(): boolean
@@ -113,13 +114,26 @@ task.spawn(function()
 		sinceBeat += 2
 		if map and sinceBeat >= HEARTBEAT then
 			sinceBeat = 0
-			local value = { n = #Players:GetPlayers(), t = os.time() }
+			local value = { n = #Players:GetPlayers(), t = os.time(), pv = game.PlaceVersion }
 			for f, n in pairs(c) do
 				value[f] = n
 			end
 			pcall(function()
 				map:SetAsync(game.JobId, value, EXPIRE)
 			end)
+			-- aprovecha para ver cuál es la versión más nueva en marcha
+			local okR, items = pcall(function()
+				return map:GetRangeAsync(Enum.SortDirection.Ascending, 100)
+			end)
+			if okR and typeof(items) == "table" then
+				local best = game.PlaceVersion
+				for _, it in ipairs(items) do
+					if typeof(it.value) == "table" and typeof(it.value.pv) == "number" and it.value.pv > best then
+						best = it.value.pv
+					end
+				end
+				latestVersion = best
+			end
 		end
 		task.wait(2)
 	end
@@ -133,8 +147,12 @@ game:BindToClose(function()
 	end
 end)
 
--- Otro servidor público con lugar en esa facción (nil si no hay o no se puede consultar)
-function FactionBalance.FindServer(faction: string): string?
+function FactionBalance.LatestVersion(): number
+	return math.max(latestVersion, game.PlaceVersion)
+end
+
+-- Otro servidor público con lugar en esa facción (nil si no hay o no se puede consultar). minVersion: solo servidores con esa versión o más nueva.
+function FactionBalance.FindServer(faction: string, minVersion: number?): string?
 	if not map then
 		return nil
 	end
@@ -148,7 +166,7 @@ function FactionBalance.FindServer(faction: string): string?
 	local bestN = -1
 	for _, it in ipairs(items) do
 		local v = it.value
-		if it.key ~= game.JobId and typeof(v) == "table" and (v[faction] or 0) <= cap - 1 - MARGIN and (v.n or 0) <= Players.MaxPlayers - 1 - MARGIN then
+		if it.key ~= game.JobId and typeof(v) == "table" and (v.pv or 0) >= (minVersion or 0) and (v[faction] or 0) <= cap - 1 - MARGIN and (v.n or 0) <= Players.MaxPlayers - 1 - MARGIN then
 			if (v.n or 0) > bestN then -- el más lleno que aún tenga lugar (así se llenan en vez de repartirse en muchos vacíos)
 				best, bestN = it.key, v.n or 0
 			end
