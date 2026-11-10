@@ -209,6 +209,23 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, id: any
 	if action == "State" then
 		push(player)
 	elseif action == "Equip" then
+		-- los títulos se eligen en el Salón VIP: hay que estar cerca del Mayordomo Imperial
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local near = false
+		if root then
+			for _, m in ipairs(workspace:GetChildren()) do
+				if m:IsA("Model") and string.sub(m.Name, 1, 10) == "Mayordomo_" then
+					local pp = m.PrimaryPart
+					if pp and (pp.Position - root.Position).Magnitude <= 60 then
+						near = true
+						break
+					end
+				end
+			end
+		end
+		if not near then
+			return
+		end
 		if id == "" or id == nil then
 			p.E = nil
 		elseif typeof(id) == "string" and p.U[id] and TitleCatalog.ById[id] then

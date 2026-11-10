@@ -67,11 +67,15 @@ local function build()
 	if viewLog then
 		tab = "Misiones"
 	end
-	for i, t in ipairs(if viewLog then {} else { { "Misiones", "📜 Misiones" }, { "Marcos", "🖼 Marcos" }, { "Tienda", "🛍 Tienda VIP del Mes" } }) do
-		NpcKit.Tab(w, theme, t[2], UDim2.fromOffset(if i == 3 then 200 else 150, 28), UDim2.fromOffset(14 + (i - 1) * 156, 72), tab == t[1], function()
+	for i, t in ipairs(if viewLog then {} else { { "Misiones", "📜 Misiones" }, { "Marcos", "🖼 Marcos" }, { "Tienda", "🛍 Tienda VIP del Mes" }, { "Titulos", "🏷 Títulos" } }) do
+		NpcKit.Tab(w, theme, t[2], UDim2.fromOffset(if i == 3 then 200 else 150, 28), UDim2.fromOffset(({ 14, 170, 326, 532 })[i], 72), tab == t[1], function()
 			if t[1] == "Tienda" then
 				gui.Enabled = false
 				MenuBus.Fire("VipShop")
+				return
+			elseif t[1] == "Titulos" then
+				gui.Enabled = false
+				MenuBus.Fire("Titles")
 				return
 			end
 			tab = t[1]
@@ -120,7 +124,11 @@ local function build()
 				end
 				shown += 1
 				local row = NpcKit.Panel(w, theme, UDim2.fromOffset(748, 62), UDim2.fromOffset(14, y), "card")
-				text(row, tostring(m.Text), 14, pal.Text, UDim2.fromOffset(12, 6), UDim2.fromOffset(520, 20))
+				local tier = MissionCatalog.Tiers[tostring(m.Tier)]
+				if tier then
+					text(row, "[" .. tier.Name .. "]", 12, tier.Color, UDim2.fromOffset(12, 7), UDim2.fromOffset(62, 18))
+				end
+				text(row, tostring(m.Text), 14, pal.Text, UDim2.fromOffset(if tier then 76 else 12, 6), UDim2.fromOffset(if tier then 456 else 520, 20))
 				text(row, string.format("%s / %s", thousands(m.P), thousands(m.Goal)), 12, pal.Muted, UDim2.fromOffset(12, 36), UDim2.fromOffset(160, 18))
 				local bar = Instance.new("Frame")
 				bar.Position = UDim2.fromOffset(120, 41)
@@ -151,7 +159,7 @@ local function build()
 			end
 			y += 6
 		end
-		section("MISIONES DE HOY", "Se renuevan en " .. clock(state.DailyReset), state.Daily)
+		section("MISIONES DE HOY" .. (if state.BonusDone then "  ✔ bono del día cobrado" else "  · completa todas = bono x2 + 1 misión extra"), "Se renuevan en " .. clock(state.DailyReset), state.Daily)
 		section("MISIONES DE LA SEMANA", "Se renuevan en " .. clock(state.WeeklyReset), state.Weekly)
 		if viewLog and shown == 0 then
 			local e = text(w, "No tienes misiones activas.\nHabla con el Mayordomo Imperial del Pabellón VIP de tu ciudad y acepta las que quieras: aparecerán aquí con su progreso.", 15, pal.FMuted, UDim2.fromOffset(40, 200), UDim2.fromOffset(700, 100), Enum.TextXAlignment.Center)

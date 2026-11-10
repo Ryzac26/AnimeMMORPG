@@ -27,6 +27,7 @@ local ItemCatalog = require(Modules:WaitForChild("ItemCatalog", 10))
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local KeyBinds = require(script.Parent:WaitForChild("KeyBinds", 10))
 local PortraitKit = require(script.Parent:WaitForChild("PortraitKit", 10))
+local HudKit = require(script.Parent:WaitForChild("HudKit", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local DealDamageEvent = ClientNet.Get("DealDamageEvent")
 local AutoAttackRemote = ClientNet.Get("AutoAttack")
@@ -92,26 +93,122 @@ local function build()
 			BarX = 102, BarW = 246, HpY = 50, HpH = 16, EnY = 69, EnH = 16, XpY = 88, XpH = 14,
 		}
 	end
-	local panel = UITheme.Frame(root, theme, UDim2.fromOffset(370, 122), UDim2.fromOffset(14, 14), nil, "panel")
-	local accent = UITheme.Accent(theme)
-	PortraitKit.Mount(panel, UDim2.fromOffset(L.PortX, L.PortY), UDim2.fromOffset(L.PortS, L.PortS), theme, class.CharacterName)
+	local kit = HudKit.Get(fk)
+	if kit then
+		-- PANEL CON IMÁGENES (kit hud.zip): marco 9-slice, anillo de retrato, barras con marco, placa de nivel y adorno
+		local sc = 122 / 200
+		local m = 28 * sc
+		local panel = Instance.new("Frame")
+		panel.Name = "Panel"
+		panel.Position = UDim2.fromOffset(14, 14)
+		panel.Size = UDim2.fromOffset(370, 122)
+		panel.BackgroundTransparency = 1
+		panel.Parent = root
+		local function img(parent: Instance, id: string, pos: UDim2, size: UDim2, z: number): ImageLabel
+			local i = Instance.new("ImageLabel")
+			i.BackgroundTransparency = 1
+			i.Image = id
+			i.Position = pos
+			i.Size = size
+			i.ZIndex = z
+			i.Parent = parent
+			return i
+		end
+		local bg = img(panel, kit.panel, UDim2.fromOffset(-m, -m), UDim2.fromOffset(370 + 2 * m, 122 + 2 * m), 1)
+		bg.ScaleType = Enum.ScaleType.Slice
+		bg.SliceCenter = Rect.new(110, 110, 690, 146)
+		bg.SliceScale = sc
+		local accent = UITheme.Accent(theme)
+		-- retrato dentro del anillo (el hueco mide 76,6 % del anillo)
+		local ringS, ringX, ringY = 92, 8, 6
+		local hole = math.floor(ringS * 0.766)
+		local pm = ringX + (ringS - hole) / 2
+		local port = PortraitKit.Mount(panel, UDim2.fromOffset(pm, ringY + (ringS - hole) / 2), UDim2.fromOffset(hole, hole), theme, class.CharacterName)
+		port.ZIndex = 2
+		for _, d in ipairs(port:GetDescendants()) do
+			if d:IsA("GuiObject") then
+				d.ZIndex = math.min(d.ZIndex, 2)
+			end
+		end
+		for _, c in ipairs(port:GetChildren()) do
+			if c:IsA("UICorner") then
+				c.CornerRadius = UDim.new(0.5, 0)
+			elseif c:IsA("UIStroke") then
+				c:Destroy()
+			end
+		end
+		img(panel, kit.portrait, UDim2.fromOffset(ringX, ringY), UDim2.fromOffset(ringS, ringS), 4)
+		-- placa de nivel
+		img(panel, kit.level, UDim2.fromOffset(14, 86), UDim2.fromOffset(78, 29), 5)
+		levelLabel = UITheme.Text(panel, "NIVEL 1", 11, accent, UDim2.fromOffset(14, 86), UDim2.fromOffset(78, 29), Enum.TextXAlignment.Center)
+		levelLabel.TextYAlignment = Enum.TextYAlignment.Center
+		levelLabel.ZIndex = 6
+		-- adorno superior
+		img(panel, kit.crest, UDim2.fromOffset(143, -19), UDim2.fromOffset(88, 35), 6)
+		-- nombre y rol
+		local BX, BW = 106, 248
+		nameLabel = UITheme.Text(panel, player.DisplayName, 17, accent, UDim2.fromOffset(BX, 15), UDim2.fromOffset(BW, 20))
+		nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+		nameLabel.ZIndex = 6
+		roleLabel = UITheme.Text(panel, string.format("%s · %s", class.CharacterName, class.Role), 11, Color3.fromRGB(215, 215, 225), UDim2.fromOffset(BX, 34), UDim2.fromOffset(BW, 14))
+		roleLabel.ZIndex = 6
+		-- barras: marco + relleno recortado por el ancho
+		local function kitBar(y: number, fillId: string, prefix: string?): (number, number, string?) -> ()
+			local h = 16
+			local holder = Instance.new("Frame")
+			holder.Position = UDim2.fromOffset(BX, y)
+			holder.Size = UDim2.fromOffset(BW, h)
+			holder.BackgroundTransparency = 1
+			holder.ZIndex = 3
+			holder.Parent = panel
+			local function slice(i: ImageLabel)
+				i.ScaleType = Enum.ScaleType.Slice
+				i.SliceCenter = Rect.new(32, 24, 480, 40)
+				i.SliceScale = h / 64
+			end
+			slice(img(holder, kit.housing, UDim2.new(), UDim2.fromScale(1, 1), 3))
+			local clip = Instance.new("Frame")
+			clip.BackgroundTransparency = 1
+			clip.ClipsDescendants = true
+			clip.Size = UDim2.fromScale(1, 1)
+			clip.ZIndex = 4
+			clip.Parent = holder
+			local f = img(clip, fillId, UDim2.new(), UDim2.fromOffset(BW, h), 4)
+			slice(f)
+			local t = UITheme.Text(holder, "", 11, Color3.new(1, 1, 1), UDim2.new(), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
+			t.TextYAlignment = Enum.TextYAlignment.Center
+			t.ZIndex = 7
+			return function(value: number, max: number, text: string?)
+				local ratio = if max > 0 then math.clamp(value / max, 0, 1) else 0
+				clip.Size = UDim2.fromScale(ratio, 1)
+				t.Text = text or string.format("%s%d / %d", if prefix then prefix .. "  " else "", math.floor(value), math.floor(max))
+			end
+		end
+		setHp = kitBar(54, kit.barHP, nil)
+		setEnergy = kitBar(73, kit.barEnergia, theme.Resource)
+		setXp = kitBar(92, kit.barXP, nil)
+	else
+		local panel = UITheme.Frame(root, theme, UDim2.fromOffset(370, 122), UDim2.fromOffset(14, 14), nil, "panel")
+		local accent = UITheme.Accent(theme)
+		PortraitKit.Mount(panel, UDim2.fromOffset(L.PortX, L.PortY), UDim2.fromOffset(L.PortS, L.PortS), theme, class.CharacterName)
 
-	-- nivel bajo el retrato
-	levelLabel = UITheme.Text(panel, "NIVEL 1", L.LvlS, accent, UDim2.fromOffset(L.PortX, L.LvlY), UDim2.fromOffset(L.PortS, 16), Enum.TextXAlignment.Center)
+		-- nivel bajo el retrato
+		levelLabel = UITheme.Text(panel, "NIVEL 1", L.LvlS, accent, UDim2.fromOffset(L.PortX, L.LvlY), UDim2.fromOffset(L.PortS, 16), Enum.TextXAlignment.Center)
 
-	-- nombre + personaje y rol
-	nameLabel = UITheme.Text(panel, player.DisplayName, L.NameS, accent, UDim2.fromOffset(L.BarX, L.NameY), UDim2.fromOffset(L.BarW, L.NameS + 3))
-	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-	roleLabel = UITheme.Text(panel, string.format("%s · %s", class.CharacterName, class.Role), L.RoleS, Color3.fromRGB(215, 215, 225), UDim2.fromOffset(L.BarX, L.RoleY), UDim2.fromOffset(L.BarW, 14))
+		-- nombre + personaje y rol
+		nameLabel = UITheme.Text(panel, player.DisplayName, L.NameS, accent, UDim2.fromOffset(L.BarX, L.NameY), UDim2.fromOffset(L.BarW, L.NameS + 3))
+		nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+		roleLabel = UITheme.Text(panel, string.format("%s · %s", class.CharacterName, class.Role), L.RoleS, Color3.fromRGB(215, 215, 225), UDim2.fromOffset(L.BarX, L.RoleY), UDim2.fromOffset(L.BarW, 14))
 
-	-- barras: vida / energía / XP (bordeadas con el color de la facción)
-	local _, hp = UITheme.Bar(panel, UDim2.fromOffset(L.BarX, L.HpY), UDim2.fromOffset(L.BarW, L.HpH), Color3.fromRGB(220, 60, 60), nil, if L.HpH < 16 then 11 else 12, theme.Primary)
-	setHp = hp
-	local _, en = UITheme.Bar(panel, UDim2.fromOffset(L.BarX, L.EnY), UDim2.fromOffset(L.BarW, L.EnH), theme.ResourceColor, nil, if L.EnH < 16 then 11 else 12, theme.Primary)
-	setEnergy = en
-	UITheme.Text(panel, theme.Resource, 10, Color3.fromRGB(255, 255, 255), UDim2.fromOffset(L.BarX + 6, L.EnY), UDim2.fromOffset(60, L.EnH)).ZIndex = 5
-	local _, xp = UITheme.Bar(panel, UDim2.fromOffset(L.BarX, L.XpY), UDim2.fromOffset(L.BarW, L.XpH), theme.Primary, nil, 11, theme.Primary)
-	setXp = xp
+		-- barras: vida / energía / XP (bordeadas con el color de la facción)
+		local _, hp = UITheme.Bar(panel, UDim2.fromOffset(L.BarX, L.HpY), UDim2.fromOffset(L.BarW, L.HpH), Color3.fromRGB(220, 60, 60), nil, if L.HpH < 16 then 11 else 12, theme.Primary)
+		setHp = hp
+		local _, en = UITheme.Bar(panel, UDim2.fromOffset(L.BarX, L.EnY), UDim2.fromOffset(L.BarW, L.EnH), theme.ResourceColor, nil, if L.EnH < 16 then 11 else 12, theme.Primary)
+		setEnergy = en
+		UITheme.Text(panel, theme.Resource, 10, Color3.fromRGB(255, 255, 255), UDim2.fromOffset(L.BarX + 6, L.EnY), UDim2.fromOffset(60, L.EnH)).ZIndex = 5
+		local _, xp = UITheme.Bar(panel, UDim2.fromOffset(L.BarX, L.XpY), UDim2.fromOffset(L.BarW, L.XpH), theme.Primary, nil, 11, theme.Primary)
+		setXp = xp
+	end
 
 	-- BARRA DE PODERES 1-6
 	local slotSize, gap = 46, 8

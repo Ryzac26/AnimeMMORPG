@@ -29,7 +29,7 @@ local ActionRemote = Net.Get("MissionAction")
 local NotifyRemote = Net.Get("Notify")
 
 type Prog = { P: number, C: boolean, A: boolean } -- progreso, reclamada, aceptada (solo cuenta si la aceptaste con el Mayordomo)
-type Data = { Day: number, Week: number, D: { [string]: Prog }, W: { [string]: Prog }, Total: number, Frame: string? }
+type Data = { Day: number, Week: number, D: { [string]: Prog }, W: { [string]: Prog }, Total: number, Frame: string?, Bonus: number }
 
 local MissionService = {}
 local data: { [Player]: Data } = {}
@@ -54,7 +54,7 @@ local function levelOf(player: Player): number
 end
 
 -- renueva las misiones del día / la semana si cambió el periodo
-local function roll(d: Data)
+local function roll(d: Data, level: number)
 	local di, wi = dayIndex(), weekIndex()
 	if d.Day ~= di then
 		d.Day, d.D = di, {}
@@ -62,12 +62,12 @@ local function roll(d: Data)
 	if d.Week ~= wi then
 		d.Week, d.W = wi, {}
 	end
-	for _, def in ipairs(MissionCatalog.Pick(MissionCatalog.DailyPool, MissionCatalog.DAILY_COUNT, di)) do
+	for _, def in ipairs(MissionCatalog.Pick(MissionCatalog.DailyPool, MissionCatalog.DAILY_TIERS, di, level)) do
 		if not d.D[def.Id] then
 			d.D[def.Id] = { P = 0, C = false, A = false }
 		end
 	end
-	for _, def in ipairs(MissionCatalog.Pick(MissionCatalog.WeeklyPool, MissionCatalog.WEEKLY_COUNT, wi)) do
+	for _, def in ipairs(MissionCatalog.Pick(MissionCatalog.WeeklyPool, MissionCatalog.WEEKLY_TIERS, wi, level)) do
 		if not d.W[def.Id] then
 			d.W[def.Id] = { P = 0, C = false, A = false }
 		end
@@ -86,21 +86,23 @@ local function push(player: Player)
 	if not d then
 		return
 	end
-	roll(d)
 	local lv = levelOf(player)
+	roll(d, lv)
 	local function list(src: { [string]: Prog }, pool: { MissionCatalog.Def }, picks: { MissionCatalog.Def }): { any }
 		local out: { any } = {}
 		for _, def in ipairs(picks) do
 			local p = src[def.Id]
-			table.insert(out, { Id = def.Id, Text = def.Text, Goal = def.Goal, P = if p then math.min(p.P, def.Goal) else 0, Claimed = p ~= nil and p.C, Accepted = p ~= nil and p.A, Gold = MissionCatalog.Gold(def, lv) })
+			local goal = MissionCatalog.GoalFor(def, lv)
+			table.insert(out, { Id = def.Id, Text = MissionCatalog.TextFor(def, goal), Tier = def.Tier, Goal = goal, P = if p then math.min(p.P, goal) else 0, Claimed = p ~= nil and p.C, Accepted = p ~= nil and p.A, Gold = MissionCatalog.Gold(def, lv) })
 		end
 		return out
 	end
 	local now = os.time()
 	StateRemote:FireClient(player, {
-		Daily = list(d.D, MissionCatalog.DailyPool, MissionCatalog.Pick(MissionCatalog.DailyPool, MissionCatalog.DAILY_COUNT, d.Day)),
-		Weekly = list(d.W, MissionCatalog.WeeklyPool, MissionCatalog.Pick(MissionCatalog.WeeklyPool, MissionCatalog.WEEKLY_COUNT, d.Week)),
+		Daily = list(d.D, MissionCatalog.DailyPool, MissionCatalog.Pick(MissionCatalog.DailyPool, MissionCatalog.DAILY_TIERS, d.Day, lv)),
+		Weekly = list(d.W, MissionCatalog.WeeklyPool, MissionCatalog.Pick(MissionCatalog.WeeklyPool, MissionCatalog.WEEKLY_TIERS, d.Week, lv)),
 		Total = d.Total,
+		BonusDone = d.Bonus == d.Day,
 		Frame = d.Frame,
 		DailyReset = (d.Day + 1) * 86400 - now,
 		WeeklyReset = (d.Week + 1) * 604800 - now,
@@ -113,12 +115,14 @@ function MissionService.Report(player: Player, kind: string, amount: number?)
 	if not d or n <= 0 then
 		return
 	end
-	roll(d)
+	local lv = levelOf(player)
+	roll(d, lv)
 	local function add(src: { [string]: Prog })
 		for id, p in pairs(src) do
 			local def = MissionCatalog.ById[id]
-			if def and def.Type == kind and p.A and not p.C and p.P < def.Goal then
-				p.P = math.min(def.Goal, p.P + n)
+			local goal = if def then MissionCatalog.GoalFor(def, lv) else 0
+			if def and def.Type == kind and p.A and not p.C and p.P < goal then
+				p.P = math.min(goal, p.P + n)
 				dirty[player] = true
 			end
 		end
@@ -133,9 +137,9 @@ local function claim(player: Player, id: any)
 	if not d or not def then
 		return
 	end
-	roll(d)
+	roll(d, levelOf(player))
 	local p = d.D[def.Id] or d.W[def.Id]
-	if not p or p.C or p.P < def.Goal then
+	if not p or p.C or p.P < MissionCatalog.GoalFor(def, levelOf(player)) then
 		return
 	end
 	p.C = true
@@ -152,6 +156,24 @@ local function claim(player: Player, id: any)
 			(VS :: any).Earn(player, if d.D[def.Id] then "Daily" else "Weekly")
 		end
 	end)
+	-- BONO DEL DÍA: reclamar todas las misiones diarias de hoy da un extra de oro y cuenta como 1 misión más
+	if d.D[def.Id] and d.Bonus ~= d.Day then
+		local all = true
+		for _, dd in ipairs(MissionCatalog.Pick(MissionCatalog.DailyPool, MissionCatalog.DAILY_TIERS, d.Day, levelOf(player))) do
+			local pp = d.D[dd.Id]
+			if not pp or not pp.C then
+				all = false
+			end
+		end
+		if all then
+			d.Bonus = d.Day
+			local extra = gold * 2
+			Wallet.AddGold(player, extra, "Misiones")
+			d.Total += 1
+			player:SetAttribute("MissionsDone", d.Total)
+			NotifyRemote:FireClient(player, string.format("¡Todas las misiones de hoy! Bono del día · +%d oro", extra))
+		end
+	end
 	for _, f in ipairs(MissionCatalog.Frames) do
 		if d.Total == f.Need then
 			NotifyRemote:FireClient(player, "¡Desbloqueaste el " .. f.Name .. "! Equípalo con el NPC del Pabellón.")
@@ -166,7 +188,7 @@ local function accept(player: Player, id: any)
 	if not d then
 		return
 	end
-	roll(d)
+	roll(d, levelOf(player))
 	if id == "ALL" then
 		for _, src in ipairs({ d.D, d.W }) do
 			for _, p in pairs(src) do
@@ -297,7 +319,7 @@ local function buildSteward(cf: CFrame, faction: string): Model
 	t.TextScaled = true
 	t.TextColor3 = Color3.new(1, 1, 1)
 	t.TextStrokeTransparency = 0.5
-	t.Text = "Pabellón · Misiones y marcos"
+	t.Text = "Pabellón · Misiones, marcos y títulos"
 	t.Parent = gui
 	return m
 end
@@ -368,7 +390,7 @@ PlayerData.RegisterSerializer("Missions", function(player: Player): any?
 	if not d then
 		return nil
 	end
-	return { Day = d.Day, Week = d.Week, D = d.D, W = d.W, Total = d.Total, Frame = d.Frame }
+	return { Day = d.Day, Week = d.Week, D = d.D, W = d.W, Total = d.Total, Frame = d.Frame, Bonus = d.Bonus }
 end)
 
 local function cleanProg(raw: any): { [string]: Prog }
@@ -389,11 +411,12 @@ local function init(player: Player)
 		return
 	end
 	local raw: any = (saved :: any).Missions
-	local d: Data = { Day = 0, Week = 0, D = {}, W = {}, Total = 0, Frame = nil }
+	local d: Data = { Day = 0, Week = 0, D = {}, W = {}, Total = 0, Frame = nil, Bonus = 0 }
 	if typeof(raw) == "table" then
 		d.Day = if typeof(raw.Day) == "number" then raw.Day else 0
 		d.Week = if typeof(raw.Week) == "number" then raw.Week else 0
 		d.D, d.W = cleanProg(raw.D), cleanProg(raw.W)
+		d.Bonus = if typeof(raw.Bonus) == "number" then raw.Bonus else 0
 		d.Total = if typeof(raw.Total) == "number" then math.max(0, math.floor(raw.Total)) else 0
 		if typeof(raw.Frame) == "string" and MissionCatalog.FrameById[raw.Frame] and d.Total >= MissionCatalog.FrameById[raw.Frame].Need then
 			d.Frame = raw.Frame
@@ -401,7 +424,7 @@ local function init(player: Player)
 	end
 	data[player] = d
 	player:SetAttribute("MissionsDone", d.Total)
-	roll(d)
+	roll(d, levelOf(player))
 	publishFrame(player)
 end
 

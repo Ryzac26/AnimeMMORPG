@@ -130,15 +130,16 @@ local function build()
 	head2.TextStrokeTransparency = 1
 	y += 28
 	local card2 = NpcKit.Panel(w, theme, UDim2.fromOffset(W - 28, 134), UDim2.fromOffset(14, y), "card")
-	local hint2 = UITheme.Text(card2, "Títulos, árbol de talentos, hitos de nivel con auras y probabilidades reales.", 11, pal.Muted, UDim2.fromOffset(12, 6), UDim2.new(1, -24, 0, 16))
+	local hint2 = UITheme.Text(card2, "Árbol de talentos, hitos de nivel con auras y probabilidades reales. (Los títulos se eligen con el Mayordomo del Salón VIP.)", 11, pal.Muted, UDim2.fromOffset(12, 6), UDim2.new(1, -24, 0, 16))
 	hint2.TextStrokeTransparency = 1
 	local bw2 = math.floor((W - 28 - 24 - 8) / 2)
 	local links = {
-		{ "Títulos", "Titles" }, { "Talentos", "Talents" }, { "Hitos y auras", "Milestones" }, { "Probabilidades", "Probs" },
+		{ "Talentos", "Talents" }, { "Hitos y auras", "Milestones" }, { "Probabilidades", "Probs" },
 	}
 	for i, l in ipairs(links) do
 		local col, row = (i - 1) % 2, (i - 1) // 2
-		NpcKit.Button(card2, theme, l[1], UDim2.fromOffset(bw2, 40), UDim2.fromOffset(12 + col * (bw2 + 8), 28 + row * 48), "action", function()
+		local bw = if i == #links and #links % 2 == 1 then bw2 * 2 + 8 else bw2
+		NpcKit.Button(card2, theme, l[1], UDim2.fromOffset(bw, 40), UDim2.fromOffset(12 + col * (bw2 + 8), 28 + row * 48), "action", function()
 			gui.Enabled = false
 			MenuBus.Fire(l[2])
 		end)
