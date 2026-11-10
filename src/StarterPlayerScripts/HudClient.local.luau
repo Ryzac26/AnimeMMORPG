@@ -1,4 +1,4 @@
-¿--!strict
+--!strict
 --[[
     HudClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > HudClient
     HUD principal con estilo por facción:
