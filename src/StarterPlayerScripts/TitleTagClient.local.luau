@@ -11,7 +11,8 @@ local Modules = ReplicatedStorage:WaitForChild("Modules", 10) :: Folder
 local TitleBadge: any = require(Modules:WaitForChild("TitleBadge", 10))
 local TitleCatalog: any = require(Modules:WaitForChild("TitleCatalog", 10))
 
-local HEIGHT = 46
+local HEIGHT = 52
+local MANY = 10 -- con más jugadores que esto, las placas de los DEMÁS salen sin animación (la tuya siempre animada)
 
 local function refresh(pl: Player)
 	local char = pl.Character
@@ -30,16 +31,21 @@ local function refresh(pl: Player)
 	end
 	local frame = pl:GetAttribute("ProfileFrame")
 	local w = TitleBadge.SizeFor(def, HEIGHT)
+	local mg = TitleBadge.Margins(def, HEIGHT) -- espacio para alas, remolino y adorno (simétrico: la placa queda centrada)
 	local bb = Instance.new("BillboardGui")
 	bb.Name = "TituloPlaca"
 	bb.Adornee = head
-	bb.Size = UDim2.fromOffset(w, HEIGHT)
+	bb.Size = UDim2.fromOffset(w + mg.H * 2, HEIGHT + mg.V * 2)
 	bb.StudsOffsetWorldSpace = Vector3.new(0, 3.7, 0)
 	bb.MaxDistance = 70
 	bb.AlwaysOnTop = false
 	bb.ResetOnSpawn = false
 	bb.Parent = head
-	TitleBadge.Build(bb, def, { Width = w, Height = HEIGHT, Frame = if typeof(frame) == "string" and frame ~= "" then frame else nil })
+	TitleBadge.Build(bb, def, {
+		Width = w, Height = HEIGHT, Position = UDim2.fromOffset(mg.H, mg.V),
+		Static = pl ~= Players.LocalPlayer and #Players:GetPlayers() > MANY,
+		Frame = if typeof(frame) == "string" and frame ~= "" then frame else nil,
+	})
 end
 
 local function watch(pl: Player)

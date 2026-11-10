@@ -142,6 +142,7 @@ local function claim(player: Player, id: any)
 	local gold = MissionCatalog.Gold(def, levelOf(player))
 	Wallet.AddGold(player, gold, "Misiones")
 	d.Total += 1
+	player:SetAttribute("MissionsDone", d.Total)
 	NotifyRemote:FireClient(player, string.format("Misión completada: %s · +%d oro", def.Text, gold))
 	task.spawn(function() -- Sellos Imperiales de la Tienda VIP (solo suscriptores)
 		local ok, VS = pcall(function()
@@ -399,6 +400,7 @@ local function init(player: Player)
 		end
 	end
 	data[player] = d
+	player:SetAttribute("MissionsDone", d.Total)
 	roll(d)
 	publishFrame(player)
 end

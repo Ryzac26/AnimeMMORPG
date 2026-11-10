@@ -1,14 +1,23 @@
 --!strict
 --[[
     TitleBadge (ModuleScript) -> ReplicatedStorage.Modules.TitleBadge
-    Dibuja la PLACA de un título: MARCO (tu marco de perfil equipado) + FONDO ANIMADO (según el título) + ICONO + NOMBRE con degradado de rareza.
+    Dibuja la PLACA de un título. Capas (de atrás hacia adelante): REMOLINO (Mítico) · ALAS (Legendario+) · FONDO (textura + fondo animado) · MARCO estirable (9-slice)
+    · ADORNO superior (Épico+) · destellos (Épico+) · ICONO + NOMBRE. Todo sale del LOOK del título (def.Look -> TitleFrames.Looks); más rareza = más adornos.
+    Tu marco de perfil (Bronce..Imperial) se dibuja como un aro de color alrededor de la placa.
     Solo cliente (usa TweenService). Lo usan TitleTagClient (sobre la cabeza) y TitleClient (ventana).
-      TitleBadge.Build(parent, def, { Width, Height, Frame = "Bronce"|"Plata"|"Oro"|"Cristal"|"Imperial"|nil, Static = true|nil, Position, AnchorPoint }) -> Frame
+      TitleBadge.Build(parent, def, { Width, Height, Frame = "Bronce"|"Plata"|"Oro"|"Cristal"|"Imperial"|nil, Static = true|nil, Locked = true|nil, Position, AnchorPoint }) -> Frame
+        (la Frame devuelta mide Width x Height; las alas/remolino/adorno sobresalen de ella)
       TitleBadge.SizeFor(def, height) -> ancho recomendado según el largo del nombre.
+      TitleBadge.Margins(def, height) -> { H, V }: espacio extra (px) que necesitan los adornos a los lados y arriba/abajo.
     Fondos (def.Fx): simple · rayos · llamas · aurora · estrellas · petalos · eclipse · cristal · oro · ki · hojas · olas · niebla.
     Static = true: sin animaciones (títulos bloqueados en la ventana).
 ]]
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Mods = ReplicatedStorage:WaitForChild("Modules", 10) :: Folder
+local TitleFrames: any = require(Mods:WaitForChild("TitleFrames", 10))
+local AuraTextures: any = require(Mods:WaitForChild("AuraTextures", 10))
 
 local TitleBadge = {}
 
@@ -319,21 +328,71 @@ end
 ---------------------------------------------------------------------
 -- API
 ---------------------------------------------------------------------
-function TitleBadge.SizeFor(def: any, height: number): number
-	local n = utf8.len(def.Name) or #def.Name
-	return math.floor(height * 1.5 + n * height * 0.3)
+local RANK: { [string]: number } = { Comun = 1, Raro = 2, Epico = 3, Legendario = 4, Mitico = 5 }
+local DEFAULT_LOOK: { [string]: string } = { Comun = "Cobre", Raro = "Acero", Epico = "Plata", Legendario = "Honor", Mitico = "Realeza" }
+
+local function lookOf(def: any): (any, number)
+	local rk = RANK[def.Rarity] or 1
+	local look = if typeof(def.Look) == "string" then TitleFrames.Looks[def.Look] else nil
+	return look or TitleFrames.Looks[DEFAULT_LOOK[def.Rarity] or "Cobre"], rk
 end
 
-function TitleBadge.Build(parent: Instance, def: any, o: { Width: number, Height: number, Frame: string?, Static: boolean?, Position: UDim2?, AnchorPoint: Vector2? }): Frame
+function TitleBadge.SizeFor(def: any, height: number): number
+	local n = utf8.len(def.Name) or #def.Name
+	return math.floor(height * 1.9 + n * height * 0.3)
+end
+
+function TitleBadge.Margins(def: any, height: number): { H: number, V: number }
+	local look, rk = lookOf(def)
+	local mh, mv = height * 0.14, height * 0.14
+	if look.Wing and rk >= 4 then
+		mh = math.max(mh, height * 1.4)
+		mv = math.max(mv, height * 0.8)
+	end
+	if look.Top and rk >= 3 then
+		mv = math.max(mv, height * 0.75)
+	end
+	if look.Swirl and rk >= 5 then
+		mv = math.max(mv, height * 0.65)
+		mh = math.max(mh, height * 0.5)
+	end
+	return { H = math.ceil(mh), V = math.ceil(mv) }
+end
+
+local function img(parent: Instance, image: string, size: UDim2, pos: UDim2, z: number, tint: Color3?): ImageLabel
+	local im = Instance.new("ImageLabel")
+	im.BackgroundTransparency = 1
+	im.BorderSizePixel = 0
+	im.Image = image
+	im.Size = size
+	im.Position = pos
+	im.ZIndex = z
+	if tint then
+		im.ImageColor3 = tint
+	end
+	im.Parent = parent
+	return im
+end
+
+function TitleBadge.Build(parent: Instance, def: any, o: { Width: number, Height: number, Frame: string?, Static: boolean?, Locked: boolean?, Position: UDim2?, AnchorPoint: Vector2? }): Frame
 	local W, H = o.Width, o.Height
 	local K = H / 96
-	local pad = math.max(3, math.floor(H * 0.065))
+	local look, rk = lookOf(def)
+	local static = o.Static == true or o.Locked == true
+	local deco: Color3? = if o.Locked then c(95, 95, 110) else nil
+	local s = H / 200 -- escala de las imágenes del marco (el aro mide 200 px de alto en la imagen)
+	local m = 28 * s -- margen transparente de la imagen del marco
+	local pad = math.floor(H * 0.155)
 	local frameKey = if o.Frame and FRAMES[o.Frame] then o.Frame else nil
+	local fxKey: string = if typeof(look.Fx) == "string" then look.Fx elseif typeof(def.Fx) == "string" and FX[def.Fx] then def.Fx else "simple"
+	if not FX[fxKey] then
+		fxKey = "simple"
+	end
 
 	local outer = Instance.new("Frame")
 	outer.Name = "TituloPlaca"
 	outer.Size = UDim2.fromOffset(W, H)
-	outer.BackgroundColor3 = c(58, 63, 85)
+	outer.BackgroundTransparency = 1
 	outer.BorderSizePixel = 0
 	if o.Position then
 		outer.Position = o.Position
@@ -341,46 +400,34 @@ function TitleBadge.Build(parent: Instance, def: any, o: { Width: number, Height
 	if o.AnchorPoint then
 		outer.AnchorPoint = o.AnchorPoint
 	end
-	local oc = Instance.new("UICorner")
-	oc.CornerRadius = UDim.new(0, math.floor(H * 0.18))
-	oc.Parent = outer
-	if frameKey then
-		local cols = FRAMES[frameKey]
-		gradient(outer, cols[1], cols[3], 45, cols[2])
-		outer.BackgroundColor3 = Color3.new(1, 1, 1)
-		if frameKey == "Imperial" and not o.Static then
-			local st = Instance.new("UIStroke")
-			st.Color = c(200, 120, 255)
-			st.Thickness = math.max(1.5, 2 * K)
-			st.Transparency = 0.4
-			st.Parent = outer
-			loop(st, 1.2, { Transparency = 0.05, Thickness = math.max(2.5, 4 * K) }, true)
-		elseif frameKey == "Oro" and not o.Static then
-			local st = Instance.new("UIStroke")
-			st.Color = c(255, 210, 90)
-			st.Thickness = math.max(1, 1.5 * K)
-			st.Transparency = 0.6
-			st.Parent = outer
-			loop(st, 1.6, { Transparency = 0.2 }, true)
-		end
-		-- tachuelas en las esquinas
-		for _, corner in ipairs({ { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 } }) do
-			local s = math.max(5, 8 * K)
-			local stud = box(outer, UDim2.fromOffset(s, s), UDim2.new(corner[1], 0, corner[2], 0), c(232, 195, 90), 0, 1)
-			stud.AnchorPoint = Vector2.new(0.5, 0.5)
-			stud.ZIndex = 6
-			gradient(stud, c(255, 255, 255), c(122, 84, 16), 45)
-		end
-		if frameKey == "Cristal" and not o.Static then
-			local sw = box(outer, UDim2.fromOffset(H * 0.35, H * 1.6), UDim2.new(-0.2, 0, 0.5, 0), Color3.new(1, 1, 1), 0.55)
-			sw.AnchorPoint = Vector2.new(0.5, 0.5)
-			sw.Rotation = 20
-			sw.ZIndex = 6
-			softEdges(sw)
-			loop(sw, 2.6, { Position = UDim2.new(1.2, 0, 0.5, 0) }, false, 0, LINEAR)
+
+	-- REMOLINO detrás (solo Mítico)
+	if look.Swirl and rk >= 5 then
+		local sh = H * 2.4
+		local sw = img(outer, TitleFrames.Get(look.Swirl), UDim2.fromOffset(sh * 3.2, sh), UDim2.fromOffset(W / 2, H / 2), 1, deco)
+		sw.AnchorPoint = Vector2.new(0.5, 0.5)
+		sw.ImageTransparency = 0.3
+		if not static then
+			loop(sw, 2.6, { ImageTransparency = 0.55, Size = UDim2.fromOffset(sh * 3.45, sh * 1.07) }, true)
 		end
 	end
 
+	-- ALAS (Legendario+): el pivote de cada ala queda sobre el borde de la placa
+	if look.Wing and rk >= 4 then
+		local wsz = H * 1.5
+		for _, side in ipairs({ "Der", "Izq" }) do
+			local right = side == "Der"
+			local w = img(outer, TitleFrames.Get("Ala-" .. look.Wing .. "-" .. side), UDim2.fromOffset(wsz, wsz), UDim2.fromOffset(if right then W - H * 0.05 else H * 0.05, H * 0.58), 2, deco)
+			w.AnchorPoint = Vector2.new(if right then 0.081 else 0.919, 0.886)
+			if not static then
+				local dir = if right then 1 else -1
+				w.Rotation = -4 * dir
+				loop(w, 1.5 + (if right then 0 else 0.05), { Rotation = 5 * dir, Size = UDim2.fromOffset(wsz * 1.04, wsz * 1.04) }, true)
+			end
+		end
+	end
+
+	-- INTERIOR: textura + oscurecido + fondo animado
 	local bg = Instance.new("Frame")
 	bg.Name = "Fondo"
 	bg.Size = UDim2.new(1, -pad * 2, 1, -pad * 2)
@@ -388,8 +435,9 @@ function TitleBadge.Build(parent: Instance, def: any, o: { Width: number, Height
 	bg.BackgroundColor3 = Color3.new(1, 1, 1)
 	bg.BorderSizePixel = 0
 	bg.ClipsDescendants = true
+	bg.ZIndex = 3
 	local bc = Instance.new("UICorner")
-	bc.CornerRadius = UDim.new(0, math.max(3, math.floor(H * 0.14)))
+	bc.CornerRadius = UDim.new(0, math.max(3, math.floor(H * 0.1)))
 	bc.Parent = bg
 	bg.Parent = outer
 
@@ -397,14 +445,25 @@ function TitleBadge.Build(parent: Instance, def: any, o: { Width: number, Height
 	fx.Name = "Efectos"
 	fx.BackgroundTransparency = 1
 	fx.Size = UDim2.fromScale(1, 1)
+	fx.ZIndex = 3
 	fx.Parent = bg
 
-	local builder = FX[if typeof(def.Fx) == "string" and FX[def.Fx] then def.Fx else "simple"]
-	local ctx: Ctx = { Bg = bg, Fx = fx, W = W - pad * 2, H = H - pad * 2, K = K, Static = o.Static == true }
-	builder(ctx)
+	local ctx: Ctx = { Bg = bg, Fx = fx, W = W - pad * 2, H = H - pad * 2, K = K, Static = static }
+	FX[fxKey](ctx)
+
+	if look.Tile and rk >= 2 then
+		local tile = img(bg, TitleFrames.Get("Tex-" .. look.Tile), UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), 1, deco or look.Tint)
+		tile.ScaleType = Enum.ScaleType.Tile
+		tile.TileSize = UDim2.fromOffset(H * 1.3, H * 1.3)
+		tile.ImageTransparency = look.TileAlpha or 0.2
+		if look.Text ~= "dark" then
+			local scrim = box(bg, UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.new(0, 0, 0), 0.5)
+			scrim.ZIndex = 2
+		end
+	end
 
 	-- brillo que cruza
-	if not o.Static then
+	if not static then
 		local shine = box(bg, UDim2.fromOffset(H * 0.3, H * 1.8), UDim2.new(-0.3, 0, 0.5, 0), Color3.new(1, 1, 1), 0.88)
 		shine.AnchorPoint = Vector2.new(0.5, 0.5)
 		shine.Rotation = 20
@@ -413,44 +472,119 @@ function TitleBadge.Build(parent: Instance, def: any, o: { Width: number, Height
 		loop(shine, 3.6, { Position = UDim2.new(1.3, 0, 0.5, 0) }, false, 0, LINEAR)
 	end
 
+	-- MARCO estirable (9-slice): sus esquinas no se deforman con ningún largo de nombre
+	local frameImg = img(outer, TitleFrames.Get("Marco-" .. look.Frame), UDim2.fromOffset(W + 2 * m, H + 2 * m), UDim2.fromOffset(-m, -m), 5, deco)
+	frameImg.ScaleType = Enum.ScaleType.Slice
+	frameImg.SliceCenter = Rect.new(256, 127, 544, 129)
+	frameImg.SliceScale = s
+
+	-- aro de tu MARCO DE PERFIL (Bronce..Imperial) por fuera del marco del título
+	if frameKey then
+		local cols = FRAMES[frameKey]
+		local ring = Instance.new("Frame")
+		ring.Name = "MarcoPerfil"
+		ring.BackgroundTransparency = 1
+		ring.Size = UDim2.fromOffset(W + m * 1.2, H + m * 1.2)
+		ring.Position = UDim2.fromOffset(-m * 0.6, -m * 0.6)
+		ring.ZIndex = 6
+		local rc = Instance.new("UICorner")
+		rc.CornerRadius = UDim.new(0, math.floor(H * 0.3))
+		rc.Parent = ring
+		local st = Instance.new("UIStroke")
+		st.Color = cols[2]
+		st.Thickness = math.max(1.5, 2.2 * K)
+		st.Transparency = if o.Locked then 0.6 else 0.05
+		st.Parent = ring
+		ring.Parent = outer
+		if not static and (frameKey == "Imperial" or frameKey == "Oro") then
+			loop(st, 1.3, { Transparency = 0.5, Thickness = math.max(2.5, 4 * K) }, true)
+		end
+	end
+
+	-- ADORNO superior (Épico+)
+	if look.Top and rk >= 3 then
+		local tw = H * 1.6
+		local th = tw * 220 / 400
+		local top = img(outer, TitleFrames.Get("Adorno-" .. look.Top), UDim2.fromOffset(tw, th), UDim2.fromOffset(W / 2, H * 0.16), 7, deco)
+		top.AnchorPoint = Vector2.new(0.5, 1)
+		if not static then
+			loop(top, 1.8, { Position = UDim2.fromOffset(W / 2, H * 0.16 - H * 0.05) }, true)
+		end
+	end
+
+	-- DESTELLOS que saltan alrededor (Épico+, solo animado)
+	if not static and rk >= 3 and look.Spark then
+		local tex = AuraTextures.Get("Destello-4-puntas")
+		local active = 0
+		local maxActive = if rk >= 5 then 7 else 4
+		task.spawn(function()
+			local i = 0
+			while alive(outer) do
+				task.wait(if rk >= 5 then 0.28 else 0.5)
+				if not alive(outer) then
+					return
+				end
+				if active < maxActive then
+					i += 1
+					active += 1
+					local sz = H * (0.14 + rnd(i * 3.1 + os.clock()) * 0.2)
+					local px = -m + rnd(i * 1.7 + os.clock()) * (W + 2 * m)
+					local py = -m * 1.2 + rnd(i * 2.3 + os.clock()) * (H + m * 2.4)
+					local sp = img(outer, tex, UDim2.fromOffset(sz * 0.3, sz * 0.3), UDim2.fromOffset(px, py), 8, look.Spark)
+					sp.AnchorPoint = Vector2.new(0.5, 0.5)
+					sp.ImageTransparency = 0.2
+					local tw = TweenService:Create(sp, TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(sz, sz), ImageTransparency = 1, Rotation = 90 })
+					tw.Completed:Connect(function()
+						active -= 1
+						sp:Destroy()
+					end)
+					tw:Play()
+				end
+			end
+		end)
+	end
+
 	-- icono + nombre
-	local isEclipse = def.Fx == "eclipse"
-	local iconW = if isEclipse then H * 0.95 else H * 0.58
+	local isEclipse = fxKey == "eclipse"
+	local iconW = if isEclipse then (H - pad * 2) * 1.05 else (H - pad * 2) * 0.8
 	local icon = Instance.new("TextLabel")
 	icon.Name = "Icono"
 	icon.BackgroundTransparency = 1
 	icon.Size = UDim2.fromOffset(iconW, H - pad * 2)
-	icon.Position = UDim2.fromOffset(H * 0.12, 0)
+	icon.Position = UDim2.fromOffset(H * 0.06, 0)
 	icon.Font = Enum.Font.GothamBold
 	icon.TextScaled = true
 	icon.Text = if isEclipse then "" else (def.Icon or "★")
 	icon.TextColor3 = Color3.new(1, 1, 1)
 	icon.ZIndex = 4
 	local ic = Instance.new("UITextSizeConstraint")
-	ic.MaxTextSize = math.floor(H * 0.46)
+	ic.MaxTextSize = math.floor(H * 0.42)
 	ic.Parent = icon
 	icon.Parent = bg
 
-	local textLeft = H * 0.12 + iconW + H * 0.08
+	local dark = look.Text == "dark"
+	local textLeft = H * 0.06 + iconW + H * 0.06
 	local cols = RARITY_TEXT[def.Rarity] or RARITY_TEXT.Comun
 	local name = Instance.new("TextLabel")
 	name.Name = "Nombre"
 	name.BackgroundTransparency = 1
-	name.Position = UDim2.new(0, textLeft, 0.1, 0)
-	name.Size = UDim2.new(1, -textLeft - H * 0.12, 0.56, 0)
+	name.Position = UDim2.new(0, textLeft, 0.04, 0)
+	name.Size = UDim2.new(1, -textLeft - H * 0.1, 0.62, 0)
 	name.Font = Enum.Font.GothamBlack
 	name.TextScaled = true
 	name.TextXAlignment = Enum.TextXAlignment.Left
 	name.Text = def.Name
-	name.TextColor3 = Color3.new(1, 1, 1)
-	name.TextStrokeColor3 = c(8, 8, 16)
-	name.TextStrokeTransparency = 0.35
+	name.TextColor3 = if dark then c(70, 38, 12) else Color3.new(1, 1, 1)
+	name.TextStrokeColor3 = if dark then c(255, 240, 210) else c(8, 8, 16)
+	name.TextStrokeTransparency = if dark then 0.5 else 0.3
 	name.ZIndex = 4
 	local nc = Instance.new("UITextSizeConstraint")
-	nc.MaxTextSize = math.floor(H * 0.34)
+	nc.MaxTextSize = math.floor(H * 0.32)
 	nc.MinTextSize = 6
 	nc.Parent = name
-	gradient(name, cols[1], cols[2], 90)
+	if not dark then
+		gradient(name, cols[1], cols[2], 90)
+	end
 	name.Parent = bg
 
 	if H >= 40 then
@@ -458,17 +592,17 @@ function TitleBadge.Build(parent: Instance, def: any, o: { Width: number, Height
 		rar.Name = "Rareza"
 		rar.BackgroundTransparency = 1
 		rar.Position = UDim2.new(0, textLeft, 0.68, 0)
-		rar.Size = UDim2.new(1, -textLeft - H * 0.12, 0.2, 0)
+		rar.Size = UDim2.new(1, -textLeft - H * 0.1, 0.28, 0)
 		rar.Font = Enum.Font.GothamBold
 		rar.TextScaled = true
 		rar.TextXAlignment = Enum.TextXAlignment.Left
 		rar.Text = RARITY_NAME[def.Rarity] or ""
-		rar.TextColor3 = cols[2]
-		rar.TextStrokeColor3 = c(8, 8, 16)
+		rar.TextColor3 = if dark then c(120, 70, 20) else cols[2]
+		rar.TextStrokeColor3 = if dark then c(255, 240, 210) else c(8, 8, 16)
 		rar.TextStrokeTransparency = 0.5
 		rar.ZIndex = 4
 		local rc = Instance.new("UITextSizeConstraint")
-		rc.MaxTextSize = math.floor(H * 0.14)
+		rc.MaxTextSize = math.floor(H * 0.16)
 		rc.MinTextSize = 5
 		rc.Parent = rar
 		rar.Parent = bg

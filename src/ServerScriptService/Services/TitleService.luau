@@ -121,6 +121,12 @@ local function progress(player: Player, kind: string): number
 	elseif kind == "Forja9" then
 		local v = player:GetAttribute("Forja9")
 		return if typeof(v) == "number" then v else 0
+	elseif kind == "Mission" then
+		local v = player:GetAttribute("MissionsDone") -- lo publica MissionService
+		return if typeof(v) == "number" then v else 0
+	elseif kind == "Hito" then
+		local v = player:GetAttribute("HitosClaimed") -- lo publica LevelMilestoneService
+		return if typeof(v) == "number" then v else 0
 	end
 	return if p then (p.C[kind] or 0) else 0
 end
@@ -185,7 +191,7 @@ local function init(player: Player)
 		task.wait(1)
 		applyTag(player)
 	end)
-	for _, attr in ipairs({ "Level", "HallBest", "Forja9", "Faction" }) do
+	for _, attr in ipairs({ "Level", "HallBest", "Forja9", "Faction", "MissionsDone", "HitosClaimed" }) do
 		player:GetAttributeChangedSignal(attr):Connect(function()
 			check(player)
 		end)

@@ -48,11 +48,17 @@ local function current(kind: string): number
 	elseif kind == "Forja9" then
 		local v = player:GetAttribute("Forja9")
 		return if typeof(v) == "number" then v else 0
+	elseif kind == "Mission" then
+		local v = player:GetAttribute("MissionsDone")
+		return if typeof(v) == "number" then v else 0
+	elseif kind == "Hito" then
+		local v = player:GetAttribute("HitosClaimed")
+		return if typeof(v) == "number" then v else 0
 	end
 	return if state then (state.Counters[kind] or 0) else 0
 end
 
-local UNIT: { [string]: string } = { Level = "Nv.", Kill = "kills", Metin = "Metin", Boss = "jefes", Min = "min", Dmg = "daño", Forja9 = "piezas +9" }
+local UNIT: { [string]: string } = { Level = "Nv.", Kill = "kills", Metin = "Metin", Boss = "jefes", Min = "min", Dmg = "daño", Forja9 = "piezas +9", Mission = "misiones", Hito = "hitos" }
 
 local function build()
 	if win then
@@ -136,74 +142,71 @@ local function build()
 		return a.Name < b.Name
 	end)
 
+	-- una columna: cada título se muestra como vitrina (las alas, el remolino y el adorno necesitan espacio alrededor de la placa)
 	local innerW = WW - sideW - 28 - 8 - 14
-	local cardW = math.floor((innerW - 10) / 2)
-	local cardH = 138
+	local cardW = innerW - 12
+	local PH = 56
 	local myFrame = player:GetAttribute("ProfileFrame")
-	for i, t in ipairs(list) do
-		local col = (i - 1) % 2
-		local row = (i - 1) // 2
+	local curY = 6
+	for _, t in ipairs(list) do
 		local unlocked = state.Unlocked[t.Id] == true
 		local equipped = state.Equipped == t.Id
-		local card = NpcKit.Panel(scroll, theme, UDim2.fromOffset(cardW, cardH), UDim2.fromOffset(6 + col * (cardW + 10), 6 + row * (cardH + 8)), "inset")
+		local mg = TitleBadge.Margins(t, PH)
 		local cols = TitleCatalog.RarityColors[t.Rarity] or TitleCatalog.RarityColors.Comun
+		local plaqueBottom = mg.V + PH
+		local infoY = plaqueBottom + math.floor(mg.V * 0.85) + 4
+		local cardH = infoY + 54
+		local card = NpcKit.Panel(scroll, theme, UDim2.fromOffset(cardW, cardH), UDim2.fromOffset(6, curY), "inset")
+		curY += cardH + 8
 		-- la placa tal como se verá sobre tu personaje (con tu marco de perfil); bloqueada: sin movimiento y oscurecida
-		local bw = math.min(cardW - 16, TitleBadge.SizeFor(t, 56))
+		local bw = math.min(TitleBadge.SizeFor(t, PH), cardW - mg.H * 2 - 8)
 		local badge = TitleBadge.Build(card, t, {
-			Width = bw, Height = 56, Static = not unlocked,
+			Width = bw, Height = PH, Static = not unlocked, Locked = not unlocked,
 			Frame = if typeof(myFrame) == "string" and myFrame ~= "" then myFrame else nil,
-			Position = UDim2.fromOffset(8, 8),
+			Position = UDim2.fromOffset(math.floor((cardW - bw) / 2), mg.V),
 		})
 		if not unlocked then
-			local dim = Instance.new("Frame")
-			dim.Size = UDim2.fromScale(1, 1)
-			dim.BackgroundColor3 = Color3.new(0, 0, 0)
-			dim.BackgroundTransparency = 0.45
-			dim.BorderSizePixel = 0
-			dim.ZIndex = 20
-			local dc = Instance.new("UICorner")
-			dc.CornerRadius = UDim.new(0, 10)
-			dc.Parent = dim
-			dim.Parent = badge
-			local lock = UITheme.Text(dim, "🔒", 20, Color3.new(1, 1, 1), UDim2.fromOffset(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
-			lock.ZIndex = 21
-			lock.TextStrokeTransparency = 1
+			local lock = UITheme.Text(badge, "🔒", 20, Color3.new(1, 1, 1), UDim2.fromOffset(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
+			lock.ZIndex = 20
+			lock.TextStrokeTransparency = 0.4
 		end
-		local rar = UITheme.Text(card, (TitleCatalog.RarityName[t.Rarity] or "") .. " · " .. t.Cat, 11, cols[2], UDim2.fromOffset(bw + 16, 12), UDim2.fromOffset(cardW - bw - 24, 14))
+		local rar = UITheme.Text(card, (TitleCatalog.RarityName[t.Rarity] or "") .. " · " .. t.Cat, 12, cols[2], UDim2.fromOffset(12, infoY), UDim2.fromOffset(cardW - 200, 16))
 		rar.TextStrokeTransparency = 1
 		rar.Font = Enum.Font.GothamBold
-		local desc = UITheme.Text(card, t.Desc, 11, pal.Muted, UDim2.fromOffset(10, 70), UDim2.fromOffset(cardW - 20, 28))
+		local desc = UITheme.Text(card, t.Desc, 12, pal.Muted, UDim2.fromOffset(12, infoY + 18), UDim2.fromOffset(cardW - 200, 32))
 		desc.TextWrapped = true
 		desc.TextYAlignment = Enum.TextYAlignment.Top
 		desc.TextStrokeTransparency = 1
+		local bx, bwid = cardW - 178, 166
 		if unlocked then
-			NpcKit.Button(card, theme, if equipped then "✔ Equipado · Quitar" else "Equipar", UDim2.fromOffset(cardW - 20, 26), UDim2.fromOffset(10, cardH - 34), if equipped then "danger" else "buy", function()
+			NpcKit.Button(card, theme, if equipped then "✔ Equipado · Quitar" else "Equipar", UDim2.fromOffset(bwid, 32), UDim2.fromOffset(bx, infoY + 8), if equipped then "danger" else "buy", function()
 				actionRemote:FireServer("Equip", if equipped then "" else t.Id)
 			end)
 		elseif t.Kind ~= "Grant" and t.Value then
 			local cur = math.min(current(t.Kind), t.Value)
 			local txt = string.format("%s / %s %s", thousands(cur), thousands(t.Value), UNIT[t.Kind] or "")
 			local back = Instance.new("Frame")
-			back.Position = UDim2.fromOffset(10, cardH - 30)
-			back.Size = UDim2.fromOffset(cardW - 20, 18)
+			back.Position = UDim2.fromOffset(bx - 20, infoY + 12)
+			back.Size = UDim2.fromOffset(bwid + 20, 22)
 			back.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
 			back.BorderSizePixel = 0
 			back.Parent = card
-			Instance.new("UICorner", back).CornerRadius = UDim.new(0, 5)
+			Instance.new("UICorner", back).CornerRadius = UDim.new(0, 6)
 			local fill = Instance.new("Frame")
 			fill.Size = UDim2.fromScale(math.clamp(cur / t.Value, 0, 1), 1)
 			fill.BackgroundColor3 = cols[2]
 			fill.BorderSizePixel = 0
 			fill.Parent = back
-			Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 5)
+			Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 6)
 			local pt = UITheme.Text(back, txt, 11, Color3.new(1, 1, 1), UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
 			pt.ZIndex = 3
 		else
-			local lk = UITheme.Text(card, "Título especial: " .. (if t.Cat == "VIP" then "Tienda VIP del Mes" else "se consigue por un logro"), 11, Color3.fromRGB(165, 165, 180), UDim2.fromOffset(10, cardH - 30), UDim2.fromOffset(cardW - 20, 18))
+			local lk = UITheme.Text(card, "Título especial: " .. (if t.Cat == "VIP" then "Tienda VIP del Mes" else "se consigue por un logro"), 11, Color3.fromRGB(165, 165, 180), UDim2.fromOffset(bx - 20, infoY + 14), UDim2.fromOffset(bwid + 20, 28))
+			lk.TextWrapped = true
 			lk.TextStrokeTransparency = 1
 		end
 	end
-	scroll.CanvasSize = UDim2.fromOffset(0, 12 + math.ceil(#list / 2) * (138 + 8))
+	scroll.CanvasSize = UDim2.fromOffset(0, curY + 8)
 end
 
 stateRemote.OnClientEvent:Connect(function(s: any)

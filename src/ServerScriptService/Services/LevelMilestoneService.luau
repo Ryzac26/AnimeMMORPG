@@ -40,6 +40,14 @@ PlayerData.RegisterSerializer("Hitos", function(player: Player): any?
 	return { C = list, A = p.Aura }
 end)
 
+local function publishCount(player: Player, p: Profile)
+	local n = 0
+	for _ in pairs(p.Claimed) do
+		n += 1
+	end
+	player:SetAttribute("HitosClaimed", n) -- lo leen los títulos de la categoría Hitos
+end
+
 local function levelOf(player: Player): number
 	local v = player:GetAttribute("Level")
 	return if typeof(v) == "number" then v else 1
@@ -79,6 +87,7 @@ local function claim(player: Player, index: number): boolean
 	end
 	local r = Milestones.Reward(index)
 	p.Claimed[index] = true
+	publishCount(player, p)
 	local gold = r.Gold
 	if r.Mat and not Inventory.Add(player, r.Mat, r.MatCount) then
 		gold += r.MatCount * 150 -- mochila llena: se compensa con oro
@@ -107,6 +116,7 @@ local function loadProfile(player: Player)
 		end
 	end
 	profiles[player] = p
+	publishCount(player, p)
 	player:GetAttributeChangedSignal("Faction"):Connect(function()
 		applyAura(player)
 	end)
