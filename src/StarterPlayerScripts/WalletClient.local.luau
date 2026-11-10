@@ -7,7 +7,10 @@
 ]]
 local Players = game:GetService("Players")
 
-local POSITION = UDim2.new(1, -12, 0, 12) -- esquina superior derecha
+local UserInputService = game:GetService("UserInputService")
+local MOBILE = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local TOP_Y = if MOBILE then 12 else 72 -- en PC va debajo de los contadores de arriba
+local POSITION = UDim2.new(1, -14, 0, TOP_Y) -- esquina superior derecha, justo debajo de los contadores de evento / arena
 local ANCHOR = Vector2.new(1, 0)
 
 local player = Players.LocalPlayer
@@ -46,6 +49,25 @@ local function makeLabel(y: number, color: Color3): TextLabel
 	label.Parent = frame
 	return label
 end
+
+-- botón para esconder / mostrar el panel de oro y puntos
+local hideBtn = Instance.new("TextButton")
+hideBtn.Name = "Ocultar"
+hideBtn.AnchorPoint = Vector2.new(1, 0)
+hideBtn.Position = UDim2.new(1, -14 - 196, 0, TOP_Y)
+hideBtn.Size = UDim2.fromOffset(24, 24)
+hideBtn.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+hideBtn.BackgroundTransparency = 0.3
+hideBtn.TextColor3 = Color3.new(1, 1, 1)
+hideBtn.Font = Enum.Font.GothamMedium
+hideBtn.TextSize = 13
+hideBtn.Text = "▲"
+hideBtn.Parent = gui
+Instance.new("UICorner", hideBtn).CornerRadius = UDim.new(0, 6)
+hideBtn.Activated:Connect(function()
+	frame.Visible = not frame.Visible
+	hideBtn.Text = if frame.Visible then "▲" else "▼"
+end)
 
 local goldLabel = makeLabel(3, Color3.fromRGB(255, 214, 90))
 local pointsLabel = makeLabel(23, Color3.fromRGB(150, 200, 255))

@@ -104,8 +104,10 @@ local function build()
 					b.BackgroundColor3 = if on then pal.TabOn else pal.TabOff
 					b.TextColor3 = if on then pal.TabOnText else pal.TabOffText
 					local st = strokes[value]
-					st.Color = if on then pal.Edge else pal.Edge2
-					st.Thickness = if on then 2 else 1
+					if st then
+						st.Color = if on then pal.Edge else pal.Edge2
+						st.Thickness = if on then 2 else 1
+					end
 				end
 			end
 			refresh()

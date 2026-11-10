@@ -72,6 +72,7 @@ local function applyIcon(key: string)
 end
 
 -- key: clave de caché ("Boost4h", "pass_Belt"...) · assetId: ID del Developer Product o del Game Pass · infoType: Product | GamePass
+local failedInfo: { string } = {}
 local function loadIcon(key: string, assetId: number, override: string?, infoType: Enum.InfoType)
 	if iconCache[key] ~= nil then
 		applyIcon(key)
@@ -101,7 +102,13 @@ local function loadIcon(key: string, assetId: number, override: string?, infoTyp
 				warn(string.format("[TiendaClient] %s (id %d): Roblox no devolvió icono (IconImageAssetId = %s). Usa el campo Icon del catálogo.", key, assetId, tostring(id)))
 			end
 		else
-			warn(string.format("[TiendaClient] %s (id %d): GetProductInfo falló: %s", key, assetId, tostring(info)))
+			-- varios productos fallan a la vez cuando los ids no existen en este universo: un solo aviso resumen
+			failedInfo[#failedInfo + 1] = string.format("%s (%d)", key, assetId)
+			if #failedInfo == 1 then
+				task.delay(4, function()
+					warn(string.format("[TiendaClient] %d productos sin información en este universo (¿ids de otro lugar o sin publicar?): %s", #failedInfo, table.concat(failedInfo, ", ")))
+				end)
+			end
 		end
 	end)
 end

@@ -554,7 +554,7 @@ end)
 ---------------------------------------------------------------------
 local topRight = Instance.new("Frame")
 topRight.AnchorPoint = Vector2.new(1, 0)
-topRight.Position = UDim2.new(1, -14, 0, 14)
+topRight.Position = UDim2.new(1, -14, 0, 6)
 topRight.Size = UDim2.fromOffset(240, 96)
 topRight.BackgroundTransparency = 1
 topRight.Visible = not MOBILE
@@ -580,6 +580,31 @@ local function chip(): TextLabel
 	return t
 end
 local eventChip, arenaChip, fragChip = chip(), chip(), chip()
+-- botón para esconder / mostrar los contadores de arriba (evento y vidas de arena)
+do
+	local hide = Instance.new("TextButton")
+	hide.Name = "OcultarContadores"
+	hide.AnchorPoint = Vector2.new(1, 0)
+	hide.Position = UDim2.new(1, -14 - 246, 0, 6)
+	hide.Size = UDim2.fromOffset(24, 24)
+	hide.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+	hide.BackgroundTransparency = 0.2
+	hide.TextColor3 = Color3.new(1, 1, 1)
+	hide.Font = UITheme.Font
+	hide.TextSize = 13
+	hide.Text = "▲"
+	hide.Visible = not MOBILE
+	hide.ZIndex = 20
+	hide.Parent = gui
+	Instance.new("UICorner", hide).CornerRadius = UDim.new(0, 6)
+	local shown = true
+	hide.Activated:Connect(function()
+		shown = not shown
+		eventChip.Visible = shown
+		arenaChip.Visible = shown
+		hide.Text = if shown then "▲" else "▼"
+	end)
+end
 fragChip.Visible = false
 eventChip.Text = "Evento: --"
 arenaChip.Text = "Vidas de arena: 3"
