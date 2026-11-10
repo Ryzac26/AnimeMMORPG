@@ -113,21 +113,21 @@ local function asc(f: string, p: string, names: { { string } }, stats: { { [stri
 	add("Ascendencia", 4, 2, p .. "k", key.Name, key.Icon, key.Desc, key.Stats, nil, true, f)
 end
 asc("Saiyan", "as", {
-	{ "Sangre de Guerrero", "🩸", "Más daño." }, { "Ki Desbordante", "🔆", "Más vida." }, { "Orgullo Saiyan", "🦁", "Críticos más fuertes." }, { "Instinto Superior", "👁", "Crítico y defensa." },
+	{ "Sangre de Guerrero", "🩸", "Más daño." }, { "Ki Desbordante", "🔆", "Más vida." }, { "Orgullo de Élite", "🦁", "Críticos más fuertes." }, { "Instinto Superior", "👁", "Crítico y defensa." },
 }, { { Ataque = 0.01 }, { Vida = 0.03 }, { CritDmg = 0.03 }, { Critico = 0.01, Defensa = 0.004 } },
 { Name = "Zenkai", Icon = "⭐", Desc = "CLAVE: +12% de ataque, +0,8% de regeneración y +5% de vida.", Stats = { Ataque = 0.12, Regen = 0.008, Vida = 0.05 } })
 asc("Shinobi", "an", {
 	{ "Chakra Profundo", "🌀", "Más vida." }, { "Sigilo", "🌫", "Más crítico." }, { "Sabiduría Ninja", "📜", "Más XP." }, { "Reflejos", "⚡", "Defensa y daño." },
 }, { { Vida = 0.03 }, { Critico = 0.012 }, { Xp = 0.012 }, { Defensa = 0.004, Ataque = 0.006 } },
-{ Name = "Senjutsu", Icon = "🐸", Desc = "CLAVE: +12% de crítico y +20% de daño crítico, pero −3% de defensa.", Stats = { Critico = 0.12, CritDmg = 0.20, Defensa = -0.03 } })
+{ Name = "Arte Eremita", Icon = "🐸", Desc = "CLAVE: +12% de crítico y +20% de daño crítico, pero −3% de defensa.", Stats = { Critico = 0.12, CritDmg = 0.20, Defensa = -0.03 } })
 asc("Pirate", "ap", {
-	{ "Ambición", "💰", "Más oro." }, { "Voluntad Férrea", "💪", "Más vida." }, { "Haki del Rey", "👑", "Daño y defensa." }, { "Ruta Afortunada", "🧭", "Más suerte." },
+	{ "Ambición", "💰", "Más oro." }, { "Voluntad Férrea", "💪", "Más vida." }, { "Voluntad del Rey", "👑", "Daño y defensa." }, { "Ruta Afortunada", "🧭", "Más suerte." },
 }, { { Oro = 0.02 }, { Vida = 0.03 }, { Ataque = 0.01, Defensa = 0.003 }, { Suerte = 0.015 } },
 { Name = "Yonkō", Icon = "⚓", Desc = "CLAVE: +15% de oro, +12% de suerte y +8% de ataque.", Stats = { Oro = 0.15, Suerte = 0.12, Ataque = 0.08 } })
 asc("Shinigami", "ag", {
-	{ "Reiatsu Elevado", "💠", "Más daño." }, { "Alma Pura", "🦋", "Curación y vida." }, { "Zanpakutō Despierto", "🗡", "Crítico y daño crítico." }, { "Shunpo Perfecto", "💨", "Defensa y regeneración." },
+	{ "Energía espiritual Elevado", "💠", "Más daño." }, { "Alma Pura", "🦋", "Curación y vida." }, { "Hoja Despierta", "🗡", "Crítico y daño crítico." }, { "Paso Flash Perfecto", "💨", "Defensa y regeneración." },
 }, { { Ataque = 0.01 }, { Curacion = 0.02, Vida = 0.015 }, { Critico = 0.01, CritDmg = 0.02 }, { Defensa = 0.005, Regen = 0.002 } },
-{ Name = "Bankai Perfecto", Icon = "🌑", Desc = "CLAVE: +12% de ataque, +5% de defensa y +0,8% de regeneración.", Stats = { Ataque = 0.12, Defensa = 0.05, Regen = 0.008 } })
+{ Name = "Forma Final Perfecta", Icon = "🌑", Desc = "CLAVE: +12% de ataque, +5% de defensa y +0,8% de regeneración.", Stats = { Ataque = 0.12, Defensa = 0.05, Regen = 0.008 } })
 
 T.ById = {} :: { [string]: Node }
 for _, n in ipairs(T.List) do

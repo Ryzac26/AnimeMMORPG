@@ -90,7 +90,7 @@ PetCatalog.Families = {
 	},
 	-- De facción (solo esa facción)
 	Mono = {
-		Name = "Mono Saiyan", Faction = "Saiyan",
+		Name = "Mono de Élite", Faction = "Saiyan",
 		Effects = { Energia = { 0.10, 0.16, 0.24, 0.34, 0.48 }, Ataque = { 0.01, 0.02, 0.03, 0.05, 0.08 } },
 	},
 	Sapo = {
@@ -98,7 +98,7 @@ PetCatalog.Families = {
 		Effects = { Energia = { 0.10, 0.16, 0.24, 0.34, 0.48 }, Critico = { 0.01, 0.015, 0.025, 0.04, 0.06 } },
 	},
 	Loro = {
-		Name = "Loro Pirata", Faction = "Pirate",
+		Name = "Loro Navegante", Faction = "Pirate",
 		Effects = { Energia = { 0.10, 0.16, 0.24, 0.34, 0.48 }, Oro = { 0.03, 0.05, 0.08, 0.12, 0.18 } },
 	},
 	Mariposa = {
@@ -142,7 +142,7 @@ PetCatalog.EffectText = EFFECT_TEXT
 PetCatalog.Powers = {
 	Suerte = { Name = "Olfato del Zorro", Cooldown = { 30, 22, 15 }, Desc = "Cada {cd} s, el siguiente monstruo que mates te da una segunda tirada de botín." },
 	Fortuna = { Name = "Lluvia de monedas", Every = { 12, 9, 6 }, Value = { 5, 8, 12 }, Desc = "Cada {every} monstruos que mates, una lluvia de oro extra (x{v} del oro de un monstruo)." },
-	Sabiduria = { Name = "Mente clara", Every = { 10, 8, 6 }, Value = { 0.06, 0.09, 0.12 }, Desc = "Cada {every} golpes, recuperas {pct}% de tu energía máxima (Ki, Chakra, Haki o Reiatsu)." },
+	Sabiduria = { Name = "Mente clara", Every = { 10, 8, 6 }, Value = { 0.06, 0.09, 0.12 }, Desc = "Cada {every} golpes, recuperas {pct}% de tu energía máxima (Ki, Chakra, Voluntad o Energía espiritual)." },
 	Guardian = { Name = "Caparazón", Cooldown = { 60, 50, 40 }, Value = { 0.20, 0.30, 0.40 }, Desc = "Si tu vida baja del 30%, un escudo de {pct}% de tu vida máxima durante 8 s. Se recarga en {cd} s." },
 	Furia = { Name = "Zarpazo", Every = { 8, 7, 6 }, Value = { 0.6, 0.9, 1.3 }, Desc = "Cada {every} golpes, un zarpazo extra de {pct}% del daño del golpe." },
 	Fenix = { Name = "Renacer", Cooldown = { 600, 480, 360 }, Value = { 0.15, 0.25, 0.40 }, Desc = "Si recibes un golpe mortal, revives con {pct}% de vida y 3 s de inmunidad. Se recarga en {cd} s." },

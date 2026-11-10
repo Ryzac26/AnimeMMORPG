@@ -34,10 +34,10 @@ local COOLDOWN = 0.25
 local rng = Random.new()
 
 local ALCHEMISTS: { [string]: { Name: string, Title: string, Skin: Color3, Shirt: Color3, Pants: Color3, Hair: Color3 } } = {
-	Saiyan = { Name = "Bulma", Title = "Alquimista del Laboratorio Cápsula", Skin = Color3.fromRGB(240, 205, 175), Shirt = Color3.fromRGB(245, 245, 245), Pants = Color3.fromRGB(70, 110, 170), Hair = Color3.fromRGB(110, 200, 200) },
-	Shinobi = { Name = "Shizune", Title = "Alquimista del Hospital Ninja", Skin = Color3.fromRGB(240, 205, 175), Shirt = Color3.fromRGB(40, 45, 60), Pants = Color3.fromRGB(40, 45, 60), Hair = Color3.fromRGB(40, 35, 40) },
+	Saiyan = { Name = "Bulma", Title = "Alquimista del Laboratorio Orbital", Skin = Color3.fromRGB(240, 205, 175), Shirt = Color3.fromRGB(245, 245, 245), Pants = Color3.fromRGB(70, 110, 170), Hair = Color3.fromRGB(110, 200, 200) },
+	Shinobi = { Name = "Shiori", Title = "Alquimista del Hospital Ninja", Skin = Color3.fromRGB(240, 205, 175), Shirt = Color3.fromRGB(40, 45, 60), Pants = Color3.fromRGB(40, 45, 60), Hair = Color3.fromRGB(40, 35, 40) },
 	Pirate = { Name = "Chopper", Title = "Alquimista de la Enfermería", Skin = Color3.fromRGB(215, 170, 120), Shirt = Color3.fromRGB(235, 90, 110), Pants = Color3.fromRGB(150, 60, 70), Hair = Color3.fromRGB(110, 70, 50) },
-	Shinigami = { Name = "Mayuri", Title = "Alquimista del Instituto de Investigación", Skin = Color3.fromRGB(235, 225, 200), Shirt = Color3.fromRGB(235, 235, 235), Pants = Color3.fromRGB(35, 35, 45), Hair = Color3.fromRGB(240, 220, 90) },
+	Shinigami = { Name = "Dr. Mirek", Title = "Alquimista del Instituto de Investigación", Skin = Color3.fromRGB(235, 225, 200), Shirt = Color3.fromRGB(235, 235, 235), Pants = Color3.fromRGB(35, 35, 45), Hair = Color3.fromRGB(240, 220, 90) },
 }
 local BIOME_FACTION: { [string]: string } = {
 	Imperio_Saiyan = "Saiyan",

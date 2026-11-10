@@ -1,7 +1,7 @@
 --!strict
 --[[
     =================================================================================
-    PROJECT: 3-FACTION ANIME MMORPG (Dragon Ball | Naruto | One Piece)
+    PROJECT: 4-FACTION ACTION MMORPG (Guerreros de Élite | Shinobi del Sigilo | Navegantes | Guardianes Espirituales)
     SCRIPT: FactionClassesModule.luau  (v2 - balanceado y sin copy-paste)
     UBICACIÓN: ReplicatedStorage.Modules.FactionClassesModule (ModuleScript)
     NO LO BORRES: PlayerClass, CombatService, EnergyRegenService y HUDManager dependen de él.
@@ -42,6 +42,7 @@
     =================================================================================
 ]]
 
+local Names = require(script.Parent.Names)
 local FactionClassesModule = {}
 
 -------------------------------------------------------------------------------------
@@ -65,9 +66,10 @@ export type SkillData = {
 
 export type ClassData = {
 	Role: string,            -- "Tanque", "Guerrero", "Asesino", "Tirador", "Mago", "Curador"
-	CharacterName: string,   -- Personaje (ej. "Piccolo", "Gaara", "Jinbe")
+	CharacterName: string,   -- clave INTERNA del personaje (iconos/modelos/datos); NO se muestra
+	DisplayName: string,     -- nombre visible original (Names.Char)
 	Faction: string,         -- "Saiyan", "Shinobi", "Pirate"
-	AnimeSource: string,     -- "Dragon Ball", "Naruto", "One Piece"
+	AnimeSource: string,     -- nombre visible de la facción
 	BaseHP: number,
 	BaseEnergy: number,
 	BaseDefense: number,
@@ -283,7 +285,7 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 	-- FACCIÓN 1: IMPERIO SAIYAN (Dragon Ball)
 	-- ==============================================================================
 	Saiyan = {
-		AnimeSource = "Dragon Ball",
+		AnimeSource = "Guerreros de Élite",
 		Characters = {
 			Tanque = {
 				CharacterName = "Piccolo",
@@ -301,7 +303,7 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 			Guerrero = {
 				CharacterName = "Goku",
 				Primary = {
-					Name = "Kamehameha",
+					Name = "Onda Celeste",
 					Description = "Dispara una ráfaga concentrada de Ki celeste contra el objetivo.",
 					VFXTheme = "VFX_Goku_Kamehameha",
 				},
@@ -314,12 +316,12 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 			Asesino = {
 				CharacterName = "Vegeta",
 				Primary = {
-					Name = "Big Bang Attack",
+					Name = "Esfera Estelar",
 					Description = "Lanza una esfera azul de Ki letal que detona al contacto con el objetivo.",
 					VFXTheme = "VFX_Vegeta_BigBang",
 				},
 				Secondary = {
-					Name = "Final Flash",
+					Name = "Haz Dorado",
 					Description = "Abre los brazos y libera una columna de energía dorada que daña al objetivo y a los cercanos.",
 					VFXTheme = "VFX_Vegeta_FinalFlash",
 				},
@@ -327,12 +329,12 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 			Tirador = {
 				CharacterName = "Trunks",
 				Primary = {
-					Name = "Buster Cannon",
+					Name = "Cañón de Ki",
 					Description = "Disparo veloz de Ki a larga distancia para hostigar objetivos en retirada.",
 					VFXTheme = "VFX_Trunks_BusterCannon",
 				},
 				Secondary = {
-					Name = "Burning Attack",
+					Name = "Llamarada Ardiente",
 					Description = "Una gran llamarada esférica de Ki, lanzada desde lejos, que explota en área.",
 					VFXTheme = "VFX_Trunks_BurningAttack",
 				},
@@ -340,7 +342,7 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 			Mago = {
 				CharacterName = "Gohan",
 				Primary = {
-					Name = "Masenko",
+					Name = "Onda Amarilla",
 					Description = "Descarga una onda de Ki amarillo que detona en el objetivo y barre a los enemigos cercanos.",
 					VFXTheme = "VFX_Gohan_Masenko",
 				},
@@ -353,7 +355,7 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 			Curador = {
 				CharacterName = "Bulma",
 				Primary = {
-					Name = "Cápsula Hoi-Poi",
+					Name = "Cápsula Médica",
 					Description = "Lanza una cápsula médica que restaura vida de inmediato.",
 					VFXTheme = "VFX_Bulma_CapsuleHeal",
 				},
@@ -370,17 +372,17 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 	-- FACCIÓN 2: ALIANZA SHINOBI (Naruto)
 	-- ==============================================================================
 	Shinobi = {
-		AnimeSource = "Naruto",
+		AnimeSource = "Shinobi del Sigilo",
 		Characters = {
 			Tanque = {
 				CharacterName = "Gaara",
 				Primary = {
-					Name = "Escudo de Arena",
+					Name = "Muro de Arena",
 					Description = "La arena de la calabaza forma un muro a tu alrededor que absorbe daño durante unos segundos.",
 					VFXTheme = "VFX_Gaara_SandShield",
 				},
 				Secondary = {
-					Name = "Ataúd de Arena",
+					Name = "Prisión de Arena",
 					Description = "Aprisiona a los enemigos del área bajo arena pesada: los daña y los aturde.",
 					VFXTheme = "VFX_Gaara_SandCoffin",
 				},
@@ -388,12 +390,12 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 			Guerrero = {
 				CharacterName = "Naruto",
 				Primary = {
-					Name = "Rasengan",
+					Name = "Esfera Espiral",
 					Description = "Esfera de chakra en rotación extrema que embiste al objetivo.",
 					VFXTheme = "VFX_Naruto_Rasengan",
 				},
 				Secondary = {
-					Name = "Rasenshuriken",
+					Name = "Estrella de Viento",
 					Description = "Vórtice de viento que estalla en miles de agujas, dañando al objetivo y a los cercanos.",
 					VFXTheme = "VFX_Naruto_Rasenshuriken",
 				},
@@ -401,12 +403,12 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 			Asesino = {
 				CharacterName = "Sasuke",
 				Primary = {
-					Name = "Chidori",
+					Name = "Trueno Cortante",
 					Description = "Embestida supersónica con la mano cargada de rayos cortantes.",
 					VFXTheme = "VFX_Sasuke_Chidori",
 				},
 				Secondary = {
-					Name = "Kirin",
+					Name = "Bestia del Relámpago",
 					Description = "Una bestia de relámpago cae desde las nubes sobre el objetivo y los enemigos cercanos.",
 					VFXTheme = "VFX_Sasuke_Kirin",
 				},
@@ -419,7 +421,7 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 					VFXTheme = "VFX_Itachi_Fireball",
 				},
 				Secondary = {
-					Name = "Amaterasu",
+					Name = "Llamas Negras",
 					Description = "Llamas negras prenden en el punto focal del objetivo y se extienden en área.",
 					VFXTheme = "VFX_Itachi_Amaterasu",
 				},
@@ -432,7 +434,7 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 					VFXTheme = "VFX_Kakashi_LightningChain",
 				},
 				Secondary = {
-					Name = "Kamui",
+					Name = "Vórtice Dimensional",
 					Description = "Abre un vórtice dimensional que tritura a los enemigos dentro del área.",
 					VFXTheme = "VFX_Kakashi_Kamui",
 				},
@@ -445,7 +447,7 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 					VFXTheme = "VFX_Sakura_MysticPalm",
 				},
 				Secondary = {
-					Name = "Sello Byakugō",
+					Name = "Sello Floral",
 					Description = "Libera el sello de su frente y una marea de chakra sana a los aliados cercanos.",
 					VFXTheme = "VFX_Sakura_Byakugou",
 				},
@@ -457,13 +459,13 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 	-- FACCIÓN 3: FLOTA PIRATA (One Piece)
 	-- ==============================================================================
 	Pirate = {
-		AnimeSource = "One Piece",
+		AnimeSource = "Navegantes de los Mares",
 		Characters = {
 			Tanque = {
 				CharacterName = "Jinbe",
 				Primary = {
-					Name = "Bloqueo Gyojin",
-					Description = "Postura de karate gyojin que te protege con una barrera de agua durante unos segundos.",
+					Name = "Bloqueo Abisal",
+					Description = "Postura de combate gyojin que te protege con una barrera de agua durante unos segundos.",
 					VFXTheme = "VFX_Jinbe_WaterBlock",
 				},
 				Secondary = {
@@ -475,51 +477,51 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 			Guerrero = {
 				CharacterName = "Luffy",
 				Primary = {
-					Name = "Gomu Gomu Pistol",
+					Name = "Puño de Goma",
 					Description = "Estira el brazo hacia atrás y golpea al objetivo con un puñetazo contundente.",
 					VFXTheme = "VFX_Luffy_Pistol",
 				},
 				Secondary = {
-					Name = "Red Hawk",
-					Description = "Puñetazo ardiente imbuido en Haki que explota en el objetivo y los cercanos.",
+					Name = "Puño de Brasas",
+					Description = "Puñetazo ardiente imbuido en Voluntad que explota en el objetivo y los cercanos.",
 					VFXTheme = "VFX_Luffy_RedHawk",
 				},
 			},
 			Asesino = {
 				CharacterName = "Zoro",
 				Primary = {
-					Name = "Oni Giri",
+					Name = "Corte del Ogro",
 					Description = "Cruza sus tres katanas y se lanza con un corte diagonal sobre el objetivo.",
 					VFXTheme = "VFX_Zoro_OniGiri",
 				},
 				Secondary = {
-					Name = "Sanzen Sekai",
-					Description = "Gira sus katanas con Haki creando una tormenta de tajos que daña al objetivo y a los cercanos.",
+					Name = "Tormenta de Tres Filos",
+					Description = "Gira sus katanas con Voluntad creando una tormenta de tajos que daña al objetivo y a los cercanos.",
 					VFXTheme = "VFX_Zoro_SanzenSekai",
 				},
 			},
 			Tirador = {
 				CharacterName = "Usopp",
 				Primary = {
-					Name = "Firebird Star",
+					Name = "Estrella Fénix",
 					Description = "Dispara desde su resortera un proyectil con forma de fénix flamígero a larga distancia.",
 					VFXTheme = "VFX_Usopp_Firebird",
 				},
 				Secondary = {
-					Name = "Dokuroboshi",
-					Description = "Semillas Pop Green estallan formando una nube con forma de calavera en el área.",
+					Name = "Nube Tóxica",
+					Description = "Semillas Verdes estallan formando una nube con forma de calavera en el área.",
 					VFXTheme = "VFX_Usopp_Dokuroboshi",
 				},
 			},
 			Mago = {
 				CharacterName = "Sanji",
 				Primary = {
-					Name = "Flambage Shot",
+					Name = "Giro Llameante",
 					Description = "Gira sobre su talón con la pierna en llamas y libera una llamarada expansiva en el objetivo.",
 					VFXTheme = "VFX_Sanji_DiableJambe",
 				},
 				Secondary = {
-					Name = "Hell Memories",
+					Name = "Tifón Infernal",
 					Description = "Llamas azules forman un tifón de fuego infernal sobre toda el área.",
 					VFXTheme = "VFX_Sanji_HellMemories",
 				},
@@ -532,8 +534,8 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 					VFXTheme = "VFX_Chopper_Remedy",
 				},
 				Secondary = {
-					Name = "Monster Point",
-					Description = "Una Rumble Ball libera un aura protectora que cura a todos los aliados cercanos.",
+					Name = "Aura Curativa",
+					Description = "Una Píldora Salvaje libera un aura protectora que cura a todos los aliados cercanos.",
 					VFXTheme = "VFX_Chopper_MonsterAura",
 				},
 			},
@@ -544,43 +546,43 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 	-- FACCIÓN 4: SHINIGAMI (Bleach) · recurso REIATSU
 	-- ==============================================================================
 	Shinigami = {
-		AnimeSource = "Bleach",
+		AnimeSource = "Guardianes Espirituales",
 		Characters = {
 			Tanque = {
 				CharacterName = "Chad",
 				Primary = {
-					Name = "Brazo del Gigante",
-					Description = "Su brazo derecho se cubre de energía y detiene el golpe: te protege con un escudo de reiatsu.",
+					Name = "Brazo de Titán",
+					Description = "Su brazo derecho se cubre de energía y detiene el golpe: te protege con un escudo de energía espiritual.",
 					VFXTheme = "VFX_Chad_GiganteArm",
 				},
 				Secondary = {
-					Name = "Brazo del Diablo",
-					Description = "El brazo izquierdo dispara un rayo de reiatsu que daña y aturde a los enemigos del área.",
+					Name = "Brazo Demoníaco",
+					Description = "El brazo izquierdo dispara un rayo de energía espiritual que daña y aturde a los enemigos del área.",
 					VFXTheme = "VFX_Chad_DiabloArm",
 				},
 			},
 			Guerrero = {
 				CharacterName = "Ichigo",
 				Primary = {
-					Name = "Getsuga Tenshō",
-					Description = "Un tajo de Zangetsu libera una media luna de energía que atraviesa al objetivo.",
+					Name = "Tajo Lunar",
+					Description = "Un tajo de la hoja libera una media luna de energía que atraviesa al objetivo.",
 					VFXTheme = "VFX_Ichigo_Getsuga",
 				},
 				Secondary = {
-					Name = "Getsuga Jūjishō",
-					Description = "Doble tajo en cruz cargado de reiatsu que explota en el objetivo y los cercanos.",
+					Name = "Tajo Lunar en Cruz",
+					Description = "Doble tajo en cruz cargado de energía espiritual que explota en el objetivo y los cercanos.",
 					VFXTheme = "VFX_Ichigo_Jujishou",
 				},
 			},
 			Asesino = {
 				CharacterName = "Yoruichi",
 				Primary = {
-					Name = "Shunkō: Golpe",
-					Description = "Se lanza con shunpo y golpea con puños envueltos en reiatsu relámpago.",
+					Name = "Relámpago: Golpe",
+					Description = "Se lanza con paso flash y golpea con puños envueltos en energía espiritual relámpago.",
 					VFXTheme = "VFX_Yoruichi_Shunko",
 				},
 				Secondary = {
-					Name = "Shunkō: Torbellino",
+					Name = "Relámpago: Torbellino",
 					Description = "Ráfaga de golpes relámpago a velocidad imposible que daña al objetivo y a los cercanos.",
 					VFXTheme = "VFX_Yoruichi_Whirl",
 				},
@@ -588,12 +590,12 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 			Tirador = {
 				CharacterName = "Uryu",
 				Primary = {
-					Name = "Ginrei Kojaku",
-					Description = "Dispara una flecha de reishi con el arco Quincy a larga distancia.",
+					Name = "Flecha de Luz",
+					Description = "Dispara una flecha de luz espiritual con el arco espiritual a larga distancia.",
 					VFXTheme = "VFX_Uryu_Kojaku",
 				},
 				Secondary = {
-					Name = "Licht Regen",
+					Name = "Lluvia de Luz",
 					Description = "Una lluvia de flechas de luz cae sobre toda el área.",
 					VFXTheme = "VFX_Uryu_LichtRegen",
 				},
@@ -601,12 +603,12 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 			Mago = {
 				CharacterName = "Hitsugaya",
 				Primary = {
-					Name = "Hyōrinmaru",
+					Name = "Dragón de Escarcha",
 					Description = "El dragón de hielo muerde al objetivo y lo congela en su lugar.",
 					VFXTheme = "VFX_Hitsugaya_Hyorinmaru",
 				},
 				Secondary = {
-					Name = "Guncho Tsurara",
+					Name = "Pilares de Escarcha",
 					Description = "Pilares de hielo brotan del suelo y empalan a los enemigos del área.",
 					VFXTheme = "VFX_Hitsugaya_Tsurara",
 				},
@@ -614,12 +616,12 @@ local FACTION_INFO: { [string]: FactionInfo } = {
 			Curador = {
 				CharacterName = "Orihime",
 				Primary = {
-					Name = "Hinagiku y Baigon",
-					Description = "Los Shun Shun Rikka cierran las heridas de inmediato.",
+					Name = "Pétalos Curativos",
+					Description = "Los Hadas de Sanación cierran las heridas de inmediato.",
 					VFXTheme = "VFX_Orihime_Hinagiku",
 				},
 				Secondary = {
-					Name = "Shun Shun Rikka",
+					Name = "Hadas de Sanación",
 					Description = "Un escudo de sanación cubre y cura a todos los aliados cercanos.",
 					VFXTheme = "VFX_Orihime_Rikka",
 				},
@@ -658,6 +660,7 @@ for _, factionName in ipairs(FACTIONS) do
 		factionClasses[role] = {
 			Role = role,
 			CharacterName = flavor.CharacterName,
+			DisplayName = Names.Char(flavor.CharacterName),
 			Faction = factionName,
 			AnimeSource = info.AnimeSource,
 			BaseHP = spec.BaseHP,

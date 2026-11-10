@@ -484,7 +484,7 @@ end
 
 
 ---------------------------------------------------------------------
--- KIT MODULAR (diseño tipo "hoja de diseño de Nappa"): piezas sueltas armadura/accesorios sobre el cuerpo R6.
+-- KIT MODULAR (diseño tipo "hoja de diseño de Brakkar"): piezas sueltas armadura/accesorios sobre el cuerpo R6.
 -- Todas las claves son opcionales; los colores salen de MobLooks. Frente del personaje = -Z, espalda = +Z.
 ---------------------------------------------------------------------
 local function applyKit(look: { [string]: any }, model: Model, torso: any, head: any, rArm: any, lArm: any, rLeg: any, lLeg: any, clean: boolean?)

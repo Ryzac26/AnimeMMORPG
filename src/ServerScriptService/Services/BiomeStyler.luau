@@ -702,18 +702,18 @@ end
 ---------------------------------------------------------------------
 type GateTheme = { Name: string, Wall: Enum.Material, WallCol: Color3, Accent: Color3, Cap: string, Orn: string }
 local GATES: { [string]: GateTheme } = {
-	Saiyan_2 = { Name = "PLANETA NAMEK", Wall = M.Slate, WallCol = C(74, 143, 156), Accent = C(126, 240, 184), Cap = "trim", Orn = "finial" },
-	Saiyan_3 = { Name = "RUINAS · CELL GAMES", Wall = M.Concrete, WallCol = C(106, 98, 90), Accent = C(255, 176, 80), Cap = "wire", Orn = "broken" },
-	Saiyan_4 = { Name = "DIMENSIÓN DE BUU", Wall = M.Sandstone, WallCol = C(216, 120, 168), Accent = C(255, 208, 236), Cap = "spikes", Orn = "spires" },
-	Shinobi_2 = { Name = "PAÍS DE LA LLUVIA", Wall = M.Metal, WallCol = C(106, 120, 134), Accent = C(140, 216, 255), Cap = "pipes", Orn = "antenna" },
-	Shinobi_3 = { Name = "DESIERTO DE SUNA", Wall = M.Sandstone, WallCol = C(192, 145, 90), Accent = C(255, 208, 112), Cap = "trim", Orn = "finial" },
-	Shinobi_4 = { Name = "VALLE DEL FIN", Wall = M.Slate, WallCol = C(58, 42, 50), Accent = C(255, 90, 74), Cap = "torii", Orn = "none" },
-	Pirate_2 = { Name = "ARLONG PARK", Wall = M.Cobblestone, WallCol = C(58, 120, 180), Accent = C(138, 232, 255), Cap = "teeth", Orn = "teeth" },
-	Pirate_3 = { Name = "ENIES LOBBY", Wall = M.Marble, WallCol = C(236, 236, 228), Accent = C(255, 216, 112), Cap = "merlon", Orn = "finial" },
-	Pirate_4 = { Name = "MARINEFORD", Wall = M.Concrete, WallCol = C(200, 204, 210), Accent = C(255, 122, 48), Cap = "merlon", Orn = "ice" },
-	Shinigami_2 = { Name = "HUECO MUNDO", Wall = M.Marble, WallCol = C(230, 228, 220), Accent = C(184, 192, 255), Cap = "trim", Orn = "crystals" },
-	Shinigami_3 = { Name = "LAS NOCHES", Wall = M.Concrete, WallCol = C(236, 238, 244), Accent = C(168, 180, 255), Cap = "merlon", Orn = "dome" },
-	Shinigami_4 = { Name = "SEIREITEI", Wall = M.Concrete, WallCol = C(246, 242, 234), Accent = C(255, 176, 96), Cap = "roof", Orn = "none" },
+	Saiyan_2 = { Name = "PLANETA ESMERALDA", Wall = M.Slate, WallCol = C(74, 143, 156), Accent = C(126, 240, 184), Cap = "trim", Orn = "finial" },
+	Saiyan_3 = { Name = "RUINAS · ARENA ROTA", Wall = M.Concrete, WallCol = C(106, 98, 90), Accent = C(255, 176, 80), Cap = "wire", Orn = "broken" },
+	Saiyan_4 = { Name = "DIMENSIÓN DEL COLOSO", Wall = M.Sandstone, WallCol = C(216, 120, 168), Accent = C(255, 208, 236), Cap = "spikes", Orn = "spires" },
+	Shinobi_2 = { Name = "VALLE DE LA LLUVIA", Wall = M.Metal, WallCol = C(106, 120, 134), Accent = C(140, 216, 255), Cap = "pipes", Orn = "antenna" },
+	Shinobi_3 = { Name = "DESIERTO DE ARENA ROJA", Wall = M.Sandstone, WallCol = C(192, 145, 90), Accent = C(255, 208, 112), Cap = "trim", Orn = "finial" },
+	Shinobi_4 = { Name = "VALLE FINAL", Wall = M.Slate, WallCol = C(58, 42, 50), Accent = C(255, 90, 74), Cap = "torii", Orn = "none" },
+	Pirate_2 = { Name = "PARQUE DEL TIBURÓN", Wall = M.Cobblestone, WallCol = C(58, 120, 180), Accent = C(138, 232, 255), Cap = "teeth", Orn = "teeth" },
+	Pirate_3 = { Name = "PUERTA DE LA JUSTICIA", Wall = M.Marble, WallCol = C(236, 236, 228), Accent = C(255, 216, 112), Cap = "merlon", Orn = "finial" },
+	Pirate_4 = { Name = "ALMIRANTAZGO", Wall = M.Concrete, WallCol = C(200, 204, 210), Accent = C(255, 122, 48), Cap = "merlon", Orn = "ice" },
+	Shinigami_2 = { Name = "PÁRAMO VACÍO", Wall = M.Marble, WallCol = C(230, 228, 220), Accent = C(184, 192, 255), Cap = "trim", Orn = "crystals" },
+	Shinigami_3 = { Name = "CÚPULA DEL ECLIPSE", Wall = M.Concrete, WallCol = C(236, 238, 244), Accent = C(168, 180, 255), Cap = "merlon", Orn = "dome" },
+	Shinigami_4 = { Name = "BASTIÓN BLANCO", Wall = M.Concrete, WallCol = C(246, 242, 234), Accent = C(255, 176, 96), Cap = "roof", Orn = "none" },
 }
 local GATE_FRACS = { -0.55, 0, 0.55 }
 local GATE_WIDTH = 90
@@ -1107,7 +1107,7 @@ end
 -- MURALLA DEL FONDO (borde de la franja 4) + SUELO EXTERIOR + HORIZONTE
 ---------------------------------------------------------------------
 local MONUMENTS: { [string]: string } = {
-	Saiyan = "TRONO DE BUU", Shinobi = "CASCADA DEL FIN", Pirate = "MURALLA DE MARINEFORD", Shinigami = "TRONO DEL SEIREITEI",
+	Saiyan = "TRONO DEL COLOSO", Shinobi = "CASCADA ETERNA", Pirate = "MURALLA DEL ALMIRANTAZGO", Shinigami = "TRONO DEL BASTIÓN BLANCO",
 }
 
 local function buildBackWall(lane: Lane, faction: string)

@@ -957,7 +957,7 @@ H.Silence = function(c)
 	local _, r = liveParts(target)
 	if r then
 		burst(r.Position, 6, Color3.fromRGB(190, 20, 40), 0.5)
-		floatText(r.Position, "Tsukuyomi", Color3.fromRGB(230, 60, 80))
+		floatText(r.Position, "Ilusión de Luna", Color3.fromRGB(230, 60, 80))
 	end
 	return true
 end

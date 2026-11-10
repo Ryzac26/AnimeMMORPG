@@ -157,25 +157,25 @@ type BiomeDef = {
 
 local BIOMES: { BiomeDef } = {
 	{
-		Id = "Imperio_Saiyan", Faction = "Saiyan", Display = "Imperio Saiyan",
+		Id = "Imperio_Saiyan", Faction = "Saiyan", Display = "Imperio de Élite",
 		OutDir = Vector3.new(0, 0, -1),
 		SafeColor = Color3.fromRGB(240, 170, 60), PveColor = Color3.fromRGB(135, 85, 50),
 		WallColor = Color3.fromRGB(255, 160, 60),
 	},
 	{
-		Id = "Alianza_Shinobi", Faction = "Shinobi", Display = "Alianza Shinobi",
+		Id = "Alianza_Shinobi", Faction = "Shinobi", Display = "Alianza del Sigilo",
 		OutDir = Vector3.new(-1, 0, 0), -- v6.5: salida RECTA hacia el oeste
 		SafeColor = Color3.fromRGB(120, 200, 110), PveColor = Color3.fromRGB(60, 105, 60),
 		WallColor = Color3.fromRGB(90, 220, 110),
 	},
 	{
-		Id = "Flota_Pirata", Faction = "Pirate", Display = "Flota Pirata",
+		Id = "Flota_Pirata", Faction = "Pirate", Display = "Flota de Navegantes",
 		OutDir = Vector3.new(1, 0, 0), -- v6.5: salida RECTA hacia el este
 		SafeColor = Color3.fromRGB(70, 150, 220), PveColor = Color3.fromRGB(125, 100, 75),
 		WallColor = Color3.fromRGB(80, 170, 255),
 	},
 	{
-		Id = "Corte_Shinigami", Faction = "Shinigami", Display = "Corte Shinigami",
+		Id = "Corte_Shinigami", Faction = "Shinigami", Display = "Corte Espiritual",
 		OutDir = Vector3.new(0, 0, 1), -- v6.37: salida RECTA hacia el sur (el hueco libre junto a la arena)
 		SafeColor = Color3.fromRGB(190, 175, 235), PveColor = Color3.fromRGB(95, 85, 120),
 		WallColor = Color3.fromRGB(165, 140, 255),

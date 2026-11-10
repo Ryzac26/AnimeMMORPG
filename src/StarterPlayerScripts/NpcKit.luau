@@ -2,7 +2,7 @@
 --[[
     NpcKit (ModuleScript) -> StarterPlayer > StarterPlayerScripts > NpcKit
     ESTILO ÚNICO de las ventanas dentro del juego (mochila/perfil, gremio, tienda, mercader, herrero, alquimia, mascota, ajustes, instructor...).
-    Todo con fondo OPACO y un look propio por facción (solo código, sin imágenes):
+    Look propio por facción: marcos, cabeceras, pestañas y tarjetas con las IMÁGENES del kit (WindowKit); si faltan, se dibuja por código:
       Saiyan    -> acero oscuro con franjas naranjas
       Shinobi   -> marco verde oscuro con bambú; paneles de pergamino con letra de tinta; cabecera de pergamino con letra oscura
       Pirate    -> madera de barco con tablones y latón
@@ -20,21 +20,38 @@
       NpcKit.Palette(theme) -> { Bg, Panel, Inset, Slot, Edge, Edge2, Accent, FText, FMuted, Text, Muted, TabOn, TabOnText, TabOff, TabOffText,
                                  BtnA, BtnB, BtnText, Ink, Paper, Soft }   (Ink/Paper/Soft = nombres antiguos)
 ]]
+local WindowKit = require(script.Parent:WaitForChild("WindowKit"))
 local NpcKit = {}
 NpcKit.TOP = 72 -- y donde empieza el contenido (debajo de la cabecera)
 
 local function key(theme: any): string
 	local f = theme.Faction
-	if f == "Imperio Saiyan" then
+	if f == "Imperio de Élite" then
 		return "Saiyan"
-	elseif f == "Alianza Shinobi" then
+	elseif f == "Alianza del Sigilo" then
 		return "Shinobi"
-	elseif f == "Flota Pirata" then
+	elseif f == "Flota de Navegantes" then
 		return "Pirate"
 	end
 	return "Shinigami"
 end
 NpcKit.Key = key
+
+-- imagen 9-slice de fondo (kit de ventanas)
+local function slice9(parent: Instance, id: string, pos: UDim2, size: UDim2, center: Rect, scale: number, z: number): ImageLabel
+	local i = Instance.new("ImageLabel")
+	i.BackgroundTransparency = 1
+	i.Image = id
+	i.Position = pos
+	i.Size = size
+	i.ScaleType = Enum.ScaleType.Slice
+	i.SliceCenter = center
+	i.SliceScale = scale
+	i.ZIndex = z
+	i.Active = false
+	i.Parent = parent
+	return i
+end
 
 local function c(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
@@ -129,6 +146,38 @@ local function label(parent: Instance, text: string, size: number, color: Color3
 	return t
 end
 
+-- Un TextButton pinta su texto POR DEBAJO de sus hijos: con una imagen de fondo el texto quedaría tapado.
+-- Esta función mueve el texto a una etiqueta hija por encima de la imagen y sigue los cambios de Text/color/tamaño.
+local function overlayText(btn: TextButton)
+	local lab = Instance.new("TextLabel")
+	lab.Name = "Texto"
+	lab.BackgroundTransparency = 1
+	lab.Size = UDim2.fromScale(1, 1)
+	lab.ZIndex = btn.ZIndex + 3
+	lab.Font = btn.Font
+	lab.TextSize = btn.TextSize
+	lab.TextColor3 = btn.TextColor3
+	lab.TextWrapped = true
+	lab.Text = btn.Text
+	lab.Parent = btn
+	btn.Text = ""
+	btn:GetPropertyChangedSignal("Text"):Connect(function()
+		if btn.Text ~= "" then
+			lab.Text = btn.Text
+			btn.Text = ""
+		end
+	end)
+	btn:GetPropertyChangedSignal("TextColor3"):Connect(function()
+		lab.TextColor3 = btn.TextColor3
+	end)
+	btn:GetPropertyChangedSignal("TextSize"):Connect(function()
+		lab.TextSize = btn.TextSize
+	end)
+	btn:GetPropertyChangedSignal("Font"):Connect(function()
+		lab.Font = btn.Font
+	end)
+end
+
 ---------------------------------------------------------------------
 -- CABECERA
 ---------------------------------------------------------------------
@@ -136,6 +185,30 @@ function NpcKit.Header(win: Frame, theme: any, width: number, title: string, sub
 	local k = key(theme)
 	local p = PALETTE[k]
 	local r = RADIUS[k]
+	local kit = WindowKit.Get(k)
+	if kit then
+		-- CABECERA CON IMAGEN (kit ventanas): placa 9-slice con engaste redondo para el icono
+		local hh = Instance.new("Frame")
+		hh.Name = "Cabecera"
+		hh.Position = UDim2.fromOffset(12, 12)
+		hh.Size = UDim2.fromOffset(width - 24, 52)
+		hh.BackgroundTransparency = 1
+		hh.ZIndex = 2
+		hh.Parent = win
+		local sc = 52 / 200
+		local m = 14 * sc
+		slice9(hh, kit.header, UDim2.fromOffset(-m, -m), UDim2.new(1, 2 * m, 0, 52 + 2 * m), Rect.new(260, 40, 764, 160), sc, 2)
+		local medal = label(hh, icon or theme.Emblem, 19, p.HText, UDim2.fromOffset(110 * sc - m - 18, 26 - 18), UDim2.fromOffset(36, 36), Enum.TextXAlignment.Center, 5)
+		medal.TextYAlignment = Enum.TextYAlignment.Center
+		local tx = 62
+		local tt = label(hh, string.upper(title), 21, p.HText, UDim2.fromOffset(tx, 4), UDim2.new(1, -(tx + 90), 0, 28), nil, 5)
+		tt.TextTruncate = Enum.TextTruncate.AtEnd
+		if subtitle then
+			local st = label(hh, subtitle, 12, p.HMuted, UDim2.fromOffset(tx, 30), UDim2.new(1, -(tx + 90), 0, 16), nil, 5)
+			st.TextTruncate = Enum.TextTruncate.AtEnd
+		end
+		return hh
+	end
 	local h = Instance.new("Frame")
 	h.Name = "Cabecera"
 	h.Position = UDim2.fromOffset(12, 12)
@@ -191,6 +264,7 @@ function NpcKit.Window(parent: Instance, theme: any, size: UDim2, pos: UDim2, an
 	local k = key(theme)
 	local p = PALETTE[k]
 	local r = RADIUS[k]
+	local kit = WindowKit.Get(k)
 	local win = Instance.new("Frame")
 	win.Name = "Ventana"
 	win.Size = size
@@ -200,10 +274,49 @@ function NpcKit.Window(parent: Instance, theme: any, size: UDim2, pos: UDim2, an
 	win.BackgroundTransparency = 0
 	win.BorderSizePixel = 0
 	win.Parent = parent
-	corner(win, r[1])
-	stroke(win, p.Edge, 2)
 	local w = size.X.Offset
 	local h = size.Y.Offset
+	if kit then
+		-- VENTANA CON IMAGEN (kit ventanas): marco 9-slice de la facción + emblema de fondo + X con imagen
+		win.BackgroundTransparency = 1
+		local sc = 0.3
+		local m = 32 * sc
+		local fr = slice9(win, kit.frame, UDim2.fromOffset(-m, -m), UDim2.new(1, 2 * m, 1, 2 * m), Rect.new(200, 200, 824, 824), sc, 0)
+		if k == "Shinobi" then
+			fr.ImageColor3 = c(88, 118, 88) -- el pergamino se oscurece a verde para que el texto claro se lea
+		end
+		local em = Instance.new("ImageLabel")
+		em.Name = "Emblema"
+		em.BackgroundTransparency = 1
+		em.Image = kit.emblem
+		em.ImageTransparency = 0.88
+		em.AnchorPoint = Vector2.new(1, 1)
+		em.Position = UDim2.new(1, -20, 1, -20)
+		em.Size = UDim2.fromOffset(170, 170)
+		em.ZIndex = 1
+		em.Parent = win
+		NpcKit.Header(win, theme, w, title, subtitle, icon)
+		local closeB = Instance.new("TextButton")
+		closeB.Name = "Cerrar"
+		closeB.Position = UDim2.new(1, -46, 0, 18)
+		closeB.Size = UDim2.fromOffset(30, 30)
+		closeB.Text = ""
+		closeB.BackgroundTransparency = 1
+		closeB.ZIndex = 30
+		closeB.Parent = win
+		local ci = Instance.new("ImageLabel")
+		ci.BackgroundTransparency = 1
+		ci.Image = kit.close
+		ci.Size = UDim2.fromScale(1, 1)
+		ci.ZIndex = 30
+		ci.Parent = closeB
+		if onClose then
+			closeB.Activated:Connect(onClose)
+		end
+		return win
+	end
+	corner(win, r[1])
+	stroke(win, p.Edge, 2)
 	-- textura del fondo
 	local pat = Instance.new("Frame")
 	pat.Name = "Textura"
@@ -303,6 +416,12 @@ function NpcKit.Panel(parent: Instance, theme: any, size: UDim2, pos: UDim2, kin
 	f.BorderSizePixel = 0
 	f.BackgroundColor3 = if kind == "inset" then p.Inset else p.Panel
 	f.Parent = parent
+	local kit = WindowKit.Get(k)
+	if kit and kind ~= "inset" then
+		f.BackgroundTransparency = 1
+		slice9(f, kit.card, UDim2.new(), UDim2.fromScale(1, 1), Rect.new(48, 48, 208, 208), 0.3, 0)
+		return f
+	end
 	corner(f, r[2])
 	local plate = kind == "plate"
 	stroke(f, if kind == "inset" then p.Edge2 else p.Edge, if plate then 2 else 1, if kind == "inset" then 0.2 else if plate then 0 else 0.45)
@@ -338,6 +457,33 @@ function NpcKit.Button(parent: Instance, theme: any, text: string, size: UDim2, 
 	local k = key(theme)
 	local p = PALETTE[k]
 	local colors: { Color3 } = if kind == nil or kind == "action" or kind == "primary" then { p.BtnA, p.BtnB } else (BTN[kind] or BTN.neutral)
+	local kit = WindowKit.Get(k)
+	if kit and (kind == nil or kind == "action" or kind == "primary") then
+		local kb = Instance.new("TextButton")
+		kb.Position = pos
+		kb.Size = size
+		kb.BackgroundTransparency = 1
+		kb.TextColor3 = kit.TabOnText
+		kb.Font = Enum.Font.GothamBold
+		kb.TextSize = 14
+		kb.Text = text
+		kb.AutoButtonColor = false
+		kb.BorderSizePixel = 0
+		kb.ZIndex = 10
+		kb.Parent = parent
+		local img = slice9(kb, kit.tabOn, UDim2.new(), UDim2.fromScale(1, 1), Rect.new(40, 24, 216, 56), math.clamp(size.Y.Offset / 80, 0.3, 0.45), 9)
+		overlayText(kb)
+		kb.MouseEnter:Connect(function()
+			img.ImageColor3 = Color3.fromRGB(255, 255, 255):Lerp(Color3.fromRGB(255, 230, 180), 0.5)
+		end)
+		kb.MouseLeave:Connect(function()
+			img.ImageColor3 = Color3.new(1, 1, 1)
+		end)
+		if cb then
+			kb.Activated:Connect(cb)
+		end
+		return kb
+	end
 	local b = Instance.new("TextButton")
 	b.Position = pos
 	b.Size = size
@@ -362,6 +508,44 @@ end
 function NpcKit.Tab(parent: Instance, theme: any, text: string, size: UDim2, pos: UDim2, active: boolean, cb: (() -> ())?): TextButton
 	local k = key(theme)
 	local p = PALETTE[k]
+	local kit = WindowKit.Get(k)
+	if kit then
+		local kt = Instance.new("TextButton")
+		kt.Position = pos
+		kt.Size = size
+		kt.BorderSizePixel = 0
+		kt.BackgroundTransparency = 1
+		kt.Font = Enum.Font.GothamBold
+		kt.TextSize = 13
+		kt.Text = text
+		kt.AutoButtonColor = false
+		kt.TextColor3 = if active then kit.TabOnText else kit.TabOffText
+		kt.ZIndex = 10
+		kt.Parent = parent
+		local tscale = math.clamp(size.Y.Offset / 80, 0.3, 0.45)
+		local timg = slice9(kt, if active then kit.tabOn else kit.tabOff, UDim2.new(), UDim2.fromScale(1, 1), Rect.new(40, 24, 216, 56), tscale, 9)
+		-- muchas ventanas marcan la selección cambiando BackgroundColor3 (TabOn / TabOff / otro): lo traducimos a la imagen
+		kt:GetPropertyChangedSignal("BackgroundColor3"):Connect(function()
+			local col = kt.BackgroundColor3
+			if col == p.TabOn or col == p.Accent then
+				timg.Image = kit.tabOn
+				timg.ImageColor3 = Color3.new(1, 1, 1)
+				kt.TextColor3 = kit.TabOnText
+			elseif col == p.TabOff or col == p.Inset or col == p.Panel then
+				timg.Image = kit.tabOff
+				timg.ImageColor3 = Color3.new(1, 1, 1)
+				kt.TextColor3 = kit.TabOffText
+			else
+				timg.Image = kit.tabOff
+				timg.ImageColor3 = col:Lerp(Color3.new(1, 1, 1), 0.55)
+			end
+		end)
+		overlayText(kt)
+		if cb then
+			kt.Activated:Connect(cb)
+		end
+		return kt
+	end
 	local b = Instance.new("TextButton")
 	b.Position = pos
 	b.Size = size

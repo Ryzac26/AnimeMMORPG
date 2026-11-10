@@ -72,7 +72,7 @@ local function build()
 	local class = PlayerClass.Get(player)
 	local WW, HH = 760, 600
 	local w = NpcKit.Window(gui, theme, UDim2.fromOffset(WW, HH), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "Habilidades",
-		string.format("%s · %s", class.CharacterName, class.Role), "⚔️", function()
+		string.format("%s · %s", class.DisplayName, class.Role), "⚔️", function()
 			gui.Enabled = false
 		end)
 	win = w

@@ -87,10 +87,10 @@ TitleCatalog.List = {
 	{ Id = "Campeon", Name = "Campeón del Salón", Desc = "Sé el nº 1 del ranking de daño de tu facción.", Rarity = "Mitico", Cat = "Salón", Kind = "Grant", Icon = "🥇", Fx = "oro", Look = "Campeon" },
 
 	-- FACCIÓN (uno exclusivo por facción, nivel 30)
-	{ Id = "F_Saiyan", Name = "Guerrero del Cielo Roto", Desc = "Exclusivo del Imperio Saiyan. Llega al nivel 900.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 900, Faction = "Saiyan", Icon = "⭐", Fx = "ki", Look = "Saiyan" },
-	{ Id = "F_Shinobi", Name = "Susurro de las Hojas", Desc = "Exclusivo de la Alianza Shinobi. Llega al nivel 900.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 900, Faction = "Shinobi", Icon = "🍃", Fx = "hojas", Look = "Hoja" },
-	{ Id = "F_Pirate", Name = "Lobo de la Marea Negra", Desc = "Exclusivo de la Flota Pirata. Llega al nivel 900.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 900, Faction = "Pirate", Icon = "⚓", Fx = "olas", Look = "Marea" },
-	{ Id = "F_Shinigami", Name = "Guardián del Velo Pálido", Desc = "Exclusivo de la Corte Shinigami. Llega al nivel 900.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 900, Faction = "Shinigami", Icon = "🦋", Fx = "niebla", Look = "Velo" },
+	{ Id = "F_Saiyan", Name = "Guerrero del Cielo Roto", Desc = "Exclusivo del Imperio de Élite. Llega al nivel 900.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 900, Faction = "Saiyan", Icon = "⭐", Fx = "ki", Look = "Saiyan" },
+	{ Id = "F_Shinobi", Name = "Susurro de las Hojas", Desc = "Exclusivo de la Alianza del Sigilo. Llega al nivel 900.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 900, Faction = "Shinobi", Icon = "🍃", Fx = "hojas", Look = "Hoja" },
+	{ Id = "F_Pirate", Name = "Lobo de la Marea Negra", Desc = "Exclusivo de la Flota de Navegantes. Llega al nivel 900.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 900, Faction = "Pirate", Icon = "⚓", Fx = "olas", Look = "Marea" },
+	{ Id = "F_Shinigami", Name = "Guardián del Velo Pálido", Desc = "Exclusivo de la Corte Espiritual. Llega al nivel 900.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 900, Faction = "Shinigami", Icon = "🦋", Fx = "niebla", Look = "Velo" },
 
 	-- ESPECIAL
 	-- VIP: se compran con Sellos Imperiales en la Tienda VIP del Mes (VipShopCatalog)
@@ -144,18 +144,18 @@ TitleCatalog.List = {
 	{ Id = "Hito60", Name = "Corona Completa", Desc = "Reclama los 60 hitos de nivel.", Rarity = "Mitico", Cat = "Hitos", Kind = "Hito", Value = 60, Icon = "👑", Fx = "oro", Look = "Campeon" },
 
 	-- FACCIÓN (tres escalones exclusivos por facción)
-	{ Id = "F_Saiyan2", Name = "Príncipe del Ki Ardiente", Desc = "Exclusivo de el Imperio Saiyan. Llega al nivel 1500.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 1500, Faction = "Saiyan", Icon = "⭐", Fx = "ki", Look = "Saiyan" },
-	{ Id = "F_Saiyan3", Name = "Guerrero Dorado Ascendido", Desc = "Exclusivo de el Imperio Saiyan. Llega al nivel 2250.", Rarity = "Legendario", Cat = "Facción", Kind = "Level", Value = 2250, Faction = "Saiyan", Icon = "⭐", Fx = "ki", Look = "Saiyan" },
-	{ Id = "F_Saiyan4", Name = "Rey del Imperio Saiyan", Desc = "Exclusivo de el Imperio Saiyan. Llega al nivel 3000.", Rarity = "Mitico", Cat = "Facción", Kind = "Level", Value = 3000, Faction = "Saiyan", Icon = "⭐", Fx = "ki", Look = "Saiyan" },
-	{ Id = "F_Shinobi2", Name = "Sombra de la Aldea", Desc = "Exclusivo de la Alianza Shinobi. Llega al nivel 1500.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 1500, Faction = "Shinobi", Icon = "🍃", Fx = "hojas", Look = "Hoja" },
-	{ Id = "F_Shinobi3", Name = "Sabio de los Seis Caminos", Desc = "Exclusivo de la Alianza Shinobi. Llega al nivel 2250.", Rarity = "Legendario", Cat = "Facción", Kind = "Level", Value = 2250, Faction = "Shinobi", Icon = "🍃", Fx = "hojas", Look = "Hoja" },
-	{ Id = "F_Shinobi4", Name = "Kage Eterno", Desc = "Exclusivo de la Alianza Shinobi. Llega al nivel 3000.", Rarity = "Mitico", Cat = "Facción", Kind = "Level", Value = 3000, Faction = "Shinobi", Icon = "🍃", Fx = "hojas", Look = "Hoja" },
-	{ Id = "F_Pirate2", Name = "Capitán Temido", Desc = "Exclusivo de la Flota Pirata. Llega al nivel 1500.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 1500, Faction = "Pirate", Icon = "⚓", Fx = "olas", Look = "Marea" },
-	{ Id = "F_Pirate3", Name = "Emperador de los Mares", Desc = "Exclusivo de la Flota Pirata. Llega al nivel 2250.", Rarity = "Legendario", Cat = "Facción", Kind = "Level", Value = 2250, Faction = "Pirate", Icon = "⚓", Fx = "olas", Look = "Marea" },
-	{ Id = "F_Pirate4", Name = "Rey de los Mares", Desc = "Exclusivo de la Flota Pirata. Llega al nivel 3000.", Rarity = "Mitico", Cat = "Facción", Kind = "Level", Value = 3000, Faction = "Pirate", Icon = "⚓", Fx = "olas", Look = "Marea" },
-	{ Id = "F_Shinigami2", Name = "Capitán de División", Desc = "Exclusivo de la Corte Shinigami. Llega al nivel 1500.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 1500, Faction = "Shinigami", Icon = "🦋", Fx = "niebla", Look = "Velo" },
-	{ Id = "F_Shinigami3", Name = "Portador de la Liberación Final", Desc = "Exclusivo de la Corte Shinigami. Llega al nivel 2250.", Rarity = "Legendario", Cat = "Facción", Kind = "Level", Value = 2250, Faction = "Shinigami", Icon = "🦋", Fx = "niebla", Look = "Velo" },
-	{ Id = "F_Shinigami4", Name = "Comandante de la Corte", Desc = "Exclusivo de la Corte Shinigami. Llega al nivel 3000.", Rarity = "Mitico", Cat = "Facción", Kind = "Level", Value = 3000, Faction = "Shinigami", Icon = "🦋", Fx = "niebla", Look = "Velo" },
+	{ Id = "F_Saiyan2", Name = "Príncipe del Ki Ardiente", Desc = "Exclusivo del Imperio de Élite. Llega al nivel 1500.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 1500, Faction = "Saiyan", Icon = "⭐", Fx = "ki", Look = "Saiyan" },
+	{ Id = "F_Saiyan3", Name = "Guerrero Dorado Ascendido", Desc = "Exclusivo del Imperio de Élite. Llega al nivel 2250.", Rarity = "Legendario", Cat = "Facción", Kind = "Level", Value = 2250, Faction = "Saiyan", Icon = "⭐", Fx = "ki", Look = "Saiyan" },
+	{ Id = "F_Saiyan4", Name = "Rey del Imperio de Élite", Desc = "Exclusivo del Imperio de Élite. Llega al nivel 3000.", Rarity = "Mitico", Cat = "Facción", Kind = "Level", Value = 3000, Faction = "Saiyan", Icon = "⭐", Fx = "ki", Look = "Saiyan" },
+	{ Id = "F_Shinobi2", Name = "Sombra de la Aldea", Desc = "Exclusivo de la Alianza del Sigilo. Llega al nivel 1500.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 1500, Faction = "Shinobi", Icon = "🍃", Fx = "hojas", Look = "Hoja" },
+	{ Id = "F_Shinobi3", Name = "Sabio de los Seis Vías", Desc = "Exclusivo de la Alianza del Sigilo. Llega al nivel 2250.", Rarity = "Legendario", Cat = "Facción", Kind = "Level", Value = 2250, Faction = "Shinobi", Icon = "🍃", Fx = "hojas", Look = "Hoja" },
+	{ Id = "F_Shinobi4", Name = "Sombra Eterna", Desc = "Exclusivo de la Alianza del Sigilo. Llega al nivel 3000.", Rarity = "Mitico", Cat = "Facción", Kind = "Level", Value = 3000, Faction = "Shinobi", Icon = "🍃", Fx = "hojas", Look = "Hoja" },
+	{ Id = "F_Pirate2", Name = "Capitán Temido", Desc = "Exclusivo de la Flota de Navegantes. Llega al nivel 1500.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 1500, Faction = "Pirate", Icon = "⚓", Fx = "olas", Look = "Marea" },
+	{ Id = "F_Pirate3", Name = "Emperador de los Mares", Desc = "Exclusivo de la Flota de Navegantes. Llega al nivel 2250.", Rarity = "Legendario", Cat = "Facción", Kind = "Level", Value = 2250, Faction = "Pirate", Icon = "⚓", Fx = "olas", Look = "Marea" },
+	{ Id = "F_Pirate4", Name = "Rey de los Mares", Desc = "Exclusivo de la Flota de Navegantes. Llega al nivel 3000.", Rarity = "Mitico", Cat = "Facción", Kind = "Level", Value = 3000, Faction = "Pirate", Icon = "⚓", Fx = "olas", Look = "Marea" },
+	{ Id = "F_Shinigami2", Name = "Capitán de División", Desc = "Exclusivo de la Corte Espiritual. Llega al nivel 1500.", Rarity = "Epico", Cat = "Facción", Kind = "Level", Value = 1500, Faction = "Shinigami", Icon = "🦋", Fx = "niebla", Look = "Velo" },
+	{ Id = "F_Shinigami3", Name = "Portador de la Liberación Final", Desc = "Exclusivo de la Corte Espiritual. Llega al nivel 2250.", Rarity = "Legendario", Cat = "Facción", Kind = "Level", Value = 2250, Faction = "Shinigami", Icon = "🦋", Fx = "niebla", Look = "Velo" },
+	{ Id = "F_Shinigami4", Name = "Comandante de la Corte", Desc = "Exclusivo de la Corte Espiritual. Llega al nivel 3000.", Rarity = "Mitico", Cat = "Facción", Kind = "Level", Value = 3000, Faction = "Shinigami", Icon = "🦋", Fx = "niebla", Look = "Velo" },
 } :: { Title }
 
 -- BONUS por nivel (solo títulos de la categoría Progreso con Kind Level y sin facción): rota Xp, Oro, Suerte, Vida, Ataque, Defensa

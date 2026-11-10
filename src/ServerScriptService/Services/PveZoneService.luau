@@ -53,10 +53,10 @@ local BIOME_FACTION: { [string]: string } = {
 
 -- Colores y nombres por facción (decoración del campamento)
 local FACTION_STYLE: { [string]: { Accent: Color3, Dark: Color3, Title: string, Camp: string } } = {
-	Saiyan = { Accent = Color3.fromRGB(255, 170, 60), Dark = Color3.fromRGB(40, 48, 66), Title = "Comandante", Camp = "Campamento Saiyan" },
-	Shinobi = { Accent = Color3.fromRGB(255, 120, 70), Dark = Color3.fromRGB(58, 46, 40), Title = "Líder", Camp = "Campamento Shinobi" },
-	Pirate = { Accent = Color3.fromRGB(255, 200, 80), Dark = Color3.fromRGB(70, 48, 32), Title = "Capitán", Camp = "Campamento Pirata" },
-	Shinigami = { Accent = Color3.fromRGB(150, 200, 255), Dark = Color3.fromRGB(190, 195, 205), Title = "Teniente", Camp = "Campamento Shinigami" },
+	Saiyan = { Accent = Color3.fromRGB(255, 170, 60), Dark = Color3.fromRGB(40, 48, 66), Title = "Comandante", Camp = "Campamento de Élite" },
+	Shinobi = { Accent = Color3.fromRGB(255, 120, 70), Dark = Color3.fromRGB(58, 46, 40), Title = "Líder", Camp = "Campamento del Sigilo" },
+	Pirate = { Accent = Color3.fromRGB(255, 200, 80), Dark = Color3.fromRGB(70, 48, 32), Title = "Capitán", Camp = "Campamento de Navegantes" },
+	Shinigami = { Accent = Color3.fromRGB(150, 200, 255), Dark = Color3.fromRGB(190, 195, 205), Title = "Teniente", Camp = "Campamento Espiritual" },
 }
 
 -- Recurso de cada franja: color y forma del nodo

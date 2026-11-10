@@ -1,7 +1,7 @@
 --!strict
 --[[
     SignKit (ModuleScript) -> ServerScriptService.Services.SignKit
-    Piezas compartidas de los carteles: textos/diseños por anime (Dragon Ball, Naruto, One Piece, Bleach) y el emblema giratorio.
+    Piezas compartidas de los carteles: textos/diseños por facción (Élite, Sigilo, Navegantes, Guardianes) y el emblema giratorio.
     Lo usan BridgeSigns (cartel de las torres) y ArenaGate (arco del puente).
     Los emblemas son Models con el tag "SpinEmblem": SpinEmblemClient los hace girar sin parar en cada cliente.
 ]]
@@ -9,10 +9,10 @@ local CollectionService = game:GetService("CollectionService")
 
 type Look = { Title: string, Sub: string, Board: Color3, Trim: Color3, Text: Color3 }
 local LOOKS: { [string]: Look } = {
-	Imperio_Saiyan = { Title = "IMPERIO SAIYAN", Sub = "Orgullo de guerrero  ·  龍", Board = Color3.fromRGB(22, 28, 64), Trim = Color3.fromRGB(240, 180, 50), Text = Color3.fromRGB(255, 210, 90) },
-	Alianza_Shinobi = { Title = "ALIANZA SHINOBI", Sub = "La voluntad del fuego  ·  忍", Board = Color3.fromRGB(18, 44, 30), Trim = Color3.fromRGB(120, 220, 120), Text = Color3.fromRGB(190, 255, 190) },
-	Flota_Pirata = { Title = "FLOTA PIRATA", Sub = "Libertad en alta mar  ·  海", Board = Color3.fromRGB(20, 40, 78), Trim = Color3.fromRGB(230, 200, 120), Text = Color3.fromRGB(255, 240, 200) },
-	Corte_Shinigami = { Title = "CORTE SHINIGAMI", Sub = "Protege las almas  ·  死", Board = Color3.fromRGB(20, 16, 40), Trim = Color3.fromRGB(190, 170, 255), Text = Color3.fromRGB(235, 228, 255) },
+	Imperio_Saiyan = { Title = "IMPERIO DE ÉLITE", Sub = "Orgullo de élite  ·  龍", Board = Color3.fromRGB(22, 28, 64), Trim = Color3.fromRGB(240, 180, 50), Text = Color3.fromRGB(255, 210, 90) },
+	Alianza_Shinobi = { Title = "ALIANZA DEL SIGILO", Sub = "La llama que guía  ·  忍", Board = Color3.fromRGB(18, 44, 30), Trim = Color3.fromRGB(120, 220, 120), Text = Color3.fromRGB(190, 255, 190) },
+	Flota_Pirata = { Title = "FLOTA DE NAVEGANTES", Sub = "Libertad en alta mar  ·  海", Board = Color3.fromRGB(20, 40, 78), Trim = Color3.fromRGB(230, 200, 120), Text = Color3.fromRGB(255, 240, 200) },
+	Corte_Shinigami = { Title = "CORTE ESPIRITUAL", Sub = "Protege las almas  ·  死", Board = Color3.fromRGB(20, 16, 40), Trim = Color3.fromRGB(190, 170, 255), Text = Color3.fromRGB(235, 228, 255) },
 }
 
 local function part(parent: Instance, name: string, size: Vector3, cf: CFrame, color: Color3, mat: Enum.Material, shape: Enum.PartType?): Part
@@ -163,62 +163,63 @@ local function emblem(biome: string, folder: Instance, at: CFrame, look: Look)
 	end
 	local Ball, Cyl = Enum.PartType.Ball, Enum.PartType.Cylinder
 	if biome == "Imperio_Saiyan" then
-		-- Bola de Dragón de 4 estrellas: esfera naranja translúcida + 4 estrellas rojas en cada cara
-		local orb = part(folder, "DragonBall", Vector3.new(20, 20, 20), rel(0, 8, 0), Color3.fromRGB(255, 150, 20), Enum.Material.Neon, Ball)
-		orb.Transparency = 0.15
-		for _, side in ipairs({ -1, 1 }) do
-			for _, o in ipairs({ Vector2.new(-2.6, 2.6), Vector2.new(2.6, 2.6), Vector2.new(-2.6, -2.6), Vector2.new(2.6, -2.6) }) do
-				part(folder, "Star", Vector3.new(2.6, 2.6, 2.6), rel(o.X, 8 + o.Y, side * 9.4), Color3.fromRGB(200, 30, 30), Enum.Material.Neon, Ball)
-			end
+		-- Corona solar: anillo dorado con 8 rayos y un cristal azul al centro
+		local gold = Color3.fromRGB(240, 190, 70)
+		local ring = part(folder, "SunRing", Vector3.new(2.4, 22, 22), rel(0, 8, 0), gold, Enum.Material.Metal, Cyl)
+		ring.Transparency = 0.05
+		part(folder, "SunDisc", Vector3.new(1.4, 17, 17), rel(0, 8, 0), Color3.fromRGB(20, 30, 70), Enum.Material.SmoothPlastic, Cyl)
+		for i = 0, 7 do
+			local a = math.rad(i * 45)
+			local cf = at * CFrame.new(math.cos(a) * 17, 8 + math.sin(a) * 17, 0) * CFrame.Angles(0, 0, a)
+			part(folder, "Ray", Vector3.new(11, 2.6, 2.2), cf, gold, Enum.Material.Neon)
 		end
+		part(folder, "Crystal", Vector3.new(9, 9, 9), rel(0, 8, 0), Color3.fromRGB(90, 190, 255), Enum.Material.Neon, Ball).Transparency = 0.15
 		for _, sx in ipairs({ -1, 1 }) do
-			part(folder, "Flame", Vector3.new(6, 6, 6), rel(sx * 16, 3, 0), Color3.fromRGB(255, 190, 60), Enum.Material.Neon, Ball).Transparency = 0.3
+			part(folder, "Flame", Vector3.new(6, 6, 6), rel(sx * 20, 3, 0), Color3.fromRGB(255, 190, 60), Enum.Material.Neon, Ball).Transparency = 0.3
 		end
 	elseif biome == "Alianza_Shinobi" then
-		-- Protector de frente: placa de metal + cinta azul a los lados + kanji
-		local band = Color3.fromRGB(30, 50, 110)
-		part(folder, "BandL", Vector3.new(26, 4.5, 1.2), rel(-26, 8, 0), band, Enum.Material.Fabric)
-		part(folder, "BandR", Vector3.new(26, 4.5, 1.2), rel(26, 8, 0), band, Enum.Material.Fabric)
-		local plate = part(folder, "Plate", Vector3.new(30, 15, 2), rel(0, 8, 0), Color3.fromRGB(200, 205, 215), Enum.Material.Metal)
-		part(folder, "PlateFrame", Vector3.new(32, 17, 1.2), rel(0, 8, 0), Color3.fromRGB(90, 95, 105), Enum.Material.Metal)
-		for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+		-- Gran estrella de cuatro filos de metal con anillo de espiral verde (kanji 忍)
+		local steel = Color3.fromRGB(200, 205, 215)
+		for _, a in ipairs({ 0, 90 }) do
+			local cf = at * CFrame.new(0, 8, 0) * CFrame.Angles(0, 0, math.rad(a))
+			part(folder, "Blade", Vector3.new(34, 5, 1.6), cf, steel, Enum.Material.Metal)
+			part(folder, "BladeTip", Vector3.new(34, 2, 1.2), cf * CFrame.Angles(0, 0, math.rad(45)), Color3.fromRGB(150, 155, 168), Enum.Material.Metal)
+		end
+		local hub = part(folder, "Hub", Vector3.new(2.4, 12, 12), rel(0, 8, 0), Color3.fromRGB(70, 76, 90), Enum.Material.Metal, Cyl)
+		for _, face in ipairs({ Enum.NormalId.Right, Enum.NormalId.Left }) do
 			local gui = Instance.new("SurfaceGui")
 			gui.Face = face
-			gui.CanvasSize = Vector2.new(300, 150)
+			gui.CanvasSize = Vector2.new(200, 200)
 			gui.LightInfluence = 0.4
-			gui.Parent = plate
+			gui.Parent = hub
 			local k = Instance.new("TextLabel")
 			k.BackgroundTransparency = 1
 			k.Size = UDim2.fromScale(1, 1)
 			k.Text = "忍"
 			k.Font = Enum.Font.GothamBlack
 			k.TextScaled = true
-			k.TextColor3 = Color3.fromRGB(35, 40, 55)
+			k.TextColor3 = Color3.fromRGB(120, 220, 120)
 			k.Parent = gui
 		end
-		part(folder, "Spiral", Vector3.new(1.2, 8, 8), rel(-34, 8, 0), Color3.fromRGB(120, 220, 120), Enum.Material.Neon, Cyl).Transparency = 0.4
-		part(folder, "Spiral", Vector3.new(1.2, 8, 8), rel(34, 8, 0), Color3.fromRGB(120, 220, 120), Enum.Material.Neon, Cyl).Transparency = 0.4
+		part(folder, "Spiral", Vector3.new(1.2, 8, 8), rel(-26, 8, 0), Color3.fromRGB(120, 220, 120), Enum.Material.Neon, Cyl).Transparency = 0.4
+		part(folder, "Spiral", Vector3.new(1.2, 8, 8), rel(26, 8, 0), Color3.fromRGB(120, 220, 120), Enum.Material.Neon, Cyl).Transparency = 0.4
 	elseif biome == "Corte_Shinigami" then
-		-- Máscara Hollow blanca con marcas rojas + dos katanas (zanpakutō) cruzadas
-		local white, black, red = Color3.fromRGB(244, 244, 248), Color3.fromRGB(15, 15, 20), Color3.fromRGB(215, 45, 55)
-		for _, a in ipairs({ 40, -40 }) do
+		-- Luna blanca rodeada de llamas espirituales, con dos lanzas de guardián cruzadas
+		local white, glow = Color3.fromRGB(244, 244, 252), Color3.fromRGB(150, 130, 255)
+		for _, a in ipairs({ 35, -35 }) do
 			local cf = at * CFrame.new(0, 5, 0) * CFrame.Angles(0, 0, math.rad(a))
-			part(folder, "Blade", Vector3.new(40, 1.6, 0.6), cf, Color3.fromRGB(210, 214, 226), Enum.Material.Metal)
-			part(folder, "Hilt", Vector3.new(10, 1.8, 1.8), cf * CFrame.new(-23, 0, 0), Color3.fromRGB(30, 25, 50), Enum.Material.Fabric)
-			part(folder, "Tsuba", Vector3.new(0.8, 5, 5), cf * CFrame.new(-18, 0, 0), Color3.fromRGB(230, 195, 90), Enum.Material.Metal, Cyl)
+			part(folder, "Shaft", Vector3.new(44, 1.4, 1.4), cf, Color3.fromRGB(60, 50, 100), Enum.Material.Metal)
+			part(folder, "SpearHead", Vector3.new(7, 3.2, 0.8), cf * CFrame.new(23, 0, 0), Color3.fromRGB(215, 220, 235), Enum.Material.Metal)
 		end
-		part(folder, "Mask", Vector3.new(14, 17, 5), rel(0, 8, 0), white, Enum.Material.SmoothPlastic, Ball)
-		for _, side in ipairs({ -1, 1 }) do
-			for _, sx in ipairs({ -1, 1 }) do
-				part(folder, "EyeSlit", Vector3.new(2.6, 4.4, 1), at * CFrame.new(sx * 3.2, 9, side * 2.1) * CFrame.Angles(0, 0, math.rad(-sx * 12)), black, Enum.Material.SmoothPlastic)
-				part(folder, "RedMark", Vector3.new(0.8, 6, 0.8), rel(sx * 5.4, 6.5, side * 2.2), red, Enum.Material.Neon)
-			end
-			part(folder, "MouthLine", Vector3.new(7, 0.9, 0.9), rel(0, 3.2, side * 2.3), black, Enum.Material.SmoothPlastic)
-			part(folder, "RedBrow", Vector3.new(0.9, 7, 0.9), rel(0, 13.2, side * 2.2), red, Enum.Material.Neon)
+		part(folder, "Moon", Vector3.new(3, 18, 18), rel(0, 8, 0), white, Enum.Material.Neon, Cyl)
+		part(folder, "MoonShade", Vector3.new(3.6, 15, 15), rel(3.4, 10, 0), Color3.fromRGB(20, 16, 40), Enum.Material.SmoothPlastic, Cyl)
+		for i = 0, 5 do
+			local a = math.rad(i * 60 + 20)
+			local w = part(folder, "Wisp", Vector3.new(3.4, 5.5, 3.4), rel(math.cos(a) * 15, 8 + math.sin(a) * 15, 0), glow, Enum.Material.Neon, Ball)
+			w.Transparency = 0.35
 		end
-		part(folder, "Horn", Vector3.new(2.4, 7, 2.4), rel(0, 17.5, 0), white, Enum.Material.SmoothPlastic)
 	else
-		-- Calavera + huesos cruzados + sombrero de paja
+		-- Calavera + huesos cruzados + tricornio de capitán
 		local bone = Color3.fromRGB(235, 230, 215)
 		for _, a in ipairs({ 35, -35 }) do
 			part(folder, "Bone", Vector3.new(34, 2.2, 2.2), at * CFrame.new(0, 3, 0) * CFrame.Angles(0, 0, math.rad(a)), bone, Enum.Material.SmoothPlastic)
@@ -236,10 +237,11 @@ local function emblem(biome: string, folder: Instance, at: CFrame, look: Look)
 			end
 			part(folder, "Nose", Vector3.new(1.6, 2.4, 1.6), rel(0, 6, side * 5.6), Color3.fromRGB(15, 15, 20), Enum.Material.SmoothPlastic)
 		end
-		local straw = Color3.fromRGB(232, 200, 112)
-		part(folder, "HatBrim", Vector3.new(1, 24, 24), at * CFrame.new(0, 15, 0) * CFrame.Angles(0, 0, math.rad(90)), straw, Enum.Material.Fabric, Cyl)
-		part(folder, "HatTop", Vector3.new(7, 12, 12), at * CFrame.new(0, 18.5, 0) * CFrame.Angles(0, 0, math.rad(90)), straw, Enum.Material.Fabric, Cyl)
-		part(folder, "HatBand", Vector3.new(2, 12.6, 12.6), at * CFrame.new(0, 15.8, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(200, 50, 45), Enum.Material.Fabric, Cyl)
+		local hat, trim = Color3.fromRGB(28, 30, 44), Color3.fromRGB(230, 190, 80)
+		part(folder, "HatBrim", Vector3.new(1.6, 22, 22), at * CFrame.new(0, 15, 0) * CFrame.Angles(0, 0, math.rad(90)), hat, Enum.Material.Fabric, Cyl)
+		part(folder, "HatTop", Vector3.new(6, 11, 11), at * CFrame.new(0, 18.5, 0) * CFrame.Angles(0, 0, math.rad(90)), hat, Enum.Material.Fabric, Cyl)
+		part(folder, "HatTrim", Vector3.new(0.8, 22.8, 22.8), at * CFrame.new(0, 15, 0) * CFrame.Angles(0, 0, math.rad(90)), trim, Enum.Material.Metal, Cyl)
+		part(folder, "HatBand", Vector3.new(1.6, 11.6, 11.6), at * CFrame.new(0, 16.4, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(150, 30, 40), Enum.Material.Fabric, Cyl)
 	end
 	local glow = Instance.new("PointLight")
 	glow.Color = look.Trim

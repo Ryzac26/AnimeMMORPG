@@ -1,7 +1,7 @@
 --!strict
 --[[
     UITheme (ModuleScript) -> StarterPlayer > StarterPlayerScripts > UITheme
-    Colores, bordes y recurso (Ki / Chakra / Haki) por facción + helpers para crear UI con el mismo estilo.
+    Colores, bordes y recurso (Ki / Chakra / Voluntad / Espíritu) por facción + helpers para crear UI con el mismo estilo.
     Todos los paneles (HUD, mochila, perfil) lo usan, así cambiar el look de una facción es tocar este archivo.
 ]]
 local UITheme = {}
@@ -30,20 +30,20 @@ export type Theme = {
 
 UITheme.Themes = {
 	Saiyan = {
-		Faction = "Imperio Saiyan", Primary = Color3.fromRGB(255, 190, 70), Secondary = Color3.fromRGB(220, 90, 30),
+		Faction = "Imperio de Élite", Primary = Color3.fromRGB(255, 190, 70), Secondary = Color3.fromRGB(220, 90, 30),
 		Dark = Color3.fromRGB(34, 22, 14), Resource = "KI", ResourceColor = Color3.fromRGB(80, 190, 255), Emblem = "龍",
 	},
 	Shinobi = {
-		Faction = "Alianza Shinobi", Primary = Color3.fromRGB(130, 220, 120), Secondary = Color3.fromRGB(40, 130, 80),
+		Faction = "Alianza del Sigilo", Primary = Color3.fromRGB(130, 220, 120), Secondary = Color3.fromRGB(40, 130, 80),
 		Dark = Color3.fromRGB(16, 28, 20), Resource = "CHAKRA", ResourceColor = Color3.fromRGB(90, 140, 255), Emblem = "忍",
 	},
 	Pirate = {
-		Faction = "Flota Pirata", Primary = Color3.fromRGB(110, 180, 245), Secondary = Color3.fromRGB(200, 60, 60),
-		Dark = Color3.fromRGB(14, 22, 36), Resource = "HAKI", ResourceColor = Color3.fromRGB(190, 80, 210), Emblem = "海",
+		Faction = "Flota de Navegantes", Primary = Color3.fromRGB(110, 180, 245), Secondary = Color3.fromRGB(200, 60, 60),
+		Dark = Color3.fromRGB(14, 22, 36), Resource = "VOLUNTAD", ResourceColor = Color3.fromRGB(190, 80, 210), Emblem = "海",
 	},
 	Shinigami = {
-		Faction = "Corte Shinigami", Primary = Color3.fromRGB(165, 140, 255), Secondary = Color3.fromRGB(235, 235, 245),
-		Dark = Color3.fromRGB(20, 16, 34), Resource = "REIATSU", ResourceColor = Color3.fromRGB(150, 230, 255), Emblem = "死",
+		Faction = "Corte Espiritual", Primary = Color3.fromRGB(165, 140, 255), Secondary = Color3.fromRGB(235, 235, 245),
+		Dark = Color3.fromRGB(20, 16, 34), Resource = "ESPÍRITU", ResourceColor = Color3.fromRGB(150, 230, 255), Emblem = "死",
 	},
 } :: { [string]: Theme }
 
@@ -155,9 +155,9 @@ RunService.RenderStepped:Connect(function(dt: number)
 end)
 
 local function key(theme: Theme): string
-	for _, k in ipairs({ "Saiyan", "Shinobi", "Pirata", "Shinigami" }) do
+	for k, id in pairs({ ["Élite"] = "Saiyan", Sigilo = "Shinobi", Navegantes = "Pirate", Espiritual = "Shinigami" }) do
 		if string.find(theme.Faction, k, 1, true) then
-			return if k == "Pirata" then "Pirate" else k
+			return id
 		end
 	end
 	return "Saiyan"

@@ -32,10 +32,10 @@ local USE_DISTANCE = 22
 local COOLDOWN = 0.25
 
 local MERCHANTS: { [string]: { Name: string, Title: string, Skin: Color3, Shirt: Color3, Pants: Color3, Hair: Color3 } } = {
-	Saiyan = { Name = "Oolong", Title = "Mercader de la Tienda de Cápsulas", Skin = Color3.fromRGB(240, 170, 190), Shirt = Color3.fromRGB(60, 90, 160), Pants = Color3.fromRGB(50, 50, 70), Hair = Color3.fromRGB(60, 40, 40) },
-	Shinobi = { Name = "Teuchi", Title = "Mercader de la Tienda Ninja", Skin = Color3.fromRGB(240, 205, 175), Shirt = Color3.fromRGB(235, 235, 240), Pants = Color3.fromRGB(70, 60, 55), Hair = Color3.fromRGB(45, 35, 30) },
-	Pirate = { Name = "Zeff", Title = "Mercader del Mercado del Muelle", Skin = Color3.fromRGB(235, 190, 150), Shirt = Color3.fromRGB(245, 245, 245), Pants = Color3.fromRGB(40, 40, 60), Hair = Color3.fromRGB(230, 225, 210) },
-	Shinigami = { Name = "Kisuke Urahara", Title = "Mercader de la Tienda de Provisiones", Skin = Color3.fromRGB(240, 205, 175), Shirt = Color3.fromRGB(70, 110, 80), Pants = Color3.fromRGB(70, 110, 80), Hair = Color3.fromRGB(235, 220, 150) },
+	Saiyan = { Name = "Orlo", Title = "Mercader de la Tienda Orbital", Skin = Color3.fromRGB(240, 170, 190), Shirt = Color3.fromRGB(60, 90, 160), Pants = Color3.fromRGB(50, 50, 70), Hair = Color3.fromRGB(60, 40, 40) },
+	Shinobi = { Name = "Tetsu", Title = "Mercader de la Tienda Ninja", Skin = Color3.fromRGB(240, 205, 175), Shirt = Color3.fromRGB(235, 235, 240), Pants = Color3.fromRGB(70, 60, 55), Hair = Color3.fromRGB(45, 35, 30) },
+	Pirate = { Name = "Ceferino", Title = "Mercader del Mercado del Muelle", Skin = Color3.fromRGB(235, 190, 150), Shirt = Color3.fromRGB(245, 245, 245), Pants = Color3.fromRGB(40, 40, 60), Hair = Color3.fromRGB(230, 225, 210) },
+	Shinigami = { Name = "Sakuro Haru", Title = "Mercader de la Tienda de Provisiones", Skin = Color3.fromRGB(240, 205, 175), Shirt = Color3.fromRGB(70, 110, 80), Pants = Color3.fromRGB(70, 110, 80), Hair = Color3.fromRGB(235, 220, 150) },
 }
 local BIOME_FACTION: { [string]: string } = {
 	Imperio_Saiyan = "Saiyan",

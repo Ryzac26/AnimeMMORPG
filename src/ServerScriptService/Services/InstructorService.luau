@@ -18,10 +18,10 @@ local NpcBuilder = require(ServerScriptService.Services.NpcBuilder)
 local OpenRemote = Net.Get("ClassChangeOpen")
 
 local INSTRUCTORS: { [string]: { Name: string, Title: string, Skin: Color3, Shirt: Color3, Pants: Color3, Hair: Color3 } } = {
-	Saiyan = { Name = "Maestro Roshi", Title = "Instructor de la Escuela de Combate", Skin = Color3.fromRGB(240, 205, 175), Shirt = Color3.fromRGB(235, 130, 40), Pants = Color3.fromRGB(60, 90, 160), Hair = Color3.fromRGB(240, 240, 240) },
-	Shinobi = { Name = "Iruka", Title = "Instructor de la Academia", Skin = Color3.fromRGB(240, 205, 175), Shirt = Color3.fromRGB(60, 90, 70), Pants = Color3.fromRGB(40, 50, 90), Hair = Color3.fromRGB(70, 45, 35) },
-	Pirate = { Name = "Rayleigh", Title = "Instructor de la Escuela de Haki", Skin = Color3.fromRGB(235, 190, 150), Shirt = Color3.fromRGB(235, 235, 235), Pants = Color3.fromRGB(60, 60, 75), Hair = Color3.fromRGB(235, 230, 215) },
-	Shinigami = { Name = "Yamamoto", Title = "Instructor de la Academia Shino", Skin = Color3.fromRGB(235, 200, 170), Shirt = Color3.fromRGB(30, 30, 38), Pants = Color3.fromRGB(30, 30, 38), Hair = Color3.fromRGB(235, 235, 235) },
+	Saiyan = { Name = "Maestro Huan", Title = "Instructor de la Escuela de Combate", Skin = Color3.fromRGB(240, 205, 175), Shirt = Color3.fromRGB(235, 130, 40), Pants = Color3.fromRGB(60, 90, 160), Hair = Color3.fromRGB(240, 240, 240) },
+	Shinobi = { Name = "Sensei Tomo", Title = "Instructor de la Academia", Skin = Color3.fromRGB(240, 205, 175), Shirt = Color3.fromRGB(60, 90, 70), Pants = Color3.fromRGB(40, 50, 90), Hair = Color3.fromRGB(70, 45, 35) },
+	Pirate = { Name = "Maestro Ráfaga", Title = "Instructor de la Escuela de Voluntad", Skin = Color3.fromRGB(235, 190, 150), Shirt = Color3.fromRGB(235, 235, 235), Pants = Color3.fromRGB(60, 60, 75), Hair = Color3.fromRGB(235, 230, 215) },
+	Shinigami = { Name = "Anciano Hakuryo", Title = "Instructor de la Academia Espiritual", Skin = Color3.fromRGB(235, 200, 170), Shirt = Color3.fromRGB(30, 30, 38), Pants = Color3.fromRGB(30, 30, 38), Hair = Color3.fromRGB(235, 235, 235) },
 }
 local BIOME_FACTION: { [string]: string } = {
 	Imperio_Saiyan = "Saiyan",

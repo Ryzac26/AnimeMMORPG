@@ -409,7 +409,7 @@ local function refreshStats()
 	local br = GearView.Breakdown()
 	local total = br.Total
 
-	addHeader(string.format("%s  ·  Nivel %d", class.CharacterName, level))
+	addHeader(string.format("%s  ·  Nivel %d", class.DisplayName, level))
 	addNote(string.format("%s · %s", theme.Faction, class.Role))
 	local equippedTitle = player:GetAttribute("TitleText")
 	if typeof(equippedTitle) == "string" then
@@ -572,7 +572,7 @@ local function build()
 	local cls = PlayerClass.Get(player)
 	local lvl = player:GetAttribute("Level")
 	win = NpcKit.Window(gui, theme, UDim2.fromOffset(1040, 680), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "Equipo y Mochila",
-		string.format("%s · Nivel %d · %s  ·  clic en una ranura para desequiparla · cada rol guarda su equipo", cls.CharacterName, if typeof(lvl) == "number" then lvl else 1, cls.Role), "🎒", function()
+		string.format("%s · Nivel %d · %s  ·  clic en una ranura para desequiparla · cada rol guarda su equipo", cls.DisplayName, if typeof(lvl) == "number" then lvl else 1, cls.Role), "🎒", function()
 			gui.Enabled = false
 		end)
 	WindowDrag.Attach(win, "Character", 40, 50)

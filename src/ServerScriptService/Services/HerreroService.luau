@@ -60,10 +60,10 @@ local COOLDOWN = 0.6 -- s entre intentos de un mismo jugador
 
 -- Un herrero por facción (cambia nombre, título y colores a tu gusto). Facción = clave de BIOME_FACTION.
 local SMITHS: { [string]: { Name: string, Title: string, Skin: Color3, Shirt: Color3, Pants: Color3 } } = {
-	Saiyan = { Name = "Dr. Brief", Title = "Ingeniero del Taller de Armaduras", Skin = Color3.fromRGB(240, 205, 175), Shirt = Color3.fromRGB(235, 238, 245), Pants = Color3.fromRGB(70, 90, 140) },
-	Shinobi = { Name = "Tenten", Title = "Maestra de la Herrería de Kunai", Skin = Color3.fromRGB(240, 205, 175), Shirt = Color3.fromRGB(200, 60, 80), Pants = Color3.fromRGB(70, 60, 55) },
-	Pirate = { Name = "Franky", Title = "Maestro de la Fragua del Astillero", Skin = Color3.fromRGB(235, 190, 150), Shirt = Color3.fromRGB(40, 150, 200), Pants = Color3.fromRGB(35, 70, 140) },
-	Shinigami = { Name = "Oh-Etsu Nimaiya", Title = "Herrero de Zanpakutō de la Forja de Espadas", Skin = Color3.fromRGB(235, 200, 170), Shirt = Color3.fromRGB(240, 240, 245), Pants = Color3.fromRGB(30, 30, 40) },
+	Saiyan = { Name = "Dr. Alcorn", Title = "Ingeniero del Taller de Armaduras", Skin = Color3.fromRGB(240, 205, 175), Shirt = Color3.fromRGB(235, 238, 245), Pants = Color3.fromRGB(70, 90, 140) },
+	Shinobi = { Name = "Haruna", Title = "Maestra de la Herrería de Kunai", Skin = Color3.fromRGB(240, 205, 175), Shirt = Color3.fromRGB(200, 60, 80), Pants = Color3.fromRGB(70, 60, 55) },
+	Pirate = { Name = "Brontes", Title = "Maestro de la Fragua del Astillero", Skin = Color3.fromRGB(235, 190, 150), Shirt = Color3.fromRGB(40, 150, 200), Pants = Color3.fromRGB(35, 70, 140) },
+	Shinigami = { Name = "Tetsuo Kagami", Title = "Herrero de la Forja de Espadas", Skin = Color3.fromRGB(235, 200, 170), Shirt = Color3.fromRGB(240, 240, 245), Pants = Color3.fromRGB(30, 30, 40) },
 }
 local BIOME_FACTION: { [string]: string } = {
 	Imperio_Saiyan = "Saiyan",

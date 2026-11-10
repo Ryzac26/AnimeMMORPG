@@ -2,9 +2,9 @@
 --[[
     BridgeSigns (ModuleScript) -> ServerScriptService.Services.BridgeSigns
     CARTEL EN LO ALTO DEL ARCO DE CADA PUENTE (entre las dos torres del portón de cada ciudad), visible desde la Arena y desde la ciudad.
-      - Imperio Saiyan : tablero azul noche con borde dorado + gran Bola de Dragón de 4 estrellas.
-      - Alianza Shinobi: tablero verde oscuro + protector de frente ninja (placa de metal con el kanji 忍) con cintas.
-      - Flota Pirata   : tablero de madera azul + calavera con huesos cruzados y sombrero de paja.
+      - Imperio de Élite : tablero azul noche con borde dorado + corona solar con cristal azul.
+      - Alianza del Sigilo: tablero verde oscuro + gran estrella de cuatro filos con espirales.
+      - Flota de Navegantes: tablero de madera azul + calavera con huesos cruzados y tricornio de capitán.
     No toca el mapa existente: busca "Torre_Porton_A/B" de cada ciudad y construye encima. Todo es decorativo (sin colisión, sin clics).
 ]]
 local Workspace = game:GetService("Workspace")

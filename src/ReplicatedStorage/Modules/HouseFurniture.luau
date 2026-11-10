@@ -77,7 +77,7 @@ HouseFurniture.Defaults = {
 
 local BOOK_LINES = {
 	"📖 «La paciencia forja más espadas que la ira.»",
-	"📖 Un viejo tratado de reiatsu: «Respira hondo antes del primer golpe.»",
+	"📖 Un viejo tratado de energía espiritual: «Respira hondo antes del primer golpe.»",
 	"📖 Un bestiario: «Los jefes del mundo temen a quien nunca retrocede.»",
 	"📖 Diario de un aventurero: «Hoy encontré un metin... y salí corriendo.»",
 	"📖 «Quien cuida a su montura, cuida su camino.»",

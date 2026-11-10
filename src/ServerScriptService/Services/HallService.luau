@@ -60,10 +60,10 @@ local function c(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
 end
 local THEMES: { [string]: Theme } = {
-	Saiyan = { Primary = c(214, 128, 52), Secondary = c(30, 40, 90), Glow = c(255, 220, 120), Emblem = "⭐", Name = "Imperio Saiyan" },
-	Shinobi = { Primary = c(74, 130, 96), Secondary = c(34, 40, 60), Glow = c(150, 235, 170), Emblem = "🍃", Name = "Alianza Shinobi" },
-	Pirate = { Primary = c(160, 44, 52), Secondary = c(60, 44, 34), Glow = c(255, 200, 100), Emblem = "☠️", Name = "Flota Pirata" },
-	Shinigami = { Primary = c(96, 80, 170), Secondary = c(24, 24, 36), Glow = c(170, 200, 255), Emblem = "⚔️", Name = "Corte Shinigami" },
+	Saiyan = { Primary = c(214, 128, 52), Secondary = c(30, 40, 90), Glow = c(255, 220, 120), Emblem = "⭐", Name = "Imperio de Élite" },
+	Shinobi = { Primary = c(74, 130, 96), Secondary = c(34, 40, 60), Glow = c(150, 235, 170), Emblem = "🍃", Name = "Alianza del Sigilo" },
+	Pirate = { Primary = c(160, 44, 52), Secondary = c(60, 44, 34), Glow = c(255, 200, 100), Emblem = "☠️", Name = "Flota de Navegantes" },
+	Shinigami = { Primary = c(96, 80, 170), Secondary = c(24, 24, 36), Glow = c(170, 200, 255), Emblem = "⚔️", Name = "Corte Espiritual" },
 }
 local GOLD = c(240, 196, 90)
 

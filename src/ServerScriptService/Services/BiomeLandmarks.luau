@@ -399,22 +399,22 @@ BUILD.Shinigami_4 = function(f, a) -- Pagoda del Seireitei
 end
 
 local LANDMARKS: { [string]: { Name: string, U: number, Side: number, Accent: Color3 } } = {
-	Saiyan_1 = { Name = "CAMPAMENTO RED RIBBON", U = 0.22, Side = 1, Accent = C(255, 120, 110) },
-	Saiyan_2 = { Name = "ÁRBOL GIGANTE DE NAMEK", U = 0.22, Side = -1, Accent = C(126, 240, 184) },
-	Saiyan_3 = { Name = "ARENA DEL CELL GAMES", U = 0.22, Side = 1, Accent = C(255, 176, 80) },
+	Saiyan_1 = { Name = "CAMPAMENTO CARMESÍ", U = 0.22, Side = 1, Accent = C(255, 120, 110) },
+	Saiyan_2 = { Name = "ÁRBOL GIGANTE ESMERALDA", U = 0.22, Side = -1, Accent = C(126, 240, 184) },
+	Saiyan_3 = { Name = "ARENA DEL BIOMONSTRUO", U = 0.22, Side = 1, Accent = C(255, 176, 80) },
 	Saiyan_4 = { Name = "TORRE DE CARAMELO", U = 0.22, Side = -1, Accent = C(255, 190, 225) },
 	Shinobi_1 = { Name = "PUENTE INACABADO", U = 0.22, Side = 1, Accent = C(210, 190, 150) },
 	Shinobi_2 = { Name = "TORRES DE LA LLUVIA", U = 0.22, Side = -1, Accent = C(140, 216, 255) },
-	Shinobi_3 = { Name = "PUERTA DE SUNA", U = 0.22, Side = 1, Accent = C(255, 208, 112) },
-	Shinobi_4 = { Name = "ESTATUAS DEL VALLE DEL FIN", U = 0.22, Side = -1, Accent = C(255, 120, 100) },
-	Pirate_1 = { Name = "FARO DE EAST BLUE", U = 0.22, Side = 1, Accent = C(255, 236, 160) },
+	Shinobi_3 = { Name = "PUERTA DEL DESIERTO", U = 0.22, Side = 1, Accent = C(255, 208, 112) },
+	Shinobi_4 = { Name = "ESTATUAS DEL VALLE FINAL", U = 0.22, Side = -1, Accent = C(255, 120, 100) },
+	Pirate_1 = { Name = "FARO DEL MAR AZUL", U = 0.22, Side = 1, Accent = C(255, 236, 160) },
 	Pirate_2 = { Name = "PUERTA DEL TIBURÓN", U = 0.22, Side = -1, Accent = C(138, 232, 255) },
 	Pirate_3 = { Name = "TORRE DE LA JUSTICIA", U = 0.22, Side = 1, Accent = C(255, 216, 112) },
-	Pirate_4 = { Name = "PLATAFORMA DE MARINEFORD", U = 0.22, Side = -1, Accent = C(255, 150, 90) },
-	Shinigami_1 = { Name = "PUERTA DE RUKONGAI", U = 0.22, Side = 1, Accent = C(255, 160, 100) },
-	Shinigami_2 = { Name = "ÁRBOL BLANCO DE HUECO MUNDO", U = 0.22, Side = -1, Accent = C(200, 206, 255) },
-	Shinigami_3 = { Name = "CÚPULA DE LAS NOCHES", U = 0.22, Side = 1, Accent = C(190, 200, 255) },
-	Shinigami_4 = { Name = "PAGODA DEL SEIREITEI", U = 0.22, Side = -1, Accent = C(255, 176, 96) },
+	Pirate_4 = { Name = "PLATAFORMA DEL ALMIRANTAZGO", U = 0.22, Side = -1, Accent = C(255, 150, 90) },
+	Shinigami_1 = { Name = "PUERTA DEL ARRABAL", U = 0.22, Side = 1, Accent = C(255, 160, 100) },
+	Shinigami_2 = { Name = "ÁRBOL BLANCO DEL PÁRAMO VACÍO", U = 0.22, Side = -1, Accent = C(200, 206, 255) },
+	Shinigami_3 = { Name = "CÚPULA DEL ECLIPSE", U = 0.22, Side = 1, Accent = C(190, 200, 255) },
+	Shinigami_4 = { Name = "PAGODA DEL BASTIÓN BLANCO", U = 0.22, Side = -1, Accent = C(255, 176, 96) },
 }
 
 ---------------------------------------------------------------------

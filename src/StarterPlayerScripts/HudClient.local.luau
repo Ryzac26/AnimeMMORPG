@@ -150,7 +150,7 @@ local function build()
 		nameLabel = UITheme.Text(panel, player.DisplayName, 17, accent, UDim2.fromOffset(BX, 15), UDim2.fromOffset(BW, 20))
 		nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 		nameLabel.ZIndex = 6
-		roleLabel = UITheme.Text(panel, string.format("%s · %s", class.CharacterName, class.Role), 11, Color3.fromRGB(215, 215, 225), UDim2.fromOffset(BX, 34), UDim2.fromOffset(BW, 14))
+		roleLabel = UITheme.Text(panel, string.format("%s · %s", class.DisplayName, class.Role), 11, Color3.fromRGB(215, 215, 225), UDim2.fromOffset(BX, 34), UDim2.fromOffset(BW, 14))
 		roleLabel.ZIndex = 6
 		-- barras: marco + relleno recortado por el ancho
 		local function kitBar(y: number, fillId: string, prefix: string?): (number, number, string?) -> ()
@@ -198,7 +198,7 @@ local function build()
 		-- nombre + personaje y rol
 		nameLabel = UITheme.Text(panel, player.DisplayName, L.NameS, accent, UDim2.fromOffset(L.BarX, L.NameY), UDim2.fromOffset(L.BarW, L.NameS + 3))
 		nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-		roleLabel = UITheme.Text(panel, string.format("%s · %s", class.CharacterName, class.Role), L.RoleS, Color3.fromRGB(215, 215, 225), UDim2.fromOffset(L.BarX, L.RoleY), UDim2.fromOffset(L.BarW, 14))
+		roleLabel = UITheme.Text(panel, string.format("%s · %s", class.DisplayName, class.Role), L.RoleS, Color3.fromRGB(215, 215, 225), UDim2.fromOffset(L.BarX, L.RoleY), UDim2.fromOffset(L.BarW, 14))
 
 		-- barras: vida / energía / XP (bordeadas con el color de la facción)
 		local _, hp = UITheme.Bar(panel, UDim2.fromOffset(L.BarX, L.HpY), UDim2.fromOffset(L.BarW, L.HpH), Color3.fromRGB(220, 60, 60), nil, if L.HpH < 16 then 11 else 12, theme.Primary)

@@ -19,7 +19,15 @@ local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local Platform = require(script.Parent:WaitForChild("Platform", 10))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
 local chooseRemote = Remotes:WaitForChild("ChooseClass", 10) :: RemoteEvent
+local WindowKit = require(script.Parent:WaitForChild("WindowKit"))
 local MOBILE = Platform.IsMobile()
+-- el pergamino de Shinobi es claro y el texto de estas pantallas es claro: se oscurece a verde para que se lea
+local function tintFor(faction: string, col: Color3): Color3
+	if faction == "Shinobi" then
+		return Color3.new(col.R * 0.55, col.G * 0.7, col.B * 0.55)
+	end
+	return col
+end
 local Workspace = game:GetService("Workspace")
 
 local FACTIONS = { "Saiyan", "Shinobi", "Pirate", "Shinigami" }
@@ -33,7 +41,7 @@ local ROLE_HINT: { [string]: string } = {
 	Curador = "Cura y apoya al equipo",
 }
 local ROLE_GLYPH: { [string]: string } = { Tanque = "盾", Guerrero = "剣", Asesino = "影", Tirador = "弓", Mago = "魔", Curador = "癒" }
-local ANIME: { [string]: string } = { Saiyan = "DRAGON BALL", Shinobi = "NARUTO", Pirate = "ONE PIECE", Shinigami = "BLEACH" }
+local ANIME: { [string]: string } = { Saiyan = "GUERREROS DE ÉLITE", Shinobi = "SHINOBI DEL SIGILO", Pirate = "NAVEGANTES DE LOS MARES", Shinigami = "GUARDIANES ESPIRITUALES" }
 
 local DEFAULT_ACCENT = Color3.fromRGB(255, 190, 70)
 local BG_TOP = Color3.fromRGB(26, 28, 46)
@@ -205,7 +213,11 @@ showFactions = function()
 			c.Stroke.Color = if on then theme.Primary else Color3.fromRGB(70, 74, 98)
 			c.Stroke.Thickness = if on then 3 else 2
 			c.Badge.Visible = on
-			c.Card.BackgroundTransparency = if f == nil or on then 0 else 0.25
+			if c.Img then
+				c.Img.ImageColor3 = tintFor(id, if f == nil or on then Color3.new(1, 1, 1) else Color3.fromRGB(120, 120, 130))
+			else
+				c.Card.BackgroundTransparency = if f == nil or on then 0 else 0.25
+			end
 			TweenService:Create(c.Card, TweenInfo.new(0.15, Enum.EasingStyle.Quad), { Position = c.Base - UDim2.fromOffset(0, if on then 8 else 0) }):Play()
 		end
 		if f then
@@ -247,13 +259,48 @@ showFactions = function()
 		g.Rotation = 90
 		g.Parent = card
 		local st = stroke(card, Color3.fromRGB(70, 74, 98), 2)
+		local kit = WindowKit.Get(f)
+		local cardImg: ImageLabel? = nil
+		if kit then
+			-- tarjeta alta con el marco de la facción + emblema que flota y respira
+			card.BackgroundTransparency = 1
+			g:Destroy()
+			st.Transparency = 1
+			local ci = Instance.new("ImageLabel")
+			ci.Name = "Marco"
+			ci.BackgroundTransparency = 1
+			ci.Image = kit.cardTall
+			ci.ScaleType = Enum.ScaleType.Slice
+			ci.SliceCenter = Rect.new(100, 100, 412, 668)
+			ci.SliceScale = if MOBILE then 0.3 else 0.45
+			ci.Size = UDim2.fromScale(1, 1)
+			ci.ZIndex = 0
+			ci.Parent = card
+			ci.ImageColor3 = tintFor(f, Color3.new(1, 1, 1))
+			cardImg = ci
+			local em = Instance.new("ImageLabel")
+			em.Name = "Emblema"
+			em.BackgroundTransparency = 1
+			em.Image = kit.emblem
+			em.AnchorPoint = Vector2.new(0.5, 0.5)
+			em.Position = UDim2.fromScale(0.5, if MOBILE then 0.3 else 0.3)
+			em.Size = UDim2.fromScale(if MOBILE then 0.62 else 0.66, 0)
+			local ar = Instance.new("UIAspectRatioConstraint")
+			ar.AspectRatio = 1
+			ar.Parent = em
+			em.Size = UDim2.fromScale(if MOBILE then 0.62 else 0.66, 0.66)
+			em.ZIndex = 2
+			em.Parent = card
+			TweenService:Create(em, TweenInfo.new(2.6 + i * 0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Position = UDim2.fromScale(0.5, 0.3 - 0.018), Rotation = 4 }):Play()
+			TweenService:Create(em, TweenInfo.new(1.8 + i * 0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { ImageTransparency = 0.25 }):Play()
+		end
 
 		local badge = frame(card, UDim2.fromScale(0.5, 0.035), UDim2.fromOffset(if MOBILE then 78 else 100, if MOBILE then 18 else 24), theme.Primary, Vector2.new(0.5, 0), 12)
 		local bl = text(badge, "ELEGIDA", if MOBILE then 11 else 14, INK, UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), nil, Enum.Font.GothamBold)
 		bl.TextStrokeTransparency = 1
 		badge.Visible = false
 
-		local kanji = text(card, theme.Emblem, if MOBILE then 56 else 110, theme.Primary, UDim2.fromScale(0, 0.1), UDim2.fromScale(1, if MOBILE then 0.4 else 0.4), nil, Enum.Font.GothamBlack)
+		local kanji = text(card, if kit then "" else theme.Emblem, if MOBILE then 56 else 110, theme.Primary, UDim2.fromScale(0, 0.1), UDim2.fromScale(1, if MOBILE then 0.4 else 0.4), nil, Enum.Font.GothamBlack)
 		kanji.TextStrokeColor3 = theme.Secondary
 		kanji.TextStrokeTransparency = 0.7
 		kanji.TextTruncate = Enum.TextTruncate.None
@@ -272,7 +319,7 @@ showFactions = function()
 		cnt.Font = Enum.Font.GothamBold
 		cnt.TextStrokeTransparency = 1
 		countLabels[f] = cnt
-		cards[f] = { Card = card, Stroke = st, Badge = badge, Base = base }
+		cards[f] = { Card = card, Stroke = st, Badge = badge, Base = base, Img = cardImg }
 		card.Activated:Connect(function()
 			if isFull(f) then
 				pickedLabel.Text = f .. " está llena en este servidor"
@@ -390,24 +437,45 @@ showRoles = function()
 			card.Parent = r
 			Instance.new("UICorner", card).CornerRadius = UDim.new(0, 12)
 			local st = stroke(card, Color3.fromRGB(70, 74, 98), 2)
+			local rkit = WindowKit.Get(faction)
+			local rimg: ImageLabel? = nil
+			if rkit then
+				card.BackgroundTransparency = 1
+				st.Transparency = 1
+				local ri = Instance.new("ImageLabel")
+				ri.BackgroundTransparency = 1
+				ri.Image = rkit.card
+				ri.ScaleType = Enum.ScaleType.Slice
+				ri.SliceCenter = Rect.new(48, 48, 208, 208)
+				ri.SliceScale = 0.4
+				ri.Size = UDim2.fromScale(1, 1)
+				ri.ImageColor3 = tintFor(faction, Color3.fromRGB(170, 170, 180))
+				ri.ZIndex = 0
+				ri.Parent = card
+				rimg = ri
+			end
 			local glyph = text(card, ROLE_GLYPH[role] or "?", if MOBILE then 34 else 46, GREY, UDim2.fromScale(0.04, 0.05), UDim2.fromScale(0.3, 0.45), Enum.TextXAlignment.Left, Enum.Font.GothamBlack)
 			glyph.TextTruncate = Enum.TextTruncate.None
 			glyph.TextStrokeTransparency = 1
 			local nameL = text(card, string.upper(role), if MOBILE then 16 else 24, Color3.new(1, 1, 1), UDim2.fromScale(0.34, 0.08), UDim2.fromScale(0.62, 0.3), Enum.TextXAlignment.Left, Enum.Font.GothamBlack)
 			nameL.TextStrokeTransparency = 1
-			local who = text(card, class.CharacterName, if MOBILE then 12 else 15, accent, UDim2.fromScale(0.34, 0.34), UDim2.fromScale(0.62, 0.2), Enum.TextXAlignment.Left)
+			local who = text(card, class.DisplayName, if MOBILE then 12 else 15, accent, UDim2.fromScale(0.34, 0.34), UDim2.fromScale(0.62, 0.2), Enum.TextXAlignment.Left)
 			who.TextStrokeTransparency = 1
 			local hint = text(card, ROLE_HINT[role] or "", if MOBILE then 11 else 15, Color3.fromRGB(182, 188, 208), UDim2.fromScale(0.05, 0.58), UDim2.fromScale(0.9, 0.38), Enum.TextXAlignment.Left)
 			hint.TextWrapped = true
 			hint.TextTruncate = Enum.TextTruncate.None
 			hint.TextYAlignment = Enum.TextYAlignment.Top
 			hint.TextStrokeTransparency = 1
-			cards[role] = { Card = card, Stroke = st, Glyph = glyph, Name = nameL }
+			cards[role] = { Card = card, Stroke = st, Glyph = glyph, Name = nameL, Img = rimg }
 			card.Activated:Connect(function()
 				selectedRole = role
 				for rn, c in pairs(cards) do
 					local on = rn == role
-					c.Card.BackgroundColor3 = if on then theme.Dark else Color3.fromRGB(26, 28, 40)
+					if c.Img then
+						c.Img.ImageColor3 = tintFor(faction, if on then Color3.new(1, 1, 1) else Color3.fromRGB(170, 170, 180))
+					else
+						c.Card.BackgroundColor3 = if on then theme.Dark else Color3.fromRGB(26, 28, 40)
+					end
 					c.Stroke.Color = if on then accent else Color3.fromRGB(70, 74, 98)
 					c.Stroke.Thickness = if on then 3 else 2
 					c.Glyph.TextColor3 = if on then accent else GREY
@@ -415,7 +483,7 @@ showRoles = function()
 				end
 				detail.Text = string.format(
 					"<b>%s</b> (%s) — Vida %d · %s %d · Reducción de daño %d%% · Velocidad %d\n<b>Atributos:</b> FUE %d · DES %d · INT %d · VIT %d · ESP %d  (principal: %s)\n<b>%s:</b> %s",
-					class.CharacterName, class.AnimeSource, ClassStats.BaseHp(class.Role), theme.Resource, class.BaseEnergy,
+					class.DisplayName, class.AnimeSource, ClassStats.BaseHp(class.Role), theme.Resource, class.BaseEnergy,
 					math.floor(ClassStats.Mitigation(class.Role) * 100 + 0.5), class.WalkSpeed,
 					ClassStats.Get(class.Role).FUE, ClassStats.Get(class.Role).DES, ClassStats.Get(class.Role).INT, ClassStats.Get(class.Role).VIT, ClassStats.Get(class.Role).ESP,
 					ClassStats.Names[ClassStats.Main(class.Role)], class.PrimarySkill.Name, class.PrimarySkill.Description

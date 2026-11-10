@@ -114,7 +114,7 @@ GearCatalog.JewelNames = { Collar = "Collar", Anillo = "Anillo", Brazalete = "Br
 
 GearCatalog.EmblemWeights = { Ataque = 0.40, Vida = 0.30, Defensa = 0.30 } :: { [string]: number }
 GearCatalog.EmblemRarities = { "Epico", "Legendario", "Mitico" }
-GearCatalog.EmblemNames = { Saiyan = "Emblema Saiyan", Shinobi = "Banda Shinobi", Pirate = "Brújula Pirata", Shinigami = "Insignia Shinigami" } :: { [string]: string }
+GearCatalog.EmblemNames = { Saiyan = "Emblema de Élite", Shinobi = "Banda del Sigilo", Pirate = "Brújula de Navegante", Shinigami = "Insignia Espiritual" } :: { [string]: string }
 
 GearCatalog.SetNames = { Tanque = "Baluarte", Guerrero = "Vanguardia", Asesino = "Sombra", Tirador = "Cazador", Mago = "Arcano", Curador = "Santuario" } :: { [string]: string }
 GearCatalog.PieceNames = { Armadura = "Coraza", Casco = "Casco", Zapatos = "Botas" } :: { [string]: string }

@@ -106,7 +106,7 @@ local function build(name: string, title: string)
 		ic.TextStrokeTransparency = 1
 		local n1 = UITheme.Text(card, role, 16, if isCurrent then pal.Accent else pal.Text, UDim2.fromOffset(64, 10), UDim2.fromOffset(126, 20))
 		n1.TextStrokeTransparency = 1
-		local n2 = UITheme.Text(card, if data then data.CharacterName else "?", 12, pal.Muted, UDim2.fromOffset(64, 32), UDim2.fromOffset(126, 16))
+		local n2 = UITheme.Text(card, if data then data.DisplayName else "?", 12, pal.Muted, UDim2.fromOffset(64, 32), UDim2.fromOffset(126, 16))
 		n2.TextStrokeTransparency = 1
 		n2.TextTruncate = Enum.TextTruncate.AtEnd
 		local hint = UITheme.Text(card, HINT[role] or "", 11, pal.Muted, UDim2.fromOffset(10, 66), UDim2.fromOffset(176, 36))
