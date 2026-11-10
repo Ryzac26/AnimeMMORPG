@@ -89,9 +89,26 @@ local function loadIcon(key: string, assetId: number, override: string?, infoTyp
 	end
 	iconCache[key] = false -- evita pedirlo dos veces mientras llega
 	task.spawn(function()
-		local ok, info = pcall(function()
-			return MarketplaceService:GetProductInfo(assetId, infoType)
-		end)
+		-- Roblox migró los pases/productos a IDs nuevos: si el tipo esperado falla, se prueban los otros (Asset = catálogo unificado)
+		local ok, info = false, nil
+		local usedTp: any = nil
+		local tries = if infoType == Enum.InfoType.GamePass
+			then { Enum.InfoType.GamePass, Enum.InfoType.Asset, Enum.InfoType.Product }
+			else { Enum.InfoType.Product, Enum.InfoType.Asset, Enum.InfoType.GamePass }
+		for _, tp in ipairs(tries) do
+			ok, info = pcall(function()
+				return MarketplaceService:GetProductInfo(assetId, tp)
+			end)
+			if ok and typeof(info) == "table" then
+				usedTp = tp
+				break
+			end
+		end
+		if ok and typeof(info) == "table" and string.sub(key, 1, 5) == "pass_" then
+			-- DIAGNÓSTICO (pases): qué tipo respondió y qué dice Roblox del ID
+			local i: any = info
+			warn(string.format("[TiendaClient][diag] %s id=%d tipo=%s ProductType=%s AssetTypeId=%s IsForSale=%s Price=%s Nombre=%s", key, assetId, tostring(usedTp), tostring(i.ProductType), tostring(i.AssetTypeId), tostring(i.IsForSale), tostring(i.PriceInRobux), tostring(i.Name)))
+		end
 		if ok and typeof(info) == "table" then
 			local id = (info :: any).IconImageAssetId
 			if typeof(id) == "number" and id > 0 then
