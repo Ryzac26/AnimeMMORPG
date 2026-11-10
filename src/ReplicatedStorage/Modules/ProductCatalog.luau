@@ -87,90 +87,90 @@ ProductCatalog.Products = {
 	{
 		Key = "Boost4h", Group = "Progreso", Kind = "Boost", Lane = "Boost", Price = 49, Name = "Boost de XP +50% (4 h)",
 		Desc = "+50% de XP durante 4 horas de juego. Comprar más suma tiempo.",
-		ProductId = 2064418488, PriceText = "49 R$", DailyLimit = 3, MinLevel = 1, Seconds = 4 * 3600, Mult = 1.5,
+		ProductId = 3730247937, PriceText = "49 R$", DailyLimit = 3, MinLevel = 1, Seconds = 4 * 3600, Mult = 1.5,
 	},
 	{
 		Key = "Horas3", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 59, Name = "Paquete de 3 horas",
 		Desc = "Recupera la XP de 3 horas de juego a tu nivel actual.",
-		ProductId = 2064189703, PriceText = "59 R$", DailyLimit = 2, MinLevel = 600, Hours = 3,
+		ProductId = 3730248291, PriceText = "59 R$", DailyLimit = 2, MinLevel = 600, Hours = 3,
 	},
 	{
 		Key = "Horas5", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 89, Name = "Paquete de 5 horas",
 		Desc = "Recupera la XP de 5 horas de juego a tu nivel actual.",
-		ProductId = 2063976038, PriceText = "89 R$", DailyLimit = 1, MinLevel = 600, Hours = 5,
+		ProductId = 3730248732, PriceText = "89 R$", DailyLimit = 1, MinLevel = 600, Hours = 5,
 	},
 	{
 		Key = "Horas8", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 139, Name = "Paquete de 8 horas",
 		Desc = "Recupera la XP de 8 horas de juego a tu nivel actual.",
-		ProductId = 2064089903, PriceText = "139 R$", DailyLimit = 1, MinLevel = 600, Hours = 8,
+		ProductId = 3730248943, PriceText = "139 R$", DailyLimit = 1, MinLevel = 600, Hours = 8,
 	},
 	{
 		Key = "Horas12", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 199, Name = "Paquete de 12 horas",
 		Desc = "Recupera la XP de 12 horas de juego a tu nivel actual.",
-		ProductId = 2063992040, PriceText = "199 R$", DailyLimit = 1, MinLevel = 600, Hours = 12,
+		ProductId = 3730249078, PriceText = "199 R$", DailyLimit = 1, MinLevel = 600, Hours = 12,
 	},
 	{
 		Key = "ComboDespegue", Group = "Progreso", Kind = "Combo", Lane = "Horas", Price = 99,
 		Components = { "Boost4h", "Horas3" },
 		Name = "Combo Despegue",
 		Desc = "Boost de XP +50% (4 h) y paquete de 3 horas en una sola compra.",
-		ProductId = 2064342565, PriceText = "99 R$", DailyLimit = 1, MinLevel = 600, Seconds = 4 * 3600, Mult = 1.5, Hours = 3,
+		ProductId = 3730249168, PriceText = "99 R$", DailyLimit = 1, MinLevel = 600, Seconds = 4 * 3600, Mult = 1.5, Hours = 3,
 	},
 	{
 		Key = "ComboMaraton", Group = "Progreso", Kind = "Combo", Lane = "Horas", Price = 169,
 		Components = { "Boost4h", "Horas8" },
 		Name = "Combo Maratón",
 		Desc = "Boost de XP +50% (4 h) y paquete de 8 horas en una sola compra.",
-		ProductId = 2063900141, PriceText = "169 R$", DailyLimit = 1, MinLevel = 600, Seconds = 4 * 3600, Mult = 1.5, Hours = 8,
+		ProductId = 3730249360, PriceText = "169 R$", DailyLimit = 1, MinLevel = 600, Seconds = 4 * 3600, Mult = 1.5, Hours = 8,
 	},
 	-- OBJETOS (sin bloqueo entre sí ni con los paquetes): se entregan en la mochila
 	{
 		Key = "Pergamino1", Group = "Objetos", Kind = "Item", Lane = "Objetos", Price = 25, Name = "Pergamino de Protección",
 		Desc = "Evita que tu equipo baje de nivel o se ROMPA al fallar una mejora +7, +8 o +9 en el Herrero.",
-		ProductId = 2067307786, PriceText = "25 R$", DailyLimit = 20, MinLevel = 1, Items = { Pergamino_Proteccion = 1 },
+		ProductId = 3730249518, PriceText = "25 R$", DailyLimit = 20, MinLevel = 1, Items = { Pergamino_Proteccion = 1 },
 	},
 	{
 		Key = "Pergamino5", Group = "Objetos", Kind = "Item", Lane = "Objetos", Price = 99, Components = { "Pergamino1", "Pergamino1", "Pergamino1", "Pergamino1", "Pergamino1" },
 		Name = "Pack x5 Pergaminos de Protección",
 		Desc = "5 Pergaminos de Protección en una sola compra, más barato que por separado.",
-		ProductId = 2067373763, PriceText = "99 R$", DailyLimit = 10, MinLevel = 1, Items = { Pergamino_Proteccion = 5 },
+		ProductId = 3730249679, PriceText = "99 R$", DailyLimit = 10, MinLevel = 1, Items = { Pergamino_Proteccion = 5 },
 	},
 	-- CASA VIP: recompra del pago único cuando la licencia venció (la ofrece el portal del Pabellón; no sale en la Tienda)
 	{
 		Key = "VipHouseRebuy", Group = "Casa", Kind = "HouseLicense", Lane = "Casa", Price = 599, Name = "Pabellón Imperial (recompra)",
 		Desc = "Vuelve a activar tu Casa VIP tras vencer la suscripción. Sujeto a cupo de casas.",
-		ProductId = 0, PriceText = "599 R$", DailyLimit = 99, MinLevel = 1, -- TODO: crea este Developer Product (599 R$) y pega aquí su ID
+		ProductId = 3730249864, PriceText = "599 R$", DailyLimit = 99, MinLevel = 1,
 	},
 	-- BENDICIONES DE FACCIÓN (ver reglas arriba). Crea cada Developer Product y pega su ID; con ProductId 0 solo se prueba en Studio.
 	{
 		Key = "BlessXp3", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 449, Name = "Sabiduría 3 h",
 		Desc = "+50% de XP para toda tu facción en este servidor durante 3 horas.",
-		ProductId = 2073006411, PriceText = "449 R$", DailyLimit = 8, MinLevel = 1, BlessGroup = "Xp", BlessSeconds = 3 * 3600,
+		ProductId = 3730250004, PriceText = "449 R$", DailyLimit = 8, MinLevel = 1, BlessGroup = "Xp", BlessSeconds = 3 * 3600,
 	},
 	{
 		Key = "BlessXp5", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 699, Name = "Sabiduría 5 h",
 		Desc = "+50% de XP para toda tu facción durante 5 horas.",
-		ProductId = 2068058795, PriceText = "699 R$", DailyLimit = 5, MinLevel = 1, BlessGroup = "Xp", BlessSeconds = 5 * 3600,
+		ProductId = 3730250132, PriceText = "699 R$", DailyLimit = 5, MinLevel = 1, BlessGroup = "Xp", BlessSeconds = 5 * 3600,
 	},
 	{
 		Key = "BlessXp8", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 999, Name = "Sabiduría 8 h",
 		Desc = "+50% de XP para toda tu facción durante 8 horas.",
-		ProductId = 2071285111, PriceText = "999 R$", DailyLimit = 3, MinLevel = 1, BlessGroup = "Xp", BlessSeconds = 8 * 3600,
+		ProductId = 3730250262, PriceText = "999 R$", DailyLimit = 3, MinLevel = 1, BlessGroup = "Xp", BlessSeconds = 8 * 3600,
 	},
 	{
 		Key = "BlessOro4", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 249, Name = "Fortuna 4 h",
 		Desc = "+20% de oro para toda tu facción durante 4 horas.",
-		ProductId = 2073384365, PriceText = "249 R$", DailyLimit = 6, MinLevel = 1, BlessGroup = "Oro", BlessSeconds = 4 * 3600,
+		ProductId = 3730250424, PriceText = "249 R$", DailyLimit = 6, MinLevel = 1, BlessGroup = "Oro", BlessSeconds = 4 * 3600,
 	},
 	{
 		Key = "BlessSuerte4", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 249, Name = "Hallazgo 4 h",
 		Desc = "+20% de suerte con el botín para toda tu facción durante 4 horas.",
-		ProductId = 2073920260, PriceText = "249 R$", DailyLimit = 6, MinLevel = 1, BlessGroup = "Suerte", BlessSeconds = 4 * 3600,
+		ProductId = 3730250546, PriceText = "249 R$", DailyLimit = 6, MinLevel = 1, BlessGroup = "Suerte", BlessSeconds = 4 * 3600,
 	},
 	{
 		Key = "BlessTotal4", Group = "Gremio", Kind = "Blessing", Lane = "Gremio", Price = 799, Name = "Bendición Total 4 h",
 		Desc = "XP +50%, oro +20% y suerte +20% para toda tu facción durante 4 horas.",
-		ProductId = 2068052819, PriceText = "799 R$", DailyLimit = 4, MinLevel = 1, BlessGroup = "Total", BlessSeconds = 4 * 3600,
+		ProductId = 3730250690, PriceText = "799 R$", DailyLimit = 4, MinLevel = 1, BlessGroup = "Total", BlessSeconds = 4 * 3600,
 	},
 } :: { Product }
 
@@ -202,7 +202,7 @@ ProductCatalog.Passes = {
 			"Elige el grado a mano o deja \"Auto\" = siempre la mejor que tengas",
 			"Sin el pase: solo pociones normales (Auto-farm incluido)",
 		},
-		PassId = 2067774732, PriceText = "99 R$",
+		PassId = 3730251139, PriceText = "99 R$",
 	},
 	{
 		Key = "Merchant", Attr = "Pass_Merchant", Name = "Mercader Portátil",
@@ -212,7 +212,7 @@ ProductCatalog.Passes = {
 			"Compra pociones y vende equipo por rareza sin regresar a la ciudad",
 			"Ideal para el Auto-farm largo: vacía la mochila y repón pociones sin viajar",
 		},
-		PassId = 2068735719, PriceText = "99 R$",
+		PassId = 3730251254, PriceText = "99 R$",
 	},
 	{
 		Key = "Multiclass", Attr = "Pass_Multiclass", Name = "Maestría Multiclase",
@@ -223,7 +223,7 @@ ProductCatalog.Passes = {
 			"La maestría de cada rol sube un 25% más rápido",
 			"Sin el pase: la maestría y el cambio gratis con el Instructor siguen funcionando",
 		},
-		PassId = 2068231801, PriceText = "149 R$",
+		PassId = 3730251351, PriceText = "149 R$",
 	},
 	{
 		Key = "PetSlot", Attr = "Pass_PetSlot", Name = "Segunda Mascota",
@@ -233,7 +233,7 @@ ProductCatalog.Passes = {
 			"Las dos mascotas te siguen y suman sus bonos y poderes (deben ser de familias distintas)",
 			"Sin el pase: sigues con tu ranura de mascota normal",
 		},
-		PassId = 2068286395, PriceText = "249 R$", -- TODO: crea el Game Pass en el Creator Hub y pega aquí su ID
+		PassId = 3730251462, PriceText = "249 R$"
 	},
 	{
 		Key = "VipHouse", Attr = "Pass_VipHouse", Name = "Pabellón Imperial",
@@ -244,7 +244,7 @@ ProductCatalog.Passes = {
 			"Invita a quien quieras: pueden entrar y mirar, pero no tocar nada",
 			"El primer mes va incluido; después se mantiene con la Suscripción Imperial (199 R$/mes). Si no se renueva, la casa vence",
 		},
-		PassId = 2075582326, PriceText = "599 R$",
+		PassId = 3730251573, PriceText = "599 R$",
 	},
 	{
 		Key = "Talents2", Attr = "Pass_Talents2", Name = "Talentos II · Segunda Build",
@@ -255,7 +255,7 @@ ProductCatalog.Passes = {
 			"Cambiar de build es gratis e instantáneo",
 			"Sin el pase: sigues con la pestaña 1 gratuita",
 		},
-		PassId = 0, PriceText = "149 R$", -- TODO: crea el Game Pass "Talentos II" y pega aquí su ID (precio provisional, lo definimos juntos)
+		PassId = 3730251715, PriceText = "149 R$",
 	},
 	{
 		Key = "Talents3", Attr = "Pass_Talents3", Name = "Talentos III · Tercera Build",
@@ -266,7 +266,7 @@ ProductCatalog.Passes = {
 			"Con las tres pestañas tienes una build por cada estilo de juego",
 			"Sin el pase: sigues con la pestaña 1 gratuita",
 		},
-		PassId = 0, PriceText = "199 R$", -- TODO: crea el Game Pass "Talentos III" y pega aquí su ID (precio provisional)
+		PassId = 3730251782, PriceText = "199 R$",
 	},
 } :: { Pass }
 

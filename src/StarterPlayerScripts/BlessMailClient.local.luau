@@ -17,6 +17,7 @@ local claimR = ClientNet.Get("BlessClaim")
 if not claimR then
 	return
 end
+local houseR = ClientNet.Get("HouseAction") -- para "Suscribirme" desde la carta del Pabellón
 
 local BG, PANEL, ACCENT, TXT, GREY = Color3.fromRGB(24, 24, 34), Color3.fromRGB(38, 38, 52), Color3.fromRGB(235, 175, 60), Color3.fromRGB(235, 235, 240), Color3.fromRGB(160, 164, 184)
 local LETTER_POS = UDim2.new(1, -92, 0, 206) -- debajo del botón REPORTAR (que está en 1,-92 / 0,172)
@@ -81,13 +82,13 @@ local st = Instance.new("UIStroke")
 st.Color = ACCENT
 st.Thickness = 1.5
 st.Parent = win
-label(win, "✉ Bendiciones por reclamar", 18, UDim2.fromOffset(16, 10), UDim2.new(1, -60, 0, 26), TXT, true)
+label(win, "✉ Cartas", 18, UDim2.fromOffset(16, 10), UDim2.new(1, -60, 0, 26), TXT, true)
 local x = button(win, "X", UDim2.new(1, -42, 0, 10), UDim2.fromOffset(30, 26), PANEL)
 x.Activated:Connect(function()
 	win.Visible = false
 end)
 WindowDrag.Attach(win, "BlessMail", 44, 50)
-label(win, "El servidor se cerró y te quedó tiempo de bendición de facción. Al reclamarlo vuelve a activarse para toda tu facción. Si tu facción ya tiene esa misma bendición activa, espera a que termine.", 12, UDim2.fromOffset(16, 40), UDim2.new(1, -32, 0, 48), GREY)
+local intro = label(win, "", 12, UDim2.fromOffset(16, 40), UDim2.new(1, -32, 0, 48), GREY)
 
 local list = Instance.new("Frame")
 list.BackgroundTransparency = 1
@@ -123,12 +124,53 @@ local function render()
 			data = dec
 		end
 	end
-	letter.Visible = #data > 0
-	if #data == 0 then
+	-- carta del Pabellón Imperial (recordatorio de suscripción)
+	local house
+	local hraw = player:GetAttribute("HouseSubMail")
+	if typeof(hraw) == "string" and hraw ~= "" then
+		local ok, dec = pcall(function()
+			return HttpService:JSONDecode(hraw)
+		end)
+		if ok and typeof(dec) == "table" and typeof(dec.u) == "number" then
+			house = dec
+		end
+	end
+	letter.Visible = #data > 0 or house ~= nil
+	if #data == 0 and not house then
 		win.Visible = false
 		return
 	end
-	win.Size = UDim2.fromOffset(440, 110 + 64 * #data)
+	intro.Text = if #data > 0
+		then "El servidor se cerró y te quedó tiempo de bendición de facción. Al reclamarlo vuelve a activarse para toda tu facción. Si tu facción ya tiene esa misma bendición activa, espera a que termine."
+		else "Tienes un aviso de tu Casa VIP."
+	intro.Size = if #data > 0 then UDim2.new(1, -32, 0, 48) else UDim2.new(1, -32, 0, 20)
+	list.Position = if #data > 0 then UDim2.fromOffset(16, 94) else UDim2.fromOffset(16, 66)
+	win.Size = UDim2.fromOffset(440, (if #data > 0 then 110 else 82) + 64 * (#data + (if house then 1 else 0)))
+	if house then
+		local row = Instance.new("Frame")
+		row.BackgroundColor3 = PANEL
+		row.Size = UDim2.new(1, 0, 0, 58)
+		row.LayoutOrder = 0
+		row.Parent = list
+		corner(row, 8)
+		label(row, "👑 Pabellón Imperial: suscríbete", 14, UDim2.fromOffset(10, 4), UDim2.new(1, -120, 0, 20), TXT, true)
+		local now = os.time()
+		local daysIncluded = math.ceil(((house.l or 0) - now) / 86400)
+		local detail
+		if daysIncluded > 0 then
+			detail = string.format("Tu mes incluido termina en %d día(s). Suscríbete (%s) para conservar tu casa.", daysIncluded, tostring(house.p or ""))
+		else
+			detail = string.format("Tu mes terminó: la casa vence en %d h si no te suscribes (%s).", math.max(0, math.ceil(((house.u or 0) - now) / 3600)), tostring(house.p or ""))
+		end
+		label(row, detail, 11, UDim2.fromOffset(10, 26), UDim2.new(1, -120, 0, 28), GREY)
+		local sub = button(row, "SUSCRIBIRME", UDim2.new(1, -104, 0.5, -16), UDim2.fromOffset(94, 32), Color3.fromRGB(150, 110, 40))
+		sub.TextSize = 11
+		sub.Activated:Connect(function()
+			if houseR then
+				houseR:FireServer("BuySub")
+			end
+		end)
+	end
 	for i, e in ipairs(data) do
 		local row = Instance.new("Frame")
 		row.BackgroundColor3 = PANEL
@@ -161,4 +203,5 @@ letter.Activated:Connect(function()
 	end
 end)
 player:GetAttributeChangedSignal("BlessMail"):Connect(render)
+player:GetAttributeChangedSignal("HouseSubMail"):Connect(render)
 render()

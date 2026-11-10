@@ -39,7 +39,7 @@ local NotifyRemote = Net.Get("Notify")
 local VAULT_CAP = 60 -- casillas del baúl (la casa siempre tiene suscripción activa)
 local INCLUDED_SECONDS = 30 * 86400 -- el pago único incluye el primer mes: la suscripción se cobra recién después
 local GRACE_SECONDS = 3 * 86400 -- margen para que se acredite el pago de la suscripción / reintento de cobro
-local REMIND_SECONDS = 5 * 86400 -- avisa de que hay que suscribirse cuando faltan menos de 5 días
+local REMIND_SECONDS = 7 * 86400 -- avisa (toast + carta ✉) de que hay que suscribirse cuando faltan menos de 7 días
 local MAX_GUESTS = 8
 local SLOT_COUNT = 48
 local HOUSE_W = 140
@@ -1165,6 +1165,13 @@ end)
 local function publishLicense(player: Player)
 	local L = lic[player]
 	player:SetAttribute("House_Active", L ~= nil and L.On)
+	-- CARTA ✉ de recordatorio (la dibuja BlessMailClient): solo si la suscripción está CONFIRMADA como no activa y se acerca el fin del mes incluido.
+	-- u = momento (os.time) en que la casa vence si no se suscribe; l = momento en que termina el mes incluido.
+	local mail = ""
+	if L and L.On and player:GetAttribute("Sub_Vip") == false and L.Until - os.time() < REMIND_SECONDS then
+		mail = game:GetService("HttpService"):JSONEncode({ u = L.Until + GRACE_SECONDS, l = L.Until, p = ProductCatalog.VipSub.PriceText })
+	end
+	player:SetAttribute("HouseSubMail", mail)
 end
 
 -- Da (o devuelve) la licencia de casa: pago único hecho. Se pide la suscripción mensual para seguir usándola.

@@ -59,7 +59,9 @@ MountCatalog.Eggs = {
 MountCatalog.Pity = { Raro = 10, Epico = 30, Legendario = 60 } :: { [string]: number }
 
 -- Acelerar la incubación con Robux. ProductId = 0: aún sin producto (en Studio se acelera gratis para probar).
-MountCatalog.Accelerate = { ProductId = 0, PriceText = "[PRECIO R$]" }
+-- PROPUESTA: cada compra descuenta SkipHours horas de lo que falta (se puede repetir: un huevo de 24 h = 6 compras). Así el precio escala con el huevo.
+-- En Creator Hub el producto "Acelerar incubación" debe costar lo mismo que PriceText. La entrega por ProcessReceipt se conecta al activar las monturas.
+MountCatalog.Accelerate = { ProductId = 3730251001, SkipHours = 4, PriceText = "49 R$" }
 
 function MountCatalog.IncubationSeconds(tier: number): number
 	local egg = MountCatalog.Eggs[math.clamp(tier, 1, #MountCatalog.Eggs)]

@@ -14,7 +14,7 @@ local BagCatalog = {}
 
 BagCatalog.PageSizes = { 35, 35, 40, 40, 40 } :: { number }
 BagCatalog.FreePages = 2
-BagCatalog.GamePassIds = { 2064191421, 2063893837, 2063730138 } :: { number } -- Mochila Ampliada I, II y III (páginas 3, 4 y 5)
+BagCatalog.GamePassIds = { 3730251882, 3730251976, 3730252060 } :: { number } -- Mochila Ampliada I, II y III (páginas 3, 4 y 5)
 -- SOLO PARA PROBAR en Roblox Studio: true = tu cuenta NO cuenta los pases (aunque seas la dueña) y ves las páginas 3-5 bloqueadas con su precio.
 -- En el juego publicado no tiene ningún efecto. Antes de lanzar ponlo en false.
 BagCatalog.DevIgnorePasses = true
