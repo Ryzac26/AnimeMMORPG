@@ -125,7 +125,7 @@ end
 -- Agarre: la malla se centra por su caja, pero la mano agarra el arco por el medio de la PANZA (más hacia delante).
 -- Z positivo = acerca el arco al cuerpo (la panza queda en la palma). Cada skin puede traer su propio Grip.
 local BOW_GRIP = Vector3.new(0, 0.1, 0.45)
-local BOW_TILT = 18 -- grados: la parte de arriba del arco se inclina hacia delante (más = más inclinado; 0 = vertical)
+local BOW_TILT = 32 -- grados: la parte de arriba del arco se inclina hacia delante (más = más inclinado; 0 = vertical)
 local BOW_SCALE = 0.65 -- multiplicador general del tamaño de todos los arcos (antes 1.0: se veían enormes)
 -- El arco se lleva VERTICAL en la mano (largo = eje del brazo), con la panza hacia delante y la cuerda hacia el cuerpo.
 -- (Ya no depende de que el brazo se levante: se ve bien con el brazo colgando.)

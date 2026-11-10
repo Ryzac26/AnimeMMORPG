@@ -654,19 +654,20 @@ local function buildCity(lane: Lane, folder: Folder)
 	end
 
 	-- Plaza Central (social) + camino hacia la puerta + fuente
+	-- (las losas quedan a ras del piso: antes sobresalían 0.4 y tapaban los zapatos y la punta de las armas)
 	local plaza = laneBox(
 		"Plaza_Central", lane, PLAZA_U - PLAZA_SIZE / 2, PLAZA_U + PLAZA_SIZE / 2, -PLAZA_SIZE / 2, PLAZA_SIZE / 2,
-		FLOOR_TOP + 0.2, 0.4, def.SafeColor:Lerp(Color3.new(1, 1, 1), 0.55), Enum.Material.Marble, floorFolder
+		FLOOR_TOP - 0.18, 0.4, def.SafeColor:Lerp(Color3.new(1, 1, 1), 0.55), Enum.Material.Marble, floorFolder
 	)
 	plaza[1].CanCollide = false
 	local roadToArena = laneBox(
 		"Camino_a_la_Arena", lane, 0, PLAZA_U - PLAZA_SIZE / 2, -30, 30,
-		FLOOR_TOP + 0.2, 0.4, Color3.fromRGB(150, 150, 155), Enum.Material.Concrete, floorFolder
+		FLOOR_TOP - 0.18, 0.4, Color3.fromRGB(150, 150, 155), Enum.Material.Concrete, floorFolder
 	)
 	roadToArena[1].CanCollide = false
 	local roadToFields = laneBox(
 		"Camino_a_las_Franjas", lane, PLAZA_U + PLAZA_SIZE / 2, CITY_SIZE, -30, 30,
-		FLOOR_TOP + 0.2, 0.4, Color3.fromRGB(150, 150, 155), Enum.Material.Concrete, floorFolder
+		FLOOR_TOP - 0.18, 0.4, Color3.fromRGB(150, 150, 155), Enum.Material.Concrete, floorFolder
 	)
 	roadToFields[1].CanCollide = false
 

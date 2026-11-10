@@ -605,7 +605,7 @@ local function styleCity(biome: Instance, faction: string)
 		Center = plaza.Position,
 		Dir = plaza.CFrame.LookVector,
 		Side = plaza.CFrame.RightVector,
-		Floor = plaza.Position.Y - 0.2,
+		Floor = plaza.Position.Y + 0.18, -- la losa de la plaza queda a ras del piso (centro = piso - 0.18)
 	}
 
 	recolorCity(city, th)
@@ -641,7 +641,7 @@ local function styleCity(biome: Instance, faction: string)
 	-- portal de la Casa VIP (HouseService), en la plaza
 	pcall(function()
 		local HouseService = require(script.Parent.HouseService)
-		HouseService.AddCityPortal(faction, plaza.Position + plaza.CFrame.RightVector * 70 + Vector3.new(0, 0.6, 0))
+		HouseService.AddCityPortal(faction, plaza.Position + plaza.CFrame.RightVector * 70 + Vector3.new(0, 0.98, 0))
 	end)
 
 	-- comercios

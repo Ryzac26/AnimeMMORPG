@@ -26,7 +26,9 @@ WeaponSkins.GRIP_FRAC = { Sword = 0.17, Dagger = 0.25, Axe = 0.2, Staff = 0.35, 
 WeaponSkins.TIP_SIGN = { Sword = 1, Dagger = 1 }
 -- Cabeceo (grados) del arma alrededor de la mano: 0 = recta como antes; NEGATIVO = la punta/cabeza baja hacia delante.
 -- Los mazos/hachas se llevan con la parte gruesa mirando hacia abajo. Si la quieres más o menos caída, cambia SOLO este número.
-WeaponSkins.PITCH = { Axe = -60 }
+WeaponSkins.PITCH = { Axe = -28 }
+-- Sube el arma (studs) a lo largo del brazo, para que mazos/hachas no rocen el piso.
+WeaponSkins.LIFT = { Axe = -0.2 }
 local LP_TIP = 1
 local LP_TEX = 2913129928 -- textura única del paquete Low Poly
 
@@ -314,7 +316,7 @@ function WeaponSkins.Attach(parent: Instance, hand: BasePart, skin: any, grip: V
 	w.Part0 = hand
 	w.Part1 = piece
 	-- el arma gira sobre el puño (no sobre su centro) para que la mano siga agarrando el mango
-	w.C0 = CFrame.new(grip) * CFrame.Angles(pitch, 0, 0) * CFrame.new(along) * orientFor(native, skin.Tip or WeaponSkins.TIP_SIGN[style] or 1)
+	w.C0 = CFrame.new(grip + Vector3.new(0, WeaponSkins.LIFT[style] or 0, 0)) * CFrame.Angles(pitch, 0, 0) * CFrame.new(along) * orientFor(native, skin.Tip or WeaponSkins.TIP_SIGN[style] or 1)
 	w.Parent = piece
 	return true
 end
