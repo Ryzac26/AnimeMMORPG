@@ -24,6 +24,9 @@ WeaponSkins.MIN_LEN = { Sword = 3.0, Dagger = 1.6, Axe = 2.6, Staff = 4.5, Spear
 WeaponSkins.MAX_LEN = { Sword = 4.6, Dagger = 2.8, Axe = 4.8, Staff = 6.0, Spear = 6.5 }
 WeaponSkins.GRIP_FRAC = { Sword = 0.17, Dagger = 0.25, Axe = 0.2, Staff = 0.35, Spear = 0.3 }
 WeaponSkins.TIP_SIGN = { Sword = 1, Dagger = 1 }
+-- Cabeceo (grados) del arma alrededor de la mano: 0 = recta como antes; NEGATIVO = la punta/cabeza baja hacia delante.
+-- Los mazos/hachas se llevan con la parte gruesa mirando hacia abajo. Si la quieres más o menos caída, cambia SOLO este número.
+WeaponSkins.PITCH = { Axe = -60 }
 local LP_TIP = 1
 local LP_TEX = 2913129928 -- textura única del paquete Low Poly
 
@@ -248,6 +251,9 @@ local function orientFor(native: Vector3, tipSign: number): CFrame
 	return CFrame.fromMatrix(Vector3.zero, v[1], v[2], v[3])
 end
 
+WeaponSkins.Pools = POOLS
+WeaponSkins.OrientFor = orientFor
+
 -- Malla ya creada por id (para otros módulos, p. ej. escudos): MeshPart si está lista, false si no carga, nil si aún carga (se llama onReady al terminar)
 function WeaponSkins.MeshFor(meshId: number, onReady: (() -> ())?): any
 	local mp = meshCache[meshId]
@@ -301,12 +307,14 @@ function WeaponSkins.Attach(parent: Instance, hand: BasePart, skin: any, grip: V
 	piece.CastShadow = false
 	piece.Material = Enum.Material.SmoothPlastic
 	local len = math.max(piece.Size.X, piece.Size.Y, piece.Size.Z)
-	local center = grip + Vector3.new(0, 0, -(len * (0.5 - WeaponSkins.GRIP_FRAC[style])))
+	local along = Vector3.new(0, 0, -(len * (0.5 - WeaponSkins.GRIP_FRAC[style])))
+	local pitch = math.rad(WeaponSkins.PITCH[style] or 0)
 	piece.Parent = parent
 	local w = Instance.new("Weld")
 	w.Part0 = hand
 	w.Part1 = piece
-	w.C0 = CFrame.new(center) * orientFor(native, skin.Tip or WeaponSkins.TIP_SIGN[style] or 1)
+	-- el arma gira sobre el puño (no sobre su centro) para que la mano siga agarrando el mango
+	w.C0 = CFrame.new(grip) * CFrame.Angles(pitch, 0, 0) * CFrame.new(along) * orientFor(native, skin.Tip or WeaponSkins.TIP_SIGN[style] or 1)
 	w.Parent = piece
 	return true
 end

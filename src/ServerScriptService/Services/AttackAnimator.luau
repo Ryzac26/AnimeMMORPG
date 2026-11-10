@@ -16,6 +16,7 @@ local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
 local GearCatalog = require(ReplicatedStorage.Modules.GearCatalog)
 local WeaponSkins = require(script.Parent.WeaponSkins)
 local ShieldSkins = require(script.Parent.ShieldSkins)
+local OffhandSkins = require(script.Parent.OffhandSkins)
 
 local AttackAnimator = {}
 
@@ -124,6 +125,7 @@ end
 -- Agarre: la malla se centra por su caja, pero la mano agarra el arco por el medio de la PANZA (más hacia delante).
 -- Z positivo = acerca el arco al cuerpo (la panza queda en la palma). Cada skin puede traer su propio Grip.
 local BOW_GRIP = Vector3.new(0, 0.1, 0.45)
+local BOW_TILT = 18 -- grados: la parte de arriba del arco se inclina hacia delante (más = más inclinado; 0 = vertical)
 local BOW_SCALE = 0.65 -- multiplicador general del tamaño de todos los arcos (antes 1.0: se veían enormes)
 -- El arco se lleva VERTICAL en la mano (largo = eje del brazo), con la panza hacia delante y la cuerda hacia el cuerpo.
 -- (Ya no depende de que el brazo se levante: se ve bien con el brazo colgando.)
@@ -198,7 +200,7 @@ local function buildWeapon(f: Folder, char: Model, style: string, glow: Color3, 
 			if skin.Flip then
 				orient = orient * CFrame.Angles(0, 0, math.pi)
 			end
-			local piece = block(f, lArm, Vector3.new(1, 1, 1), Color3.new(1, 1, 1), at * CFrame.new(skin.Grip or BOW_GRIP) * orient)
+			local piece = block(f, lArm, Vector3.new(1, 1, 1), Color3.new(1, 1, 1), at * CFrame.new(skin.Grip or BOW_GRIP) * CFrame.Angles(-math.rad(BOW_TILT), 0, 0) * orient)
 			piece.Name = "WeaponPart"
 			local m = Instance.new("SpecialMesh")
 			m.MeshType = Enum.MeshType.FileMesh
@@ -239,6 +241,9 @@ local function buildOffhand(f: Folder, char: Model, item: any, glow: Color3, ret
 		local torso = char:FindFirstChild(if r15 then "UpperTorso" else "Torso")
 		if torso and torso:IsA("BasePart") then
 			local at = CFrame.new(0.45, 0.15, 0.7) * CFrame.Angles(0, 0, math.rad(-18))
+			if OffhandSkins.Attach(f, torso, "Quiver", item, at, retry) then
+				return
+			end
 			block(f, torso, Vector3.new(0.6, 2.0, 0.6), WOOD, at)
 			block(f, torso, Vector3.new(0.7, 0.2, 0.7), GOLD, at * CFrame.new(0, 0.95, 0), Enum.Material.Metal)
 			for k = -1, 1 do
@@ -274,12 +279,20 @@ local function buildOffhand(f: Folder, char: Model, item: any, glow: Color3, ret
 		local boss = block(f, lArm, Vector3.new(0.5, 0.5, 0.5), GOLD, at * CFrame.new(-0.2, 0, 0), Enum.Material.Metal)
 		boss.Shape = Enum.PartType.Ball
 	elseif role == "Asesino" then
+		-- segunda daga con modelo 3D (misma lista que la daga de la mano derecha, según el Tier/Rareza del objeto)
+		local dskin = WeaponSkins.Pick("Dagger", item)
+		if dskin and WeaponSkins.Attach(f, lArm, dskin, g, retry) then
+			return
+		end
 		block(f, lArm, Vector3.new(0.28, 0.28, 0.7), DARK, CFrame.new(g.X, g.Y, 0.2))
 		block(f, lArm, Vector3.new(0.8, 0.2, 0.2), GOLD, CFrame.new(g.X, g.Y, -0.2))
 		block(f, lArm, Vector3.new(0.18, 0.4, 1.6), glow, CFrame.new(g.X, g.Y, -1.0), Enum.Material.Metal)
 	elseif role == "Mago" then
 		-- orbe: esfera brillante flotando sobre la palma izquierda
 		local at = CFrame.new(g.X, g.Y - 0.1, -0.85)
+		if OffhandSkins.Attach(f, lArm, "Orb", item, at, retry) then
+			return
+		end
 		local orb = block(f, lArm, Vector3.new(1.0, 1.0, 1.0), glow, at, Enum.Material.Neon)
 		orb.Shape = Enum.PartType.Ball
 		local ring = block(f, lArm, Vector3.new(0.12, 1.5, 1.5), GOLD, at * CFrame.Angles(0, math.rad(90), 0), Enum.Material.Metal)
@@ -287,6 +300,9 @@ local function buildOffhand(f: Folder, char: Model, item: any, glow: Color3, ret
 	elseif role == "Curador" then
 		-- libro sagrado abierto hacia delante
 		local at = CFrame.new(g.X, g.Y + 0.25, -0.65)
+		if OffhandSkins.Attach(f, lArm, "Book", item, at, retry) then
+			return
+		end
 		block(f, lArm, Vector3.new(1.25, 1.5, 0.22), PAPER, at)
 		block(f, lArm, Vector3.new(0.18, 1.55, 0.3), GOLD, at * CFrame.new(-0.62, 0, 0), Enum.Material.Metal)
 		block(f, lArm, Vector3.new(0.4, 0.12, 0.06), glow, at * CFrame.new(0.08, 0.15, -0.14), Enum.Material.Neon)
