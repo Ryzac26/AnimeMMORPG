@@ -47,6 +47,7 @@ require(Services:WaitForChild("MasteryService")) -- maestría de rol + pase Mult
 require(Services:WaitForChild("AlquimistaService")) -- alquimista de cada ciudad: fabrica pociones y desmonta equipo
 require(Services:WaitForChild("Mobs"):WaitForChild("MobService"))
 require(Services:WaitForChild("DevCommands"))
+require(Services:WaitForChild("AdminTagService")) -- cartel de administrador sobre la cabeza
 require(Services:WaitForChild("AbilityService")) -- habilidades 3 y 4
 require(Services:WaitForChild("MetinService")) -- piedras Metin del evento de la Arena
 require(Services:WaitForChild("BossService")) -- jefe mundial (cada 6 h)

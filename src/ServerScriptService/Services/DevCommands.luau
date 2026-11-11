@@ -1,8 +1,8 @@
 --!strict
 --[[
     DevCommands (Script/Module) -> ServerScriptService.Services.DevCommands
-    COMANDOS DE PRUEBA PARA TODOS LOS JUGADORES (también en el juego publicado, para que los invitados prueben).
-    Para apagarlos antes del lanzamiento final pon DEV_COMMANDS_FOR_ALL = false (entonces solo funcionan en Studio).
+    COMANDOS DE PRUEBA SOLO PARA ADMINISTRADORES (lista en ReplicatedStorage.Modules.AdminList; también en el juego publicado) y en Studio.
+    Cualquier otro jugador que escriba un comando es ignorado. Cada uso queda en la Output del servidor ("[Admin] ...").
     Escribe en el chat:
       /nivel 1500        fija tu nivel (1-3000)
       /xp 5000           suma XP
@@ -25,10 +25,11 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
-local DEV_COMMANDS_FOR_ALL = true -- false = solo en Studio
+local AdminList = require(ReplicatedStorage.Modules.AdminList)
 
-if not DEV_COMMANDS_FOR_ALL and not RunService:IsStudio() then
-	return {}
+-- ¿Puede usar comandos? Admins de AdminList (o cualquiera dentro de Studio, que es tu propia prueba)
+local function allowed(player: Player): boolean
+	return RunService:IsStudio() or AdminList.IsAdmin(player)
 end
 
 local Services = ServerScriptService.Services
@@ -43,6 +44,10 @@ local MountService = require(Services.MountService)
 
 local lastBossCmd = 0
 local function handle(player: Player, msg: string)
+	if not allowed(player) then
+		return
+	end
+	print(string.format("[Admin] %s: %s", player.Name, msg))
 	local args = string.split(msg, " ")
 	local cmd = string.lower(args[1] or "")
 	local char = player.Character
@@ -137,7 +142,7 @@ local function handle(player: Player, msg: string)
 end
 
 -- Chat nuevo (TextChatService): los comandos se registran en el CLIENTE (DevChatClient) y llegan por este remote.
--- Chat antiguo: se escucha Player.Chatted. Para todos (ver DEV_COMMANDS_FOR_ALL).
+-- Chat antiguo: se escucha Player.Chatted. Solo admins (ver allowed).
 local Net = require(Services.Net)
 Net.Get("DevCommand").OnServerEvent:Connect(function(pl: Player, text: any)
 	if typeof(text) == "string" and #text < 100 then

@@ -186,6 +186,9 @@ showFactions = function()
 	local countLabels: { [string]: TextLabel } = {}
 	-- cupo por facción en este servidor (FactionBalance publica FactionCap y FactionCount_<facción> en Workspace; cap 0 = sin tope)
 	local function isFull(f: string): boolean
+		if player:GetAttribute("AdminTitle") ~= nil then
+			return false -- los administradores entran a cualquier facción
+		end
 		local cap = Workspace:GetAttribute("FactionCap")
 		local n = Workspace:GetAttribute("FactionCount_" .. f)
 		return typeof(cap) == "number" and cap > 0 and typeof(n) == "number" and n >= cap
