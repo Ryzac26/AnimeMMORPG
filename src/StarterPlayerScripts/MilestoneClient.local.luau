@@ -44,7 +44,7 @@ local function myLevel(): number
 end
 
 local function rewardText(r: any): string
-	local parts = { "🪙 " .. thousands(r.Gold) }
+	local parts = { thousands(r.Gold) .. " de oro" }
 	if r.Mat then
 		local info = LootTables.Materials[r.Mat]
 		table.insert(parts, string.format("%dx %s", r.MatCount, if info then info.Name else r.Mat))

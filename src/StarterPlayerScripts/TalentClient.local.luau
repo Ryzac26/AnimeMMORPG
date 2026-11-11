@@ -17,6 +17,7 @@ local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
+local AdminKit: any = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("AdminKit"))
 local Catalog: any = require(Modules:WaitForChild("TalentCatalog", 10))
 local TalentIcons = require(Modules:WaitForChild("TalentIcons", 10))
 
@@ -183,7 +184,7 @@ local function build()
 			actionRemote:FireServer("Link", slotN, if linked then "" else myRole)
 		end)
 		ax += 258
-		local costTxt = if slot.F > 0 then "gratis" else thousands(st.RespecCost) .. " 🪙"
+		local costTxt = if slot.F > 0 then "gratis" else thousands(st.RespecCost) .. " de oro"
 		NpcKit.Button(w, theme, string.format("♻ Reiniciar (%s)", costTxt), UDim2.fromOffset(190, 26), UDim2.fromOffset(ax, ay), "danger", function()
 			actionRemote:FireServer("Reset", slotN)
 		end)
@@ -303,6 +304,18 @@ local function build()
 		local ic = UITheme.Text(btn, n.Icon, if n.Key then 32 else 28, Color3.new(1, 1, 1), UDim2.fromOffset(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
 		ic.TextStrokeTransparency = 1
 		ic.TextTransparency = if ok or lit then 0 else 0.6
+		if n.Icon == "🪙" then
+			-- el emoji de moneda no se dibuja en Roblox (sale como rectángulo): se usa la moneda de oro (imagen)
+			ic.Text = ""
+			local coinImg = Instance.new("ImageLabel")
+			coinImg.BackgroundTransparency = 1
+			coinImg.Image = AdminKit.Gold
+			coinImg.AnchorPoint = Vector2.new(0.5, 0.5)
+			coinImg.Position = UDim2.fromScale(0.5, 0.5)
+			coinImg.Size = UDim2.fromScale(0.62, 0.62)
+			coinImg.ImageTransparency = if ok or lit then 0 else 0.6
+			coinImg.Parent = btn
+		end
 		local art = TalentIcons.Make(btn, n.Id)
 		if art then
 			-- icono real encima del emoji: el emoji solo se oculta cuando la imagen YA cargó (si falla, se sigue viendo el emoji)
@@ -376,7 +389,7 @@ local function build()
 			TalentIcons.Make(holder, sel.Id)
 			detArt = holder
 		end
-		local nm = UITheme.Text(det, if detArt then sel.Name else sel.Icon .. "  " .. sel.Name, 17, bcol, UDim2.fromOffset(if detArt then 70 else 14, 12), UDim2.fromOffset(detailW - (if detArt then 84 else 28), 44), Enum.TextXAlignment.Left)
+		local nm = UITheme.Text(det, if detArt or sel.Icon == "🪙" then sel.Name else sel.Icon .. "  " .. sel.Name, 17, bcol, UDim2.fromOffset(if detArt then 70 else 14, 12), UDim2.fromOffset(detailW - (if detArt then 84 else 28), 44), Enum.TextXAlignment.Left)
 		nm.Font = Enum.Font.GothamBold
 		nm.TextWrapped = true
 		nm.TextYAlignment = Enum.TextYAlignment.Top

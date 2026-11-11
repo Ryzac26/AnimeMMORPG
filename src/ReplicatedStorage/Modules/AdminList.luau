@@ -9,14 +9,14 @@
 ]]
 local AdminList = {}
 
-export type Entry = { Title: string, Color: Color3 }
+export type Entry = { Title: string, Color: Color3, Kind: string } -- Kind: "Owner" (Soberano) o "Admin"
 
-AdminList.Owner = { Title = "Soberano Fundador", Color = Color3.fromRGB(255, 205, 80) } :: Entry
+AdminList.Owner = { Title = "Soberano Fundador", Color = Color3.fromRGB(255, 205, 80), Kind = "Owner" } :: Entry
 
 -- por nombre de usuario (en minúsculas)
 AdminList.Admins = {
 	ryzacuru = AdminList.Owner,
-	zcrulax = { Title = "Administrador", Color = Color3.fromRGB(110, 210, 255) },
+	zcrulax = { Title = "Administrador", Color = Color3.fromRGB(110, 210, 255), Kind = "Admin" },
 } :: { [string]: Entry }
 
 -- por UserId (más seguro). Ejemplo: [123456789] = AdminList.Admins.zcrulax,

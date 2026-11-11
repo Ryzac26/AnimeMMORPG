@@ -70,6 +70,16 @@ hideBtn.Activated:Connect(function()
 end)
 
 local goldLabel = makeLabel(3, Color3.fromRGB(255, 214, 90))
+-- moneda de oro (imagen) a la izquierda del número
+local AdminKit: any = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("AdminKit"))
+local coin = Instance.new("ImageLabel")
+coin.BackgroundTransparency = 1
+coin.Image = AdminKit.Gold
+coin.Position = UDim2.fromOffset(8, 3)
+coin.Size = UDim2.fromOffset(20, 20)
+coin.Parent = frame
+goldLabel.Position = UDim2.fromOffset(32, 3)
+goldLabel.Size = UDim2.new(1, -40, 0, 20)
 local pointsLabel = makeLabel(23, Color3.fromRGB(150, 200, 255))
 
 -- 1234567 -> "1,234,567"
@@ -85,7 +95,7 @@ end
 local function update()
 	local gold = player:GetAttribute("Gold")
 	local points = player:GetAttribute("FactionPoints")
-	goldLabel.Text = "Oro: " .. withCommas(if typeof(gold) == "number" then gold else 0)
+	goldLabel.Text = withCommas(if typeof(gold) == "number" then gold else 0)
 	pointsLabel.Text = "Pts. de facción: " .. withCommas(if typeof(points) == "number" then points else 0)
 end
 
