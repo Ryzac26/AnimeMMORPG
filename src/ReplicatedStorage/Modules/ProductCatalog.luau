@@ -90,38 +90,38 @@ ProductCatalog.Products = {
 		ProductId = 3730247937, PriceText = "49 R$", DailyLimit = 3, MinLevel = 1, Seconds = 4 * 3600, Mult = 1.5,
 	},
 	{
-		Key = "Horas3", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 59, Name = "Paquete de 3 horas",
+		Key = "Horas3", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 99, Name = "Paquete de 3 horas",
 		Desc = "Recupera la XP de 3 horas de juego a tu nivel actual.",
-		ProductId = 3730248291, PriceText = "59 R$", DailyLimit = 2, MinLevel = 600, Hours = 3,
+		ProductId = 3730248291, PriceText = "99 R$", DailyLimit = 2, MinLevel = 600, Hours = 3,
 	},
 	{
-		Key = "Horas5", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 89, Name = "Paquete de 5 horas",
+		Key = "Horas5", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 159, Name = "Paquete de 5 horas",
 		Desc = "Recupera la XP de 5 horas de juego a tu nivel actual.",
-		ProductId = 3730248732, PriceText = "89 R$", DailyLimit = 1, MinLevel = 600, Hours = 5,
+		ProductId = 3730248732, PriceText = "159 R$", DailyLimit = 1, MinLevel = 600, Hours = 5,
 	},
 	{
-		Key = "Horas8", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 139, Name = "Paquete de 8 horas",
+		Key = "Horas8", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 249, Name = "Paquete de 8 horas",
 		Desc = "Recupera la XP de 8 horas de juego a tu nivel actual.",
-		ProductId = 3730248943, PriceText = "139 R$", DailyLimit = 1, MinLevel = 600, Hours = 8,
+		ProductId = 3730248943, PriceText = "249 R$", DailyLimit = 1, MinLevel = 600, Hours = 8,
 	},
 	{
-		Key = "Horas12", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 199, Name = "Paquete de 12 horas",
+		Key = "Horas12", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 349, Name = "Paquete de 12 horas",
 		Desc = "Recupera la XP de 12 horas de juego a tu nivel actual.",
-		ProductId = 3730249078, PriceText = "199 R$", DailyLimit = 1, MinLevel = 600, Hours = 12,
+		ProductId = 3730249078, PriceText = "349 R$", DailyLimit = 1, MinLevel = 600, Hours = 12,
 	},
 	{
-		Key = "ComboDespegue", Group = "Progreso", Kind = "Combo", Lane = "Horas", Price = 99,
+		Key = "ComboDespegue", Group = "Progreso", Kind = "Combo", Lane = "Horas", Price = 129,
 		Components = { "Boost4h", "Horas3" },
 		Name = "Combo Despegue",
 		Desc = "Boost de XP +50% (4 h) y paquete de 3 horas en una sola compra.",
-		ProductId = 3730249168, PriceText = "99 R$", DailyLimit = 1, MinLevel = 600, Seconds = 4 * 3600, Mult = 1.5, Hours = 3,
+		ProductId = 3730249168, PriceText = "129 R$", DailyLimit = 1, MinLevel = 600, Seconds = 4 * 3600, Mult = 1.5, Hours = 3,
 	},
 	{
-		Key = "ComboMaraton", Group = "Progreso", Kind = "Combo", Lane = "Horas", Price = 169,
+		Key = "ComboMaraton", Group = "Progreso", Kind = "Combo", Lane = "Horas", Price = 269,
 		Components = { "Boost4h", "Horas8" },
 		Name = "Combo Maratón",
 		Desc = "Boost de XP +50% (4 h) y paquete de 8 horas en una sola compra.",
-		ProductId = 3730249360, PriceText = "169 R$", DailyLimit = 1, MinLevel = 600, Seconds = 4 * 3600, Mult = 1.5, Hours = 8,
+		ProductId = 3730249360, PriceText = "269 R$", DailyLimit = 1, MinLevel = 600, Seconds = 4 * 3600, Mult = 1.5, Hours = 8,
 	},
 	-- OBJETOS (sin bloqueo entre sí ni con los paquetes): se entregan en la mochila
 	{
@@ -202,7 +202,7 @@ ProductCatalog.Passes = {
 			"Elige el grado a mano o deja \"Auto\" = siempre la mejor que tengas",
 			"Sin el pase: solo pociones normales (Auto-farm incluido)",
 		},
-		PassId = 3730251139, PriceText = "99 R$",
+		PassId = 2078546250, PriceText = "99 R$",
 	},
 	{
 		Key = "Merchant", Attr = "Pass_Merchant", Name = "Mercader Portátil",
@@ -212,7 +212,7 @@ ProductCatalog.Passes = {
 			"Compra pociones y vende equipo por rareza sin regresar a la ciudad",
 			"Ideal para el Auto-farm largo: vacía la mochila y repón pociones sin viajar",
 		},
-		PassId = 3730251254, PriceText = "99 R$",
+		PassId = 2075489062, PriceText = "99 R$",
 	},
 	{
 		Key = "Multiclass", Attr = "Pass_Multiclass", Name = "Maestría Multiclase",
@@ -223,7 +223,7 @@ ProductCatalog.Passes = {
 			"La maestría de cada rol sube un 25% más rápido",
 			"Sin el pase: la maestría y el cambio gratis con el Instructor siguen funcionando",
 		},
-		PassId = 3730251351, PriceText = "149 R$",
+		PassId = 2075939058, PriceText = "149 R$",
 	},
 	{
 		Key = "PetSlot", Attr = "Pass_PetSlot", Name = "Segunda Mascota",
@@ -233,7 +233,7 @@ ProductCatalog.Passes = {
 			"Las dos mascotas te siguen y suman sus bonos y poderes (deben ser de familias distintas)",
 			"Sin el pase: sigues con tu ranura de mascota normal",
 		},
-		PassId = 3730251462, PriceText = "249 R$"
+		PassId = 2078468250, PriceText = "249 R$"
 	},
 	{
 		Key = "VipHouse", Attr = "Pass_VipHouse", Name = "Pabellón Imperial",
@@ -244,7 +244,7 @@ ProductCatalog.Passes = {
 			"Invita a quien quieras: pueden entrar y mirar, pero no tocar nada",
 			"El primer mes va incluido; después se mantiene con la Suscripción Imperial (199 R$/mes). Si no se renueva, la casa vence",
 		},
-		PassId = 3730251573, PriceText = "599 R$",
+		PassId = 2075699074, PriceText = "599 R$",
 	},
 	{
 		Key = "Talents2", Attr = "Pass_Talents2", Name = "Talentos II · Segunda Build",
@@ -255,7 +255,7 @@ ProductCatalog.Passes = {
 			"Cambiar de build es gratis e instantáneo",
 			"Sin el pase: sigues con la pestaña 1 gratuita",
 		},
-		PassId = 3730251715, PriceText = "149 R$",
+		PassId = 2075417056, PriceText = "149 R$",
 	},
 	{
 		Key = "Talents3", Attr = "Pass_Talents3", Name = "Talentos III · Tercera Build",
@@ -266,7 +266,7 @@ ProductCatalog.Passes = {
 			"Con las tres pestañas tienes una build por cada estilo de juego",
 			"Sin el pase: sigues con la pestaña 1 gratuita",
 		},
-		PassId = 3730251782, PriceText = "199 R$",
+		PassId = 2078648250, PriceText = "199 R$",
 	},
 } :: { Pass }
 
