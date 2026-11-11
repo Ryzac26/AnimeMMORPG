@@ -43,6 +43,7 @@ local MAP_NAME = "Map_WC3_Style"
 local Services = script.Parent
 local Net = require(Services:WaitForChild("Net"))
 local CityAssets = require(Services:WaitForChild("CityAssets"))
+local CampArt = require(ReplicatedStorage.Modules.CampArt)
 local NotifyRemote = Net.Get("Notify")
 
 local FLOOR_TOP = 12
@@ -315,6 +316,12 @@ local function buildCamp(parent: Instance, lane: LaneDef)
 	pad.Name = "Base"
 	cylV(f, "Emblema", cf0.Position + Vector3.new(0, 0.7, 0) + cf0.LookVector * 14, 0.2, 44, lane.Glow, Enum.Material.Neon).Transparency = 0.45
 
+	local floorId = CampArt.Floor[lane.Faction]
+	if floorId then
+		local medal = cylV(f, "Medallon", cf0.Position + Vector3.new(0, 0.85, 0) + cf0.LookVector * 14, 0.1, 40, lane.Base, Enum.Material.Slate, false)
+		CampArt.Decal(medal, Enum.NormalId.Right, floorId, "Arte")
+	end
+
 	-- cristal que cura
 	local crystalPos = (cf0 * CFrame.new(0, 0, 0)).Position + Vector3.new(0, 0, 0)
 	cylV(f, "Pedestal", crystalPos + Vector3.new(0, 2.2, 0), 3, 9, lane.Base:Lerp(C(255, 255, 255), 0.25), Enum.Material.Marble, true)
@@ -361,6 +368,8 @@ local function buildAltars(parent: Instance)
 			local p = Vector3.new(m.Position.X, FLOOR_TOP, m.Position.Z)
 			cylV(f, "Altar_Base", p + Vector3.new(0, 0.3, 0), 0.6, 26, C(88, 92, 108), Enum.Material.Slate, false)
 			cylV(f, "Altar_Anillo", p + Vector3.new(0, 0.72, 0), 0.16, 22, C(79, 209, 255), Enum.Material.Neon, false).Transparency = 0.3
+			local medal = cylV(f, "Altar_Medallon", p + Vector3.new(0, 0.86, 0), 0.1, 20, C(60, 62, 76), Enum.Material.Slate, false)
+			CampArt.Decal(medal, Enum.NormalId.Right, CampArt.Challenge, "Arte")
 			for k = 0, 3 do
 				local a = k * math.pi / 2 + math.pi / 4
 				local tp = p + Vector3.new(math.cos(a) * 12, 0, math.sin(a) * 12)

@@ -39,6 +39,7 @@ local PartyService = require(Services.PartyService)
 local Alchemist = require(Services.AlquimistaService)
 local NestService = require(Services.NestService)
 local MountCatalog = require(Modules.MountCatalog)
+local CampArt = require(Modules.CampArt)
 
 local NotifyRemote = Net.Get("Notify")
 local MAP_NAME = "Map_WC3_Style"
@@ -319,7 +320,11 @@ local function buildCamp(l: Lane, root: Folder): Camp
 	local dir = l.Dir
 
 	-- suelo del campamento (disco ligeramente elevado)
-	cyl(f, "Suelo", CAMP_RADIUS * 1.7, 0.5, center + Vector3.new(0, 0.25, 0), style.Dark:Lerp(Color3.new(0.2, 0.2, 0.2), 0.3), Enum.Material.Cobblestone, false)
+	local suelo = cyl(f, "Suelo", CAMP_RADIUS * 1.7, 0.5, center + Vector3.new(0, 0.25, 0), style.Dark:Lerp(Color3.new(0.2, 0.2, 0.2), 0.3), Enum.Material.Cobblestone, false)
+	local floorId = CampArt.Floor[l.Faction]
+	if floorId then
+		CampArt.Decal(suelo, Enum.NormalId.Right, floorId, "Medallon")
+	end
 	cyl(f, "AroSuelo", CAMP_RADIUS * 1.7 + 1.4, 0.4, center + Vector3.new(0, 0.2, 0), style.Accent, Enum.Material.Neon, false)
 
 	-- hoguera central
@@ -349,6 +354,19 @@ local function buildCamp(l: Lane, root: Folder): Camp
 		cyl(f, "Mastil", 1, 12, pp + Vector3.new(0, 6, 0), style.Dark, Enum.Material.Wood, true)
 		local lamp = mk(f, "Antorcha", Vector3.new(2, 2.4, 2), CFrame.new(pp + Vector3.new(0, 12.8, 0)), style.Accent, Enum.Material.Neon, Enum.PartType.Ball)
 		glow(lamp, style.Accent, 22, 1.1)
+		-- estandarte de la facción colgado hacia el centro
+		local bannerId = CampArt.Banner[l.Faction]
+		if bannerId then
+			local inward = (center - pp) * Vector3.new(1, 0, 1)
+			if inward.Magnitude > 0.1 then
+				local bp = pp + inward.Unit * 2.4 + Vector3.new(0, 6.6, 0)
+				local ban = mk(f, "Estandarte", Vector3.new(4.2, 9.8, 0.2), CFrame.lookAt(bp, bp + inward.Unit), Color3.fromRGB(255, 255, 255), Enum.Material.SmoothPlastic)
+				ban.Transparency = 1
+				CampArt.Panel(ban, Enum.NormalId.Front, bannerId, "Frente")
+				CampArt.Panel(ban, Enum.NormalId.Back, bannerId, "Dorso")
+				mk(f, "EstandarteBrazo", Vector3.new(0.5, 0.5, 2.6), CFrame.lookAt(pp + Vector3.new(0, 11.4, 0) + inward.Unit * 1.2, pp + Vector3.new(0, 11.4, 0) + inward.Unit * 2.4), style.Dark, Enum.Material.Wood)
+			end
+		end
 	end
 
 	buildFactionProps(f, l.Faction, center, style, dir)
@@ -419,20 +437,25 @@ end
 ---------------------------------------------------------------------
 -- ALTAR DE OFRENDA
 ---------------------------------------------------------------------
-local function altarBase(parent: Folder, name: string, pos: Vector3, style: { Accent: Color3, Dark: Color3, Title: string, Camp: string }, tint: Color3): (Part, Part)
+local function altarBase(parent: Folder, name: string, pos: Vector3, style: { Accent: Color3, Dark: Color3, Title: string, Camp: string }, tint: Color3, artId: number?): (Part, Part)
 	local f = Instance.new("Folder")
 	f.Name = name
 	f.Parent = parent
-	cyl(f, "Base", 17, 1.4, pos + Vector3.new(0, 0.7, 0), style.Dark, Enum.Material.Slate, true)
-	cyl(f, "BaseAro", 17.8, 0.5, pos + Vector3.new(0, 0.3, 0), tint, Enum.Material.Neon, false)
+	-- medallón de suelo con la imagen del altar; plinto pequeño al centro
+	local medal = cyl(f, "Medallon", 32, 0.4, pos + Vector3.new(0, 0.2, 0), style.Dark, Enum.Material.Slate, true)
+	if artId then
+		CampArt.Decal(medal, Enum.NormalId.Right, artId, "Arte")
+	end
+	cyl(f, "BaseAro", 32.8, 0.3, pos + Vector3.new(0, 0.15, 0), tint, Enum.Material.Neon, false)
+	cyl(f, "Base", 8.4, 1.4, pos + Vector3.new(0, 0.7, 0), style.Dark, Enum.Material.Slate, true)
 	cyl(f, "Pedestal", 5, 4.5, pos + Vector3.new(0, 3.6, 0), style.Dark:Lerp(Color3.new(0.1, 0.1, 0.12), 0.35), Enum.Material.Marble, true)
 	local core = mk(f, "Nucleo", Vector3.new(3, 3, 3), CFrame.new(pos + Vector3.new(0, 7, 0)) * CFrame.Angles(math.rad(45), math.rad(45), 0), tint, Enum.Material.Neon)
 	glow(core, tint, 30, 1.4)
 	for i = 1, 4 do -- pilares
 		local a = i * math.pi / 2 + math.pi / 4
 		local pp = pos + Vector3.new(math.cos(a) * 7, 0, math.sin(a) * 7)
-		mk(f, "Pilar", Vector3.new(1.8, 9, 1.8), CFrame.new(pp + Vector3.new(0, 5.2, 0)), style.Dark, Enum.Material.Marble, nil, true)
-		mk(f, "PilarLuz", Vector3.new(2.2, 0.5, 2.2), CFrame.new(pp + Vector3.new(0, 9.9, 0)), tint, Enum.Material.Neon)
+		mk(f, "Pilar", Vector3.new(1.8, 9, 1.8), CFrame.new(pp + Vector3.new(0, 4.9, 0)), style.Dark, Enum.Material.Marble, nil, true)
+		mk(f, "PilarLuz", Vector3.new(2.2, 0.5, 2.2), CFrame.new(pp + Vector3.new(0, 9.6, 0)), tint, Enum.Material.Neon)
 	end
 	return core, f:FindFirstChild("Pedestal") :: Part
 end
@@ -440,7 +463,7 @@ end
 local function buildOffering(l: Lane, root: Folder, pos: Vector3, idx: number?)
 	local style = FACTION_STYLE[l.Faction]
 	local tint = Color3.fromRGB(190, 120, 255)
-	local core, pedestal = altarBase(root, "AltarOfrenda_" .. l.Faction .. "_" .. l.Strip .. (if idx then "_" .. idx else ""), pos, style, tint)
+	local core, pedestal = altarBase(root, "AltarOfrenda_" .. l.Faction .. "_" .. l.Strip .. (if idx then "_" .. idx else ""), pos, style, tint, CampArt.Offering)
 	local O = LootTables.Offering
 	local rid, mid = LootTables.StripResource[l.Strip], LootTables.StripMaterial[l.Strip]
 	local rc, mc = O.ResourceCost[l.Strip], O.MaterialCost[l.Strip]
@@ -498,7 +521,7 @@ end
 local function buildChallenge(l: Lane, root: Folder, pos: Vector3, idx: number?)
 	local style = FACTION_STYLE[l.Faction]
 	local tint = Color3.fromRGB(255, 80, 70)
-	local core, pedestal = altarBase(root, "AltarDesafio_" .. l.Faction .. "_" .. l.Strip .. (if idx then "_" .. idx else ""), pos, style, tint)
+	local core, pedestal = altarBase(root, "AltarDesafio_" .. l.Faction .. "_" .. l.Strip .. (if idx then "_" .. idx else ""), pos, style, tint, CampArt.Challenge)
 	local X = LootTables.Challenge
 	label(core, "ALTAR DE DESAFÍO", tint, 5, UDim2.fromOffset(260, 36))
 	local state = { Busy = false, CooldownUntil = 0 }
