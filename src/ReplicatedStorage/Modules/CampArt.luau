@@ -85,6 +85,28 @@ CampArt.ChestOpen = {
 	Shinigami = 80644514381660,
 } :: { [string]: number }
 
+-- Props de campamento (cápsula Élite, tienda Sigilo, toldo Navegantes)
+CampArt.Prop = {
+	Saiyan = 135208518151982,
+	Shinobi = 135846105266867,
+	Pirate = 106707033564610,
+} :: { [string]: number }
+
+-- Portal y buzón del Pabellón en la plaza de cada ciudad
+CampArt.PortalArt = {
+	Saiyan = 135468793482907,
+	Shinobi = 80207069725905,
+	Pirate = 107239179692594,
+	Shinigami = 78074527472290,
+} :: { [string]: number }
+
+CampArt.Mailbox = {
+	Saiyan = 80256328993427,
+	Shinobi = 98597758975478,
+	Pirate = 124034899487184,
+	Shinigami = 76155762853290,
+} :: { [string]: number }
+
 -- Cartel que mira siempre a la cámara (w x h en studs); su base queda a offY sobre la pieza
 function CampArt.Sprite(p: BasePart, name: string, id: number, w: number, h: number, offY: number, maxDist: number?): BillboardGui
 	local bb = Instance.new("BillboardGui")

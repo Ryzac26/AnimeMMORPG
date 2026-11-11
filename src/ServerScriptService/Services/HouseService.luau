@@ -26,6 +26,8 @@ local HouseDecor = require(script.Parent.HouseDecor)
 local HouseFurniture = require(ReplicatedStorage.Modules.HouseFurniture)
 local HouseProps = require(script.Parent.HouseProps)
 local ProductCatalog = require(ReplicatedStorage.Modules.ProductCatalog)
+local CampArt = require(ReplicatedStorage.Modules.CampArt)
+local CollectionService = game:GetService("CollectionService")
 local Services = ServerScriptService.Services
 local Net = require(Services.Net)
 local PlayerData = require(Services.PlayerData)
@@ -468,25 +470,52 @@ function HouseService.AddCityPortal(faction: string, pos: Vector3)
 	local box = Instance.new("Part")
 	box.Name = "Buzon_" .. faction
 	box.Anchored = true
-	box.Size = Vector3.new(3.4, 5, 2.4)
-	box.CFrame = CFrame.new(boxPos + Vector3.new(0, 2.5, 0))
+	box.Size = Vector3.new(3.8, 7.5, 2.8)
+	box.CFrame = CFrame.new(boxPos + Vector3.new(0, 3.75, 0))
 	box.Color = Color3.fromRGB(190, 50, 56)
 	box.Material = Enum.Material.Metal
+	box.Transparency = 1
 	box.Parent = Workspace
-	local top = Instance.new("Part")
-	top.Anchored = true
-	top.Shape = Enum.PartType.Cylinder
-	top.Size = Vector3.new(3.4, 3.4, 3.4)
-	top.CFrame = CFrame.new(boxPos + Vector3.new(0, 5, 0)) * CFrame.Angles(0, 0, math.rad(90))
-	top.Color = Color3.fromRGB(190, 50, 56)
-	top.Material = Enum.Material.Metal
-	top.Parent = Workspace
-	sign(box, "📮 BUZÓN", Color3.fromRGB(255, 220, 140), 5)
+	local mailId = CampArt.Mailbox[faction]
+	if mailId then
+		CampArt.Sprite(box, "Arte", mailId, 8, 10, 0.4, 150)
+	else
+		box.Transparency = 0
+	end
+	local boxLight = Instance.new("PointLight")
+	boxLight.Color = Color3.fromRGB(255, 225, 160)
+	boxLight.Range = 14
+	boxLight.Brightness = 0.8
+	boxLight.Parent = box
 	prompt(box, "Abrir buzón", "Buzón de la ciudad", Enum.KeyCode.E, 0.3, function(pl)
 		OpenRemote:FireClient(pl, "Mail")
 		buildPush(pl)
 	end)
-	local pad = buildPad(Workspace, "Portal_CasaVIP_" .. faction, pos, Color3.fromRGB(255, 200, 90), "🏠 PABELLÓN IMPERIAL")
+	local pad = buildPad(Workspace, "Portal_CasaVIP_" .. faction, pos, Color3.fromRGB(255, 200, 90), "PABELLÓN IMPERIAL")
+	-- portal con imagen por facción: disco grande que gira, con luz y chispas
+	local portalId = CampArt.PortalArt[faction]
+	if portalId then
+		pad.Size = Vector3.new(0.5, 14, 14)
+		pad.Transparency = 1
+		CampArt.Panel(pad, Enum.NormalId.Right, portalId, "Portal", 40)
+		pad:SetAttribute("FxSpin", 14)
+		CollectionService:AddTag(pad, "FxAnim")
+		local pl = Instance.new("PointLight")
+		pl.Color = Color3.fromRGB(255, 220, 150)
+		pl.Range = 26
+		pl.Brightness = 1.2
+		pl.Parent = pad
+		local em = Instance.new("ParticleEmitter")
+		em.Color = ColorSequence.new(Color3.fromRGB(255, 240, 200))
+		em.LightEmission = 1
+		em.Rate = 10
+		em.Lifetime = NumberRange.new(2, 3.2)
+		em.Speed = NumberRange.new(2, 4)
+		em.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
+		em.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
+		em.Acceleration = Vector3.new(0, 2, 0)
+		em.Parent = pad
+	end
 	-- recoger todos los animales sueltos desde la ciudad
 	local grabPrompt = prompt(pad, "Agarrar animales", "Casa VIP", Enum.KeyCode.F, 0.4, function(pl)
 		if houses[pl] then
@@ -743,7 +772,7 @@ local function invite(player: Player, userId: any, on: boolean)
 		end
 		list[userId] = true
 		invitedBy[target] = player
-		say(target, player.DisplayName .. " te invitó a su Casa VIP. Entra por el portal 🏠 de la plaza de tu ciudad.")
+		say(target, player.DisplayName .. " te invitó a su Casa VIP. Entra por el portal del Pabellón en la plaza de tu ciudad.")
 	else
 		list[userId] = nil
 		if invitedBy[target] == player then

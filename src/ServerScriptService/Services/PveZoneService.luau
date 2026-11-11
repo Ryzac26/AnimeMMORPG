@@ -284,41 +284,43 @@ local function buildFactionProps(parent: Folder, faction: string, center: Vector
 		return CFrame.lookAt(pos, pos + dir)
 	end
 	if faction == "Saiyan" then
-		-- cápsula Saiyan aterrizada (esfera blanca con escotilla y luz azul)
-		local p = at(-14, -17, 7)
-		mk(parent, "Capsula", Vector3.new(15, 15, 15), CFrame.new(p), Color3.fromRGB(235, 240, 248), Enum.Material.SmoothPlastic, Enum.PartType.Ball, true)
-		mk(parent, "Escotilla", Vector3.new(7, 9, 0.8), CFrame.lookAt(p + dir * 6.6, p + dir * 12), Color3.fromRGB(90, 120, 160), Enum.Material.Glass)
-		local lamp = mk(parent, "LuzCapsula", Vector3.new(2, 2, 2), CFrame.new(p + Vector3.new(0, 8.4, 0)), Color3.fromRGB(110, 190, 255), Enum.Material.Neon, Enum.PartType.Ball)
+		-- cápsula de aterrizaje (imagen) con colisión invisible
+		local p = at(-14, -17, 0)
+		local hull = mk(parent, "Capsula", Vector3.new(9, 8, 9), CFrame.new(p + Vector3.new(0, 4, 0)), Color3.fromRGB(235, 240, 248), Enum.Material.SmoothPlastic, nil, true)
+		hull.Transparency = 1
+		local propId = CampArt.Prop.Saiyan
+		if propId then
+			CampArt.Sprite(hull, "Arte", propId, 13, 10.4, 0.6, 160)
+		end
+		local lamp = mk(parent, "LuzCapsula", Vector3.new(1, 1, 1), CFrame.new(p + Vector3.new(0, 7, 0)), Color3.fromRGB(110, 190, 255), Enum.Material.Neon, Enum.PartType.Ball)
+		lamp.Transparency = 1
 		glow(lamp, Color3.fromRGB(110, 190, 255), 18, 1.2)
+		fx(lamp, { FxPulse = 0.4 })
 		-- radar
 		local rp = at(-10, 18, 0)
 		cyl(parent, "RadarMastil", 1.2, 14, rp + Vector3.new(0, 7, 0), Color3.fromRGB(120, 130, 145), Enum.Material.Metal, true)
 		mk(parent, "RadarPlato", Vector3.new(1, 8, 8), CFrame.new(rp + Vector3.new(0, 14.5, 0)) * CFrame.Angles(math.rad(25), 0, math.pi / 2), Color3.fromRGB(235, 235, 240), Enum.Material.Metal, Enum.PartType.Cylinder)
 	elseif faction == "Shinobi" then
-		-- tienda de campaña + cartelera de pergaminos
+		-- tienda ninja (imagen) con colisión invisible + cartelera de pergaminos
 		local p = at(-14, -17, 0)
-		local tent = Instance.new("WedgePart")
-		tent.Name = "TiendaA"
-		tent.Anchored = true
-		tent.CanCollide = true
-		tent.Size = Vector3.new(14, 9, 8)
-		tent.CFrame = CFrame.lookAt(p + Vector3.new(0, 4.5, -4), p + Vector3.new(0, 4.5, -4) + dir) * CFrame.Angles(0, 0, 0)
-		tent.Color = Color3.fromRGB(190, 170, 130)
-		tent.Material = Enum.Material.Fabric
-		tent.Parent = parent
-		local tent2 = tent:Clone()
-		tent2.Name = "TiendaB"
-		tent2.CFrame = CFrame.lookAt(p + Vector3.new(0, 4.5, 4), p + Vector3.new(0, 4.5, 4) - dir) * CFrame.Angles(0, 0, 0)
-		tent2.Parent = parent
+		local tent = mk(parent, "Tienda", Vector3.new(11, 7, 9), CFrame.new(p + Vector3.new(0, 3.5, 0)), Color3.fromRGB(190, 170, 130), Enum.Material.Fabric, nil, true)
+		tent.Transparency = 1
+		local propId = CampArt.Prop.Shinobi
+		if propId then
+			CampArt.Sprite(tent, "Arte", propId, 13, 10.4, 0.6, 160)
+		end
 		local rack = at(-10, 18, 0)
 		mk(parent, "CarteleraPoste", Vector3.new(1, 10, 1), CFrame.new(rack + Vector3.new(-3, 5, 0)), Color3.fromRGB(110, 78, 50), Enum.Material.Wood, nil, true)
 		mk(parent, "CarteleraPoste", Vector3.new(1, 10, 1), CFrame.new(rack + Vector3.new(3, 5, 0)), Color3.fromRGB(110, 78, 50), Enum.Material.Wood, nil, true)
 		mk(parent, "Pergaminos", Vector3.new(8, 5, 0.5), lookCF(rack + Vector3.new(0, 6.5, 0)), Color3.fromRGB(235, 225, 195), Enum.Material.Fabric)
 	elseif faction == "Pirate" then
-		-- barriles, cajas y bandera
-		for i = 0, 2 do
-			local bp = at(-12 - i * 2, -16 + i * 4, 0)
-			cyl(parent, "Barril", 4.2, 5, bp + Vector3.new(0, 2.5, 0), Color3.fromRGB(122, 80, 44), Enum.Material.Wood, true)
+		-- toldo de vela con barriles y cañón (imagen) con colisión invisible, cajas y bandera
+		local tp = at(-12, -17, 0)
+		local canopy = mk(parent, "Toldo", Vector3.new(10, 7, 7), CFrame.new(tp + Vector3.new(0, 3.5, 0)), Color3.fromRGB(235, 225, 195), Enum.Material.Fabric, nil, true)
+		canopy.Transparency = 1
+		local propId = CampArt.Prop.Pirate
+		if propId then
+			CampArt.Sprite(canopy, "Arte", propId, 13, 10.4, 0.6, 160)
 		end
 		mk(parent, "Caja", Vector3.new(5, 5, 5), lookCF(at(-9, 17, 2.5)), Color3.fromRGB(140, 98, 58), Enum.Material.Wood, nil, true)
 		mk(parent, "Caja", Vector3.new(4, 4, 4), lookCF(at(-12, 22, 2)), Color3.fromRGB(120, 84, 50), Enum.Material.Wood, nil, true)
