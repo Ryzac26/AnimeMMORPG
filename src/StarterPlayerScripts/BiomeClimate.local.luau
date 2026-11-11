@@ -30,6 +30,8 @@ local CONFIG = {
 	SLOT = 150, -- segundos que dura cada "turno" de clima (cambia sola con la hora del servidor)
 	INTENSIDAD = 1, -- multiplicador de las partículas (0.5 = la mitad)
 	TRANSICION = 6, -- segundos que tarda en cambiar de un clima a otro
+	HORIZONTE = true, -- cordillera propia en el horizonte (tapa las montañas negras pintadas en el cielo y evita los cortes entre caras)
+	ALTURA = 1, -- altura de la cordillera (1 = normal; 1.3 = más alta; 0.8 = más baja)
 }
 local MOBILE = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 local RATE_SCALE = (if MOBILE then 0.5 else 1) * CONFIG.INTENSIDAD
@@ -520,6 +522,169 @@ local currentWeather = ""
 local currentIntensity = 0
 local currentSlot = -1
 
+
+---------------------------------------------------------------------
+-- HORIZONTE: cordillera continua alrededor del jugador
+-- El cielo pintado trae su propia silueta de montañas, que cambia de una cara a otra (cortes y bloques negros). Esta cordillera es de
+-- piezas reales, se ve igual en los 360 grados, toma el color y la bruma de cada franja y siempre tapa la silueta pintada.
+-- Siempre está lejos (1100 a 2000 studs) y sigue al jugador, así que nunca se alcanza. Sin colisión.
+---------------------------------------------------------------------
+type RidgeLayer = { R: number, ElevMin: number, ElevMax: number, Depth: number, N: number, Parts: { BasePart } }
+local RIDGE_STYLE: { [string]: { Sharp: number, Seed: number } } = {
+	Saiyan = { Sharp = 1.1, Seed = 1.3 },
+	Shinobi = { Sharp = 0.9, Seed = 4.1 },
+	Pirate = { Sharp = 1.3, Seed = 2.2 },
+	Shinigami = { Sharp = 0.8, Seed = 5.7 },
+}
+local ridgeModel = Instance.new("Model")
+ridgeModel.Name = "ClimaHorizonte"
+local ridgePivot = Instance.new("Part") -- punto de giro en el centro, a la altura de la base (para que PivotTo mueva todo bien)
+ridgePivot.Name = "Pivote"
+ridgePivot.Anchored = true
+ridgePivot.CanCollide = false
+ridgePivot.CanQuery = false
+ridgePivot.CanTouch = false
+ridgePivot.Transparency = 1
+ridgePivot.Size = Vector3.one
+ridgePivot.CFrame = CFrame.new(0, 0, 0)
+ridgePivot.Parent = ridgeModel
+ridgeModel.PrimaryPart = ridgePivot
+local ridgeBuilding = false
+local ridgeLayers: { RidgeLayer } = {}
+local ridgeBuilt = false
+local ridgeFaction = ""
+local ridgeBaseY = 0
+local ridgeLastPos = Vector3.new(1e9, 0, 1e9)
+local ridgeColors: { Color3 } = {}
+local ridgeFrom: { Color3 } = {}
+local ridgeT = 1
+
+-- ¿hacia qué lado sube la pendiente de una cuña? (se mide con un rayo; así no dependemos de cómo la oriente Roblox)
+local function wedgeHighSide(): number
+	local t = Instance.new("WedgePart")
+	t.Size = Vector3.new(4, 20, 20)
+	t.Anchored = true
+	t.CFrame = CFrame.new(0, -6000, 0)
+	t.Parent = Workspace
+	task.wait(0.15)
+	local rp = RaycastParams.new()
+	rp.FilterType = Enum.RaycastFilterType.Include
+	rp.FilterDescendantsInstances = { t }
+	local a = Workspace:Raycast(Vector3.new(0, -5900, 7), Vector3.new(0, -200, 0), rp)
+	local b = Workspace:Raycast(Vector3.new(0, -5900, -7), Vector3.new(0, -200, 0), rp)
+	t:Destroy()
+	if a and b then
+		return if a.Position.Y > b.Position.Y then 1 else -1
+	end
+	return -1
+end
+
+local function profile(a: number, seed: number, sharp: number): number
+	local v = math.sin(a * 3 + seed * 1.7) * 0.5 + math.sin(a * 7 + seed * 3.1) * 0.3 + math.sin(a * 13 + seed * 5.3) * 0.2 + math.sin(a * 29 + seed * 7.9) * 0.12
+	local n = math.clamp(0.5 + 0.5 * v / 1.12, 0, 1)
+	return n ^ sharp
+end
+
+local function ridgeTargets(c: Climate)
+	-- lejana: clara y azulada por la bruma · media · cercana: más oscura (siempre con algo de color, nunca negra)
+	local far = c.Atm.C:Lerp(c.Atm.Dc, 0.4)
+	local mid = c.Atm.Dc:Lerp(c.Atm.C, 0.25):Lerp(Color3.new(0, 0, 0), 0.25)
+	local near = c.Atm.Dc:Lerp(Color3.new(0, 0, 0), 0.45):Lerp(c.Atm.C, 0.1)
+	return { far, mid, near }
+end
+
+local function buildRidge(faction: string, base: Color3)
+	for _, l in ipairs(ridgeLayers) do
+		for _, p in ipairs(l.Parts) do
+			p:Destroy()
+		end
+	end
+	table.clear(ridgeLayers)
+	local hs = wedgeHighSide()
+	local style = RIDGE_STYLE[faction] or RIDGE_STYLE.Saiyan
+	local defs = {
+		{ R = 2000, ElevMin = 14, ElevMax = 23, Depth = 520, N = if MOBILE then 64 else 96 },
+		{ R = 1550, ElevMin = 7, ElevMax = 14, Depth = 420, N = if MOBILE then 56 else 84 },
+		{ R = 1150, ElevMin = 3, ElevMax = 8, Depth = 320, N = if MOBILE then 0 else 72 },
+	}
+	for li, d in ipairs(defs) do
+		local layer: RidgeLayer = { R = d.R, ElevMin = d.ElevMin, ElevMax = d.ElevMax, Depth = d.Depth, N = d.N, Parts = {} }
+		table.insert(ridgeLayers, layer)
+		local rng = Random.new(style.Seed * 1000 + li)
+		for i = 0, d.N - 1 do
+			local ang = i * 2 * math.pi / d.N
+			local rv = Vector3.new(math.cos(ang), 0, math.sin(ang))
+			local tv = Vector3.new(-math.sin(ang), 0, math.cos(ang))
+			local f = profile(ang + li * 0.7, style.Seed + li, style.Sharp) * (0.9 + rng:NextNumber() * 0.2)
+			local elev = math.rad(d.ElevMin + (d.ElevMax - d.ElevMin) * math.clamp(f, 0, 1))
+			local H = d.R * math.tan(elev) * CONFIG.ALTURA + 160
+			local B = (2 * math.pi * d.R / d.N) * 2.3
+			local peak = rv * d.R
+			for half = -1, 1, 2 do
+				local w = Instance.new("WedgePart")
+				w.Anchored = true
+				w.CanCollide = false
+				w.CanQuery = false
+				w.CanTouch = false
+				w.CastShadow = false
+				w.Material = Enum.Material.Slate
+				w.Color = base
+				w.Size = Vector3.new(d.Depth, H, B / 2)
+				-- mitad izquierda (half = -1): sube hacia +tangente; derecha: sube hacia -tangente
+				local zv = tv * (hs * -half)
+				local xv = Vector3.yAxis:Cross(zv)
+				w.CFrame = CFrame.fromMatrix(peak + tv * (half * B / 4) + Vector3.new(0, H / 2, 0), xv, Vector3.yAxis, zv)
+				w.Parent = ridgeModel
+				table.insert(layer.Parts, w)
+			end
+		end
+	end
+	ridgeFaction = faction
+	ridgeBuilt = true
+end
+
+local function setRidgeColors(c: Climate, instant: boolean)
+	local t = ridgeTargets(c)
+	if instant then
+		for li, l in ipairs(ridgeLayers) do
+			for _, p in ipairs(l.Parts) do
+				p.Color = t[li]
+			end
+		end
+	end
+	ridgeFrom = {}
+	for li, l in ipairs(ridgeLayers) do
+		ridgeFrom[li] = if l.Parts[1] then l.Parts[1].Color else t[li]
+	end
+	ridgeColors = t
+	ridgeT = if instant then 1 else 0
+end
+
+local function updateRidge(zone: string, c: Climate)
+	if not CONFIG.HORIZONTE or ridgeBuilding then
+		return
+	end
+	local fname = string.match(zone, "^(%a+)_") or ""
+	if fname == "Ciudad" then
+		local f = player:GetAttribute("Faction")
+		fname = if typeof(f) == "string" then f else "Saiyan"
+	end
+	if not ridgeBuilt or fname ~= ridgeFaction then
+		ridgeBuilding = true
+		local base = ridgeTargets(c)[1]
+		buildRidge(fname, base)
+		setRidgeColors(c, true)
+		ridgeModel.Parent = Workspace
+		ridgeBuilding = false
+	else
+		setRidgeColors(c, false)
+	end
+end
+
+local function ridgeEnable(on: boolean)
+	ridgeModel.Parent = if on and ridgeBuilt then Workspace else nil
+end
+
 ---------------------------------------------------------------------
 -- CICLO PRINCIPAL
 ---------------------------------------------------------------------
@@ -537,6 +702,7 @@ local function setEffectsEnabled(on: boolean)
 	grade.Enabled = on
 	rays.Enabled = on
 	bloom.Enabled = on and CONFIG.BLOOM
+	ridgeEnable(on)
 	if not on then
 		clouds.Enabled = false
 		play(atmosphere, 1.5, { Density = 0, Haze = 0, Glare = 0 })
@@ -575,6 +741,9 @@ local function update(force: boolean)
 	end
 	currentWeather, currentIntensity = weather, intensity
 	applyClimate(c, weather, intensity, if zoneChanged then 3 else CONFIG.TRANSICION)
+	if zoneChanged or not ridgeBuilt then
+		task.spawn(updateRidge, zone, c)
+	end
 	-- partículas
 	for _, n in ipairs(WEATHER_FX) do
 		targetRate[n] = 0
@@ -628,6 +797,27 @@ RunService.RenderStepped:Connect(function(dt: number)
 		local pos = cam.CFrame.Position
 		highPart.CFrame = CFrame.new(pos + Vector3.new(0, 38, 0))
 		lowPart.CFrame = CFrame.new(pos + Vector3.new(0, 2, 0))
+	end
+	if ridgeBuilt and cam then
+		local p = cam.CFrame.Position
+		if ridgeBaseY == 0 then
+			local ch = player.Character
+			local root = ch and ch:FindFirstChild("HumanoidRootPart")
+			ridgeBaseY = (if root and root:IsA("BasePart") then root.Position.Y else p.Y) - 140
+		end
+		if (Vector3.new(p.X, 0, p.Z) - Vector3.new(ridgeLastPos.X, 0, ridgeLastPos.Z)).Magnitude > 8 then
+			ridgeLastPos = p
+			ridgeModel:PivotTo(CFrame.new(p.X, ridgeBaseY, p.Z))
+		end
+		if ridgeT < 1 then
+			ridgeT = math.min(1, ridgeT + dt / 2.5)
+			for li, l in ipairs(ridgeLayers) do
+				local col = (ridgeFrom[li] or ridgeColors[li]):Lerp(ridgeColors[li], ridgeT)
+				for _, part in ipairs(l.Parts) do
+					part.Color = col
+				end
+			end
+		end
 	end
 	local a = math.clamp(dt / 3, 0, 1)
 	for _, n in ipairs(WEATHER_FX) do
