@@ -60,6 +60,14 @@ local FACTION_STYLE: { [string]: { Accent: Color3, Dark: Color3, Title: string, 
 	Shinigami = { Accent = Color3.fromRGB(150, 200, 255), Dark = Color3.fromRGB(190, 195, 205), Title = "Teniente", Camp = "Campamento Espiritual" },
 }
 
+-- Color de las llamas (braseros) por facción: principal y secundario
+local FLAME: { [string]: { Color3 } } = {
+	Saiyan = { Color3.fromRGB(110, 190, 255), Color3.fromRGB(40, 90, 220) },
+	Shinobi = { Color3.fromRGB(130, 235, 140), Color3.fromRGB(30, 120, 60) },
+	Pirate = { Color3.fromRGB(255, 210, 90), Color3.fromRGB(210, 90, 20) },
+	Shinigami = { Color3.fromRGB(196, 140, 255), Color3.fromRGB(90, 40, 170) },
+}
+
 -- Recurso de cada franja: color y forma del nodo
 local NODE_COLOR: { Color3 } = {
 	Color3.fromRGB(110, 220, 120),
@@ -429,6 +437,28 @@ local function buildCampLife(f: Folder, center: Vector3, dir: Vector3, style: { 
 	e.ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward
 	e.Parent = motes
 
+	-- reliquia de la facción sobre un pedestal, flotando y girando
+	local relic = CampArt.Relic[faction]
+	if relic then
+		local rp2 = at(5, 21)
+		local fc = FLAME[faction] or { style.Accent, style.Accent }
+		cyl(f, "ReliquiaBase", 6, 1.2, rp2 + Vector3.new(0, 0.6, 0), style.Dark, Enum.Material.Marble, true)
+		cyl(f, "ReliquiaBase2", 4, 1.6, rp2 + Vector3.new(0, 2, 0), style.Dark:Lerp(Color3.new(0.1, 0.1, 0.12), 0.3), Enum.Material.Marble, true)
+		local aroR = cyl(f, "ReliquiaAro", 6.6, 0.25, rp2 + Vector3.new(0, 1.25, 0), fc[1], Enum.Material.Neon, false)
+		fx(aroR, { FxFade = 0.2 })
+		local panel = mk(f, "Reliquia", Vector3.new(0.3, 8, 8), CFrame.new(rp2 + Vector3.new(0, 7.2, 0)), Color3.new(1, 1, 1), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+		panel.Transparency = 1
+		CampArt.Panel(panel, Enum.NormalId.Right, relic, "CaraA")
+		CampArt.Panel(panel, Enum.NormalId.Left, relic, "CaraB")
+		fx(panel, { FxSpin = 22, FxBob = 0.5, FxBobSpeed = 1.5 })
+		local lampR = mk(f, "ReliquiaLuz", Vector3.new(1, 1, 1), CFrame.new(rp2 + Vector3.new(0, 7, 0)), fc[1], Enum.Material.Neon, Enum.PartType.Ball)
+		lampR.Transparency = 1
+		glow(lampR, fc[1], 24, 1)
+		lampR:SetAttribute("FxPulse", 0.3)
+		CollectionService:AddTag(lampR, "FxAnim")
+		sparks(lampR, fc[1], 8, 2.8, 3, 0.5, 2)
+	end
+
 	-- emblema de la facción, flotando y girando (dos caras)
 	local emblem = CampArt.Floor[faction]
 	if emblem then
@@ -464,21 +494,25 @@ local function buildCamp(l: Lane, root: Folder): Camp
 	cyl(f, "AroSuelo", CAMP_RADIUS * 1.7 + 1.4, 0.4, center + Vector3.new(0, 0.2, 0), style.Accent, Enum.Material.Neon, false)
 
 	-- hoguera central
+	-- hogar: piso con foso de piedras, troncos y asientos (imagen cenital) + colisión invisible de la hoguera
 	local fire = cyl(f, "Hoguera", 5, 1.2, center + Vector3.new(0, 0.9, 0), Color3.fromRGB(70, 60, 55), Enum.Material.Slate, true)
-	for i = 1, 3 do
-		local a = i * math.pi * 2 / 3
-		mk(f, "Leño", Vector3.new(1.2, 1.2, 6), CFrame.new(center + Vector3.new(math.cos(a) * 1.3, 1.9, math.sin(a) * 1.3)) * CFrame.Angles(math.rad(20), a, 0), Color3.fromRGB(96, 62, 38), Enum.Material.Wood)
+	fire.Transparency = 1
+	local hearthId = CampArt.Hearth[l.Faction]
+	if hearthId then
+		local hearth = cyl(f, "Hogar", 22, 0.1, center + Vector3.new(0, 0.56, 0), Color3.new(1, 1, 1), Enum.Material.SmoothPlastic, false)
+		hearth.Transparency = 1
+		CampArt.Panel(hearth, Enum.NormalId.Right, hearthId, "Hogar", 40)
 	end
-	local flame = mk(f, "Llama", Vector3.new(3, 3, 3), CFrame.new(center + Vector3.new(0, 3.2, 0)), style.Accent, Enum.Material.Neon, Enum.PartType.Ball)
-	flame.Transparency = 0.6
-	local fx = Instance.new("Fire")
-	fx.Heat = 8
-	fx.Size = 7
-	fx.Color = style.Accent
-	fx.SecondaryColor = Color3.fromRGB(255, 80, 30)
-	fx.Parent = flame
+	-- llama viva: carteles de imagen que parpadean (FxAnimClient) + luz + chispas + humo
+	local flame = mk(f, "Llama", Vector3.new(2, 2, 2), CFrame.new(center + Vector3.new(0, 1.6, 0)), style.Accent, Enum.Material.Neon, Enum.PartType.Ball)
+	flame.Transparency = 1
+	local flameId = CampArt.Flame[l.Faction]
+	if flameId then
+		CampArt.Sprite(flame, "Llama1", flameId, 4.4, 6.6, 2.9, 160)
+		CampArt.Sprite(flame, "Llama2", flameId, 3, 4.6, 2.0, 160)
+	end
 	glow(flame, style.Accent, 38, 1.6)
-	fx(flame, { FxPulse = 0.5 })
+	fx(flame, { FxPulse = 0.5, FxFlicker = 1 })
 	sparks(flame, Color3.fromRGB(255, 190, 90), 14, 2.4, 6, 0.45, 6)
 	local smoke = Instance.new("Smoke")
 	smoke.Color = Color3.fromRGB(120, 120, 128)
@@ -486,10 +520,6 @@ local function buildCamp(l: Lane, root: Folder): Camp
 	smoke.RiseVelocity = 5
 	smoke.Size = 4
 	smoke.Parent = flame
-	for i = 1, 4 do -- asientos de troncos
-		local a = i * math.pi / 2 + math.pi / 4
-		mk(f, "Asiento", Vector3.new(5.5, 1.8, 1.8), CFrame.new(center + Vector3.new(math.cos(a) * 8.5, 1.1, math.sin(a) * 8.5)) * CFrame.Angles(0, -a + math.pi / 2, 0), Color3.fromRGB(110, 76, 48), Enum.Material.Wood, nil, true)
-	end
 
 	-- antorchas / mástiles en las 4 esquinas del campamento
 	for i = 1, 4 do
@@ -582,7 +612,7 @@ end
 ---------------------------------------------------------------------
 -- ALTAR DE OFRENDA
 ---------------------------------------------------------------------
-local function altarBase(parent: Folder, name: string, pos: Vector3, style: { Accent: Color3, Dark: Color3, Title: string, Camp: string }, tint: Color3, artId: number?, kind: string): (Part, Part)
+local function altarBase(parent: Folder, name: string, pos: Vector3, style: { Accent: Color3, Dark: Color3, Title: string, Camp: string }, tint: Color3, artId: number?, kind: string, faction: string): (Part, Part)
 	local f = Instance.new("Folder")
 	f.Name = name
 	f.Parent = parent
@@ -661,10 +691,12 @@ local function altarBase(parent: Folder, name: string, pos: Vector3, style: { Ac
 			local fi = Instance.new("Fire")
 			fi.Heat = 8
 			fi.Size = 5
-			fi.Color = Color3.fromRGB(255, 120, 50)
-			fi.SecondaryColor = Color3.fromRGB(200, 30, 30)
+			local fc = FLAME[faction] or { Color3.fromRGB(255, 120, 50), Color3.fromRGB(200, 30, 30) }
+			fi.Color = fc[1]
+			fi.SecondaryColor = fc[2]
 			fi.Parent = fl
-			glow(fl, Color3.fromRGB(255, 110, 50), 18, 1)
+			fl.Color = fc[1]
+			glow(fl, fc[1], 18, 1)
 			fl:SetAttribute("FxPulse", 0.4)
 			CollectionService:AddTag(fl, "FxAnim")
 		else
@@ -680,7 +712,7 @@ end
 local function buildOffering(l: Lane, root: Folder, pos: Vector3, idx: number?)
 	local style = FACTION_STYLE[l.Faction]
 	local tint = Color3.fromRGB(190, 120, 255)
-	local core, pedestal = altarBase(root, "AltarOfrenda_" .. l.Faction .. "_" .. l.Strip .. (if idx then "_" .. idx else ""), pos, style, tint, CampArt.Offering, "ofrenda")
+	local core, pedestal = altarBase(root, "AltarOfrenda_" .. l.Faction .. "_" .. l.Strip .. (if idx then "_" .. idx else ""), pos, style, tint, CampArt.OfferingBy[l.Faction] or CampArt.Offering, "ofrenda", l.Faction)
 	local O = LootTables.Offering
 	local rid, mid = LootTables.StripResource[l.Strip], LootTables.StripMaterial[l.Strip]
 	local rc, mc = O.ResourceCost[l.Strip], O.MaterialCost[l.Strip]
@@ -738,7 +770,7 @@ end
 local function buildChallenge(l: Lane, root: Folder, pos: Vector3, idx: number?)
 	local style = FACTION_STYLE[l.Faction]
 	local tint = Color3.fromRGB(255, 80, 70)
-	local core, pedestal = altarBase(root, "AltarDesafio_" .. l.Faction .. "_" .. l.Strip .. (if idx then "_" .. idx else ""), pos, style, tint, CampArt.Challenge, "desafio")
+	local core, pedestal = altarBase(root, "AltarDesafio_" .. l.Faction .. "_" .. l.Strip .. (if idx then "_" .. idx else ""), pos, style, tint, CampArt.ChallengeBy[l.Faction] or CampArt.Challenge, "desafio", l.Faction)
 	local X = LootTables.Challenge
 	label(core, "ALTAR DE DESAFÍO", tint, 5, UDim2.fromOffset(260, 36))
 	local state = { Busy = false, CooldownUntil = 0 }
@@ -895,17 +927,23 @@ local function buildChest(l: Lane, root: Folder, pos: Vector3, index: number)
 	local yaw = rng:NextNumber() * math.pi * 2
 	local base = CFrame.new(pos) * CFrame.Angles(0, yaw, 0)
 	local body = mk(f, "Cuerpo", Vector3.new(5, 2.8, 3.2), base * CFrame.new(0, 1.4, 0), Color3.fromRGB(122, 78, 40), Enum.Material.Wood, nil, true)
-	mk(f, "Banda", Vector3.new(5.2, 0.5, 3.4), base * CFrame.new(0, 2.4, 0), style.Accent, Enum.Material.Metal)
-	mk(f, "BandaB", Vector3.new(0.6, 2.9, 3.4), base * CFrame.new(1.6, 1.4, 0), style.Accent, Enum.Material.Metal)
-	mk(f, "BandaC", Vector3.new(0.6, 2.9, 3.4), base * CFrame.new(-1.6, 1.4, 0), style.Accent, Enum.Material.Metal)
-	local lidClosed = base * CFrame.new(0, 3.1, 0)
-	local lid = mk(f, "Tapa", Vector3.new(5, 0.9, 3.2), lidClosed, Color3.fromRGB(138, 90, 46), Enum.Material.Wood)
+	body.Transparency = 1
+	local closedId = CampArt.ChestClosed[l.Faction]
+	local openId = CampArt.ChestOpen[l.Faction]
+	local chestImg: ImageLabel? = nil
+	if closedId then
+		local g = CampArt.Sprite(body, "Cofre", closedId, 7.5, 7.5, 1.3, 140)
+		chestImg = g:FindFirstChild("Img") :: ImageLabel?
+	end
 	local latch = mk(f, "Cierre", Vector3.new(0.8, 1, 0.5), base * CFrame.new(0, 2.7, -1.7), Color3.fromRGB(255, 225, 120), Enum.Material.Neon)
+	latch.Transparency = 1
 	glow(latch, Color3.fromRGB(255, 220, 120), 16, 1.2)
+	fx(latch, { FxPulse = 0.35 })
+	local _ = style
 	local busy = false
 	local keyId = "Key_" .. l.Strip
 	local pp = prompt(body, "Abrir cofre (usa 1 llave)", "Cofre sellado · Franja " .. l.Strip, 1.2, Enum.KeyCode.E)
-	label(body, "COFRE SELLADO", Color3.fromRGB(255, 225, 120), 4.2, UDim2.fromOffset(150, 24))
+	label(body, "COFRE SELLADO", Color3.fromRGB(255, 225, 120), 6.2, UDim2.fromOffset(150, 24))
 	pp.Triggered:Connect(function(player: Player)
 		if busy or not nearEnough(player, pos, USE_DISTANCE) then
 			return
@@ -925,12 +963,12 @@ local function buildChest(l: Lane, root: Folder, pos: Vector3, index: number)
 			busy = false
 			return
 		end
-		lid.CFrame = lidClosed * CFrame.new(0, 0.6, 1.5) * CFrame.Angles(math.rad(-70), 0, 0)
-		latch.Transparency = 1
+		if chestImg and openId then
+			chestImg.Image = CampArt.Url(openId)
+		end
 		task.delay(LootTables.MapChest.AnimSeconds, function()
-			if lid.Parent then
-				lid.CFrame = lidClosed
-				latch.Transparency = 0
+			if chestImg and closedId and chestImg.Parent then
+				chestImg.Image = CampArt.Url(closedId)
 			end
 			busy = false
 		end)
@@ -945,30 +983,16 @@ local function buildNode(l: Lane, root: Folder, pos: Vector3, index: number)
 	f.Name = string.format("Nodo_%s_%d_%d", l.Faction, l.Strip, index)
 	f.Parent = root
 	local color = NODE_COLOR[l.Strip]
-	local parts: { Part } = {}
-	local mainPart: Part
-	if l.Strip == 1 then -- hierba espiritual: mata de brotes con luz
-		mainPart = mk(f, "Mata", Vector3.new(4, 3, 4), CFrame.new(pos + Vector3.new(0, 1.4, 0)), Color3.fromRGB(70, 150, 80), Enum.Material.Grass, Enum.PartType.Ball)
-		table.insert(parts, mainPart)
-		for k = 1, 4 do
-			local a = k * math.pi / 2
-			table.insert(parts, mk(f, "Brote", Vector3.new(0.7, 3.6, 0.7), CFrame.new(pos + Vector3.new(math.cos(a) * 1.4, 2.4, math.sin(a) * 1.4)) * CFrame.Angles(math.rad(10), 0, math.rad(8)), color, Enum.Material.Neon))
-		end
-	elseif l.Strip == 2 then -- cristal: racimo de prismas
-		mainPart = mk(f, "Cristal", Vector3.new(1.8, 5, 1.8), CFrame.new(pos + Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, 0.4, math.rad(8)), color, Enum.Material.Neon)
-		table.insert(parts, mainPart)
-		table.insert(parts, mk(f, "CristalB", Vector3.new(1.2, 3.2, 1.2), CFrame.new(pos + Vector3.new(1.5, 1.6, 0.4)) * CFrame.Angles(0, 0.9, math.rad(-22)), color, Enum.Material.Neon))
-		table.insert(parts, mk(f, "CristalC", Vector3.new(1, 2.6, 1), CFrame.new(pos + Vector3.new(-1.4, 1.3, -0.6)) * CFrame.Angles(0, 0.2, math.rad(26)), color, Enum.Material.Neon))
-	elseif l.Strip == 3 then -- reliquia: monolito con aro
-		mainPart = mk(f, "Monolito", Vector3.new(2.6, 5.5, 1.4), CFrame.new(pos + Vector3.new(0, 2.8, 0)) * CFrame.Angles(0, rng:NextNumber() * 3, 0), Color3.fromRGB(86, 80, 74), Enum.Material.Slate)
-		table.insert(parts, mainPart)
-		table.insert(parts, mk(f, "Glifo", Vector3.new(1.4, 1.4, 1.6), mainPart.CFrame * CFrame.new(0, 0.6, 0), color, Enum.Material.Neon, Enum.PartType.Ball))
-	else -- corazón de poder: núcleo latiendo
-		mainPart = mk(f, "Corazon", Vector3.new(3.4, 3.4, 3.4), CFrame.new(pos + Vector3.new(0, 3.4, 0)), color, Enum.Material.Neon, Enum.PartType.Ball)
-		table.insert(parts, mainPart)
-		table.insert(parts, mk(f, "Anillo", Vector3.new(0.4, 6, 6), CFrame.new(pos + Vector3.new(0, 3.4, 0)) * CFrame.Angles(0, 0, math.rad(20)), color, Enum.Material.Neon, Enum.PartType.Cylinder))
+	local sprites: { BillboardGui } = {}
+	local artId = (CampArt.Resource[l.Strip] or {})[l.Faction]
+	local mainPart = mk(f, "Nodo", Vector3.new(3, 3, 3), CFrame.new(pos + Vector3.new(0, 3, 0)), color, Enum.Material.Neon, Enum.PartType.Ball)
+	mainPart.Transparency = 1
+	if artId then
+		table.insert(sprites, CampArt.Sprite(mainPart, "Recurso", artId, 8, 8, 0, 130))
 	end
+	sparks(mainPart, color:Lerp(Color3.new(1, 1, 1), 0.4), 4, 2.4, 1.5, 0.35, 1)
 	glow(mainPart, color, 14, 1)
+	fx(mainPart, { FxPulse = 0.3 })
 	local rid = LootTables.StripResource[l.Strip]
 	local pp = prompt(mainPart, "Recolectar", itemName(rid), 1.2, Enum.KeyCode.E)
 	pp.MaxActivationDistance = 11
@@ -992,21 +1016,20 @@ local function buildNode(l: Lane, root: Folder, pos: Vector3, index: number)
 		notify(player, msg)
 		ready = false
 		pp.Enabled = false
-		for _, p in ipairs(parts) do
-			p.Transparency = 1
-			local lgt = p:FindFirstChildOfClass("PointLight")
-			if lgt then
-				lgt.Enabled = false
-			end
+		for _, g in ipairs(sprites) do
+			g.Enabled = false
+		end
+		local lgt = mainPart:FindFirstChildOfClass("PointLight")
+		if lgt then
+			lgt.Enabled = false
 		end
 		task.delay(G.RespawnSeconds, function()
 			if f.Parent then
-				for _, p in ipairs(parts) do
-					p.Transparency = 0
-					local lgt = p:FindFirstChildOfClass("PointLight")
-					if lgt then
-						lgt.Enabled = true
-					end
+				for _, g in ipairs(sprites) do
+					g.Enabled = true
+				end
+				if lgt then
+					lgt.Enabled = true
 				end
 				ready = true
 				pp.Enabled = true
@@ -1025,21 +1048,15 @@ local function buildMiniLair(l: Lane, root: Folder, pos: Vector3): MiniSpot
 	f.Parent = root
 	local RED = Color3.fromRGB(255, 70, 60)
 	local OBS = Color3.fromRGB(34, 26, 30)
-	cyl(f, "Guarida", 28, 0.4, pos + Vector3.new(0, 0.2, 0), OBS, Enum.Material.Slate, false)
+	local lairDisc = cyl(f, "Guarida", 28, 0.4, pos + Vector3.new(0, 0.2, 0), OBS, Enum.Material.Slate, false)
+	local lairArt = CampArt.LairBy[l.Faction]
+	if lairArt then
+		CampArt.Decal(lairDisc, Enum.NormalId.Right, lairArt, "Arte")
+	end
 	local aro = cyl(f, "GuaridaAro", 29.2, 0.3, pos + Vector3.new(0, 0.15, 0), RED, Enum.Material.Neon, false)
 	fx(aro, { FxFade = 0.2 })
 	local aroF = cyl(f, "GuaridaAroFaccion", 30.4, 0.2, pos + Vector3.new(0, 0.1, 0), style.Accent, Enum.Material.Neon, false)
 	aroF.Transparency = 0.4
-	local r1 = cyl(f, "GuaridaSello1", 20, 0.12, pos + Vector3.new(0, 0.46, 0), RED, Enum.Material.Neon, false)
-	r1.Transparency = 0.55
-	local r2 = cyl(f, "GuaridaSello2", 19.2, 0.14, pos + Vector3.new(0, 0.48, 0), OBS, Enum.Material.Slate, false)
-	r2.Transparency = 0
-	-- sello giratorio: 4 barras cruzadas que forman 8 rayos
-	for k = 0, 3 do
-		local bar = mk(f, "GuaridaRayo", Vector3.new(0.5, 0.1, 17), CFrame.new(pos + Vector3.new(0, 0.58, 0)) * CFrame.Angles(0, math.rad(k * 45), 0), RED, Enum.Material.Neon)
-		bar.Transparency = 0.35
-		fx(bar, { FxSpin = 14 })
-	end
 	for k = 0, 5 do -- cuentas rojas que orbitan al ras del suelo
 		local b = mk(f, "GuaridaCuenta", Vector3.new(0.9, 0.9, 0.9), CFrame.new(pos), RED, Enum.Material.Neon, Enum.PartType.Ball)
 		fx(b, { FxCenter = pos, FxOrbitR = 9.4, FxOrbitSpeed = -30, FxOrbitPhase = k * 60, FxOrbitY = 0.9, FxBob = 0.25, FxBobSpeed = 2.4 })
@@ -1057,8 +1074,10 @@ local function buildMiniLair(l: Lane, root: Folder, pos: Vector3): MiniSpot
 			local fi = Instance.new("Fire")
 			fi.Heat = 9
 			fi.Size = 6
-			fi.Color = Color3.fromRGB(255, 90, 40)
-			fi.SecondaryColor = Color3.fromRGB(120, 10, 20)
+			local fc = FLAME[l.Faction] or { Color3.fromRGB(255, 90, 40), Color3.fromRGB(120, 10, 20) }
+			fi.Color = fc[1]
+			fi.SecondaryColor = fc[2]
+			tip.Color = fc[1]
 			fi.Parent = tip
 			glow(tip, RED, 16, 1)
 			tip:SetAttribute("FxPulse", 0.5)
