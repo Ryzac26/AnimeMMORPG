@@ -218,6 +218,30 @@ local function glow(parent: BasePart, color: Color3, range: number, brightness: 
 	l.Parent = parent
 end
 
+-- animación en el cliente (FxAnimClient): atributos + tag
+local function fx(p: BasePart, a: { [string]: any })
+	for k, v in pairs(a) do
+		p:SetAttribute(k, v)
+	end
+	CollectionService:AddTag(p, "FxAnim")
+end
+
+-- emisor de partículas (chispas, brasas, motas)
+local function sparks(p: BasePart, color: Color3, rate: number, life: number, speed: number, size: number, up: number?)
+	local e = Instance.new("ParticleEmitter")
+	e.Color = ColorSequence.new(color)
+	e.LightEmission = 1
+	e.Rate = rate
+	e.Lifetime = NumberRange.new(life * 0.6, life)
+	e.Speed = NumberRange.new(speed * 0.5, speed)
+	e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, size), NumberSequenceKeypoint.new(1, 0) })
+	e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
+	e.Acceleration = Vector3.new(0, up or 1.5, 0)
+	e.SpreadAngle = Vector2.new(25, 25)
+	e.Rotation = NumberRange.new(0, 360)
+	e.Parent = p
+end
+
 local function prompt(parent: BasePart, action: string, object: string, hold: number, key: Enum.KeyCode?): ProximityPrompt
 	local pp = Instance.new("ProximityPrompt")
 	pp.ActionText = action
@@ -309,6 +333,118 @@ local function buildFactionProps(parent: Folder, faction: string, center: Vector
 	end
 end
 
+-- Vida del campamento: dummy de entrenamiento, rack de armas, sacos y cajas, camastros, luces colgantes,
+-- espíritus que orbitan, motas flotando y el emblema de la facción girando.
+local function buildCampLife(f: Folder, center: Vector3, dir: Vector3, style: { Accent: Color3, Dark: Color3, Title: string, Camp: string }, faction: string)
+	local right = Vector3.new(-dir.Z, 0, dir.X)
+	local function at(fw: number, r: number, y: number?): Vector3
+		return center + dir * fw + right * r + Vector3.new(0, y or 0, 0)
+	end
+	local WOOD = Color3.fromRGB(104, 72, 46)
+	local look = function(pos: Vector3, toward: Vector3): CFrame
+		return CFrame.lookAt(pos, pos + toward)
+	end
+	-- dummy de entrenamiento
+	local dp = at(16, -18)
+	mk(f, "DummyPoste", Vector3.new(1.2, 7, 1.2), CFrame.new(dp + Vector3.new(0, 3.5, 0)), WOOD, Enum.Material.Wood, nil, true)
+	mk(f, "DummyBrazo", Vector3.new(5.6, 0.9, 0.9), CFrame.new(dp + Vector3.new(0, 5.4, 0)) * CFrame.Angles(0, math.atan2(-dir.X, -dir.Z), 0), WOOD, Enum.Material.Wood)
+	local body = mk(f, "DummySaco", Vector3.new(3, 3.6, 2.2), CFrame.new(dp + Vector3.new(0, 4.4, 0)), Color3.fromRGB(196, 170, 120), Enum.Material.Fabric, nil, true)
+	mk(f, "DummyCabeza", Vector3.new(1.9, 1.9, 1.9), CFrame.new(dp + Vector3.new(0, 7.3, 0)), Color3.fromRGB(196, 170, 120), Enum.Material.Fabric, Enum.PartType.Ball)
+	local target = mk(f, "DummyDiana", Vector3.new(1.9, 1.9, 0.3), look(dp + Vector3.new(0, 4.5, 0) + dir * 1.2, dir), style.Accent, Enum.Material.Neon, Enum.PartType.Cylinder)
+	target.Transparency = 0.2
+	local _ = body
+
+	-- rack de armas
+	local rp = at(14, 20)
+	mk(f, "RackPoste", Vector3.new(0.9, 6, 0.9), CFrame.new(rp + right * -3.2 + Vector3.new(0, 3, 0)), WOOD, Enum.Material.Wood, nil, true)
+	mk(f, "RackPoste", Vector3.new(0.9, 6, 0.9), CFrame.new(rp + right * 3.2 + Vector3.new(0, 3, 0)), WOOD, Enum.Material.Wood, nil, true)
+	mk(f, "RackBarra", Vector3.new(7.6, 0.7, 0.7), CFrame.new(rp + Vector3.new(0, 4.4, 0)) * CFrame.Angles(0, math.atan2(-right.X, -right.Z) + math.pi / 2, 0), WOOD, Enum.Material.Wood)
+	for k = -1, 1 do
+		local w = mk(f, "RackArma", Vector3.new(0.35, 5.4, 0.35), CFrame.new(rp + right * (k * 1.7) + Vector3.new(0, 3.2, 0.1)) * CFrame.Angles(0, 0, math.rad(k * 9)), Color3.fromRGB(200, 205, 214), Enum.Material.Metal)
+		w.Name = "RackArma"
+		mk(f, "RackPunta", Vector3.new(0.6, 0.6, 0.6), CFrame.new(rp + right * (k * 1.7 + k * 0.4) + Vector3.new(0, 6, 0.1)), style.Accent, Enum.Material.Neon, Enum.PartType.Ball).Transparency = 0.3
+	end
+
+	-- sacos y cajas de suministros
+	local sp = at(-4, 22)
+	for k = 0, 2 do
+		mk(f, "Caja", Vector3.new(3.4, 3.4, 3.4), CFrame.new(sp + right * (k * 3.6) + Vector3.new(0, 1.8, 0)) * CFrame.Angles(0, math.rad(k * 17), 0), Color3.fromRGB(128, 92, 56), Enum.Material.WoodPlanks, nil, true)
+	end
+	mk(f, "Caja", Vector3.new(3, 3, 3), CFrame.new(sp + right * 3.6 + Vector3.new(0, 4.8, 0)) * CFrame.Angles(0, math.rad(40), 0), Color3.fromRGB(150, 110, 66), Enum.Material.WoodPlanks, nil, true)
+	for k = 0, 2 do
+		local sack = mk(f, "Saco", Vector3.new(2.4, 2.8, 2.4), CFrame.new(sp + right * (-4 - k * 2.2) + dir * (k % 2) + Vector3.new(0, 1.4, 0)), Color3.fromRGB(190, 168, 122), Enum.Material.Fabric, Enum.PartType.Ball, true)
+		sack.Name = "Saco"
+	end
+
+	-- camastros alrededor de la hoguera
+	for k = 0, 1 do
+		local a = math.rad(200 + k * 110)
+		local bp = center + Vector3.new(math.cos(a) * 15, 0, math.sin(a) * 15)
+		local face = (center - bp) * Vector3.new(1, 0, 1)
+		mk(f, "Camastro", Vector3.new(3, 0.6, 6.4), CFrame.lookAt(bp + Vector3.new(0, 0.8, 0), bp + Vector3.new(0, 0.8, 0) + face), style.Accent:Lerp(style.Dark, 0.55), Enum.Material.Fabric)
+		mk(f, "Almohada", Vector3.new(2.4, 0.9, 1.4), CFrame.lookAt(bp + Vector3.new(0, 1.3, 0) - face.Unit * 2.4, bp + Vector3.new(0, 1.3, 0)), Color3.fromRGB(230, 225, 215), Enum.Material.Fabric)
+	end
+
+	-- cuerdas de luces entre los mástiles (esquinas a radio CAMP_RADIUS - 3, altura 12)
+	local R = CAMP_RADIUS - 3
+	for i = 1, 4 do
+		local a1 = i * math.pi / 2 + math.pi / 4
+		local a2 = (i + 1) * math.pi / 2 + math.pi / 4
+		local p1 = center + Vector3.new(math.cos(a1) * R, 11.4, math.sin(a1) * R)
+		local p2 = center + Vector3.new(math.cos(a2) * R, 11.4, math.sin(a2) * R)
+		local mid = (p1 + p2) / 2
+		local cable = mk(f, "Cuerda", Vector3.new(0.12, 0.12, (p2 - p1).Magnitude), CFrame.lookAt(mid, p2), Color3.fromRGB(40, 36, 34), Enum.Material.Fabric)
+		cable.Name = "Cuerda"
+		for k = 1, 6 do
+			local t = k / 7
+			local lp = p1:Lerp(p2, t) + Vector3.new(0, -1.1, 0)
+			local bulb = mk(f, "Farolillo", Vector3.new(0.9, 1.2, 0.9), CFrame.new(lp), style.Accent:Lerp(Color3.new(1, 0.9, 0.7), 0.4), Enum.Material.Neon, Enum.PartType.Ball)
+			bulb.Transparency = 0.1
+			fx(bulb, { FxBob = 0.15, FxBobSpeed = 1.2 + k * 0.2 })
+		end
+	end
+
+	-- espíritus/luciérnagas que orbitan alrededor de la hoguera
+	for k = 0, 5 do
+		local w = mk(f, "Espiritu", Vector3.new(1, 1, 1), CFrame.new(center), style.Accent, Enum.Material.Neon, Enum.PartType.Ball)
+		w.Transparency = 0.15
+		fx(w, { FxCenter = center, FxOrbitR = 19 + (k % 2) * 3, FxOrbitSpeed = if k % 2 == 0 then 14 else -11, FxOrbitPhase = k * 60, FxOrbitY = 5 + (k % 3) * 1.6, FxBob = 0.8, FxBobSpeed = 1.4 + k * 0.15 })
+		if k % 2 == 0 then
+			glow(w, style.Accent, 10, 0.5)
+		end
+	end
+	local motes = mk(f, "Motas", Vector3.new(46, 10, 46), CFrame.new(center + Vector3.new(0, 6, 0)), style.Accent, Enum.Material.SmoothPlastic)
+	motes.Transparency = 1
+	local e = Instance.new("ParticleEmitter")
+	e.Color = ColorSequence.new(style.Accent:Lerp(Color3.new(1, 1, 1), 0.3))
+	e.LightEmission = 1
+	e.Rate = 5
+	e.Lifetime = NumberRange.new(5, 8)
+	e.Speed = NumberRange.new(0.4, 1.2)
+	e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.3, 0.35), NumberSequenceKeypoint.new(1, 0) })
+	e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.2, 0.2), NumberSequenceKeypoint.new(1, 1) })
+	e.Acceleration = Vector3.new(0, 0.3, 0)
+	e.SpreadAngle = Vector2.new(180, 180)
+	e.Shape = Enum.ParticleEmitterShape.Box
+	e.ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward
+	e.Parent = motes
+
+	-- emblema de la facción, flotando y girando (dos caras)
+	local emblem = CampArt.Floor[faction]
+	if emblem then
+		local ep = at(-20, 0, 9.5)
+		local disc = mk(f, "EmblemaFlotante", Vector3.new(0.3, 8, 8), CFrame.new(ep), Color3.new(1, 1, 1), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+		disc.Transparency = 1
+		CampArt.Panel(disc, Enum.NormalId.Right, emblem, "CaraA")
+		CampArt.Panel(disc, Enum.NormalId.Left, emblem, "CaraB")
+		fx(disc, { FxSpin = 28, FxBob = 0.6, FxBobSpeed = 1.3 })
+		local halo = mk(f, "EmblemaLuz", Vector3.new(1, 1, 1), CFrame.new(ep + Vector3.new(0, -4.8, 0)), style.Accent, Enum.Material.Neon, Enum.PartType.Ball)
+		halo.Transparency = 0.5
+		glow(halo, style.Accent, 22, 0.9)
+		mk(f, "EmblemaSoporte", Vector3.new(0.8, 5, 0.8), CFrame.new(at(-20, 0, 2.5)), Color3.fromRGB(70, 66, 74), Enum.Material.Metal, nil, true)
+	end
+end
+
 local function buildCamp(l: Lane, root: Folder): Camp
 	local style = FACTION_STYLE[l.Faction]
 	local u = l.U0 + (l.U1 - l.U0) * CAMP_U
@@ -342,6 +478,14 @@ local function buildCamp(l: Lane, root: Folder): Camp
 	fx.SecondaryColor = Color3.fromRGB(255, 80, 30)
 	fx.Parent = flame
 	glow(flame, style.Accent, 38, 1.6)
+	fx(flame, { FxPulse = 0.5 })
+	sparks(flame, Color3.fromRGB(255, 190, 90), 14, 2.4, 6, 0.45, 6)
+	local smoke = Instance.new("Smoke")
+	smoke.Color = Color3.fromRGB(120, 120, 128)
+	smoke.Opacity = 0.18
+	smoke.RiseVelocity = 5
+	smoke.Size = 4
+	smoke.Parent = flame
 	for i = 1, 4 do -- asientos de troncos
 		local a = i * math.pi / 2 + math.pi / 4
 		mk(f, "Asiento", Vector3.new(5.5, 1.8, 1.8), CFrame.new(center + Vector3.new(math.cos(a) * 8.5, 1.1, math.sin(a) * 8.5)) * CFrame.Angles(0, -a + math.pi / 2, 0), Color3.fromRGB(110, 76, 48), Enum.Material.Wood, nil, true)
@@ -370,6 +514,7 @@ local function buildCamp(l: Lane, root: Folder): Camp
 	end
 
 	buildFactionProps(f, l.Faction, center, style, dir)
+	buildCampLife(f, center, dir, style, l.Faction)
 
 	-- olla para cocinar
 	local potPos = center + Vector3.new(0, 0, 0) + Vector3.new(dir.X, 0, dir.Z) * 13
@@ -437,25 +582,97 @@ end
 ---------------------------------------------------------------------
 -- ALTAR DE OFRENDA
 ---------------------------------------------------------------------
-local function altarBase(parent: Folder, name: string, pos: Vector3, style: { Accent: Color3, Dark: Color3, Title: string, Camp: string }, tint: Color3, artId: number?): (Part, Part)
+local function altarBase(parent: Folder, name: string, pos: Vector3, style: { Accent: Color3, Dark: Color3, Title: string, Camp: string }, tint: Color3, artId: number?, kind: string): (Part, Part)
 	local f = Instance.new("Folder")
 	f.Name = name
 	f.Parent = parent
-	-- medallón de suelo con la imagen del altar; plinto pequeño al centro
+	local fire = kind == "desafio"
+	local dark2 = style.Dark:Lerp(Color3.new(0.08, 0.08, 0.1), 0.45)
+
+	-- medallón de suelo con la imagen del altar
 	local medal = cyl(f, "Medallon", 32, 0.4, pos + Vector3.new(0, 0.2, 0), style.Dark, Enum.Material.Slate, true)
 	if artId then
 		CampArt.Decal(medal, Enum.NormalId.Right, artId, "Arte")
 	end
-	cyl(f, "BaseAro", 32.8, 0.3, pos + Vector3.new(0, 0.15, 0), tint, Enum.Material.Neon, false)
-	cyl(f, "Base", 8.4, 1.4, pos + Vector3.new(0, 0.7, 0), style.Dark, Enum.Material.Slate, true)
-	cyl(f, "Pedestal", 5, 4.5, pos + Vector3.new(0, 3.6, 0), style.Dark:Lerp(Color3.new(0.1, 0.1, 0.12), 0.35), Enum.Material.Marble, true)
-	local core = mk(f, "Nucleo", Vector3.new(3, 3, 3), CFrame.new(pos + Vector3.new(0, 7, 0)) * CFrame.Angles(math.rad(45), math.rad(45), 0), tint, Enum.Material.Neon)
-	glow(core, tint, 30, 1.4)
-	for i = 1, 4 do -- pilares
+	local aro = cyl(f, "BaseAro", 32.8, 0.3, pos + Vector3.new(0, 0.15, 0), tint, Enum.Material.Neon, false)
+	fx(aro, { FxFade = 0.18 })
+	-- aro con el color de la facción
+	local aroF = cyl(f, "AroFaccion", 33.8, 0.2, pos + Vector3.new(0, 0.1, 0), style.Accent, Enum.Material.Neon, false)
+	aroF.Transparency = 0.35
+
+	-- plinto escalonado + pedestal
+	cyl(f, "Base", 9.6, 1.0, pos + Vector3.new(0, 0.9, 0), style.Dark, Enum.Material.Slate, true)
+	local aroP = cyl(f, "BaseAro2", 9.9, 0.25, pos + Vector3.new(0, 1.42, 0), tint, Enum.Material.Neon, false)
+	fx(aroP, { FxFade = 0.2 })
+	cyl(f, "Base2", 7, 1.0, pos + Vector3.new(0, 1.9, 0), dark2, Enum.Material.Marble, true)
+	cyl(f, "Pedestal", 3.6, 3.4, pos + Vector3.new(0, 4.1, 0), style.Dark:Lerp(Color3.new(0.1, 0.1, 0.12), 0.35), Enum.Material.Marble, true)
+
+	-- núcleo flotante: gira y respira
+	local cpos = pos + Vector3.new(0, 9, 0)
+	local core = mk(f, "Nucleo", Vector3.new(3.6, 3.6, 3.6), CFrame.new(cpos) * CFrame.Angles(math.rad(45), math.rad(45), 0), tint, Enum.Material.Neon)
+	core.Transparency = 0.1
+	fx(core, { FxSpin = 55, FxBob = 0.7, FxBobSpeed = 1.6 })
+	glow(core, tint, 34, 1.4)
+	core:SetAttribute("FxPulse", 0.3)
+	sparks(core, tint, 10, 2.6, 3, 0.5, 2)
+
+	if fire then
+		-- espadas cruzadas flotando sobre el núcleo
+		for k = -1, 1, 2 do
+			local blade = mk(f, "Espada", Vector3.new(0.5, 7.5, 0.9), CFrame.new(cpos + Vector3.new(0, 4.6, 0)) * CFrame.Angles(0, 0, math.rad(40 * k)), Color3.fromRGB(215, 220, 232), Enum.Material.Metal)
+			fx(blade, { FxSpin = 55, FxBob = 0.7, FxBobSpeed = 1.6 })
+			local edge = mk(f, "EspadaFilo", Vector3.new(0.2, 7.2, 0.3), CFrame.new(cpos + Vector3.new(0, 4.6, 0)) * CFrame.Angles(0, 0, math.rad(40 * k)), tint, Enum.Material.Neon)
+			edge.Transparency = 0.35
+			fx(edge, { FxSpin = 55, FxBob = 0.7, FxBobSpeed = 1.6 })
+		end
+	end
+
+	-- cuentas con el color de la facción que orbitan el núcleo
+	for k = 0, 7 do
+		local bead = mk(f, "Cuenta", Vector3.new(0.8, 0.8, 0.8), CFrame.new(cpos), style.Accent, Enum.Material.Neon, Enum.PartType.Ball)
+		fx(bead, { FxCenter = cpos, FxOrbitR = 5.6, FxOrbitSpeed = if fire then -45 else 38, FxOrbitPhase = k * 45, FxOrbitY = 0.3 * math.sin(k) })
+	end
+	for k = 0, 2 do
+		local orb = mk(f, "Orbe", Vector3.new(1.5, 1.5, 1.5), CFrame.new(cpos), tint, Enum.Material.Neon, Enum.PartType.Ball)
+		orb.Transparency = 0.2
+		fx(orb, { FxCenter = cpos, FxOrbitR = 8.4, FxOrbitSpeed = if fire then 62 else -52, FxOrbitPhase = k * 120, FxOrbitY = 2.2 + k * 0.8, FxBob = 0.5, FxBobSpeed = 2 })
+		glow(orb, tint, 9, 0.6)
+	end
+
+	-- rayo de luz tenue + motas que suben por todo el medallón
+	local ray = cyl(f, "Rayo", 2.6, 26, pos + Vector3.new(0, 14, 0), tint, Enum.Material.Neon, false)
+	ray.Transparency = 0.82
+	fx(ray, { FxFade = 0.08 })
+	local motes = mk(f, "Motas", Vector3.new(26, 1, 26), CFrame.new(pos + Vector3.new(0, 1, 0)), tint, Enum.Material.SmoothPlastic)
+	motes.Transparency = 1
+	sparks(motes, if fire then Color3.fromRGB(255, 140, 60) else tint:Lerp(Color3.new(1, 1, 1), 0.35), 9, 3.2, 4, 0.55, 2.5)
+
+	-- 4 pilares: de ofrenda con cristal flotante, de desafío con brasero
+	for i = 1, 4 do
 		local a = i * math.pi / 2 + math.pi / 4
-		local pp = pos + Vector3.new(math.cos(a) * 7, 0, math.sin(a) * 7)
-		mk(f, "Pilar", Vector3.new(1.8, 9, 1.8), CFrame.new(pp + Vector3.new(0, 4.9, 0)), style.Dark, Enum.Material.Marble, nil, true)
-		mk(f, "PilarLuz", Vector3.new(2.2, 0.5, 2.2), CFrame.new(pp + Vector3.new(0, 9.6, 0)), tint, Enum.Material.Neon)
+		local pp = pos + Vector3.new(math.cos(a) * 11.5, 0, math.sin(a) * 11.5)
+		mk(f, "PilarBase", Vector3.new(3, 1.2, 3), CFrame.new(pp + Vector3.new(0, 1, 0)), dark2, Enum.Material.Marble, nil, true)
+		mk(f, "Pilar", Vector3.new(1.8, 9.5, 1.8), CFrame.new(pp + Vector3.new(0, 6.3, 0)), style.Dark, Enum.Material.Marble, nil, true)
+		mk(f, "PilarAnillo", Vector3.new(2.4, 0.35, 2.4), CFrame.new(pp + Vector3.new(0, 8.6, 0)), tint, Enum.Material.Neon)
+		mk(f, "PilarCapitel", Vector3.new(2.8, 0.9, 2.8), CFrame.new(pp + Vector3.new(0, 11.4, 0)), dark2, Enum.Material.Marble)
+		if fire then
+			local fl = mk(f, "Brasero", Vector3.new(1.6, 1.6, 1.6), CFrame.new(pp + Vector3.new(0, 12.5, 0)), tint, Enum.Material.Neon, Enum.PartType.Ball)
+			fl.Transparency = 0.5
+			local fi = Instance.new("Fire")
+			fi.Heat = 8
+			fi.Size = 5
+			fi.Color = Color3.fromRGB(255, 120, 50)
+			fi.SecondaryColor = Color3.fromRGB(200, 30, 30)
+			fi.Parent = fl
+			glow(fl, Color3.fromRGB(255, 110, 50), 18, 1)
+			fl:SetAttribute("FxPulse", 0.4)
+			CollectionService:AddTag(fl, "FxAnim")
+		else
+			local gem = mk(f, "PilarGema", Vector3.new(1.7, 1.7, 1.7), CFrame.new(pp + Vector3.new(0, 13.2, 0)) * CFrame.Angles(math.rad(45), math.rad(45), 0), tint, Enum.Material.Neon)
+			gem.Transparency = 0.15
+			fx(gem, { FxSpin = 80, FxBob = 0.45, FxBobSpeed = 2 + i * 0.3 })
+			glow(gem, tint, 12, 0.7)
+		end
 	end
 	return core, f:FindFirstChild("Pedestal") :: Part
 end
@@ -463,7 +680,7 @@ end
 local function buildOffering(l: Lane, root: Folder, pos: Vector3, idx: number?)
 	local style = FACTION_STYLE[l.Faction]
 	local tint = Color3.fromRGB(190, 120, 255)
-	local core, pedestal = altarBase(root, "AltarOfrenda_" .. l.Faction .. "_" .. l.Strip .. (if idx then "_" .. idx else ""), pos, style, tint, CampArt.Offering)
+	local core, pedestal = altarBase(root, "AltarOfrenda_" .. l.Faction .. "_" .. l.Strip .. (if idx then "_" .. idx else ""), pos, style, tint, CampArt.Offering, "ofrenda")
 	local O = LootTables.Offering
 	local rid, mid = LootTables.StripResource[l.Strip], LootTables.StripMaterial[l.Strip]
 	local rc, mc = O.ResourceCost[l.Strip], O.MaterialCost[l.Strip]
@@ -521,7 +738,7 @@ end
 local function buildChallenge(l: Lane, root: Folder, pos: Vector3, idx: number?)
 	local style = FACTION_STYLE[l.Faction]
 	local tint = Color3.fromRGB(255, 80, 70)
-	local core, pedestal = altarBase(root, "AltarDesafio_" .. l.Faction .. "_" .. l.Strip .. (if idx then "_" .. idx else ""), pos, style, tint, CampArt.Challenge)
+	local core, pedestal = altarBase(root, "AltarDesafio_" .. l.Faction .. "_" .. l.Strip .. (if idx then "_" .. idx else ""), pos, style, tint, CampArt.Challenge, "desafio")
 	local X = LootTables.Challenge
 	label(core, "ALTAR DE DESAFÍO", tint, 5, UDim2.fromOffset(260, 36))
 	local state = { Busy = false, CooldownUntil = 0 }
@@ -806,16 +1023,65 @@ local function buildMiniLair(l: Lane, root: Folder, pos: Vector3): MiniSpot
 	local f = Instance.new("Folder")
 	f.Name = "Guarida_" .. l.Faction .. "_" .. l.Strip
 	f.Parent = root
-	cyl(f, "Guarida", 22, 0.4, pos + Vector3.new(0, 0.2, 0), Color3.fromRGB(34, 26, 28), Enum.Material.Slate, false)
-	cyl(f, "GuaridaAro", 23, 0.3, pos + Vector3.new(0, 0.15, 0), Color3.fromRGB(255, 70, 60), Enum.Material.Neon, false)
-	for i = 1, 3 do -- tres estacas con luz roja
-		local a = i * math.pi * 2 / 3
-		local pp = pos + Vector3.new(math.cos(a) * 11.5, 0, math.sin(a) * 11.5)
-		mk(f, "Estaca", Vector3.new(1.1, 8, 1.1), CFrame.new(pp + Vector3.new(0, 4, 0)), Color3.fromRGB(60, 48, 46), Enum.Material.Wood, nil, true)
-		local top = mk(f, "EstacaLuz", Vector3.new(1.6, 1.6, 1.6), CFrame.new(pp + Vector3.new(0, 8.4, 0)), Color3.fromRGB(255, 70, 60), Enum.Material.Neon, Enum.PartType.Ball)
-		glow(top, Color3.fromRGB(255, 70, 60), 14, 0.9)
+	local RED = Color3.fromRGB(255, 70, 60)
+	local OBS = Color3.fromRGB(34, 26, 30)
+	cyl(f, "Guarida", 28, 0.4, pos + Vector3.new(0, 0.2, 0), OBS, Enum.Material.Slate, false)
+	local aro = cyl(f, "GuaridaAro", 29.2, 0.3, pos + Vector3.new(0, 0.15, 0), RED, Enum.Material.Neon, false)
+	fx(aro, { FxFade = 0.2 })
+	local aroF = cyl(f, "GuaridaAroFaccion", 30.4, 0.2, pos + Vector3.new(0, 0.1, 0), style.Accent, Enum.Material.Neon, false)
+	aroF.Transparency = 0.4
+	local r1 = cyl(f, "GuaridaSello1", 20, 0.12, pos + Vector3.new(0, 0.46, 0), RED, Enum.Material.Neon, false)
+	r1.Transparency = 0.55
+	local r2 = cyl(f, "GuaridaSello2", 19.2, 0.14, pos + Vector3.new(0, 0.48, 0), OBS, Enum.Material.Slate, false)
+	r2.Transparency = 0
+	-- sello giratorio: 4 barras cruzadas que forman 8 rayos
+	for k = 0, 3 do
+		local bar = mk(f, "GuaridaRayo", Vector3.new(0.5, 0.1, 17), CFrame.new(pos + Vector3.new(0, 0.58, 0)) * CFrame.Angles(0, math.rad(k * 45), 0), RED, Enum.Material.Neon)
+		bar.Transparency = 0.35
+		fx(bar, { FxSpin = 14 })
 	end
-	local _ = style
+	for k = 0, 5 do -- cuentas rojas que orbitan al ras del suelo
+		local b = mk(f, "GuaridaCuenta", Vector3.new(0.9, 0.9, 0.9), CFrame.new(pos), RED, Enum.Material.Neon, Enum.PartType.Ball)
+		fx(b, { FxCenter = pos, FxOrbitR = 9.4, FxOrbitSpeed = -30, FxOrbitPhase = k * 60, FxOrbitY = 0.9, FxBob = 0.25, FxBobSpeed = 2.4 })
+	end
+	-- garras de obsidiana alrededor (6), tres con fuego
+	for i = 1, 6 do
+		local a = i * math.pi / 3
+		local dirOut = Vector3.new(math.cos(a), 0, math.sin(a))
+		local base = pos + dirOut * 13.4
+		local claw = mk(f, "Garra", Vector3.new(1.5, 11, 1.5), CFrame.new(base + Vector3.new(0, 5, 0) + dirOut * 0.9) * CFrame.Angles(math.sin(a) * math.rad(14), 0, -math.cos(a) * math.rad(14)), Color3.fromRGB(44, 36, 42), Enum.Material.Basalt, nil, true)
+		local tip = mk(f, "GarraPunta", Vector3.new(1.1, 1.1, 1.1), CFrame.new(base + Vector3.new(0, 10.3, 0) + dirOut * 2.2), RED, Enum.Material.Neon, Enum.PartType.Ball)
+		tip.Transparency = 0.2
+		mk(f, "GarraVeta", Vector3.new(0.25, 6, 0.25), claw.CFrame * CFrame.new(0, 0, -0.78), RED, Enum.Material.Neon).Transparency = 0.3
+		if i % 2 == 1 then
+			local fi = Instance.new("Fire")
+			fi.Heat = 9
+			fi.Size = 6
+			fi.Color = Color3.fromRGB(255, 90, 40)
+			fi.SecondaryColor = Color3.fromRGB(120, 10, 20)
+			fi.Parent = tip
+			glow(tip, RED, 16, 1)
+			tip:SetAttribute("FxPulse", 0.5)
+			CollectionService:AddTag(tip, "FxAnim")
+		end
+	end
+	-- brasas que suben y bruma roja baja
+	local em = mk(f, "GuaridaBrasas", Vector3.new(24, 1, 24), CFrame.new(pos + Vector3.new(0, 0.8, 0)), RED, Enum.Material.SmoothPlastic)
+	em.Transparency = 1
+	sparks(em, Color3.fromRGB(255, 120, 60), 12, 3.2, 5, 0.6, 3)
+	local mist = Instance.new("ParticleEmitter")
+	mist.Color = ColorSequence.new(Color3.fromRGB(150, 20, 30))
+	mist.LightEmission = 0.4
+	mist.Rate = 3
+	mist.Lifetime = NumberRange.new(4, 6)
+	mist.Speed = NumberRange.new(0.5, 1.2)
+	mist.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 5), NumberSequenceKeypoint.new(1, 11) })
+	mist.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(0.5, 0.88), NumberSequenceKeypoint.new(1, 1) })
+	mist.Acceleration = Vector3.new(0, 0.6, 0)
+	mist.Parent = em
+	glow(em, RED, 28, 0.9)
+	em:SetAttribute("FxPulse", 0.35)
+	CollectionService:AddTag(em, "FxAnim")
 	return { Lane = l, Pos = pos, Model = nil, RespawnAt = 0, Key = l.Faction .. "_" .. l.Strip }
 end
 
