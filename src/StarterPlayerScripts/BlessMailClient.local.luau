@@ -67,7 +67,7 @@ end
 local letter = button(gui, "✉ CARTA", LETTER_POS, UDim2.fromOffset(84, 28), ACCENT)
 letter.TextSize = 12
 letter.TextColor3 = Color3.fromRGB(40, 28, 6)
-letter.Visible = false
+letter.Visible = true -- siempre visible (se atenúa cuando no hay cartas)
 
 -- ventana
 local win = Instance.new("Frame")
@@ -135,9 +135,16 @@ local function render()
 			house = dec
 		end
 	end
-	letter.Visible = #data > 0 or house ~= nil
-	if #data == 0 and not house then
-		win.Visible = false
+	local hasMail = #data > 0 or house ~= nil
+	letter.Visible = true
+	letter.BackgroundColor3 = if hasMail then ACCENT else PANEL
+	letter.TextColor3 = if hasMail then Color3.fromRGB(40, 28, 6) else GREY
+	letter.Text = if hasMail then "✉ CARTA" else "✉ sin cartas"
+	if not hasMail then
+		intro.Text = "No tienes cartas por ahora. Aquí te avisamos de bendiciones por reclamar y recordatorios de tu Casa VIP."
+		intro.Size = UDim2.new(1, -32, 0, 48)
+		list.Position = UDim2.fromOffset(16, 94)
+		win.Size = UDim2.fromOffset(440, 110)
 		return
 	end
 	intro.Text = if #data > 0

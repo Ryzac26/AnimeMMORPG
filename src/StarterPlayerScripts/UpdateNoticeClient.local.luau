@@ -6,11 +6,14 @@
       · Versión nueva sin reinicio: "Hay una versión nueva del juego".
     El botón "Cambiar de servidor" guarda tu progreso y te manda a un servidor con la versión nueva (lo hace UpdateNotice en el servidor).
     Lee los atributos de Workspace: UpdateRestartAt (hora del reinicio, segundos), UpdateMsg (mensaje opcional) y UpdateNewVersion (true).
-    Ajustes: BAR_POS (posición de la franja).
+    El mensaje que escribes al programar el reinicio se desplaza como un LETRERO (marquesina) de forma continua hasta que se completa el cambio;
+    el texto fijo (cuenta atrás) queda a la izquierda y el botón "Cambiar de servidor" a la derecha.
+    Ajustes: BAR_POS (posición de la franja), BAR_WIDTH (ancho), SCROLL_SPEED (píxeles/seg) y SCROLL_DIR (-1 = el texto avanza hacia la izquierda, 1 = hacia la derecha).
     IMPORTANTE: está en la lista RELOAD de UIReloadClient.
 ]]
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local switchR = ClientNet.Get("UpdateSwitch")
@@ -19,6 +22,9 @@ if not switchR then
 end
 
 local BAR_POS = UDim2.new(0.5, 0, 0, 6) -- arriba al centro
+local BAR_WIDTH = 680
+local SCROLL_SPEED = 70
+local SCROLL_DIR = -1
 local BG, TXT = Color3.fromRGB(28, 30, 44), Color3.fromRGB(235, 235, 240)
 local WARN, OK = Color3.fromRGB(235, 175, 60), Color3.fromRGB(60, 150, 80)
 
@@ -31,7 +37,7 @@ gui.Parent = player:WaitForChild("PlayerGui", 10)
 local bar = Instance.new("Frame")
 bar.AnchorPoint = Vector2.new(0.5, 0)
 bar.Position = BAR_POS
-bar.Size = UDim2.fromOffset(520, 30)
+bar.Size = UDim2.fromOffset(BAR_WIDTH, 30)
 bar.BackgroundColor3 = BG
 bar.BackgroundTransparency = 0.12
 bar.Visible = false
@@ -45,16 +51,37 @@ stroke.Thickness = 1
 stroke.Transparency = 0.2
 stroke.Parent = bar
 
+-- texto fijo (izquierda)
 local msg = Instance.new("TextLabel")
 msg.BackgroundTransparency = 1
 msg.Position = UDim2.fromOffset(10, 0)
-msg.Size = UDim2.new(1, -190, 1, 0)
-msg.Font = Enum.Font.GothamMedium
+msg.Size = UDim2.new(0, 0, 1, 0)
+msg.AutomaticSize = Enum.AutomaticSize.X
+msg.Font = Enum.Font.GothamBold
 msg.TextSize = 12
 msg.TextColor3 = TXT
 msg.TextXAlignment = Enum.TextXAlignment.Left
-msg.TextTruncate = Enum.TextTruncate.AtEnd
 msg.Parent = bar
+
+-- letrero que se desplaza (mensaje de la descripción)
+local tickerClip = Instance.new("Frame")
+tickerClip.BackgroundTransparency = 1
+tickerClip.ClipsDescendants = true
+tickerClip.Position = UDim2.fromOffset(10, 0)
+tickerClip.Size = UDim2.new(1, -190, 1, 0)
+tickerClip.Parent = bar
+local ticker = Instance.new("TextLabel")
+ticker.BackgroundTransparency = 1
+ticker.Size = UDim2.new(0, 0, 1, 0)
+ticker.AutomaticSize = Enum.AutomaticSize.X
+ticker.Font = Enum.Font.GothamMedium
+ticker.TextSize = 12
+ticker.TextColor3 = TXT
+ticker.TextXAlignment = Enum.TextXAlignment.Left
+ticker.Text = ""
+ticker.Parent = tickerClip
+local tickerX = 0
+local tickerText = ""
 
 local go = Instance.new("TextButton")
 go.Text = "Cambiar de servidor"
@@ -113,12 +140,45 @@ local function refresh()
 	end
 	bar.Visible = true
 	local extra = Workspace:GetAttribute("UpdateMsg")
+	local fixed, scroll
 	if left then
-		msg.Text = string.format("⚠ Actualización: el servidor se reinicia en %s%s", fmt(left), if typeof(extra) == "string" and extra ~= "" then " · " .. extra else "")
+		fixed = string.format("⚠ Actualización: el servidor se reinicia en %s", fmt(left))
+		scroll = if typeof(extra) == "string" then extra else ""
 	else
-		msg.Text = "⚠ Hay una versión nueva del juego: cambia de servidor para actualizar"
+		fixed = "⚠ Hay una versión nueva del juego: cambia de servidor para actualizar"
+		scroll = ""
+	end
+	msg.Text = fixed
+	-- el letrero ocupa el espacio que deja el texto fijo
+	local used = if scroll ~= "" then msg.AbsoluteSize.X + 18 else 0
+	tickerClip.Position = UDim2.fromOffset(10 + used, 0)
+	tickerClip.Size = UDim2.new(1, -(190 + used), 1, 0)
+	if scroll ~= tickerText then
+		tickerText = scroll
+		ticker.Text = scroll
+		tickerX = tickerClip.AbsoluteSize.X
 	end
 end
+
+-- animación continua del letrero (solo se mueve si no cabe; si cabe, queda fijo)
+RunService.RenderStepped:Connect(function(dt)
+	if not bar.Visible or tickerText == "" then
+		return
+	end
+	local w = ticker.AbsoluteSize.X
+	local area = tickerClip.AbsoluteSize.X
+	if w <= area then
+		ticker.Position = UDim2.fromOffset(0, 0)
+		return
+	end
+	tickerX += SCROLL_DIR * SCROLL_SPEED * dt
+	if SCROLL_DIR < 0 and tickerX < -w then
+		tickerX = area
+	elseif SCROLL_DIR > 0 and tickerX > area then
+		tickerX = -w
+	end
+	ticker.Position = UDim2.fromOffset(math.floor(tickerX), 0)
+end)
 
 go.Activated:Connect(function()
 	go.Active = false

@@ -35,7 +35,7 @@ pcall(function()
 		Workspace:SetAttribute("UpdateRestartAt", ts)
 		local m = ""
 		if typeof(attributes) == "table" and typeof(attributes.message) == "string" then
-			m = string.sub(attributes.message, 1, 80)
+			m = string.sub(attributes.message, 1, 400) -- el cartel lo desplaza como letrero (marquesina), así que cabe un mensaje largo
 		end
 		Workspace:SetAttribute("UpdateMsg", m)
 	end)
