@@ -12,6 +12,9 @@
 local Workspace = game:GetService("Workspace")
 local CollectionService = game:GetService("CollectionService")
 
+-- false = no dibuja el sendero, los charcos ni las grietas planos (los reemplazan los parches de FloorSkins, con borde suave)
+local FLAT_DETAILS = false
+
 local MAP_NAME = "Map_WC3_Style"
 local BIOME_FACTION: { [string]: string } = {
 	Imperio_Saiyan = "Saiyan",
@@ -263,7 +266,7 @@ local function buildLane(l: Lane, root: Folder)
 	end
 
 	-- sendero: tramos que serpentean por el centro de la franja
-	do
+	if FLAT_DETAILS then
 		local step = 34
 		local u = l.U0 + 30
 		local pathCol = th.PathCol or l.FloorCol:Lerp(Color3.new(1, 1, 1), 0.15)
@@ -279,7 +282,7 @@ local function buildLane(l: Lane, root: Folder)
 	end
 
 	-- charcos
-	for _ = 1, th.Puddle or 0 do
+	for _ = 1, if FLAT_DETAILS then (th.Puddle or 0) else 0 do
 		local p = randomSpot()
 		if p then
 			local d = 5 + rng:NextNumber() * 9
@@ -291,7 +294,7 @@ local function buildLane(l: Lane, root: Folder)
 	end
 
 	-- grietas (dos o tres tramos finos, a veces ramificados)
-	for _ = 1, th.Crack or 0 do
+	for _ = 1, if FLAT_DETAILS then (th.Crack or 0) else 0 do
 		local p = randomSpot()
 		if p then
 			local yaw = rng:NextNumber() * math.pi

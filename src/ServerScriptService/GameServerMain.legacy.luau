@@ -8,7 +8,6 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local Services = ServerScriptService:WaitForChild("Services")
 
 require(Services:WaitForChild("Net"))
-require(Services:WaitForChild("LightDimmer")) -- baja el brillo de todas las luces del mundo (antorchas, focos...)
 require(Services:WaitForChild("PlayerData")) -- perfil único de cada jugador (nivel, clase, inventario): debe cargar antes que los servicios que lo usan
 require(Services:WaitForChild("PlayerDefaults"))
 require(Services:WaitForChild("ClassSelectService")) -- pantalla de selección de facción/rol
@@ -47,7 +46,6 @@ require(Services:WaitForChild("MasteryService")) -- maestría de rol + pase Mult
 require(Services:WaitForChild("AlquimistaService")) -- alquimista de cada ciudad: fabrica pociones y desmonta equipo
 require(Services:WaitForChild("Mobs"):WaitForChild("MobService"))
 require(Services:WaitForChild("DevCommands"))
-require(Services:WaitForChild("AdminTagService")) -- cartel de administrador sobre la cabeza
 require(Services:WaitForChild("AbilityService")) -- habilidades 3 y 4
 require(Services:WaitForChild("MetinService")) -- piedras Metin del evento de la Arena
 require(Services:WaitForChild("BossService")) -- jefe mundial (cada 6 h)
@@ -58,6 +56,7 @@ require(Services:WaitForChild("ArenaStyler")) -- Arena: campamentos, altares, sa
 require(Services:WaitForChild("BiomeStyler")) -- biomas PvE de las 4 franjas de cada facción (suelo, muros, ríos, árboles, escenografía)
 require(Services:WaitForChild("PveZoneService")) -- campamentos, altares de ofrenda y desafío, cofres, mini jefes y recolección de las 16 franjas
 require(Services:WaitForChild("BiomeDetails")) -- detalles de suelo (senderos, charcos, grietas, flores) y partículas de ambiente por franja
+require(Services:WaitForChild("FloorSkins")) -- pisos con textura nueva, parches de vida y ciudad a ras (usa los ids de FloorSkins)
 require(Services:WaitForChild("BiomeLandmarks")) -- hitos temáticos: un monumento grande por franja (16)
 require(Services:WaitForChild("DamageRankService")) -- ranking de daño en pantalla para jefes, mini jefes y Metin
 require(Services:WaitForChild("PetPowerService")) -- poderes de las mascotas Épicas, Legendarias y Míticas
