@@ -23,6 +23,12 @@ local CONFIG = {
 	MAX_PARCHES = 230,    -- tope por franja (cuida el rendimiento)
 	SOMBRA_GIRO = 0,      -- 0..3: cuartos de giro de la imagen de la sombra (si el degradado sale a lo largo del muro, prueba 1)
 	SOMBRA_ANCHO = 11,    -- studs de ancho de la sombra
+	PORTAL_ALTURA = 1.4,  -- studs sobre el piso a los que flota el disco del portal de la Casa VIP
+}
+-- Suelos con demasiado brillo: se les pone material mate, sin reflejo y la textura más oscura (color 255 = sin cambio)
+local MATE = {
+	Pirate_2 = { Material = Enum.Material.Ground, Tint = Color3.fromRGB(176, 170, 160), Dark = 0.82 },
+	Pirate_3 = { Material = Enum.Material.Concrete, Tint = Color3.fromRGB(150, 150, 150), Dark = 0.62 },
 }
 -- ==================================================
 
@@ -127,6 +133,13 @@ local function styleSlices(map)
 					tex.Face = Enum.NormalId.Top
 					tex.StudsPerTileU = CONFIG.TILE
 					tex.StudsPerTileV = CONFIG.TILE
+					local m = MATE[f .. "_" .. idx]
+					if m then
+						tex.Color3 = m.Tint
+						d.Material = m.Material
+						d.Reflectance = 0
+						d.Color = d.Color:Lerp(Color3.new(0, 0, 0), 1 - m.Dark)
+					end
 					tex.Parent = d
 					n += 1
 				end
@@ -326,6 +339,44 @@ end
 ---------------------------------------------------------------------
 -- Construcción
 ---------------------------------------------------------------------
+-- el disco del portal de la Casa VIP y el buzón quedan siempre por encima del piso nuevo
+local function fixPortals(map)
+	local plazas = {}
+	for _, d in ipairs(map:GetDescendants()) do
+		if d:IsA("BasePart") and d.Name == "Plaza_Central" then
+			table.insert(plazas, d)
+		end
+	end
+	for _, pad in ipairs(Workspace:GetChildren()) do
+		if pad:IsA("BasePart") and string.sub(pad.Name, 1, 14) == "Portal_CasaVIP" then
+			local best, bd = nil, math.huge
+			for _, pl in ipairs(plazas) do
+				local dd = (Vector3.new(pl.Position.X, 0, pl.Position.Z) - Vector3.new(pad.Position.X, 0, pad.Position.Z)).Magnitude
+				if dd < bd then
+					best, bd = pl, dd
+				end
+			end
+			if best then
+				local floorY = best.Position.Y + 0.18
+				pad.Position = Vector3.new(pad.Position.X, floorY + CONFIG.PORTAL_ALTURA, pad.Position.Z)
+				pad.Transparency = 0.15
+				if not pad:FindFirstChild("PilarLuz") then
+					local col = Instance.new("Part")
+					col.Name = "PilarLuz"
+					col.Anchored, col.CanCollide, col.CanQuery, col.CanTouch = true, false, false, false
+					col.Shape = Enum.PartType.Cylinder
+					col.Size = Vector3.new(45, 6, 6)
+					col.CFrame = CFrame.new(pad.Position + Vector3.new(0, 22, 0)) * CFrame.Angles(0, 0, math.rad(90))
+					col.Material = Enum.Material.Neon
+					col.Color = pad.Color
+					col.Transparency = 0.88
+					col.Parent = pad
+				end
+			end
+		end
+	end
+end
+
 local function build()
 	token += 1
 	local mine = token
@@ -351,6 +402,7 @@ local function build()
 		print(ok and ("[FloorSkins] Losas con textura nueva: " .. tostring(res)) or ("[FloorSkins] Error en suelos: " .. tostring(res)))
 	end
 	task.wait()
+	pcall(fixPortals, map)
 	if CONFIG.CIUDAD then
 		local ok, err = pcall(styleCities, map, root)
 		if not ok then
