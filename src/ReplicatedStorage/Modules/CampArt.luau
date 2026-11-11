@@ -19,6 +19,35 @@ CampArt.Banner = {
 CampArt.Offering = 139103928079391
 CampArt.Challenge = 113550601702883
 
+-- Pisos por facción (ids internos: Saiyan = Élite, Shinobi = Sigilo, Pirate = Navegantes, Shinigami = Espíritu)
+CampArt.ChallengeBy = {
+	Saiyan = 114060024819183,
+	Shinobi = 77005661763122,
+	Pirate = 88542187738575,
+	Shinigami = 103361731175843,
+} :: { [string]: number }
+
+CampArt.OfferingBy = {
+	Saiyan = 72913801447497,
+	Shinobi = 113032366075115,
+	Pirate = 86771055023130,
+	Shinigami = 135419579369633,
+} :: { [string]: number }
+
+CampArt.LairBy = {
+	Saiyan = 84205605810822,
+	Shinobi = 111932742162922,
+	Pirate = 93459341364315,
+	Shinigami = 123696782073952,
+} :: { [string]: number }
+
+CampArt.Relic = {
+	Saiyan = 77222847810004,
+	Shinobi = 76446975031284,
+	Pirate = 77324702578075,
+	Shinigami = 132756055954027,
+} :: { [string]: number }
+
 function CampArt.Url(id: number): string
 	return "rbxassetid://" .. tostring(id)
 end
