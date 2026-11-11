@@ -5,6 +5,7 @@
       FxSpin (grados/s, gira sobre el eje vertical)         FxBob (altura) + FxBobSpeed (rad/s)
       FxCenter (Vector3) + FxOrbitR + FxOrbitSpeed (grados/s) + FxOrbitPhase (grados) + FxOrbitY  -> órbita horizontal
       FxPulse (0-1): la luz de la pieza late      FxFade (0-1): la transparencia late
+      FxFlicker (0-1): los carteles hijos llamados "Llama*" parpadean (alto/ancho/vaivén), como una llama viva
     Solo se anima lo que está cerca de la cámara.
 ]]
 local CollectionService = game:GetService("CollectionService")
@@ -13,14 +14,22 @@ local RunService = game:GetService("RunService")
 local TAG = "FxAnim"
 local RANGE = 200
 
-type State = { Base: CFrame, Rot: CFrame, Light: PointLight?, LightBase: number, TrBase: number }
+type Flame = { Gui: BillboardGui, W: number, H: number, Seed: number }
+type State = { Base: CFrame, Rot: CFrame, Light: PointLight?, LightBase: number, TrBase: number, Flames: { Flame } }
 
 local items: { [BasePart]: State } = {}
 
 local function add(inst: Instance)
 	if inst:IsA("BasePart") and not items[inst] then
 		local light = inst:FindFirstChildOfClass("PointLight")
+		local flames: { Flame } = {}
+		for _, c in ipairs(inst:GetChildren()) do
+			if c:IsA("BillboardGui") and string.sub(c.Name, 1, 5) == "Llama" then
+				table.insert(flames, { Gui = c, W = c.Size.X.Scale, H = c.Size.Y.Scale, Seed = #flames * 1.7 + 0.3 })
+			end
+		end
 		items[inst] = {
+			Flames = flames,
 			Base = inst.CFrame,
 			Rot = inst.CFrame - inst.CFrame.Position,
 			Light = light,
@@ -77,6 +86,16 @@ RunService.RenderStepped:Connect(function()
 			local pulse = p:GetAttribute("FxPulse")
 			if typeof(pulse) == "number" and st.Light then
 				st.Light.Brightness = st.LightBase * (1 + pulse * (0.6 * math.sin(t * 3.1 + pos.X) + 0.4 * math.sin(t * 7.7 + pos.Z)))
+			end
+			local flick = p:GetAttribute("FxFlicker")
+			if typeof(flick) == "number" then
+				for _, fl in ipairs(st.Flames) do
+					local n1 = math.sin(t * 9 + fl.Seed * 3) * 0.6 + math.sin(t * 17.3 + fl.Seed) * 0.4
+					local n2 = math.sin(t * 7.1 + fl.Seed * 2) * 0.6 + math.sin(t * 13.7 + fl.Seed * 5) * 0.4
+					local h = fl.H * (1 + flick * 0.16 * n1)
+					fl.Gui.Size = UDim2.fromScale(fl.W * (1 - flick * 0.07 * n1), h)
+					fl.Gui.StudsOffset = Vector3.new(flick * 0.12 * n2, h / 2 - 0.35, 0)
+				end
 			end
 			local fade = p:GetAttribute("FxFade")
 			if typeof(fade) == "number" then

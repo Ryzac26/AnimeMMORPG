@@ -48,6 +48,63 @@ CampArt.Relic = {
 	Shinigami = 132756055954027,
 } :: { [string]: number }
 
+-- Hogar (vista cenital) y llama por facción
+CampArt.Hearth = {
+	Saiyan = 135691991467116,
+	Shinobi = 122260954056106,
+	Pirate = 115589975035953,
+	Shinigami = 104325521302643,
+} :: { [string]: number }
+
+CampArt.Flame = {
+	Saiyan = 120221897863132,
+	Shinobi = 115538646183004,
+	Pirate = 73427640739662,
+	Shinigami = 72789104006465,
+} :: { [string]: number }
+
+-- Recursos de recolección: Resource[franja][facción] (1 Hierba, 2 Cristal, 3 Reliquia, 4 Corazón)
+CampArt.Resource = {
+	[1] = { Saiyan = 110585183357194, Shinobi = 101822301184594, Pirate = 108101137779597, Shinigami = 130571979764195 },
+	[2] = { Saiyan = 105364803322871, Shinobi = 94289319316592, Pirate = 126927589316890, Shinigami = 113772040919847 },
+	[3] = { Saiyan = 90309293163369, Shinobi = 100655358017786, Pirate = 82830954876186, Shinigami = 125757343308460 },
+	[4] = { Saiyan = 96759312369690, Shinobi = 71093963992296, Pirate = 123714734167748, Shinigami = 127593663323556 },
+} :: { [number]: { [string]: number } }
+
+CampArt.ChestClosed = {
+	Saiyan = 73986397361886,
+	Shinobi = 104149369881928,
+	Pirate = 122911078357778,
+	Shinigami = 82768405433805,
+} :: { [string]: number }
+
+CampArt.ChestOpen = {
+	Saiyan = 135608020019575,
+	Shinobi = 125046799802555,
+	Pirate = 140112137877157,
+	Shinigami = 80644514381660,
+} :: { [string]: number }
+
+-- Cartel que mira siempre a la cámara (w x h en studs); su base queda a offY sobre la pieza
+function CampArt.Sprite(p: BasePart, name: string, id: number, w: number, h: number, offY: number, maxDist: number?): BillboardGui
+	local bb = Instance.new("BillboardGui")
+	bb.Name = name
+	bb.Size = UDim2.fromScale(w, h)
+	bb.StudsOffset = Vector3.new(0, offY, 0)
+	bb.AlwaysOnTop = false
+	bb.LightInfluence = 0.35
+	bb.MaxDistance = maxDist or 150
+	bb.Adornee = p
+	local im = Instance.new("ImageLabel")
+	im.Name = "Img"
+	im.BackgroundTransparency = 1
+	im.Size = UDim2.fromScale(1, 1)
+	im.Image = CampArt.Url(id)
+	im.Parent = bb
+	bb.Parent = p
+	return bb
+end
+
 function CampArt.Url(id: number): string
 	return "rbxassetid://" .. tostring(id)
 end
@@ -62,12 +119,12 @@ function CampArt.Decal(p: BasePart, face: Enum.NormalId, id: number, name: strin
 end
 
 -- Imagen con fondo transparente sobre una pieza invisible (SurfaceGui)
-function CampArt.Panel(p: BasePart, face: Enum.NormalId, id: number, name: string?)
+function CampArt.Panel(p: BasePart, face: Enum.NormalId, id: number, name: string?, pixelsPerStud: number?)
 	local g = Instance.new("SurfaceGui")
 	g.Name = name or "Panel"
 	g.Face = face
 	g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	g.PixelsPerStud = 60
+	g.PixelsPerStud = pixelsPerStud or 60
 	g.LightInfluence = 0.6
 	g.Parent = p
 	local im = Instance.new("ImageLabel")
