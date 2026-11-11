@@ -4,12 +4,12 @@
     Interfaz de CELULAR / TABLET (solo si Platform.IsMobile(): pantalla táctil sin teclado). En la PC no hace nada.
     Para probarla en Studio: Workspace > atributo ForceMobileUI (booleano) = true  (o el emulador de dispositivos).
 
-    Distribución (pantalla horizontal, referencia 844x390; se escala sola):
-      Arriba izq.   retrato, nivel, barras de vida / energía / XP        (el grupo de PartyClient queda debajo)
-      Arriba centro 4 menús: Personaje · Mochila · Grupo · AutoFarm (pulsación larga = modos de AutoFarm), y debajo el objetivo
-      Arriba der.   chip de arena/evento + vidas  (el cuadro de Boost de BoostClient queda debajo, pequeño)
-      Izq. abajo    joystick de Roblox (libre)
-      Der. abajo    salto de Roblox; habilidad 1 grande; 2-4 en arco; 5-7 en una fila pequeña; AUTO y "siguiente objetivo" a la izquierda
+    Distribución (pantalla horizontal, referencia 844x380; se escala sola). Arriba a la izquierda queda libre: ahí Roblox pone su menú.
+      Arriba centro  retrato con nivel + barras de vida / energía / XP, y debajo el objetivo
+      Arriba der.    Perfil · Mochila · Grupo · Misiones · Menú (el Menú trae todo lo demás y los modos de AutoFarm), y debajo el chip de arena/evento
+      Izq. abajo     joystick de Roblox (libre)
+      Abajo centro   Montura · FARM (AutoFarm) · AUTO (auto-ataque) · OBJ (siguiente objetivo)
+      Der. abajo     salto de Roblox; habilidad 1 grande; 2-4 en arco interior; 5-7 en arco exterior
     Toca un enemigo para marcarlo. Si usas una habilidad sin objetivo, marca solo al enemigo más cercano (apuntado automático).
     Cada botón hace lo mismo que su tecla de PC (1-7 / Q / C / B / P / Z) hablando con los mismos remotes que HudClient.
 ]]
@@ -33,6 +33,7 @@ local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local PortraitKit = require(script.Parent:WaitForChild("PortraitKit", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
+local AbilityIcons = require(Modules:WaitForChild("AbilityIcons", 10))
 
 local DealDamageEvent = ClientNet.Get("DealDamageEvent")
 local AutoAttackRemote = ClientNet.Get("AutoAttack")
@@ -52,7 +53,7 @@ gui.Name = "MobileGui"
 gui.ResetOnSpawn = false
 gui.DisplayOrder = 5
 gui.IgnoreGuiInset = false
-gui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets -- respeta la barra superior de Roblox (menú/chat) y las muescas
+gui.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets -- solo respeta muescas / barra de gestos: arriba al centro y a la derecha Roblox no pone nada, y su menú queda arriba a la izquierda (zona libre)
 gui.Parent = player:WaitForChild("PlayerGui", 10)
 
 local stage = Instance.new("Frame")
@@ -82,55 +83,63 @@ local function round(inst: Instance, r: number?)
 	c.Parent = inst
 end
 
--- botón redondo anclado a la esquina inferior derecha (ox, oy = desplazamiento del CENTRO respecto al salto de Roblox)
+-- botón redondo anclado a la esquina inferior derecha (ox, oy = desplazamiento del CENTRO respecto al centro de la rueda de habilidades;
+-- la rueda queda a WHEEL_X px del borde derecho y WHEEL_Y px del inferior, alejada del salto de Roblox)
+local WHEEL_X, WHEEL_Y = 150, 142
 local function cornerButton(ox: number, oy: number, size: number, border: Color3, text: string): TextButton
 	local b = Instance.new("TextButton")
 	b.AnchorPoint = Vector2.new(0.5, 0.5)
-	b.Position = UDim2.new(1, -64 + ox, 1, -60 + oy)
+	b.Position = UDim2.new(1, -WHEEL_X + ox, 1, -WHEEL_Y + oy)
 	b.Size = UDim2.fromOffset(size, size)
 	b.BackgroundColor3 = theme.Dark
 	b.BackgroundTransparency = 0.12
 	b.AutoButtonColor = false
 	b.Text = text
 	b.Font = UITheme.Font
-	b.TextSize = if size >= 60 then 18 else 15
+	b.TextSize = if size >= 60 then 18 elseif size >= 50 then 15 else 11
 	b.TextColor3 = Color3.new(1, 1, 1)
 	b.Parent = stage
 	round(b)
+	local gr = Instance.new("UIGradient") -- brillo suave arriba, más oscuro abajo
+	gr.Rotation = 90
+	gr.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(150, 150, 160))
+	gr.Parent = b
 	local st = Instance.new("UIStroke")
 	st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	st.Color = border
 	st.Thickness = if size >= 60 then 3 else 2
+	st.Transparency = 0.1
 	st.Parent = b
 	return b
 end
 
 local function squareButton(parent: Instance, icon: string, label: string, order: number): TextButton
 	local b = Instance.new("TextButton")
-	b.Size = UDim2.fromOffset(48, 48)
+	b.Size = UDim2.fromOffset(44, 44)
 	b.BackgroundColor3 = theme.Dark
 	b.BackgroundTransparency = 0.15
 	b.AutoButtonColor = false
 	b.Text = icon
 	b.Font = UITheme.Font
-	b.TextScaled = true
-	b.TextWrapped = true
+	b.TextSize = 11
+	b.TextWrapped = false
 	b.TextColor3 = Color3.new(1, 1, 1)
 	b.Parent = parent
 	b.Name = label
 	b.LayoutOrder = order
 	local pad = Instance.new("UIPadding")
-	pad.PaddingLeft, pad.PaddingRight, pad.PaddingTop, pad.PaddingBottom = UDim.new(0, 5), UDim.new(0, 5), UDim.new(0, 8), UDim.new(0, 8)
+	pad.PaddingLeft, pad.PaddingRight, pad.PaddingTop, pad.PaddingBottom = UDim.new(0, 2), UDim.new(0, 2), UDim.new(0, 2), UDim.new(0, 2)
 	pad.Parent = b
-	local tc = Instance.new("UITextSizeConstraint")
-	tc.MinTextSize = 8
-	tc.MaxTextSize = 13
-	tc.Parent = b
 	round(b, 12)
+	local gr = Instance.new("UIGradient")
+	gr.Rotation = 90
+	gr.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(150, 150, 160))
+	gr.Parent = b
 	local st = Instance.new("UIStroke")
 	st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	st.Color = theme.Primary
-	st.Thickness = 2
+	st.Thickness = 1.5
+	st.Transparency = 0.15
 	st.Parent = b
 	return b
 end
@@ -140,23 +149,36 @@ end
 ---------------------------------------------------------------------
 local topLeft = Instance.new("Frame")
 topLeft.BackgroundTransparency = 1
-topLeft.Position = UDim2.fromOffset(12, 6)
-topLeft.Size = UDim2.fromOffset(210, 62)
+topLeft.AnchorPoint = Vector2.new(0.5, 0)
+topLeft.Position = UDim2.new(0.5, 0, 0, 8)
+topLeft.Size = UDim2.fromOffset(300, 56)
 topLeft.Parent = stage
 
 pcall(function()
-	PortraitKit.Mount(topLeft, UDim2.fromOffset(0, 4), UDim2.fromOffset(54, 54), theme, class.CharacterName)
+	PortraitKit.Mount(topLeft, UDim2.fromOffset(0, 2), UDim2.fromOffset(52, 52), theme, class.CharacterName)
 end)
-local levelLabel = UITheme.Text(topLeft, "Nv. 1", 12, theme.Primary, UDim2.fromOffset(62, 0), UDim2.fromOffset(140, 14))
-local _, setHp = UITheme.Bar(topLeft, UDim2.fromOffset(62, 16), UDim2.fromOffset(132, 13), Color3.fromRGB(220, 60, 60), nil, 10, theme.Primary)
-local _, setEnergy = UITheme.Bar(topLeft, UDim2.fromOffset(62, 32), UDim2.fromOffset(132, 11), theme.ResourceColor, nil, 9, theme.Primary)
-local _, setXp = UITheme.Bar(topLeft, UDim2.fromOffset(62, 47), UDim2.fromOffset(132, 8), theme.Primary, nil, 8, theme.Primary)
+-- insignia con el nivel sobre el retrato
+local levelLabel = Instance.new("TextLabel")
+levelLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+levelLabel.Position = UDim2.fromOffset(40, 50)
+levelLabel.Size = UDim2.fromOffset(28, 16)
+levelLabel.BackgroundColor3 = theme.Primary
+levelLabel.Font = UITheme.Font
+levelLabel.TextSize = 11
+levelLabel.TextColor3 = Color3.fromRGB(16, 19, 26)
+levelLabel.Text = "1"
+levelLabel.ZIndex = 8
+levelLabel.Parent = topLeft
+round(levelLabel, 8)
+local _, setHp = UITheme.Bar(topLeft, UDim2.fromOffset(62, 2), UDim2.fromOffset(238, 18), Color3.fromRGB(220, 60, 60), nil, 11, theme.Primary)
+local _, setEnergy = UITheme.Bar(topLeft, UDim2.fromOffset(62, 23), UDim2.fromOffset(238, 14), theme.ResourceColor, nil, 10, theme.Primary)
+local _, setXp = UITheme.Bar(topLeft, UDim2.fromOffset(62, 40), UDim2.fromOffset(238, 6), theme.Primary, nil, 8, theme.Primary)
 
 local ClientXp = ClientNet.Get("XPChanged")
 if ClientXp then
 	ClientXp.OnClientEvent:Connect(function(level: any, xp: any, need: any)
 		if typeof(level) == "number" and typeof(xp) == "number" and typeof(need) == "number" then
-			levelLabel.Text = string.format("Nv. %d  %s", level, class.Role)
+			levelLabel.Text = tostring(level)
 			if need == math.huge then
 				setXp(1, 1)
 			else
@@ -169,54 +191,42 @@ end
 ---------------------------------------------------------------------
 -- ARRIBA CENTRO: botón MENÚ (3 líneas) + AutoFarm rápido. El menú desplegable trae TODA la barra de la PC.
 ---------------------------------------------------------------------
-local menuRow = Instance.new("Frame")
-menuRow.BackgroundTransparency = 1
-menuRow.AnchorPoint = Vector2.new(0.5, 0)
-menuRow.Position = UDim2.new(0.5, 0, 0, 8)
-menuRow.Size = UDim2.fromOffset(170, 46)
-menuRow.Parent = stage
-local menuLayout = Instance.new("UIListLayout")
-menuLayout.SortOrder = Enum.SortOrder.LayoutOrder
-menuLayout.FillDirection = Enum.FillDirection.Horizontal
-menuLayout.Padding = UDim.new(0, 12)
-menuLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-menuLayout.Parent = menuRow
-
-local bMenu = squareButton(menuRow, "", "Menu", 1)
-bMenu.Size = UDim2.fromOffset(96, 46)
-for k = 0, 2 do -- las 3 líneas
-	local bar = Instance.new("Frame")
-	bar.Position = UDim2.fromOffset(14, 13 + k * 8)
-	bar.Size = UDim2.fromOffset(22, 3)
-	bar.BackgroundColor3 = Color3.new(1, 1, 1)
-	bar.BorderSizePixel = 0
-	bar.Parent = bMenu
-	round(bar)
-end
-local menuText = Instance.new("TextLabel")
-menuText.BackgroundTransparency = 1
-menuText.Position = UDim2.fromOffset(42, 0)
-menuText.Size = UDim2.new(1, -46, 1, 0)
-menuText.Font = UITheme.Font
-menuText.TextSize = 14
-menuText.TextColor3 = Color3.new(1, 1, 1)
-menuText.Text = "MENÚ"
-menuText.Parent = bMenu
-
-local bFarm = squareButton(menuRow, "AUTO FARM", "AutoFarm", 2)
-bFarm.Size = UDim2.fromOffset(54, 46)
 local autoFarmRemote = ClientNet.Get("AutoFarm")
 local function farmToggle()
 	if autoFarmRemote then
 		autoFarmRemote:FireServer("Set", player:GetAttribute("AutoFarm") ~= true, nil)
 	end
 end
-bFarm.Activated:Connect(farmToggle)
+
+local menuRow = Instance.new("Frame")
+menuRow.BackgroundTransparency = 1
+menuRow.AnchorPoint = Vector2.new(1, 0)
+menuRow.Position = UDim2.new(1, -12, 0, 8)
+menuRow.Size = UDim2.fromOffset(204, 44)
+menuRow.Parent = stage
+local menuLayout = Instance.new("UIListLayout")
+menuLayout.SortOrder = Enum.SortOrder.LayoutOrder
+menuLayout.FillDirection = Enum.FillDirection.Horizontal
+menuLayout.Padding = UDim.new(0, 8)
+menuLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+menuLayout.Parent = menuRow
+
+local bMenu = squareButton(menuRow, "", "Menu", 5)
+bMenu.BackgroundColor3 = theme.Secondary
+for k = 0, 2 do -- las 3 líneas
+	local bar = Instance.new("Frame")
+	bar.Position = UDim2.fromOffset(11, 13 + k * 8)
+	bar.Size = UDim2.fromOffset(22, 3)
+	bar.BackgroundColor3 = theme.Primary
+	bar.BorderSizePixel = 0
+	bar.Parent = bMenu
+	round(bar)
+end
 
 -- DESPLEGABLE
 local drawer = Instance.new("Frame")
-drawer.AnchorPoint = Vector2.new(0.5, 0)
-drawer.Position = UDim2.new(0.5, 0, 0, 60)
+drawer.AnchorPoint = Vector2.new(1, 0)
+drawer.Position = UDim2.new(1, -12, 0, 56)
 drawer.Size = UDim2.fromOffset(336, 292)
 drawer.BackgroundColor3 = theme.Dark
 drawer.BackgroundTransparency = 0.04
@@ -263,6 +273,14 @@ end
 bMenu.Activated:Connect(function()
 	setDrawer(not drawer.Visible)
 end)
+-- accesos directos (los mismos eventos que el menú)
+for i, it in ipairs({ { "Perfil", "Character" }, { "Grupo", "Party" }, { "Misiones", "Quests" } }) do
+	local b = squareButton(menuRow, it[1], it[1], i)
+	b.Activated:Connect(function()
+		setDrawer(false)
+		MenuBus.Fire(it[2])
+	end)
+end
 
 local titleToken = 0
 local function flashTitle(text: string)
@@ -388,12 +406,12 @@ farmHint.Parent = scroll
 ---------------------------------------------------------------------
 local eventChip = Instance.new("TextLabel")
 eventChip.AnchorPoint = Vector2.new(1, 0)
-eventChip.Position = UDim2.new(1, -12, 0, 10)
-eventChip.Size = UDim2.fromOffset(190, 28)
+eventChip.Position = UDim2.new(1, -12, 0, 56)
+eventChip.Size = UDim2.fromOffset(190, 26)
 eventChip.BackgroundColor3 = theme.Dark
 eventChip.BackgroundTransparency = 0.2
 eventChip.Font = UITheme.Font
-eventChip.TextSize = 12
+eventChip.TextSize = 11
 eventChip.TextColor3 = Color3.new(1, 1, 1)
 eventChip.Text = "Evento --"
 eventChip.Parent = stage
@@ -414,8 +432,8 @@ highlight.Parent = gui
 
 local targetPanel = Instance.new("Frame")
 targetPanel.AnchorPoint = Vector2.new(0.5, 0)
-targetPanel.Position = UDim2.new(0.5, 0, 0, 64)
-targetPanel.Size = UDim2.fromOffset(210, 46)
+targetPanel.Position = UDim2.new(0.5, 0, 0, 68)
+targetPanel.Size = UDim2.fromOffset(220, 46)
 targetPanel.BackgroundColor3 = theme.Dark
 targetPanel.BackgroundTransparency = 0.2
 targetPanel.Visible = false
@@ -596,8 +614,12 @@ local function makeSlot(i: number, ox: number, oy: number, size: number)
 	local border = if i == 1 then Color3.fromRGB(255, 210, 90) elseif skill then theme.Primary else Color3.fromRGB(95, 95, 110)
 	local shown = if skill then skill.Name else "—"
 	local b = cornerButton(ox, oy, size, border, "")
-	local num = UITheme.Text(b, tostring(i), 11, Color3.fromRGB(255, 255, 255), UDim2.fromOffset(6, 3), UDim2.fromOffset(14, 14))
-	num.ZIndex = 4
+	local num = UITheme.Text(b, tostring(i), 10, Color3.fromRGB(255, 255, 255), UDim2.fromOffset(2, 0), UDim2.fromOffset(16, 16), Enum.TextXAlignment.Center)
+	num.BackgroundTransparency = 0.25
+	num.BackgroundColor3 = Color3.fromRGB(10, 12, 20)
+	round(num)
+	num.ZIndex = 7
+	local art = AbilityIcons.Make(b, if i == 7 then "General/7" else class.CharacterName .. "/" .. i)
 	local ab = UITheme.Text(b, shown, 12, if skill then Color3.new(1, 1, 1) else Color3.fromRGB(120, 120, 135), UDim2.fromScale(0.1, 0.22), UDim2.fromScale(0.8, 0.62), Enum.TextXAlignment.Center)
 	ab.ZIndex = 3
 	ab.TextScaled = true
@@ -608,6 +630,14 @@ local function makeSlot(i: number, ox: number, oy: number, size: number)
 	sc.MinTextSize = 7
 	sc.MaxTextSize = if size >= 60 then 15 else 12
 	sc.Parent = ab
+	if art then -- icono del poder (proporción reducida, centrado); sin icono queda el nombre
+		art.AnchorPoint = Vector2.new(0.5, 0.5)
+		art.Position = UDim2.fromScale(0.5, 0.5)
+		art.Size = UDim2.fromScale(if i == 1 then 0.8 else 0.74, if i == 1 then 0.8 else 0.74)
+		art.ZIndex = 3
+		round(art)
+		ab.Visible = false
+	end
 	local cool = Instance.new("Frame")
 	cool.Size = UDim2.fromScale(1, 1)
 	cool.BackgroundColor3 = Color3.new(0, 0, 0)
@@ -628,17 +658,82 @@ local function makeSlot(i: number, ox: number, oy: number, size: number)
 end
 
 -- habilidad 1 grande (la principal), 2-4 en arco, 5-7 fila pequeña
-makeSlot(1, -54, -54, 76)
-makeSlot(2, -148, 0, 58)
-makeSlot(3, -105, -105, 58)
-makeSlot(4, 0, -148, 58)
-makeSlot(5, -118, -208, 44)
-makeSlot(6, -62, -208, 44)
-makeSlot(7, -6, -208, 44)
+makeSlot(1, 0, 0, 88)
+makeSlot(2, -86, 0, 54)
+makeSlot(3, -61, -61, 54)
+makeSlot(4, 0, -86, 54)
+makeSlot(5, -131, 54, 46)
+makeSlot(6, -131, -54, 46)
+makeSlot(7, -54, -131, 46)
+
+-- fila de accesos rápidos (abajo centro): Montura · FARM · AUTO · OBJ
+local mountRemote = ClientNet.Get("MountAction")
+local bMount = cornerButton(-375, 78, 46, Color3.fromRGB(235, 235, 240), "MONT")
+bMount.TextStrokeTransparency = 1
+bMount.Activated:Connect(function()
+	if mountRemote then
+		mountRemote:FireServer("Toggle") -- igual que la tecla de montura de la PC
+	end
+end)
+local bFarm = cornerButton(-321, 78, 46, theme.Primary, "FARM")
+bFarm.TextStrokeTransparency = 1
+bFarm.Activated:Connect(farmToggle)
+
+-- MODOS DE AUTOFARM a la vista (encima de FARM / AUTO): SEMI · METIN · BOSS. Un toque elige el modo sin apagar ni encender el farm.
+local farmModes = Instance.new("Frame")
+farmModes.AnchorPoint = Vector2.new(0.5, 1)
+farmModes.Position = UDim2.new(1, -444, 1, -95)
+farmModes.Size = UDim2.fromOffset(164, 40)
+farmModes.BackgroundTransparency = 1
+farmModes.Parent = stage
+local fmLayout = Instance.new("UIListLayout")
+fmLayout.FillDirection = Enum.FillDirection.Horizontal
+fmLayout.Padding = UDim.new(0, 4)
+fmLayout.SortOrder = Enum.SortOrder.LayoutOrder
+fmLayout.Parent = farmModes
+local modeChips: { [string]: TextButton } = {}
+for k, def in ipairs({ { "Semi", "SEMI" }, { "Metin", "METIN" }, { "Jefe", "BOSS" } }) do
+	local mode, label = def[1], def[2]
+	local chip = Instance.new("TextButton")
+	chip.LayoutOrder = k
+	chip.Size = UDim2.fromOffset(52, 40)
+	chip.BackgroundColor3 = theme.Dark
+	chip.BackgroundTransparency = 0.12
+	chip.AutoButtonColor = false
+	chip.Font = UITheme.Font
+	chip.TextSize = 11
+	chip.TextColor3 = Color3.new(1, 1, 1)
+	chip.Text = label
+	chip.Parent = farmModes
+	round(chip, 10)
+	local cst = Instance.new("UIStroke")
+	cst.Name = "Borde"
+	cst.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	cst.Color = theme.Primary
+	cst.Thickness = 1.5
+	cst.Transparency = 0.5
+	cst.Parent = chip
+	chip.Activated:Connect(function()
+		if autoFarmRemote then
+			autoFarmRemote:FireServer("Set", "keep", mode)
+		end
+	end)
+	modeChips[mode] = chip
+end
+local farmStatus = Instance.new("TextLabel")
+farmStatus.AnchorPoint = Vector2.new(0.5, 1)
+farmStatus.Position = UDim2.new(1, -444, 1, -138)
+farmStatus.Size = UDim2.fromOffset(190, 16)
+farmStatus.BackgroundTransparency = 1
+farmStatus.Font = UITheme.Font
+farmStatus.TextSize = 11
+farmStatus.TextColor3 = Color3.fromRGB(155, 240, 154)
+farmStatus.TextStrokeTransparency = 0.4
+farmStatus.Text = ""
+farmStatus.Parent = stage
 
 -- AUTO (activar/pausar auto-ataque, como la tecla Q) y siguiente objetivo
-local autoBtn = cornerButton(-232, 0, 50, Color3.fromRGB(111, 207, 106), "AUTO")
-autoBtn.TextSize = 12
+local autoBtn = cornerButton(-267, 78, 46, Color3.fromRGB(111, 207, 106), "AUTO")
 autoBtn.TextStrokeTransparency = 1
 autoBtn.Activated:Connect(function()
 	local had = aliveHum(target) ~= nil
@@ -647,7 +742,7 @@ autoBtn.Activated:Connect(function()
 		AutoAttackRemote:FireServer("Toggle") -- con objetivo: pausa / reanuda (como la tecla Q)
 	end
 end)
-local nextBtn = cornerButton(-232, -58, 50, Color3.fromRGB(235, 235, 240), "OBJ")
+local nextBtn = cornerButton(-213, 78, 46, Color3.fromRGB(235, 235, 240), "OBJ")
 nextBtn.TextScaled = true
 local nPad = Instance.new("UIPadding")
 nPad.PaddingLeft, nPad.PaddingRight = UDim.new(0, 5), UDim.new(0, 5)
@@ -665,6 +760,127 @@ nextBtn.Activated:Connect(function()
 	local idx = table.find(list, target :: any)
 	setTargetModel(list[((idx or 0) % #list) + 1])
 end)
+
+---------------------------------------------------------------------
+-- AJUSTES PARA CELULAR DE LO QUE DIBUJAN OTROS SCRIPTS
+--  1) Los botones flotantes de PC (REPORTAR, Maestría [N], Mercader [V], Carta) se guardan dentro del Menú.
+--  2) Toda ventana "Ventana" (NpcKit.Window) se encoge para caber en la pantalla y su X se agranda para el dedo.
+---------------------------------------------------------------------
+local otherTitle = Instance.new("TextLabel")
+otherTitle.LayoutOrder = 7
+otherTitle.BackgroundTransparency = 1
+otherTitle.Size = UDim2.new(1, -6, 0, 18)
+otherTitle.Font = UITheme.Font
+otherTitle.TextSize = 13
+otherTitle.TextColor3 = theme.Primary
+otherTitle.TextXAlignment = Enum.TextXAlignment.Left
+otherTitle.Text = "ACCESOS"
+otherTitle.ZIndex = 22
+otherTitle.Parent = scroll
+local otherGrid = Instance.new("Frame")
+otherGrid.LayoutOrder = 8
+otherGrid.BackgroundTransparency = 1
+otherGrid.Size = UDim2.new(1, -6, 0, 0)
+otherGrid.AutomaticSize = Enum.AutomaticSize.Y
+otherGrid.ZIndex = 21
+otherGrid.Parent = scroll
+local og = Instance.new("UIGridLayout")
+og.CellSize = UDim2.fromOffset(152, 40)
+og.CellPadding = UDim2.fromOffset(8, 6)
+og.SortOrder = Enum.SortOrder.LayoutOrder
+og.Parent = otherGrid
+
+local PC_BUTTONS = { "REPORTAR", "Maestría", "Mercader", "✉" }
+local function adopt(b: TextButton)
+	b.Parent = otherGrid
+	b.AnchorPoint = Vector2.zero
+	b.ZIndex = 22
+	b.TextSize = 13
+	b.Text = string.gsub(b.Text, "%s*%[%a%]", "")
+	for _, d in ipairs(b:GetDescendants()) do
+		if d:IsA("GuiObject") then
+			d.ZIndex = 23
+		end
+	end
+	b:GetPropertyChangedSignal("Parent"):Connect(function()
+		if b.Parent ~= otherGrid and b.Parent ~= nil then
+			b.Parent = otherGrid -- otro script lo movió: vuelve al Menú
+		end
+	end)
+	b:GetPropertyChangedSignal("AnchorPoint"):Connect(function()
+		b.AnchorPoint = Vector2.zero
+	end)
+end
+
+local playerGui = player:WaitForChild("PlayerGui", 10) :: PlayerGui
+local adopted: { [Instance]: boolean } = {}
+local function scanButtons()
+	for _, d in ipairs(playerGui:GetDescendants()) do
+		if d:IsA("TextButton") and not adopted[d] and d.Parent and d.Parent:IsA("ScreenGui") and d.Parent.Name ~= "MobileGui" then
+			for _, key in ipairs(PC_BUTTONS) do
+				if string.find(d.Text, key, 1, true) == 1 or (key ~= "✉" and string.find(d.Text, key, 1, true) and string.find(d.Text, "[", 1, true)) then
+					adopted[d] = true
+					adopt(d)
+					break
+				end
+			end
+		end
+	end
+end
+task.spawn(function()
+	for _ = 1, 40 do -- los demás scripts crean sus botones poco a poco
+		scanButtons()
+		task.wait(1)
+	end
+end)
+
+local function fitWindow(win: Frame)
+	if win:FindFirstChild("MovilEscala") or win.Size.X.Scale ~= 0 or win.Size.Y.Scale ~= 0 then
+		return
+	end
+	local sc = Instance.new("UIScale")
+	sc.Name = "MovilEscala"
+	sc.Parent = win
+	local close = win:FindFirstChild("Cerrar")
+	local function update()
+		local g = win:FindFirstAncestorOfClass("ScreenGui")
+		local view = if g and g.AbsoluteSize.X > 10 then g.AbsoluteSize else (Workspace.CurrentCamera :: Camera).ViewportSize
+		local w, h = win.Size.X.Offset, win.Size.Y.Offset
+		if w <= 0 or h <= 0 then
+			return
+		end
+		local k = math.clamp(math.min(1, (view.X - 24) / w, (view.Y - 16) / h), 0.3, 1)
+		sc.Scale = k
+		if close and close:IsA("GuiObject") then
+			local d = math.clamp(44 / k, 30, 80) -- la X siempre mide ~44 px en pantalla
+			close.AnchorPoint = Vector2.new(1, 0)
+			close.Size = UDim2.fromOffset(d, d)
+			close.Position = UDim2.new(1, -6, 0, 6)
+		end
+		if win.AnchorPoint ~= Vector2.new(0.5, 0.5) then
+			win.AnchorPoint = Vector2.new(0.5, 0.5)
+			win.Position = UDim2.fromScale(0.5, 0.5)
+		end
+	end
+	update()
+	win:GetPropertyChangedSignal("Size"):Connect(update)
+	local g = win:FindFirstAncestorOfClass("ScreenGui")
+	if g then
+		g:GetPropertyChangedSignal("AbsoluteSize"):Connect(update)
+	end
+end
+local function watchWindow(d: Instance)
+	if d:IsA("Frame") and d.Name == "Ventana" and d:FindFirstAncestor("MobileGui") == nil then
+		local nested = d.Parent and d.Parent:FindFirstAncestor("Ventana")
+		if not nested then
+			task.defer(fitWindow, d)
+		end
+	end
+end
+for _, d in ipairs(playerGui:GetDescendants()) do
+	watchWindow(d)
+end
+playerGui.DescendantAdded:Connect(watchWindow)
 
 ---------------------------------------------------------------------
 -- Actualización por frame
@@ -710,12 +926,26 @@ RunService.RenderStepped:Connect(function()
 	autoBtn.BackgroundColor3 = if autoOn then Color3.fromRGB(24, 60, 30) else theme.Dark
 	local farmOn = player:GetAttribute("AutoFarm") == true
 	bFarm.TextColor3 = if farmOn then Color3.fromRGB(155, 240, 154) else Color3.new(1, 1, 1)
+	bFarm.BackgroundColor3 = if farmOn then Color3.fromRGB(24, 60, 30) else theme.Dark
+	bMount.BackgroundColor3 = if player:GetAttribute("Mounted") == true then Color3.fromRGB(60, 50, 24) else theme.Dark
 	farmOnBtn.Text = if farmOn then "ON" else "OFF"
 	farmOnBtn.TextColor3 = if farmOn then Color3.fromRGB(155, 240, 154) else Color3.fromRGB(190, 190, 200)
 	local curMode = player:GetAttribute("AutoFarmMode")
 	for m, b in pairs(modeBtns) do
 		b.BackgroundColor3 = if m == curMode or (curMode == nil and m == "Semi") then theme.Secondary else Color3.fromRGB(30, 34, 54)
 	end
+	for m, chip in pairs(modeChips) do
+		local sel = m == curMode or (curMode == nil and m == "Semi")
+		chip.BackgroundColor3 = if sel then theme.Secondary else theme.Dark
+		chip.BackgroundTransparency = if sel then 0.02 else 0.18
+		chip.TextColor3 = if sel then Color3.new(1, 1, 1) else Color3.fromRGB(190, 192, 205)
+		local cs = chip:FindFirstChild("Borde")
+		if cs and cs:IsA("UIStroke") then
+			cs.Transparency = if sel then 0 else 0.55
+		end
+	end
+	local fst = player:GetAttribute("AutoFarmStatus")
+	farmStatus.Text = if farmOn then ((if typeof(curMode) == "string" then string.upper(curMode == "Jefe" and "BOSS" or curMode) else "SEMI") .. (if typeof(fst) == "string" and fst ~= "" then " · " .. fst else "")) else ""
 
 	local state = Workspace:GetAttribute("EventState")
 	local cd = Workspace:GetAttribute("EventCountdown")
@@ -736,13 +966,13 @@ end)
 player:GetAttributeChangedSignal("Level"):Connect(function()
 	local lvl = player:GetAttribute("Level")
 	if typeof(lvl) == "number" then
-		levelLabel.Text = string.format("Nv. %d  %s", lvl, class.Role)
+		levelLabel.Text = tostring(lvl)
 	end
 end)
 do
 	local lvl = player:GetAttribute("Level")
 	if typeof(lvl) == "number" then
-		levelLabel.Text = string.format("Nv. %d  %s", lvl, class.Role)
+		levelLabel.Text = tostring(lvl)
 	end
 	local sync = ClientNet.Get("RequestSync")
 	if sync then
