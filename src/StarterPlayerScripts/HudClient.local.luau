@@ -285,7 +285,7 @@ local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 local pal = NpcKit.Palette(theme)
 local MENU = {
-	{ "Perfil", "Perfil", "Character" }, { "Mochila", "Mochila", "Inventory" }, { "Tienda", "", "Tienda" }, { "Habilidades", "", "Skills" }, { "Misiones", "", "Quests" },
+	{ "Perfil", "Perfil", "Character" }, { "Tienda", "", "Tienda" }, { "Habilidades", "", "Skills" }, { "Misiones", "", "Quests" },
 	{ "Facción", "Faccion", "Guild" }, { "Mascota", "", "Pets" }, { "Talentos", "", "Talents" }, { "Monturas", "", "Mounts" }, { "Ajustes", "", "Settings" },
 }
 local BTN_W, BTN_H, GAP = 88, 30, 6

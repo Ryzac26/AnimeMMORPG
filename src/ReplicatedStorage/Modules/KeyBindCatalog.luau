@@ -10,8 +10,7 @@ local KeyBindCatalog = {}
 export type Action = { Id: string, Label: string, Default: string, Group: string, Short: string }
 
 KeyBindCatalog.Actions = {
-	{ Id = "Perfil", Label = "Perfil y mochila", Default = "C", Group = "Ventanas", Short = "Perfil" },
-	{ Id = "Mochila", Label = "Mochila", Default = "B", Group = "Ventanas", Short = "Mochila" },
+	{ Id = "Perfil", Label = "Perfil y mochila (unificados)", Default = "C", Group = "Ventanas", Short = "Perfil" },
 	{ Id = "Faccion", Label = "Facción (gremio)", Default = "G", Group = "Ventanas", Short = "Facción" },
 	{ Id = "Mercader", Label = "Mercader", Default = "V", Group = "Ventanas", Short = "Mercader" },
 	{ Id = "Maestria", Label = "Maestría de rol", Default = "N", Group = "Ventanas", Short = "Maestría" },

@@ -1,7 +1,7 @@
 --!strict
 --[[
     InventoryClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > InventoryClient
-    MOCHILA (tecla B). Cuadrícula de 5 columnas que CRECE sola: cuando llenas todas las casillas aparece otra fila.
+    MOCHILA (unida al Perfil, tecla C). Cuadrícula de 5 columnas que CRECE sola: cuando llenas todas las casillas aparece otra fila.
     Clic en un objeto = seleccionarlo (ver detalle abajo). Clic en otra casilla = mover/intercambiar.
     Botones: Equipar (si tiene ranura) y Tirar.
 ]]
@@ -554,7 +554,7 @@ _G.__bagRefresh = function()
 end
 BagDock.Register(win)
 
--- Tecla B y botón "Mochila": abren la ventana unida "Equipo y Mochila".
+-- La mochila va unida al Perfil (tecla C, ver KeyBindCatalog "Perfil"): ya no tiene tecla propia. Otros scripts pueden abrirla con MenuBus "Inventory".
 local lastToggle = 0
 local function toggle()
 	if os.clock() - lastToggle < 0.2 then
@@ -564,28 +564,9 @@ local function toggle()
 	MenuBus.Fire("Character")
 end
 
-local function bindBagKey()
-	ContextActionService:UnbindAction("ToggleInventory")
-	local code = KeyBinds.Get("Mochila")
-	if code then
-		ContextActionService:BindActionAtPriority("ToggleInventory", function(_, state)
-			if state == Enum.UserInputState.Begin then
-				toggle()
-			end
-			return Enum.ContextActionResult.Sink
-		end, false, Enum.ContextActionPriority.High.Value + 100, code)
-	end
-end
-bindBagKey()
-KeyBinds.Changed:Connect(function(id: string)
-	if id == "Mochila" then
-		bindBagKey()
-	end
-end)
-
 MenuBus.Event:Connect(function(name: string)
 	if name == "Inventory" then
 		toggle()
 	end
 end)
-print("[InventoryClient] listo (tecla B o botón Mochila abren Equipo y Mochila)")
+print("[InventoryClient] listo (la mochila se abre con Perfil [C])")

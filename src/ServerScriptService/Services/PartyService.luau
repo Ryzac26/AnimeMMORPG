@@ -1,7 +1,7 @@
 --!strict
 --[[
     PartyService (ModuleScript) -> ServerScriptService.Services.PartyService
-    Grupo (party) de hasta 5 jugadores DE LA MISMA FACCIÓN. El cliente muestra vida y energía en % de cada miembro.
+    Grupo (party) de hasta FactionBalance.Cap() jugadores (15 por defecto = el tope de una facción en el servidor) DE LA MISMA FACCIÓN, para que toda la facción pueda ir en un solo grupo (p. ej. en la Arena). El cliente muestra vida y energía en % de cada miembro.
     Remote "Party":
       cliente -> servidor: ("Invite", nombre) · ("Accept") · ("Decline") · ("Leave") · ("Kick", nombre)
       servidor -> cliente: ("State", { {Name, Hp, En, Leader} ... })  ·  ("Invite", nombreDeQuienInvita)  ·  ("Clear")
@@ -15,7 +15,10 @@ local EnergyRegenService = require(ServerScriptService.Services.EnergyRegenServi
 
 local Remote = Net.Get("Party")
 local Notify = Net.Get("Notify")
-local MAX = 5
+local FactionBalance = require(ServerScriptService.Services.FactionBalance)
+local function maxMembers(): number
+	return math.max(1, FactionBalance.Cap())
+end
 local INVITE_TTL = 30
 
 type Party = { Leader: Player, Members: { Player } }
@@ -112,7 +115,7 @@ Remote.OnServerEvent:Connect(function(player: Player, action: any, arg: any)
 			notify(player, "Solo el líder invita")
 			return
 		end
-		if party and #party.Members >= MAX then
+		if party and #party.Members >= maxMembers() then
 			notify(player, "El grupo está lleno")
 			return
 		end
@@ -130,7 +133,7 @@ Remote.OnServerEvent:Connect(function(player: Player, action: any, arg: any)
 			party = { Leader = inv.From, Members = { inv.From } }
 			partyOf[inv.From] = party
 		end
-		if #party.Members >= MAX then
+		if #party.Members >= maxMembers() then
 			notify(player, "El grupo está lleno")
 			return
 		end
@@ -185,5 +188,5 @@ function PartyService.SameParty(a: Player, b: Player): boolean
 	return partyOf[a] ~= nil and partyOf[a] == partyOf[b]
 end
 
-print("[PartyService] Listo: grupos de hasta 5 de la misma facción.")
+print("[PartyService] Listo: grupos de hasta el tope de facción (15) de la misma facción.")
 return PartyService

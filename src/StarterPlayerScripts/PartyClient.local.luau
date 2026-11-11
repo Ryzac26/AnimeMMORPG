@@ -75,10 +75,10 @@ local function button(parent: Instance, text: string, order: number, w: number):
 	return b
 end
 
-local function bar(parent: Instance, y: number, frac: number, color: Color3, text: string)
+local function bar(parent: Instance, y: number, frac: number, color: Color3, text: string, x: number?, w: number?, h: number?)
 	local back = Instance.new("Frame")
-	back.Position = UDim2.fromOffset(6, y)
-	back.Size = UDim2.new(1, -12, 0, 9)
+	back.Position = UDim2.fromOffset(x or 6, y)
+	back.Size = if w then UDim2.fromOffset(w, h or 9) else UDim2.new(1, -12, 0, h or 9)
 	back.BackgroundColor3 = Color3.fromRGB(10, 10, 14)
 	back.BorderSizePixel = 0
 	back.Parent = parent
@@ -89,8 +89,10 @@ local function bar(parent: Instance, y: number, frac: number, color: Color3, tex
 	fill.BorderSizePixel = 0
 	fill.Parent = back
 	Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 4)
-	local t = UITheme.Text(back, text, 8, Color3.new(1, 1, 1), UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
-	t.ZIndex = 3
+	if text ~= "" then
+		local t = UITheme.Text(back, text, 8, Color3.new(1, 1, 1), UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.TextXAlignment.Center)
+		t.ZIndex = 3
+	end
 end
 
 local function render()
@@ -104,18 +106,26 @@ local function render()
 	if not expanded then
 		return
 	end
+	local compact = #members > 5 -- grupos grandes (hasta 15): tarjetas de una sola línea para que quepan en pantalla
 	for i, m in ipairs(members) do
 		local card = Instance.new("Frame")
 		card.LayoutOrder = i
-		card.Size = UDim2.fromOffset(190, 46)
+		card.Size = UDim2.fromOffset(190, if compact then 24 else 46)
 		card.BackgroundColor3 = theme.Dark
 		card.BackgroundTransparency = 0.2
 		card.BorderSizePixel = 0
 		card.Parent = body
 		Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
-		UITheme.Text(card, (if m.Leader then "★ " else "") .. m.Name, 11, Color3.new(1, 1, 1), UDim2.fromOffset(6, 2), UDim2.new(1, -12, 0, 14))
-		bar(card, 18, m.Hp / 100, Color3.fromRGB(235, 80, 90), string.format("VIDA %d%%", m.Hp))
-		bar(card, 31, m.En / 100, theme.ResourceColor, string.format("%s %d%%", theme.Resource, m.En))
+		if compact then
+			local nm = UITheme.Text(card, (if m.Leader then "★ " else "") .. m.Name, 10, Color3.new(1, 1, 1), UDim2.fromOffset(6, 0), UDim2.fromOffset(88, 24))
+			nm.TextTruncate = Enum.TextTruncate.AtEnd
+			bar(card, 4, m.Hp / 100, Color3.fromRGB(235, 80, 90), "", 98, 86, 7)
+			bar(card, 13, m.En / 100, theme.ResourceColor, "", 98, 86, 7)
+		else
+			UITheme.Text(card, (if m.Leader then "★ " else "") .. m.Name, 11, Color3.new(1, 1, 1), UDim2.fromOffset(6, 2), UDim2.new(1, -12, 0, 14))
+			bar(card, 18, m.Hp / 100, Color3.fromRGB(235, 80, 90), string.format("VIDA %d%%", m.Hp))
+			bar(card, 31, m.En / 100, theme.ResourceColor, string.format("%s %d%%", theme.Resource, m.En))
+		end
 	end
 	local row = Instance.new("Frame")
 	row.LayoutOrder = 100

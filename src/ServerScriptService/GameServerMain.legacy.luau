@@ -8,6 +8,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local Services = ServerScriptService:WaitForChild("Services")
 
 require(Services:WaitForChild("Net"))
+require(Services:WaitForChild("LightDimmer")) -- baja el brillo de todas las luces del mundo (antorchas, focos...)
 require(Services:WaitForChild("PlayerData")) -- perfil único de cada jugador (nivel, clase, inventario): debe cargar antes que los servicios que lo usan
 require(Services:WaitForChild("PlayerDefaults"))
 require(Services:WaitForChild("ClassSelectService")) -- pantalla de selección de facción/rol

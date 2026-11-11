@@ -37,6 +37,8 @@ gui.Parent = player:WaitForChild("PlayerGui", 10)
 local win: Frame? = nil
 local state: any = nil
 local tab = "Baul"
+local vaultPage = 1 -- el baúl se muestra en páginas de 30 casillas (1 = casillas 1-30, 2 = 31-60)
+local VAULT_PAGE_SIZE = 30
 local hover: TextLabel? = nil
 
 local TABS_HOME = { { "Baul", "🧰 Baúl" }, { "Animals", "🐾 Animales" }, { "Decor", "🛋 Decorar" }, { "Guests", "👥 Invitados" }, { "Sub", "👑 Suscripción" } }
@@ -49,11 +51,12 @@ local function text(parent: Instance, t: string, size: number, color: Color3, po
 	return l
 end
 
-local function slotGrid(parent: Instance, theme: any, pal: any, list: { any }, count: number, cols: number, pos: UDim2, onClick: (any) -> ())
+local function slotGrid(parent: Instance, theme: any, pal: any, list: { any }, count: number, cols: number, pos: UDim2, onClick: (any) -> (), offset: number?)
 	local CELL, GAP = 52, 5
 	local bySlot: { [number]: any } = {}
+	local off = offset or 0 -- casillas anteriores a esta página (el servidor numera el baúl 1..60)
 	for _, e in ipairs(list) do
-		bySlot[e.Slot] = e
+		bySlot[e.Slot - off] = e
 	end
 	local panel = NpcKit.Panel(parent, theme, UDim2.fromOffset(cols * (CELL + GAP) + GAP, math.ceil(count / cols) * (CELL + GAP) + GAP), pos, "inset")
 	for i = 1, count do
@@ -291,9 +294,20 @@ build = function()
 	if tab == "Baul" then
 		text(w, string.format("BAÚL PRIVADO  %d / %d", #state.Vault, state.Cap), 13, pal.FText, UDim2.fromOffset(18, top), UDim2.fromOffset(300, 18))
 		text(w, "TU MOCHILA", 13, pal.FText, UDim2.fromOffset(402, top), UDim2.fromOffset(300, 18))
-		slotGrid(w, theme, pal, state.Vault, state.Cap, 6, UDim2.fromOffset(14, top + 24), function(e: any)
+		local pages = math.max(1, math.ceil(state.Cap / VAULT_PAGE_SIZE))
+		vaultPage = math.clamp(vaultPage, 1, pages)
+		if pages > 1 then
+			for pg = 1, pages do
+				NpcKit.Tab(w, theme, string.format("Baúl %d", pg), UDim2.fromOffset(86, 24), UDim2.fromOffset(176 + (pg - 1) * 92, top - 6), vaultPage == pg, function()
+					vaultPage = pg
+					build()
+				end)
+			end
+		end
+		local pageOff = (vaultPage - 1) * VAULT_PAGE_SIZE
+		slotGrid(w, theme, pal, state.Vault, math.min(VAULT_PAGE_SIZE, state.Cap - pageOff), 6, UDim2.fromOffset(14, top + 24), function(e: any)
 			actionRemote:FireServer("Withdraw", e.Slot)
-		end)
+		end, pageOff)
 		local cap = 0
 		for _, e in ipairs(state.Bag) do
 			cap = math.max(cap, e.Slot)
