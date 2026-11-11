@@ -61,6 +61,33 @@ local FALLBACK_TEXT: { [string]: string } = {
 local iconCache: { [string]: string | boolean } = {} -- clave -> "rbxassetid://..." | false (no tiene)
 local iconTargets: { [string]: { Image: ImageLabel, Fallback: TextLabel } } = {}
 
+-- PRECIO REAL por región: Roblox (precios administrados) devuelve en GetProductInfo el precio que paga ESTE jugador; se muestra ese
+-- y, mientras llega (o si falla), el del catálogo.
+local priceCache: { [string]: number } = {}
+local priceButtons: { [string]: { { Button: TextButton, Prefix: string, Fallback: string } } } = {}
+
+local function priceLabel(key: string, fallback: string): string
+	local n = priceCache[key]
+	return if n then string.format("%d R$", n) else fallback
+end
+
+local function trackPrice(key: string, button: TextButton, prefix: string, fallback: string)
+	local list = priceButtons[key]
+	if not list then
+		list = {}
+		priceButtons[key] = list
+	end
+	table.insert(list, { Button = button, Prefix = prefix, Fallback = fallback })
+end
+
+local function applyPrice(key: string)
+	for _, e in ipairs(priceButtons[key] or {}) do
+		if e.Button.Parent then
+			e.Button.Text = e.Prefix .. priceLabel(key, e.Fallback)
+		end
+	end
+end
+
 local function applyIcon(key: string)
 	local target = iconTargets[key]
 	local v = iconCache[key]
@@ -104,10 +131,12 @@ local function loadIcon(key: string, assetId: number, override: string?, infoTyp
 				break
 			end
 		end
-		if ok and typeof(info) == "table" and string.sub(key, 1, 5) == "pass_" then
-			-- DIAGNÓSTICO (pases): qué tipo respondió y qué dice Roblox del ID
-			local i: any = info
-			warn(string.format("[TiendaClient][diag] %s id=%d tipo=%s ProductType=%s AssetTypeId=%s IsForSale=%s Price=%s Nombre=%s", key, assetId, tostring(usedTp), tostring(i.ProductType), tostring(i.AssetTypeId), tostring(i.IsForSale), tostring(i.PriceInRobux), tostring(i.Name)))
+		if ok and typeof(info) == "table" then
+			local pr = (info :: any).PriceInRobux
+			if typeof(pr) == "number" and pr > 0 then
+				priceCache[key] = math.floor(pr)
+				applyPrice(key)
+			end
 		end
 		if ok and typeof(info) == "table" then
 			local id = (info :: any).IconImageAssetId
@@ -272,11 +301,12 @@ local function render()
 		local line = textLine(f, string.format("Hoy %d/%d%s", bought, p.DailyLimit, if why ~= "" then "  🔒 " .. why else ""), 10, if ok or chosen then pal.Muted else Color3.fromRGB(235, 120, 100), UDim2.fromOffset(6, 189), UDim2.new(1, -12, 0, 14))
 		line.TextTruncate = Enum.TextTruncate.AtEnd
 		local original, saved = ProductCatalog.Savings(p)
-		local buy = NpcKit.Button(f, theme, if ok then p.PriceText else "🔒 " .. p.PriceText, UDim2.new(1, -20, 0, 28), UDim2.fromOffset(10, 204), if ok then "buy" else "neutral", function()
+		local buy = NpcKit.Button(f, theme, (if ok then "" else "🔒 ") .. priceLabel(p.Key, p.PriceText), UDim2.new(1, -20, 0, 28), UDim2.fromOffset(10, 204), if ok then "buy" else "neutral", function()
 			if ok and actionRemote then
 				actionRemote:FireServer("Buy", p.Key)
 			end
 		end)
+		trackPrice(p.Key, buy, if ok then "" else "🔒 ", p.PriceText)
 		buy.AutoButtonColor = ok
 		if saved > 0 then
 			NpcKit.Chip(f, string.format("¡AHORRAS %d R$!", saved), Color3.fromRGB(255, 200, 60), UDim2.fromOffset(6, 5), UDim2.fromOffset(86, 16)).TextSize = 10
@@ -318,11 +348,15 @@ local function render()
 			local cl = UITheme.Text(f, string.format("🏠 Quedan %d de %d casas", capLeft, (workspace:GetAttribute("VipHousesCap") :: any) or 0), 12, if capLeft > 0 then Color3.fromRGB(255, 214, 110) else Color3.fromRGB(235, 120, 100), UDim2.fromOffset(14, 188), UDim2.new(1, -28, 0, 16))
 			cl.TextStrokeTransparency = 1
 		end
-		NpcKit.Button(f, theme, if has then "✔ ADQUIRIDO" else ps.PriceText, UDim2.new(1, -28, 0, 34), UDim2.fromOffset(14, 206), if has then "neutral" else "buy", function()
+		local pbtn = NpcKit.Button(f, theme, if has then "✔ ADQUIRIDO" else priceLabel("pass_" .. ps.Key, ps.PriceText), UDim2.new(1, -28, 0, 34), UDim2.fromOffset(14, 206), if has then "neutral" else "buy", function()
 			if not has and actionRemote then
 				actionRemote:FireServer("BuyPass", ps.Key)
 			end
-		end).AutoButtonColor = not has
+		end)
+		pbtn.AutoButtonColor = not has
+		if not has then
+			trackPrice("pass_" .. ps.Key, pbtn, "", ps.PriceText)
+		end
 	end
 
 	if activeTab == "Progreso" then
