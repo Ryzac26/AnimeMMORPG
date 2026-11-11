@@ -6,13 +6,13 @@
 ]]
 local AdminKit = {
 	Owner = {
-		Emblem = "rbxassetid://135960070031491",
-		Plate = "rbxassetid://137548616434672",
+		Emblem = "rbxassetid://125714792419536",
+		Plate = "rbxassetid://100998619677314",
 	},
 	Admin = {
-		Emblem = "rbxassetid://75097003559503",
-		Plate = "rbxassetid://77660131835674",
+		Emblem = "rbxassetid://137663216488654",
+		Plate = "rbxassetid://124858201449011",
 	},
-	Gold = "rbxassetid://115473985007123",
+	Gold = "rbxassetid://113888188971566",
 }
 return AdminKit
