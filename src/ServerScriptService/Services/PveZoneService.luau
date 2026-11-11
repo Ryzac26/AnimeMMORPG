@@ -1023,7 +1023,34 @@ local function buildNode(l: Lane, root: Folder, pos: Vector3, index: number)
 		if lgt then
 			lgt.Enabled = false
 		end
-		task.delay(G.RespawnSeconds, function()
+		-- REAPARICIÓN SEGÚN JUGADORES EN LA FRANJA: con 1 jugador tarda lo de siempre (RespawnSeconds); por cada jugador extra en la franja
+		-- avanza más rápido (PlayerSpeedup), hasta MaxSpeedup veces. Se recalcula cada segundo, así que si llegan más jugadores acelera.
+		-- (opcional: LootTables.Gathering.PlayerSpeedup / MaxSpeedup / MinSeconds para ajustarlo desde ahí)
+		local zoneKey = l.Faction .. "_" .. l.Strip
+		task.spawn(function()
+			local per = (G :: any).PlayerSpeedup or 0.6
+			local maxSpeed = (G :: any).MaxSpeedup or 8
+			local minSeconds = (G :: any).MinSeconds or 12
+			local progress = 0
+			local elapsed = 0
+			while f.Parent and progress < 1 do
+				task.wait(1)
+				elapsed += 1
+				local n = 0
+				for _, pl in ipairs(Players:GetPlayers()) do
+					if pl:GetAttribute("BiomeZone") == zoneKey then
+						n += 1
+					end
+				end
+				local speed = math.min(maxSpeed, 1 + math.max(0, n - 1) * per)
+				progress += speed / G.RespawnSeconds
+				if elapsed >= G.RespawnSeconds then
+					break -- nunca tarda más que antes
+				end
+				if elapsed < minSeconds and progress >= 1 then
+					progress = 0.999 -- tiempo mínimo para que no reaparezca al instante
+				end
+			end
 			if f.Parent then
 				for _, g in ipairs(sprites) do
 					g.Enabled = true
