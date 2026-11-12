@@ -43,7 +43,7 @@ local NotifyRemote = Net.Get("Notify")
 local TEST_SECONDS = 30
 local COOLDOWN = 2
 local REFRESH_SECONDS = 10 -- cada cuánto se revisan los tableros (en memoria: no gasta cuota de DataStore)
-local STORE_FETCH_SECONDS = 60 -- cada cuánto se vuelve a leer el DataStore (datos de OTROS servidores); límite de Roblox para GetSortedAsync
+local STORE_FETCH_SECONDS = 150 -- cada cuánto se vuelve a leer el DataStore (datos de OTROS servidores); GetSortedAsync tiene una cuota baja por minuto (5 + 2 por jugador)
 local LEVEL_FLUSH_SECONDS = 30 -- subida de nivel -> se guarda en el ranking global como máximo cada 30 s (solo si el nivel cambió)
 local TOP = 10
 local USE_DISTANCE = 16
@@ -70,6 +70,14 @@ local GOLD = c(240, 196, 90)
 local FACTION_TAG: { [string]: string } = { Saiyan = "FACCIÓN ÉLITE", Shinobi = "FACCIÓN SIGILO", Pirate = "FACCIÓN NAVEGANTES", Shinigami = "FACCIÓN ESPÍRITU" }
 
 local HallService = {}
+
+-- MODO FANTASMA: el Fundador no aparece en ningún ranking ni escribe en ellos (menos peticiones al DataStore). Lo decide GlobalRankService.
+local ghostOk, GhostRank = pcall(function()
+	return require(Services.GlobalRankService)
+end)
+local function isGhostId(userId: number): boolean
+	return ghostOk and (GhostRank :: any).IsGhostId(userId) == true
+end
 
 ---------------------------------------------------------------------
 -- DATOS: ranking global
@@ -158,7 +166,7 @@ local function merge(list: { Entry }, live: { [number]: number }): { Entry }
 	end
 	local arr: { Entry } = {}
 	for _, e in pairs(byId) do
-		if e.Value > 0 then
+		if e.Value > 0 and not isGhostId(e.UserId) then
 			table.insert(arr, e)
 		end
 	end
@@ -231,7 +239,7 @@ local function refreshFaction(faction: string)
 	local liveLevel: { [number]: number } = {}
 	local liveDmg: { [number]: number } = {}
 	for _, pl in ipairs(Players:GetPlayers()) do
-		if pl:GetAttribute("Faction") == faction then
+		if pl:GetAttribute("Faction") == faction and not isGhostId(pl.UserId) then
 			liveLevel[pl.UserId] = StatService.GetLevel(pl)
 			local b = best[pl]
 			if b and b > 0 then
@@ -276,6 +284,9 @@ local function refreshFaction(faction: string)
 end
 
 local function writeLevel(pl: Player)
+	if isGhostId(pl.UserId) then
+		return
+	end
 	local f = pl:GetAttribute("Faction")
 	local store = if typeof(f) == "string" then levelStores[f] else nil
 	if not store then
@@ -294,6 +305,9 @@ local function writeLevel(pl: Player)
 end
 
 local function writeDmg(pl: Player)
+	if isGhostId(pl.UserId) then
+		return
+	end
 	local f = pl:GetAttribute("Faction")
 	local store = if typeof(f) == "string" then dmgStores[f] else nil
 	local b = best[pl]
@@ -1007,7 +1021,7 @@ local function init(player: Player)
 		end
 		local f = player:GetAttribute("Faction")
 		local store = if typeof(f) == "string" then dmgStores[f] else nil
-		if store and player.Parent then
+		if store and player.Parent and not isGhostId(player.UserId) then
 			local ok, g = pcall(function()
 				return store:GetAsync(tostring(player.UserId))
 			end)

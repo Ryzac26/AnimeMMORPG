@@ -23,15 +23,21 @@ local StatService = require(Services.StatService)
 local TOP_N = 100
 local PAGE_ROWS = 10
 local PAGE_SECONDS = 7 -- cada cuánto cambia de página el cartel
-local TOP_FETCH_SECONDS = 120
-local DEEP_FETCH_SECONDS = 600
-local DEEP_PER_FACTION = 750 -- hasta qué puesto se mira en cada facción para calcular "tu puesto" (4 x 750 = 3000)
+local TOP_FETCH_SECONDS = 180
+local DEEP_FETCH_SECONDS = 900
+local DEEP_PER_FACTION = 300 -- hasta qué puesto se mira en cada facción para calcular "tu puesto" (4 x 300 = 1200); sube si hace falta, gasta más cuota de DataStore
+local PAGE_WAIT = 5 -- pausa entre lecturas del DataStore (cuota baja de GetSortedAsync)
 local ME_PUSH_SECONDS = 30
 local BOARD_TAG = "GlobalRankBoard"
 
 -- Posiciones fijas del cartel por facción (la ciudad de esa facción). Pega aquí lo que imprime /rankpos:
 --   SPOTS.Saiyan = CFrame.lookAt(Vector3.new(x, y, z), Vector3.new(x2, y, z2))
-local SPOTS: { [string]: CFrame? } = {}
+local SPOTS: { [string]: CFrame? } = {
+	Saiyan = CFrame.lookAt(Vector3.new(-145.9, 12.0, -1481.2), Vector3.new(-145.1, 12.0, -1481.8)),
+	Shinobi = CFrame.lookAt(Vector3.new(-1484.5, 12.0, 141.3), Vector3.new(-1485.0, 12.0, 140.5)),
+	Pirate = CFrame.lookAt(Vector3.new(1484.3, 12.0, -145.1), Vector3.new(1484.9, 12.0, -144.3)),
+	Shinigami = CFrame.lookAt(Vector3.new(159.0, 12.0, 1476.4), Vector3.new(158.2, 12.0, 1476.9)),
+}
 
 local FACTIONS = { "Saiyan", "Shinobi", "Pirate", "Shinigami" }
 local FACTION_NAME: { [string]: string } = { Saiyan = "Élite", Shinobi = "Sigilo", Pirate = "Navegantes", Shinigami = "Espíritu" }
@@ -45,6 +51,12 @@ local GOLD = Color3.fromRGB(240, 196, 90)
 local MEDAL = { Color3.fromRGB(255, 215, 90), Color3.fromRGB(214, 220, 232), Color3.fromRGB(214, 144, 96) }
 
 local GlobalRankService = {}
+
+-- MODO FANTASMA: el dueño del juego (Fundador) no cuenta en ningún ranking. Ponlo en false para volver a aparecer.
+local GHOST_OWNER = true
+function GlobalRankService.IsGhostId(userId: number): boolean
+	return GHOST_OWNER and game.CreatorType == Enum.CreatorType.User and game.CreatorId > 0 and userId == game.CreatorId
+end
 
 type Entry = { UserId: number, Name: string, Level: number, Faction: string }
 
@@ -103,13 +115,14 @@ local function fetchFaction(faction: string, pages: number): { Entry }
 		end
 		for _, item in ipairs(items :: any) do
 			local uid = tonumber(item.key)
-			if uid and typeof(item.value) == "number" and item.value > 0 then
+			if uid and typeof(item.value) == "number" and item.value > 0 and not GlobalRankService.IsGhostId(uid) then
 				table.insert(out, { UserId = uid, Name = "", Level = item.value, Faction = faction })
 			end
 		end
 		if (pageObj :: any).IsFinished or p == pages then
 			break
 		end
+		task.wait(PAGE_WAIT)
 		local okA = pcall(function()
 			(pageObj :: any):AdvanceToNextPageAsync()
 		end)
@@ -143,7 +156,7 @@ local function rebuild()
 	end
 	for _, pl in ipairs(Players:GetPlayers()) do
 		local f = pl:GetAttribute("Faction")
-		if typeof(f) == "string" and FACTION_NAME[f] and pl:GetAttribute("ClassChosen") ~= false then
+		if typeof(f) == "string" and FACTION_NAME[f] and pl:GetAttribute("ClassChosen") ~= false and not GlobalRankService.IsGhostId(pl.UserId) then
 			local lv = StatService.GetLevel(pl)
 			if lv > 0 then
 				byId[pl.UserId] = { UserId = pl.UserId, Name = pl.DisplayName, Level = lv, Faction = f }
@@ -177,6 +190,7 @@ local function myData(pl: Player): any
 	local rank = rankOf[pl.UserId]
 	local f = pl:GetAttribute("Faction")
 	return {
+		Ghost = GlobalRankService.IsGhostId(pl.UserId),
 		Rank = rank, -- nil = fuera de los puestos que se miden
 		Max = DEEP_PER_FACTION * #FACTIONS,
 		Level = StatService.GetLevel(pl),
@@ -382,7 +396,7 @@ local function fetchTop()
 		for _, e in ipairs(fetchFaction(f, 1)) do
 			table.insert(all, e)
 		end
-		task.wait(0.5)
+		task.wait(PAGE_WAIT)
 	end
 	if #all > 0 then
 		topCache = all
@@ -395,7 +409,7 @@ local function fetchDeep()
 		for _, e in ipairs(fetchFaction(f, math.ceil(DEEP_PER_FACTION / 100))) do
 			table.insert(all, e)
 		end
-		task.wait(1)
+		task.wait(PAGE_WAIT)
 	end
 	if #all > 0 then
 		deepCache = all
@@ -410,25 +424,19 @@ local function repaintAll()
 end
 
 task.spawn(function()
-	task.wait(5)
-	fetchTop()
-	repaintAll()
-	task.wait(15)
-	fetchDeep()
-	repaintAll()
-end)
-task.spawn(function()
+	task.wait(75) -- que no coincida con las lecturas de arranque del salón (cuota baja de GetSortedAsync)
 	while true do
-		task.wait(TOP_FETCH_SECONDS)
 		fetchTop()
 		repaintAll()
+		task.wait(TOP_FETCH_SECONDS)
 	end
 end)
 task.spawn(function()
+	task.wait(240)
 	while true do
-		task.wait(DEEP_FETCH_SECONDS)
 		fetchDeep()
 		repaintAll()
+		task.wait(DEEP_FETCH_SECONDS)
 	end
 end)
 -- páginas del cartel

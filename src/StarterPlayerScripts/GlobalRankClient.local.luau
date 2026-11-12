@@ -85,6 +85,9 @@ local function meLine(d: any): string
 	if not d then
 		return "Cargando tu puesto..."
 	end
+	if d.Ghost == true then
+		return "MODO FANTASMA · no apareces en los rankings"
+	end
 	local f = if typeof(d.Faction) == "string" then (FACTION_NAME[d.Faction] or d.Faction) else "-"
 	local lv = if typeof(d.Level) == "number" then d.Level else 0
 	if typeof(d.Rank) == "number" then
