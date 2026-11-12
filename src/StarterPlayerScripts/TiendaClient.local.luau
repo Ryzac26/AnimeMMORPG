@@ -267,7 +267,8 @@ local function render()
 		local info = if state then state.Items[p.Key] else nil
 		local bought = if info then info.Bought else 0
 		local ok = info ~= nil and info.Ok == true
-		local chosen = state ~= nil and state.Path == p.Key
+		local isWeekly = info ~= nil and info.WLimit ~= nil
+		local chosen = state ~= nil and (state.Path == p.Key or (isWeekly and state.WPath ~= nil and state.WPath == ProductCatalog.WeeklyKey(p)))
 		local accent = ACCENT[p.Kind] or theme.Primary
 		local f = NpcKit.Panel(scroll, theme, UDim2.fromOffset(170, 238), UDim2.fromOffset(0, 0), "card")
 		f.LayoutOrder = order
@@ -323,7 +324,7 @@ local function render()
 			old.TextStrokeTransparency = 1
 		end
 		if chosen then
-			NpcKit.Chip(f, "✔ ELEGIDO HOY", Color3.fromRGB(255, 212, 94), UDim2.new(1, -92, 0, 5), UDim2.fromOffset(86, 16)).TextSize = 10
+			NpcKit.Chip(f, if isWeekly then "✔ ELEGIDO SEMANA" else "✔ ELEGIDO HOY", Color3.fromRGB(255, 212, 94), UDim2.new(1, -92, 0, 5), UDim2.fromOffset(86, 16)).TextSize = 10
 		end
 	end
 

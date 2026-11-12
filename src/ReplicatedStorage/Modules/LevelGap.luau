@@ -16,6 +16,28 @@ local LevelGap = {}
 -- { brecha, multiplicador }. Orden ascendente por brecha.
 LevelGap.POINTS = { { 5, 1.0 }, { 10, 0.7 }, { 15, 0.4 }, { 20, 0.2 }, { 30, 0.07 }, { 40, 0.03 } } :: { { number } }
 
+-- XP POR FRANJA (solo XP): mientras tu nivel esté dentro de la franja del monstruo (o por debajo) ganas el 100 %. Al pasar el tope de la
+-- franja (750 / 1500 / 2250 / 3000) baja deprisa: { niveles equivalentes pasados del tope, multiplicador }. Se SUMA a la bajada natural
+-- de GameBalance.MobXp (la XP por kill ya depende de la vida del monstruo). La franja del monstruo = ceil(nivel / STRIP_LEVELS).
+LevelGap.STRIP_LEVELS = 750
+LevelGap.XP_POINTS = { { 0, 1.0 }, { 1, 0.5 }, { 3, 0.25 }, { 8, 0.1 }, { 25, 0.04 } } :: { { number } }
+
+function LevelGap.MultXp(playerLevel: number, mobLevel: number): number
+	local stripMax = math.ceil(math.max(mobLevel, 1) / LevelGap.STRIP_LEVELS) * LevelGap.STRIP_LEVELS
+	local over = GB.Eq(playerLevel) - GB.Eq(stripMax)
+	local pts = LevelGap.XP_POINTS
+	if over <= pts[1][1] then
+		return 1
+	end
+	for i = 2, #pts do
+		local a, b = pts[i - 1], pts[i]
+		if over <= b[1] then
+			return a[2] + (b[2] - a[2]) * (over - a[1]) / (b[1] - a[1])
+		end
+	end
+	return pts[#pts][2]
+end
+
 function LevelGap.Mult(playerLevel: number, mobLevel: number): number
 	local gap = GB.Eq(playerLevel) - GB.Eq(mobLevel) -- la brecha se mide en niveles equivalentes (escala vieja 1-100)
 	local pts = LevelGap.POINTS

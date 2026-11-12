@@ -53,6 +53,25 @@ GB.MOB_BASE_HIT = 47
 
 -- Progresión: ~1096 h totales = 365 días a 3 h/día
 GB.KILLS_PER_HOUR = 126 -- ritmo teórico, calibra la XP necesaria por nivel
+-- CALIBRACIÓN DE XP (nov 2026): los jugadores reales ganan MÁS XP por hora que el modelo (matan más rápido que 126 kills/h):
+--   nv.600: x6,1 · nv.1500: x2,87 · nv.3000: SIN MEDIR (x1,6 estimado). XpToNext se multiplica por este factor para que
+--   el tiempo real hasta el nivel 3000 sea el del diseño (~1.111 h). Un paquete de N horas sigue valiendo N horas reales.
+--   Si ves que se sube muy rápido/lento: cambia SOLO esta tabla (mide la XP/h a nv.2400+ y corrige el último punto).
+GB.XP_CALIB_POINTS = { { 600, 6.1 }, { 1500, 2.87 }, { 3000, 1.6 } } :: { { number } }
+function GB.XpCalib(level: number): number
+	local pts = GB.XP_CALIB_POINTS
+	if level <= pts[1][1] then
+		return pts[1][2]
+	end
+	for i = 2, #pts do
+		local a, b = pts[i - 1], pts[i]
+		if level <= b[1] then
+			local t = (math.log(level) - math.log(a[1])) / (math.log(b[1]) - math.log(a[1]))
+			return math.exp(math.log(a[2]) + t * (math.log(b[2]) - math.log(a[2])))
+		end
+	end
+	return pts[#pts][2]
+end
 GB.XP_PER_KILL_DIV = 10 -- XP por kill = vida del mob / 10
 GB.BOSS_HP_MULT = 120 -- (antiguo, ya no se usa para los élites de franja; queda por si se usa en jefes mundiales)
 -- ÉLITES DE FRANJA (los 12 jefes del catálogo): vida = vida de mob de su nivel × multiplicador de su franja.
@@ -134,7 +153,7 @@ function GB.XpToNext(level: number): number
 		return math.huge
 	end
 	local mobXp = GB.MobXp(level)
-	local fromCurve = GB.HoursForLevel(GB.Eq(level)) * GB.KILLS_PER_HOUR * mobXp / levelsPerOld(level)
+	local fromCurve = GB.HoursForLevel(GB.Eq(level)) * GB.KILLS_PER_HOUR * mobXp / levelsPerOld(level) * GB.XpCalib(level)
 	return math.max(math.floor(fromCurve), mobXp * GB.MIN_KILLS_PER_LEVEL)
 end
 

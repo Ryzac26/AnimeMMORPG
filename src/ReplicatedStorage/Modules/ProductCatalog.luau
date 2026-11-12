@@ -13,7 +13,8 @@
             siguiente (el elegido se puede repetir hasta su límite diario).
           · El BOOST de XP es independiente: se combina con cualquier paquete.
       - Por SEMANA (se reinicia el lunes 00:00 UTC = domingo 21:00 en Uruguay): Paquete de 8 h y Paquete de 12 h, WeeklyLimit compras
-          cada uno (se pueden comprar todas de golpe). El Combo Maratón comparte el cupo del Paquete de 8 h (WeeklyGroup). Piden un
+          (se pueden comprar todas de golpe). SE ELIGE UNO POR SEMANA: al comprar el de 8 h, el de 12 h queda bloqueado hasta la
+          semana siguiente y viceversa (Shop.WPath). El Combo Maratón comparte el cupo del Paquete de 8 h (WeeklyGroup). Piden un
           nivel mínimo (MinLevel) porque por debajo de ~1100 el tope de niveles por hora hace que rindan menos que su precio.
           Para que 8 h y 12 h compartan UN solo cupo de la semana: ponles el mismo WeeklyGroup (ej. "HorasSemana").
       - Boost de XP: +50% durante 4 h de juego (el tiempo solo corre con el jugador conectado; comprar más SUMA tiempo, nunca
@@ -107,12 +108,12 @@ ProductCatalog.Products = {
 	},
 	{
 		Key = "Horas8", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 249, Name = "Paquete de 8 horas",
-		Desc = "Recupera la XP de 8 horas de juego a tu nivel actual. Máximo 4 por semana.",
+		Desc = "Recupera la XP de 8 horas de juego. Máx. 4 por semana; si lo eliges, el de 12 h queda bloqueado esa semana.",
 		ProductId = 3730248943, PriceText = "249 R$", DailyLimit = 4, WeeklyLimit = 4, MinLevel = 1200, Hours = 8,
 	},
 	{
 		Key = "Horas12", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 349, Name = "Paquete de 12 horas",
-		Desc = "Recupera la XP de 12 horas de juego a tu nivel actual. Máximo 4 por semana.",
+		Desc = "Recupera la XP de 12 horas de juego. Máx. 4 por semana; si lo eliges, el de 8 h queda bloqueado esa semana.",
 		ProductId = 3730249078, PriceText = "349 R$", DailyLimit = 4, WeeklyLimit = 4, MinLevel = 1500, Hours = 12,
 	},
 	{
@@ -335,7 +336,7 @@ function ProductCatalog.HoursXp(GB: any, hours: number, level: number, currentXp
 	if level >= GB.MAX_LEVEL then
 		return 0, 0, false
 	end
-	local xp = hours * GB.KILLS_PER_HOUR * GB.MobXp(level) * ProductCatalog.RateFactor(level)
+	local xp = hours * GB.KILLS_PER_HOUR * GB.MobXp(level) * GB.XpCalib(level)
 	-- tope por compra: LEVELS_CAP_PER_HOUR niveles por cada hora del paquete (así 3 h < 5 h < 8 h < 12 h SIEMPRE, también
 	-- a niveles bajos donde jugar da muchos niveles por hora). Se mide desde el nivel actual; no depende de la XP ya ganada.
 	local r = hours * ProductCatalog.LEVELS_CAP_PER_HOUR
