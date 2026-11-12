@@ -264,6 +264,22 @@ local function buildGate(parent: Instance, base: CFrame, faction: string, s: num
 		art.CastShadow = false
 		CampArt.Panel(art, Enum.NormalId.Front, portalId, "Portal", 40 / s)
 		CampArt.Panel(art, Enum.NormalId.Back, portalId, "PortalDorso", 40 / s)
+		art:SetAttribute("FxRoll", 22)
+		CollectionService:AddTag(art, "FxAnim")
+		-- segunda capa más pequeña que gira al revés (una por cara, delante de la primera) para dar profundidad al remolino
+		for _, side in ipairs({ { Enum.NormalId.Front, -0.16 }, { Enum.NormalId.Back, 0.16 } }) do
+			local inner = pc(model, "ArteInterior", V(10, 10, 0.05), L(0, 9.6, side[2] :: number), pal.Glow, Enum.Material.SmoothPlastic)
+			inner.Transparency = 1
+			inner.CastShadow = false
+			CampArt.Panel(inner, side[1] :: Enum.NormalId, portalId, "PortalInterior", 40 / s)
+			local gui = inner:FindFirstChildOfClass("SurfaceGui")
+			local im = if gui then gui:FindFirstChildOfClass("ImageLabel") else nil
+			if im then
+				im.ImageTransparency = 0.4
+			end
+			inner:SetAttribute("FxRoll", -38)
+			CollectionService:AddTag(inner, "FxAnim")
+		end
 	else
 		fill.Transparency = 0.15
 	end

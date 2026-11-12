@@ -3,6 +3,7 @@
     FxAnimClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > FxAnimClient
     Anima en el cliente las piezas con tag "FxAnim" (altares, campamentos, guaridas). El servidor solo pone atributos:
       FxSpin (grados/s, gira sobre el eje vertical)         FxBob (altura) + FxBobSpeed (rad/s)
+      FxRoll (grados/s, gira sobre su propio eje frontal: remolinos de portales verticales)
       FxCenter (Vector3) + FxOrbitR + FxOrbitSpeed (grados/s) + FxOrbitPhase (grados) + FxOrbitY  -> órbita horizontal
       FxPulse (0-1): la luz de la pieza late      FxFade (0-1): la transparencia late
       FxFlicker (0-1): los carteles hijos llamados "Llama*" parpadean (alto/ancho/vaivén), como una llama viva
@@ -82,7 +83,9 @@ RunService.RenderStepped:Connect(function()
 				local bs = p:GetAttribute("FxBobSpeed")
 				pos += Vector3.new(0, math.sin(t * (if typeof(bs) == "number" then bs else 1.5) + pos.X * 0.07) * bob, 0)
 			end
-			p.CFrame = CFrame.new(pos) * CFrame.Angles(0, ang, 0) * st.Rot
+			local roll = p:GetAttribute("FxRoll")
+			local rollCF = if typeof(roll) == "number" then CFrame.Angles(0, 0, math.rad(roll) * t) else CFrame.identity
+			p.CFrame = CFrame.new(pos) * CFrame.Angles(0, ang, 0) * st.Rot * rollCF
 			local pulse = p:GetAttribute("FxPulse")
 			if typeof(pulse) == "number" and st.Light then
 				st.Light.Brightness = st.LightBase * (1 + pulse * (0.6 * math.sin(t * 3.1 + pos.X) + 0.4 * math.sin(t * 7.7 + pos.Z)))
