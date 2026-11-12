@@ -497,9 +497,22 @@ function HouseService.AddCityPortal(faction: string, pos: Vector3)
 	if portalId then
 		pad.Size = Vector3.new(0.5, 14, 14)
 		pad.Transparency = 1
-		CampArt.Panel(pad, Enum.NormalId.Right, portalId, "Portal", 40)
-		pad:SetAttribute("FxSpin", 14)
-		CollectionService:AddTag(pad, "FxAnim")
+		-- disco de imagen: bloque plano (se ve igual desde cualquier lado), un poco por encima del piso para que no lo tapen las losas
+		local disc = Instance.new("Part")
+		disc.Name = "PortalArte_" .. faction
+		disc.Anchored = true
+		disc.CanCollide = false
+		disc.CanQuery = false
+		disc.CanTouch = false
+		disc.CastShadow = false
+		disc.Transparency = 1
+		disc.Size = Vector3.new(14, 0.2, 14)
+		disc.CFrame = CFrame.new(pos + Vector3.new(0, 0.45, 0))
+		disc.Parent = Workspace
+		CampArt.Panel(disc, Enum.NormalId.Top, portalId, "Portal", 40)
+		CampArt.Panel(disc, Enum.NormalId.Bottom, portalId, "PortalDorso", 40)
+		disc:SetAttribute("FxSpin", 14)
+		CollectionService:AddTag(disc, "FxAnim")
 		local pl = Instance.new("PointLight")
 		pl.Color = Color3.fromRGB(255, 220, 150)
 		pl.Range = 26

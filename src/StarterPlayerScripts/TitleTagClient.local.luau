@@ -92,6 +92,10 @@ do
 		local OFFSET_Y = 6.2
 		local MAX_DISTANCE = 140
 		local TAG_NAME = "AdminPlaca"
+		local FULL_DIST = 14 -- hasta esta distancia de la cámara el cartel va a tamaño completo; más lejos se encoge (si no, tapa al personaje)
+		local MIN_SCALE = 0.32
+		local RunService = game:GetService("RunService")
+		local scales: { [UIScale]: BasePart } = {}
 
 		local function build(pl: Player, head: BasePart)
 			local entry = AdminList.Get(pl)
@@ -110,13 +114,25 @@ do
 			bb.ResetOnSpawn = false
 			bb.Parent = head
 
+			-- todo el cartel va dentro de un marco con UIScale para poder encogerlo según la distancia
+			local root = Instance.new("Frame")
+			root.Name = "Raiz"
+			root.BackgroundTransparency = 1
+			root.AnchorPoint = Vector2.new(0.5, 0.5)
+			root.Position = UDim2.fromScale(0.5, 0.5)
+			root.Size = UDim2.fromScale(1, 1)
+			root.Parent = bb
+			local us = Instance.new("UIScale")
+			us.Parent = root
+			scales[us] = head
+
 			local plate = Instance.new("ImageLabel")
 			plate.BackgroundTransparency = 1
 			plate.Image = kit.Plate
 			plate.Position = UDim2.fromOffset(34, 30)
 			plate.Size = UDim2.fromOffset(300, 75)
 			plate.ZIndex = 1
-			plate.Parent = bb
+			plate.Parent = root
 
 			local emblem = Instance.new("ImageLabel")
 			emblem.BackgroundTransparency = 1
@@ -124,7 +140,7 @@ do
 			emblem.Position = UDim2.fromOffset(0, 2)
 			emblem.Size = UDim2.fromOffset(94, 94)
 			emblem.ZIndex = 3
-			emblem.Parent = bb
+			emblem.Parent = root
 
 			local t = Instance.new("TextLabel")
 			t.BackgroundTransparency = 1
@@ -139,7 +155,7 @@ do
 			t.TextStrokeColor3 = Color3.fromRGB(20, 12, 4)
 			t.TextXAlignment = Enum.TextXAlignment.Left
 			t.ZIndex = 4
-			t.Parent = bb
+			t.Parent = root
 
 			local n = Instance.new("TextLabel")
 			n.BackgroundTransparency = 1
@@ -152,8 +168,24 @@ do
 			n.TextStrokeTransparency = 0.35
 			n.TextXAlignment = Enum.TextXAlignment.Left
 			n.ZIndex = 4
-			n.Parent = bb
+			n.Parent = root
 		end
+
+		RunService.RenderStepped:Connect(function()
+			local cam = workspace.CurrentCamera
+			if not cam then
+				return
+			end
+			local cp = cam.CFrame.Position
+			for us, head in pairs(scales) do
+				if us.Parent == nil or head.Parent == nil then
+					scales[us] = nil
+				else
+					local d = (head.Position - cp).Magnitude
+					us.Scale = math.clamp(FULL_DIST / math.max(d, 1), MIN_SCALE, 1)
+				end
+			end
+		end)
 
 		local function ensure(pl: Player)
 			if AdminList.Get(pl) == nil then -- la lista es la misma en cliente y servidor: no depende de atributos
