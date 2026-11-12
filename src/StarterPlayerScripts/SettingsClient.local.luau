@@ -63,7 +63,7 @@ local function build()
 	for _, sec in ipairs(SETTINGS) do
 		height += 28 + #sec.Items * 112
 	end
-	height += 28 + 74 + 28 + 134 + 14
+	height += 28 + 74 + 28 + 152 + 14
 	local w = NpcKit.Window(gui, theme, UDim2.fromOffset(W, height), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "Ajustes", "Se guardan en tu perfil", "⚙", function()
 		gui.Enabled = false
 	end)
@@ -131,8 +131,10 @@ local function build()
 	local head2 = UITheme.Text(w, "PERFIL Y TRANSPARENCIA", 13, pal.FText, UDim2.fromOffset(18, y), UDim2.fromOffset(W - 36, 18))
 	head2.TextStrokeTransparency = 1
 	y += 28
-	local card2 = NpcKit.Panel(w, theme, UDim2.fromOffset(W - 28, 134), UDim2.fromOffset(14, y), "card")
-	local hint2 = UITheme.Text(card2, "Árbol de talentos, hitos de nivel con auras y probabilidades reales. (Los títulos se eligen con el Mayordomo del Salón VIP.)", 11, pal.Muted, UDim2.fromOffset(12, 6), UDim2.new(1, -24, 0, 16))
+	local card2 = NpcKit.Panel(w, theme, UDim2.fromOffset(W - 28, 152), UDim2.fromOffset(14, y), "card")
+	local hint2 = UITheme.Text(card2, "Árbol de talentos, hitos de nivel con auras y probabilidades reales. (Los títulos se eligen con el Mayordomo del Salón VIP.)", 11, pal.Muted, UDim2.fromOffset(12, 6), UDim2.new(1, -24, 0, 32))
+	hint2.TextWrapped = true
+	hint2.TextYAlignment = Enum.TextYAlignment.Top
 	hint2.TextStrokeTransparency = 1
 	local bw2 = math.floor((W - 28 - 24 - 8) / 2)
 	local links = {
@@ -141,7 +143,7 @@ local function build()
 	for i, l in ipairs(links) do
 		local col, row = (i - 1) % 2, (i - 1) // 2
 		local bw = if i == #links and #links % 2 == 1 then bw2 * 2 + 8 else bw2
-		NpcKit.Button(card2, theme, l[1], UDim2.fromOffset(bw, 40), UDim2.fromOffset(12 + col * (bw2 + 8), 28 + row * 48), "action", function()
+		NpcKit.Button(card2, theme, l[1], UDim2.fromOffset(bw, 40), UDim2.fromOffset(12 + col * (bw2 + 8), 46 + row * 48), "action", function()
 			gui.Enabled = false
 			MenuBus.Fire(l[2])
 		end)
