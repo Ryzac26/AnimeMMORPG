@@ -37,6 +37,7 @@ require(Services:WaitForChild("MissionService")) -- misiones del Pabellón VIP (
 require(Services:WaitForChild("HouseService")) -- Casa VIP (Pabellón Imperial): portal, salón privado, baúl, invitados
 require(Services:WaitForChild("VipShopService")) -- Tienda VIP del Mes (Sellos Imperiales, solo cosméticos)
 require(Services:WaitForChild("TitleService")) -- títulos únicos (desbloqueo, equipado y cartel sobre la cabeza)
+require(Services:WaitForChild("AdminTagService")) -- título de fundador / etiquetas de administrador
 require(Services:WaitForChild("HallService")) -- Salón de Honor del Gremio: rankings globales por facción y maniquíes
 require(Services:WaitForChild("LevelLabelService")) -- pasa los carteles/atributos de franja del mapa ya construido a la escala 1-3000
 require(Services:WaitForChild("LevelMilestoneService")) -- hitos de nivel (cada 50) y auras
@@ -58,6 +59,7 @@ require(Services:WaitForChild("PveZoneService")) -- campamentos, altares de ofre
 require(Services:WaitForChild("BiomeDetails")) -- detalles de suelo (senderos, charcos, grietas, flores) y partículas de ambiente por franja
 require(Services:WaitForChild("FloorSkins")) -- pisos con textura nueva, parches de vida y ciudad a ras (usa los ids de FloorSkins)
 require(Services:WaitForChild("BiomeLandmarks")) -- hitos temáticos: un monumento grande por franja (16)
+require(Services:WaitForChild("DungeonService")) -- cuevas (mazmorras) por franja: portales, 2 pisos, 3 salas al azar, entradas diarias
 require(Services:WaitForChild("DamageRankService")) -- ranking de daño en pantalla para jefes, mini jefes y Metin
 require(Services:WaitForChild("PetPowerService")) -- poderes de las mascotas Épicas, Legendarias y Míticas
 require(Services:WaitForChild("PetService")) -- alimentar mascotas: suben de nivel 1..10 (Plus de la mascota)
