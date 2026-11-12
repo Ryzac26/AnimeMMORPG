@@ -22,6 +22,7 @@ local Modules = ReplicatedStorage.Modules
 local ItemCatalog = require(Modules.ItemCatalog)
 local GearCatalog = require(Modules.GearCatalog)
 local LootTables = require(Modules.LootTables)
+local GB = require(Modules.GameBalance)
 local MobCatalog = require(Modules.MobCatalog)
 local PlayerClass = require(Modules.PlayerClass)
 
@@ -301,7 +302,7 @@ local function onMini(strip: number, level: number, participants: { Player }, sh
 				addItem(h, "Mat_GemaMenor", 1, false)
 			end
 			if rng:NextNumber() < chance(X.GearChance[strip], luck) then
-				addItem(h, LootTables.RollGear(faction, role, strip * 25, X.GearRarity[strip], rng), 1, true)
+				addItem(h, LootTables.RollGear(faction, role, GB.FromOld(strip * 25), X.GearRarity[strip], rng), 1, true)
 			end
 			if rng:NextNumber() < chance(X.PetChance, luck) then
 				addItem(h, LootTables.RollPet(X.PetRarity, rng, faction), 1, true)
@@ -321,7 +322,7 @@ local function grant(player: Player, kind: string, strip: number): boolean
 		return false
 	end
 	strip = math.clamp(strip, 1, 4)
-	local level = strip * 25
+	local level = GB.FromOld(strip * 25) -- 750 / 1500 / 2250 / 3000 (escala nueva; antes 25..100 caía siempre en equipo nivel 1)
 	local luck = GearService.Luck(player)
 	local faction, role = classOf(player)
 	local h = newHaul()
@@ -388,10 +389,10 @@ local function onKilled(mobId: string, level: number, participants: { Player }, 
 		onMetin(string.sub(mobId, 7), level, participants, shares)
 	elseif string.sub(mobId, 1, 5) == "Mini|" then
 		local def: any = (MobCatalog.ById :: any)[string.sub(mobId, 6)]
-		onMini(if def then def.Strip else math.clamp(math.ceil(level / 25), 1, 4), level, participants, shares)
+		onMini(if def then def.Strip else math.clamp(math.ceil(GB.Eq(level) / 25), 1, 4), level, participants, shares)
 	else
 		local def: any = (MobCatalog.ById :: any)[mobId]
-		local strip = if def then def.Strip else math.clamp(math.ceil(level / 25), 1, 4)
+		local strip = if def then def.Strip else math.clamp(math.ceil(GB.Eq(level) / 25), 1, 4)
 		if def and def.Boss then
 			onBoss(LootTables.EliteBoss, level, strip, participants, shares, "jefe")
 		else

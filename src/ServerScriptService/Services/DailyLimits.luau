@@ -5,6 +5,7 @@
       "Keys"      llaves de cofre que ya cayeron hoy        (tope: LootTables.Daily.Keys)
       "Challenge" desafíos del altar con premio hoy         (LootTables.Daily.Challenge)
       "MiniBoss"  mini jefes con premio hoy                 (LootTables.Daily.MiniBoss)
+      "Offering"  ofrendas aceptadas por los altares hoy    (LootTables.Daily.Offering)
     El día cambia a medianoche según LootTables.Daily.ResetUtcOffsetHours (-3 = Montevideo). Al cambiar el día:
       - los contadores vuelven a 0
       - las llaves de cofre que sobraron CADUCAN (no se acumulan para el día siguiente)
@@ -21,8 +22,8 @@ local Net = require(Services.Net)
 local PlayerData = require(Services.PlayerData)
 local Inventory = require(Services.InventoryService)
 
-local KINDS = { "Keys", "Challenge", "MiniBoss" }
-type State = { Day: string, Keys: { [string]: number }, Challenge: { [string]: number }, MiniBoss: { [string]: number } }
+local KINDS = { "Keys", "Challenge", "MiniBoss", "Offering" }
+type State = { Day: string, Keys: { [string]: number }, Challenge: { [string]: number }, MiniBoss: { [string]: number }, Offering: { [string]: number } }
 
 local states: { [Player]: State } = {}
 local DailyLimits = {}
@@ -33,7 +34,7 @@ local function today(): string
 end
 
 local function emptyState(): State
-	return { Day = today(), Keys = {}, Challenge = {}, MiniBoss = {} }
+	return { Day = today(), Keys = {}, Challenge = {}, MiniBoss = {}, Offering = {} }
 end
 
 -- Publica en el jugador lo que muestra el perfil: KeysUsed_<franja> (llaves que ya cayeron hoy) y DailyResetAt (hora del próximo reinicio, segundos Unix)
@@ -55,7 +56,7 @@ local function refresh(player: Player): State?
 	local now = today()
 	if st.Day ~= now then
 		st.Day = now
-		st.Keys, st.Challenge, st.MiniBoss = {}, {}, {}
+		st.Keys, st.Challenge, st.MiniBoss, st.Offering = {}, {}, {}, {}
 		local expired = 0
 		for strip = 1, 4 do
 			local id = "Key_" .. strip
@@ -138,7 +139,7 @@ PlayerData.RegisterSerializer("Daily", function(player: Player): any?
 	if not st then
 		return nil
 	end
-	return { Day = st.Day, Keys = table.clone(st.Keys), Challenge = table.clone(st.Challenge), MiniBoss = table.clone(st.MiniBoss) }
+	return { Day = st.Day, Keys = table.clone(st.Keys), Challenge = table.clone(st.Challenge), MiniBoss = table.clone(st.MiniBoss), Offering = table.clone(st.Offering) }
 end)
 
 PlayerData.Releasing:Connect(function(player: Player)

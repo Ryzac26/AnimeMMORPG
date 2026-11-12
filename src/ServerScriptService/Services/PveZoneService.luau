@@ -733,6 +733,10 @@ local function buildOffering(l: Lane, root: Folder, pos: Vector3, idx: number?)
 			notify(player, string.format("El altar descansa: vuelve en %d s", math.ceil((offerCd[cdKey] :: number) - now)))
 			return
 		end
+		if DailyLimits.Remaining(player, "Offering", l.Strip) <= 0 then
+			notify(player, string.format("Ofrenda: ya hiciste tus %d de hoy en la Franja %d. Vuelve mañana", DailyLimits.Limit("Offering", l.Strip), l.Strip))
+			return
+		end
 		if Inventory.Count(player, rid) < rc or Inventory.Count(player, mid) < mc then
 			notify(player, string.format("Ofrenda: necesitas %d %s, %d %s y %d de oro", rc, itemName(rid), mc, itemName(mid), gold))
 			return
@@ -744,6 +748,7 @@ local function buildOffering(l: Lane, root: Folder, pos: Vector3, idx: number?)
 		Inventory.Consume(player, rid, rc)
 		Inventory.Consume(player, mid, mc)
 		if LootService.Grant(player, "Offering", l.Strip) then
+			DailyLimits.Use(player, "Offering", l.Strip)
 			offerCd[cdKey] = now + O.CooldownSeconds
 		else
 			-- la mochila no tenía lugar: se devuelve todo

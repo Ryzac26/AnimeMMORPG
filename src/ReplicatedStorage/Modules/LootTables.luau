@@ -74,9 +74,9 @@ LootTables.Mob = {
 	GearChanceByStrip = { 0.012, 0.014, 0.016, 0.018 }, -- antes 0.02 fijo
 	GearRarityByStrip = {
 		[1] = { Comun = 86, Raro = 13.7, Epico = 0.3 },
-		[2] = { Comun = 76, Raro = 22.5, Epico = 1.5 },
-		[3] = { Comun = 64, Raro = 32, Epico = 3.9, Legendario = 0.1 },
-		[4] = { Comun = 52, Raro = 41, Epico = 6.5, Legendario = 0.5 },
+		[2] = { Comun = 75.8, Raro = 22.5, Epico = 1.5, Legendario = 0.2 },
+		[3] = { Comun = 63.6, Raro = 32, Epico = 3.9, Legendario = 0.5 },
+		[4] = { Comun = 51.5, Raro = 41, Epico = 6.5, Legendario = 1.0 },
 	},
 	MinorGemChance = 0.04, -- Gema Menor (mejora +1 a +5): ~5 por hora a 126 kills/h
 	PetChance = 0.0008,
@@ -121,8 +121,8 @@ LootTables.Metin = {
 		Comun = { GoldMult = 3, FactionPoints = 5, GemCount = { 1, 1 }, ChestRarity = { Comun = 40, Raro = 55, Epico = 5 }, EmblemRarity = { Epico = 100 }, PetRarity = { Comun = 55, Raro = 40, Epico = 5 } },
 		PocoComun = { GoldMult = 4, FactionPoints = 8, GemCount = { 1, 1 }, ChestRarity = { Raro = 80, Epico = 20 }, EmblemRarity = { Epico = 100 }, PetRarity = { Comun = 50, Raro = 42, Epico = 8 } },
 		Raro = { GoldMult = 6, FactionPoints = 12, GemCount = { 1, 2 }, ChestRarity = { Raro = 62, Epico = 37, Legendario = 1 }, EmblemRarity = { Epico = 94, Legendario = 6 }, PetRarity = { Raro = 70, Epico = 28, Legendario = 2 } },
-		Epico = { GoldMult = 9, FactionPoints = 20, GemCount = { 1, 3 }, ChestRarity = { Raro = 30, Epico = 66, Legendario = 4 }, EmblemRarity = { Epico = 88, Legendario = 12 }, PetRarity = { Raro = 55, Epico = 41, Legendario = 4 } },
-		Legendario = { GoldMult = 14, FactionPoints = 35, GemCount = { 2, 3 }, ChestRarity = { Epico = 80, Legendario = 19, Mitico = 1 }, EmblemRarity = { Epico = 78, Legendario = 21, Mitico = 1 }, PetRarity = { Epico = 66, Legendario = 32, Mitico = 2 } },
+		Epico = { GoldMult = 9, FactionPoints = 20, GemCount = { 1, 3 }, ChestRarity = { Raro = 28.5, Epico = 66, Legendario = 5, Mitico = 0.5 }, EmblemRarity = { Epico = 88, Legendario = 12 }, PetRarity = { Raro = 55, Epico = 41, Legendario = 4 } },
+		Legendario = { GoldMult = 14, FactionPoints = 35, GemCount = { 2, 3 }, ChestRarity = { Epico = 76, Legendario = 21, Mitico = 3 }, EmblemRarity = { Epico = 74, Legendario = 23, Mitico = 3 }, PetRarity = { Epico = 66, Legendario = 32, Mitico = 2 } },
 	},
 }
 
@@ -225,11 +225,13 @@ LootTables.Gathering = {
 --   Keys      = llaves de cofre que PUEDEN CAER por día (no se acumulan: las que sobren caducan al reiniciar el día) = cofres que se pueden abrir por día
 --   Challenge = desafíos del altar con premio por día
 --   MiniBoss  = mini jefes con premio por día (al agotarlo no puedes ni pegarle)
+--   Offering  = ofrendas del altar por día (antes sin tope: era la fuente de Legendarios sin límite)
 LootTables.Daily = {
 	ResetUtcOffsetHours = -3,
 	Keys = { 3, 3, 3, 3 },
 	Challenge = { 2, 2, 2, 2 },
 	MiniBoss = { 3, 3, 3, 3 },
+	Offering = { 8, 6, 5, 4 }, -- ofrendas aceptadas por día y franja (las franjas altas dan más y mejor, así que son menos)
 }
 
 -- Probabilidad de que caiga una llave de la franja al matar (solo mientras queden llaves por caer ese día)
@@ -318,7 +320,8 @@ function LootTables.RollGear(faction: string, role: string, level: number, rarit
 	if upgradeRarity then
 		local order = GearCatalog.Rarities
 		local at = table.find(order, rarity) or 1
-		rarity = order[math.min(#order, at + 1)]
+		local cap = table.find(order, "Legendario") or #order -- "Mejorado" sube una rareza pero NUNCA crea un Mítico
+		rarity = order[math.max(at, math.min(cap, at + 1))]
 	end
 	local id: string
 	if rng:NextNumber() < (jewelryChance or LootTables.JewelryChance) then
