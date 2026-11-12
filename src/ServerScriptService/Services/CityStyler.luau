@@ -641,7 +641,7 @@ local function styleCity(biome: Instance, faction: string)
 	-- portal de la Casa VIP (HouseService), en la plaza
 	pcall(function()
 		local HouseService = require(script.Parent.HouseService)
-		HouseService.AddCityPortal(faction, plaza.Position + plaza.CFrame.RightVector * 70 + Vector3.new(0, 0.98, 0))
+		HouseService.AddCityPortal(faction, plaza.Position + plaza.CFrame.RightVector * 70 + Vector3.new(0, 0.98, 0), plaza.Position)
 	end)
 
 	-- comercios

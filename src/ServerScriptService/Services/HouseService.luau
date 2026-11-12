@@ -194,6 +194,171 @@ local function buildPad(parent: Instance, name: string, pos: Vector3, color: Col
 	return p
 end
 
+---------------------------------------------------------------------
+-- PORTAL (marco + remolino) y BUZÓN 3D por facción. Todo es geometría propia; la imagen del remolino va en ambas caras.
+---------------------------------------------------------------------
+local GATE_PAL: { [string]: { Body: Color3, Mat: Enum.Material, Trim: Color3, Glow: Color3 } } = {
+	Saiyan = { Body = Color3.fromRGB(70, 78, 96), Mat = Enum.Material.Metal, Trim = Color3.fromRGB(240, 196, 90), Glow = Color3.fromRGB(90, 200, 255) },
+	Shinobi = { Body = Color3.fromRGB(84, 58, 38), Mat = Enum.Material.Wood, Trim = Color3.fromRGB(70, 130, 84), Glow = Color3.fromRGB(80, 255, 150) },
+	Pirate = { Body = Color3.fromRGB(112, 74, 42), Mat = Enum.Material.Wood, Trim = Color3.fromRGB(214, 160, 66), Glow = Color3.fromRGB(255, 190, 80) },
+	Shinigami = { Body = Color3.fromRGB(48, 50, 68), Mat = Enum.Material.Slate, Trim = Color3.fromRGB(190, 200, 232), Glow = Color3.fromRGB(120, 140, 255) },
+}
+
+local function pc(parent: Instance, name: string, size: Vector3, cf: CFrame, color: Color3, mat: Enum.Material, shape: Enum.PartType?, collide: boolean?): Part
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Anchored = true
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = mat
+	p.TopSurface, p.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
+	p.CanCollide = collide == true
+	if shape then
+		p.Shape = shape
+	end
+	p.Parent = parent
+	return p
+end
+
+-- Portal de pie: dos pilares, dintel, cristal giratorio y remolino con la imagen de la facción (se ve igual desde los dos lados).
+-- base = CFrame en el suelo, centro del portal; el plano del portal es X-Y y su normal es Z. Devuelve (modelo, pieza invisible para los prompts).
+local function buildGate(parent: Instance, base: CFrame, faction: string, s: number, title: string): (Model, Part)
+	local pal = GATE_PAL[faction] or GATE_PAL.Saiyan
+	local model = Instance.new("Model")
+	model.Name = "PortalCasa_" .. faction
+	model.Parent = parent
+	local function V(x: number, y: number, z: number): Vector3
+		return Vector3.new(x * s, y * s, z * s)
+	end
+	local function L(x: number, y: number, z: number): CFrame
+		return base * CFrame.new(x * s, y * s, z * s)
+	end
+	for _, sx in ipairs({ -1, 1 }) do
+		pc(model, "Plinto", V(5, 1.4, 4.6), L(sx * 7.5, 0.7, 0), pal.Body, pal.Mat, nil, true)
+		pc(model, "Pilar", V(3, 17, 3.2), L(sx * 7.5, 9.9, 0), pal.Body, pal.Mat, nil, true)
+		for _, sz in ipairs({ -1, 1 }) do
+			pc(model, "PilarOro", V(0.7, 15, 0.5), L(sx * 7.5, 9.9, sz * 1.7), pal.Trim, Enum.Material.Metal)
+			local gem = pc(model, "Gema", V(1.1, 1.1, 0.5), L(sx * 7.5, 4, sz * 1.8), pal.Glow, Enum.Material.Neon, Enum.PartType.Ball)
+			gem.CastShadow = false
+		end
+		pc(model, "Capitel", V(4.2, 1.2, 4), L(sx * 7.5, 18.9, 0), pal.Trim, Enum.Material.Metal, nil, true)
+	end
+	pc(model, "Dintel", V(20, 2.6, 3.6), L(0, 20.5, 0), pal.Body, pal.Mat, nil, true)
+	pc(model, "DintelOroAbajo", V(20.4, 0.6, 3.9), L(0, 19.3, 0), pal.Trim, Enum.Material.Metal)
+	pc(model, "DintelOroArriba", V(20.4, 0.6, 3.9), L(0, 21.7, 0), pal.Trim, Enum.Material.Metal)
+	pc(model, "Peana", V(4, 0.8, 3.6), L(0, 22.4, 0), pal.Trim, Enum.Material.Metal, nil, true)
+	local crystal = pc(model, "Cristal", V(2.4, 2.4, 2.4), L(0, 24.2, 0) * CFrame.Angles(math.rad(45), math.rad(45), 0), pal.Glow, Enum.Material.Neon)
+	crystal.CastShadow = false
+	crystal:SetAttribute("FxSpin", 40)
+	crystal:SetAttribute("FxBob", 0.4)
+	CollectionService:AddTag(crystal, "FxAnim")
+	-- remolino: relleno luminoso + imagen delante (ambas caras)
+	local fill = pc(model, "Remolino", V(0.06, 13.6, 13.6), L(0, 9.6, 0) * CFrame.Angles(0, math.rad(90), 0), pal.Glow, Enum.Material.Neon, Enum.PartType.Cylinder)
+	fill.Transparency = 0.45
+	fill.CastShadow = false
+	local portalId = CampArt.PortalArt[faction]
+	if portalId then
+		local art = pc(model, "Arte", V(14, 14, 0.2), L(0, 9.6, 0), pal.Glow, Enum.Material.SmoothPlastic)
+		art.Transparency = 1
+		art.CastShadow = false
+		CampArt.Panel(art, Enum.NormalId.Front, portalId, "Portal", 40 / s)
+		CampArt.Panel(art, Enum.NormalId.Back, portalId, "PortalDorso", 40 / s)
+	else
+		fill.Transparency = 0.15
+	end
+	local pl = Instance.new("PointLight")
+	pl.Color = pal.Glow
+	pl.Range = 34 * s
+	pl.Brightness = 1.6
+	pl.Parent = fill
+	fill:SetAttribute("FxPulse", 0.5)
+	CollectionService:AddTag(fill, "FxAnim")
+	local em = Instance.new("ParticleEmitter")
+	em.Color = ColorSequence.new(pal.Glow:Lerp(Color3.new(1, 1, 1), 0.4))
+	em.LightEmission = 1
+	em.Rate = 16
+	em.Lifetime = NumberRange.new(1.6, 2.6)
+	em.Speed = NumberRange.new(1, 3)
+	em.SpreadAngle = Vector2.new(180, 180)
+	em.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.6 * s), NumberSequenceKeypoint.new(1, 0) })
+	em.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
+	em.Acceleration = Vector3.new(0, 3, 0)
+	em.Parent = fill
+	-- pieza invisible para los prompts (centro del portal)
+	local pad = Instance.new("Part")
+	pad.Name = "Portal"
+	pad.Anchored = true
+	pad.CanCollide, pad.CanTouch = false, false
+	pad.Transparency = 1
+	pad.Size = V(14, 10, 8)
+	pad.CFrame = L(0, 5, 0)
+	pad.Parent = model
+	sign(pad, title, pal.Glow:Lerp(Color3.new(1, 1, 1), 0.5), 21 * s)
+	return model, pad
+end
+
+-- Buzón de la ciudad con volumen real (cuerpo, tapa curva, puerta, ranura con carta, bandera y farol). Devuelve la pieza del prompt.
+local function buildMailbox(parent: Instance, base: CFrame, faction: string): Part
+	local pal = GATE_PAL[faction] or GATE_PAL.Saiyan
+	local model = Instance.new("Model")
+	model.Name = "Buzon3D_" .. faction
+	model.Parent = parent
+	local function L(x: number, y: number, z: number): CFrame
+		return base * CFrame.new(x, y, z)
+	end
+	local door = pal.Body:Lerp(Color3.new(1, 1, 1), 0.12)
+	pc(model, "Plinto", Vector3.new(5, 0.9, 4), L(0, 0.45, 0), Color3.fromRGB(112, 106, 100), Enum.Material.Slate)
+	pc(model, "Cuerpo", Vector3.new(3.8, 4, 3), L(0, 2.9, 0), pal.Body, pal.Mat)
+	pc(model, "Tapa", Vector3.new(3, 3.8, 3.8), L(0, 4.9, 0) * CFrame.Angles(0, math.rad(90), 0), pal.Body, pal.Mat, Enum.PartType.Cylinder)
+	pc(model, "BandaBaja", Vector3.new(4, 0.4, 3.2), L(0, 1.4, 0), pal.Trim, Enum.Material.Metal)
+	pc(model, "BandaMedia", Vector3.new(4, 0.4, 3.2), L(0, 4.9, 0), pal.Trim, Enum.Material.Metal)
+	pc(model, "Puerta", Vector3.new(3, 3, 0.2), L(0, 2.9, -1.55), door, pal.Mat)
+	pc(model, "Ranura", Vector3.new(2.2, 0.35, 0.3), L(0, 3.9, -1.7), Color3.fromRGB(20, 18, 22), Enum.Material.SmoothPlastic)
+	pc(model, "Carta", Vector3.new(1.6, 0.05, 1.1), L(0.3, 3.95, -1.95) * CFrame.Angles(math.rad(-18), 0, math.rad(8)), Color3.fromRGB(245, 240, 225), Enum.Material.SmoothPlastic)
+	local plate = pc(model, "Placa", Vector3.new(2, 0.8, 0.1), L(0, 2.1, -1.68), pal.Trim, Enum.Material.Metal)
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 50
+	gui.Parent = plate
+	local tl = Instance.new("TextLabel")
+	tl.Size = UDim2.fromScale(1, 1)
+	tl.BackgroundTransparency = 1
+	tl.Font = Enum.Font.GothamBlack
+	tl.TextScaled = true
+	tl.Text = "BUZÓN"
+	tl.TextColor3 = Color3.fromRGB(30, 24, 16)
+	tl.Parent = gui
+	pc(model, "Manija", Vector3.new(0.4, 0.4, 0.4), L(1.0, 2.9, -1.75), pal.Trim, Enum.Material.Metal, Enum.PartType.Ball)
+	for _, sx in ipairs({ -1, 1 }) do
+		local seam = pc(model, "Luz", Vector3.new(0.12, 2.8, 0.12), L(sx * 1.55, 2.9, -1.68), pal.Glow, Enum.Material.Neon)
+		seam.CastShadow = false
+	end
+	-- bandera lateral
+	pc(model, "MastilBandera", Vector3.new(0.25, 1.8, 0.25), L(2.1, 4.6, 0.5), pal.Trim, Enum.Material.Metal)
+	pc(model, "Bandera", Vector3.new(0.15, 0.9, 1.4), L(2.1, 5.4, -0.15), Color3.fromRGB(205, 52, 60), Enum.Material.SmoothPlastic)
+	-- farol arriba
+	pc(model, "FarolBase", Vector3.new(0.7, 0.4, 0.7), L(0, 6.95, 0), pal.Trim, Enum.Material.Metal)
+	local lamp = pc(model, "Farol", Vector3.new(1, 1, 1), L(0, 7.6, 0), pal.Glow, Enum.Material.Neon, Enum.PartType.Ball)
+	lamp.CastShadow = false
+	local ll = Instance.new("PointLight")
+	ll.Color = pal.Glow
+	ll.Range = 16
+	ll.Brightness = 1
+	ll.Parent = lamp
+	lamp:SetAttribute("FxPulse", 0.4)
+	CollectionService:AddTag(lamp, "FxAnim")
+	local box = Instance.new("Part")
+	box.Name = "Buzon_" .. faction
+	box.Anchored = true
+	box.Transparency = 1
+	box.Size = Vector3.new(4.6, 8, 4)
+	box.CFrame = L(0, 4, 0)
+	box.Parent = model
+	return box
+end
+
 local function exitHouse(player: Player)
 	inside[player] = nil
 	player:SetAttribute("InHouse", nil)
@@ -297,7 +462,9 @@ local function buildHouse(owner: Player): House?
 	chl.Parent = chand
 
 	-- SALIDA (portal blanco, al fondo del vestíbulo)
-	local exitPad = buildPad(m, "Portal_Salida", at(0, 1.4, -62), Color3.fromRGB(255, 255, 255), "SALIR A LA CIUDAD")
+	local ownerFaction = tostring(owner:GetAttribute("Faction"))
+	local _, exitPad = buildGate(m, CFrame.new(at(0, 1.4, -63)), if GATE_PAL[ownerFaction] then ownerFaction else "Saiyan", 0.8, "SALIR A LA CIUDAD")
+	exitPad.Name = "Portal_Salida"
 	prompt(exitPad, "Salir", "Portal de salida", Enum.KeyCode.E, 0.5, function(pl)
 		-- vale si figura dentro o si físicamente está en esta casa (el estado pudo perderse)
 		local r = rootOf(pl)
@@ -459,76 +626,31 @@ local function player_grabAll(pl: Player)
 	say(pl, "Tus animales volvieron contigo.")
 end
 
-function HouseService.AddCityPortal(faction: string, pos: Vector3)
+function HouseService.AddCityPortal(faction: string, pos: Vector3, facing: Vector3?)
 	if portals[faction] then
 		return
 	end
 	portals[faction] = pos
+	-- hacia dónde miran el portal y el buzón (la plaza); sin dato, hacia +Z
+	local look = facing or (pos + Vector3.new(0, 0, 1))
+	if Vector3.new(look.X - pos.X, 0, look.Z - pos.Z).Magnitude < 1 then
+		look = pos + Vector3.new(0, 0, 1)
+	end
+	local gy = pos.Y - 0.9 -- altura del suelo bajo el portal
+	local function baseAt(p: Vector3): CFrame
+		return CFrame.lookAt(Vector3.new(p.X, gy, p.Z), Vector3.new(look.X, gy, look.Z))
+	end
 	-- BUZÓN de la ciudad (aquí llega lo que no cabe en el baúl cuando termina la suscripción)
 	local boxPos = pos + Vector3.new(0, 0, 18)
 	table.insert(mailboxes, boxPos)
-	local box = Instance.new("Part")
-	box.Name = "Buzon_" .. faction
-	box.Anchored = true
-	box.Size = Vector3.new(3.8, 7.5, 2.8)
-	box.CFrame = CFrame.new(boxPos + Vector3.new(0, 3.75, 0))
-	box.Color = Color3.fromRGB(190, 50, 56)
-	box.Material = Enum.Material.Metal
-	box.Transparency = 1
-	box.Parent = Workspace
-	local mailId = CampArt.Mailbox[faction]
-	if mailId then
-		CampArt.Sprite(box, "Arte", mailId, 8, 10, 0.4, 150)
-	else
-		box.Transparency = 0
-	end
-	local boxLight = Instance.new("PointLight")
-	boxLight.Color = Color3.fromRGB(255, 225, 160)
-	boxLight.Range = 14
-	boxLight.Brightness = 0.8
-	boxLight.Parent = box
+	local box = buildMailbox(Workspace, baseAt(boxPos), faction)
 	prompt(box, "Abrir buzón", "Buzón de la ciudad", Enum.KeyCode.E, 0.3, function(pl)
 		OpenRemote:FireClient(pl, "Mail")
 		buildPush(pl)
 	end)
-	local pad = buildPad(Workspace, "Portal_CasaVIP_" .. faction, pos, Color3.fromRGB(255, 200, 90), "PABELLÓN IMPERIAL")
-	-- portal con imagen por facción: disco grande que gira, con luz y chispas
-	local portalId = CampArt.PortalArt[faction]
-	if portalId then
-		pad.Size = Vector3.new(0.5, 14, 14)
-		pad.Transparency = 1
-		-- disco de imagen: bloque plano (se ve igual desde cualquier lado), un poco por encima del piso para que no lo tapen las losas
-		local disc = Instance.new("Part")
-		disc.Name = "PortalArte_" .. faction
-		disc.Anchored = true
-		disc.CanCollide = false
-		disc.CanQuery = false
-		disc.CanTouch = false
-		disc.CastShadow = false
-		disc.Transparency = 1
-		disc.Size = Vector3.new(14, 0.2, 14)
-		disc.CFrame = CFrame.new(pos + Vector3.new(0, 0.45, 0))
-		disc.Parent = Workspace
-		CampArt.Panel(disc, Enum.NormalId.Top, portalId, "Portal", 40)
-		CampArt.Panel(disc, Enum.NormalId.Bottom, portalId, "PortalDorso", 40)
-		disc:SetAttribute("FxSpin", 14)
-		CollectionService:AddTag(disc, "FxAnim")
-		local pl = Instance.new("PointLight")
-		pl.Color = Color3.fromRGB(255, 220, 150)
-		pl.Range = 26
-		pl.Brightness = 1.2
-		pl.Parent = pad
-		local em = Instance.new("ParticleEmitter")
-		em.Color = ColorSequence.new(Color3.fromRGB(255, 240, 200))
-		em.LightEmission = 1
-		em.Rate = 10
-		em.Lifetime = NumberRange.new(2, 3.2)
-		em.Speed = NumberRange.new(2, 4)
-		em.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
-		em.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
-		em.Acceleration = Vector3.new(0, 2, 0)
-		em.Parent = pad
-	end
+	-- PORTAL de la Casa VIP (marco + remolino con la imagen de la facción)
+	local _, pad = buildGate(Workspace, baseAt(pos), faction, 1.15, "PABELLÓN IMPERIAL")
+	pad.Name = "Portal_CasaVIP_" .. faction
 	-- recoger todos los animales sueltos desde la ciudad
 	local grabPrompt = prompt(pad, "Agarrar animales", "Casa VIP", Enum.KeyCode.F, 0.4, function(pl)
 		if houses[pl] then
