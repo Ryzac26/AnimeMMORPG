@@ -29,7 +29,7 @@ local StateRemote = Net.Get("TiendaState")
 local ActionRemote = Net.Get("TiendaAction")
 local ResultRemote = Net.Get("TiendaResult")
 
-type Shop = { Day: string, Bought: { [string]: number }, Path: string?, BoostLeft: number, Receipts: { string } }
+type Shop = { Day: string, Bought: { [string]: number }, Week: number, WBought: { [string]: number }, Path: string?, BoostLeft: number, Receipts: { string } }
 
 local PurchaseService = {}
 local shops: { [Player]: Shop } = {}
@@ -46,6 +46,10 @@ local function rollDay(s: Shop)
 	local t = today()
 	if s.Day ~= t then
 		s.Day, s.Bought, s.Path = t, {}, nil
+	end
+	local w = ProductCatalog.WeekIndex(os.time())
+	if s.Week ~= w then
+		s.Week, s.WBought = w, {}
 	end
 end
 
@@ -72,6 +76,10 @@ local function canBuy(player: Player, s: Shop, p: ProductCatalog.Product): (bool
 	if (s.Bought[p.Key] or 0) >= p.DailyLimit then
 		return false, "Límite de hoy alcanzado"
 	end
+	local wk = ProductCatalog.WeeklyKey(p)
+	if wk and p.WeeklyLimit and (s.WBought[wk] or 0) >= p.WeeklyLimit then
+		return false, "Límite semanal alcanzado"
+	end
 	if p.Lane == "Horas" and s.Path and s.Path ~= p.Key then
 		local chosen = ProductCatalog.ByKey[s.Path]
 		return false, "Bloqueado: hoy elegiste " .. (if chosen then chosen.Name else s.Path)
@@ -91,11 +99,12 @@ local function pushState(player: Player)
 	local items: { [string]: any } = {}
 	for _, p in ipairs(ProductCatalog.Products) do
 		local ok, why = canBuy(player, s, p)
-		items[p.Key] = { Bought = s.Bought[p.Key] or 0, Ok = ok, Why = why }
+		local wk = ProductCatalog.WeeklyKey(p)
+		items[p.Key] = { Bought = s.Bought[p.Key] or 0, Ok = ok, Why = why, WBought = if wk then (s.WBought[wk] or 0) else nil, WLimit = p.WeeklyLimit }
 	end
 	local t = os.time()
 	local nextReset = (math.floor(t / 86400) + 1) * 86400
-	StateRemote:FireClient(player, { Items = items, Path = s.Path, BoostLeft = math.floor(s.BoostLeft), ResetIn = nextReset - t, Passes = passOwned[player] or {} })
+	StateRemote:FireClient(player, { Items = items, Path = s.Path, BoostLeft = math.floor(s.BoostLeft), ResetIn = nextReset - t, WeekResetIn = ProductCatalog.WeekResetAt(t) - t, Passes = passOwned[player] or {} })
 end
 
 local function reply(player: Player, ok: boolean, text: string)
@@ -213,6 +222,10 @@ local function grant(player: Player, s: Shop, p: ProductCatalog.Product): boolea
 		end
 	end
 	s.Bought[p.Key] = (s.Bought[p.Key] or 0) + 1
+	local wkey = ProductCatalog.WeeklyKey(p)
+	if wkey then
+		s.WBought[wkey] = (s.WBought[wkey] or 0) + 1
+	end
 	if p.Lane == "Horas" and not s.Path then
 		s.Path = p.Key
 	end
@@ -376,7 +389,7 @@ PlayerData.RegisterSerializer("Shop", function(player: Player): any?
 	if not s then
 		return nil
 	end
-	return { Day = s.Day, Bought = s.Bought, Path = s.Path, BoostLeft = math.floor(s.BoostLeft), Receipts = s.Receipts }
+	return { Day = s.Day, Bought = s.Bought, Week = s.Week, WBought = s.WBought, Path = s.Path, BoostLeft = math.floor(s.BoostLeft), Receipts = s.Receipts }
 end)
 
 local function init(player: Player)
@@ -385,7 +398,7 @@ local function init(player: Player)
 		return
 	end
 	local raw: any = saved.Shop
-	local s: Shop = { Day = today(), Bought = {}, Path = nil, BoostLeft = 0, Receipts = {} }
+	local s: Shop = { Day = today(), Bought = {}, Week = ProductCatalog.WeekIndex(os.time()), WBought = {}, Path = nil, BoostLeft = 0, Receipts = {} }
 	if typeof(raw) == "table" then
 		if typeof(raw.Day) == "string" then
 			s.Day = raw.Day
@@ -394,6 +407,16 @@ local function init(player: Player)
 			for k, v in pairs(raw.Bought) do
 				if typeof(k) == "string" and typeof(v) == "number" then
 					s.Bought[k] = math.floor(v)
+				end
+			end
+		end
+		if typeof(raw.Week) == "number" then
+			s.Week = raw.Week
+		end
+		if typeof(raw.WBought) == "table" then
+			for k, v in pairs(raw.WBought) do
+				if typeof(k) == "string" and typeof(v) == "number" then
+					s.WBought[k] = math.floor(v)
 				end
 			end
 		end

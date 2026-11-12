@@ -12,6 +12,10 @@
           · Los PAQUETES DE HORAS y los COMBOS se bloquean entre sí: al comprar uno, los demás quedan bloqueados hasta el día
             siguiente (el elegido se puede repetir hasta su límite diario).
           · El BOOST de XP es independiente: se combina con cualquier paquete.
+      - Por SEMANA (se reinicia el lunes 00:00 UTC = domingo 21:00 en Uruguay): Paquete de 8 h y Paquete de 12 h, WeeklyLimit compras
+          cada uno (se pueden comprar todas de golpe). El Combo Maratón comparte el cupo del Paquete de 8 h (WeeklyGroup). Piden un
+          nivel mínimo (MinLevel) porque por debajo de ~1100 el tope de niveles por hora hace que rindan menos que su precio.
+          Para que 8 h y 12 h compartan UN solo cupo de la semana: ponles el mismo WeeklyGroup (ej. "HorasSemana").
       - Boost de XP: +50% durante 4 h de juego (el tiempo solo corre con el jugador conectado; comprar más SUMA tiempo, nunca
         multiplica; tope MAX_BOOST_SECONDS acumulado). El +50% NO se aplica a la XP de los paquetes.
       - Paquete de horas: da la XP de esas horas de juego a TU nivel actual (HoursXp). Desde nivel MIN_LEVEL_HOURS, y como máximo
@@ -34,6 +38,8 @@ export type Product = {
 	PriceText: string,
 	DailyLimit: number,
 	MinLevel: number,
+	WeeklyLimit: number?, -- compras por semana (además de DailyLimit). nil = sin límite semanal
+	WeeklyGroup: string?, -- productos con el mismo grupo comparten el cupo semanal (por defecto, su propia Key)
 	Seconds: number?,
 	Mult: number?,
 	Hours: number?,
@@ -101,13 +107,13 @@ ProductCatalog.Products = {
 	},
 	{
 		Key = "Horas8", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 249, Name = "Paquete de 8 horas",
-		Desc = "Recupera la XP de 8 horas de juego a tu nivel actual.",
-		ProductId = 3730248943, PriceText = "249 R$", DailyLimit = 1, MinLevel = 600, Hours = 8,
+		Desc = "Recupera la XP de 8 horas de juego a tu nivel actual. Máximo 4 por semana.",
+		ProductId = 3730248943, PriceText = "249 R$", DailyLimit = 4, WeeklyLimit = 4, MinLevel = 1200, Hours = 8,
 	},
 	{
 		Key = "Horas12", Group = "Progreso", Kind = "Hours", Lane = "Horas", Price = 349, Name = "Paquete de 12 horas",
-		Desc = "Recupera la XP de 12 horas de juego a tu nivel actual.",
-		ProductId = 3730249078, PriceText = "349 R$", DailyLimit = 1, MinLevel = 600, Hours = 12,
+		Desc = "Recupera la XP de 12 horas de juego a tu nivel actual. Máximo 4 por semana.",
+		ProductId = 3730249078, PriceText = "349 R$", DailyLimit = 4, WeeklyLimit = 4, MinLevel = 1500, Hours = 12,
 	},
 	{
 		Key = "ComboDespegue", Group = "Progreso", Kind = "Combo", Lane = "Horas", Price = 129,
@@ -121,7 +127,7 @@ ProductCatalog.Products = {
 		Components = { "Boost4h", "Horas8" },
 		Name = "Combo Maratón",
 		Desc = "Boost de XP +50% (4 h) y paquete de 8 horas en una sola compra.",
-		ProductId = 3730249360, PriceText = "269 R$", DailyLimit = 1, MinLevel = 600, Seconds = 4 * 3600, Mult = 1.5, Hours = 8,
+		ProductId = 3730249360, PriceText = "269 R$", DailyLimit = 1, WeeklyLimit = 4, WeeklyGroup = "Horas8", MinLevel = 1200, Seconds = 4 * 3600, Mult = 1.5, Hours = 8,
 	},
 	-- OBJETOS (sin bloqueo entre sí ni con los paquetes): se entregan en la mochila
 	{
@@ -306,6 +312,21 @@ function ProductCatalog.Savings(p: Product): (number, number)
 		end
 	end
 	return sum, math.max(0, sum - p.Price)
+end
+
+-- SEMANA DE COMPRA: lunes 00:00 UTC. El 1/1/1970 fue jueves, de ahí el desplazamiento de 4 días.
+function ProductCatalog.WeekIndex(t: number): number
+	return math.floor((t - 4 * 86400) / (7 * 86400))
+end
+function ProductCatalog.WeekResetAt(t: number): number
+	return (ProductCatalog.WeekIndex(t) + 1) * 7 * 86400 + 4 * 86400
+end
+-- Clave del cupo semanal del producto (nil si no tiene límite semanal)
+function ProductCatalog.WeeklyKey(p: Product): string?
+	if p.WeeklyLimit then
+		return p.WeeklyGroup or p.Key
+	end
+	return nil
 end
 
 -- XP que da un paquete de `hours` horas a `level`, con el tope de niveles por compra.

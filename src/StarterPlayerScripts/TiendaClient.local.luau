@@ -298,7 +298,15 @@ local function render()
 		end
 		textLine(f, extra, 10, Color3.fromRGB(110, 190, 235), UDim2.fromOffset(6, 174), UDim2.new(1, -12, 0, 14))
 		local why = if info and info.Why then info.Why else ""
-		local line = textLine(f, string.format("Hoy %d/%d%s", bought, p.DailyLimit, if why ~= "" then "  🔒 " .. why else ""), 10, if ok or chosen then pal.Muted else Color3.fromRGB(235, 120, 100), UDim2.fromOffset(6, 189), UDim2.new(1, -12, 0, 14))
+		local lineText: string
+		if info ~= nil and info.WLimit ~= nil then
+			-- paquetes semanales: muestra el nivel requerido y cuántos van en la semana
+			local lvOk = level() >= p.MinLevel
+			lineText = string.format("%sSemana %d/%d%s", if lvOk then "" else string.format("🔒 Nivel %d · ", p.MinLevel), info.WBought or 0, info.WLimit, if why ~= "" and lvOk then "  🔒 " .. why else "")
+		else
+			lineText = string.format("Hoy %d/%d%s", bought, p.DailyLimit, if why ~= "" then "  🔒 " .. why else "")
+		end
+		local line = textLine(f, lineText, 10, if ok or chosen then pal.Muted else Color3.fromRGB(235, 120, 100), UDim2.fromOffset(6, 189), UDim2.new(1, -12, 0, 14))
 		line.TextTruncate = Enum.TextTruncate.AtEnd
 		local original, saved = ProductCatalog.Savings(p)
 		local buy = NpcKit.Button(f, theme, (if ok then "" else "🔒 ") .. priceLabel(p.Key, p.PriceText), UDim2.new(1, -20, 0, 28), UDim2.fromOffset(10, 204), if ok then "buy" else "neutral", function()

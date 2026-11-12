@@ -58,7 +58,11 @@ local RewardService = {}
 
 -- XP reducida por brecha de nivel (ver LevelGap). Avisa al jugador como mucho cada 40 s.
 local gapNotified: { [Player]: number } = {}
+local XP_BRECHA = false -- false: la XP ya baja sola con el nivel del mob (MobXp = vida/10). true: además aplica LevelGap (doble castigo)
 local function gapMult(pl: Player, mobLevel: number): number
+	if not XP_BRECHA then
+		return 1
+	end
 	local m = LevelGap.Mult(LevelService.GetLevel(pl), mobLevel)
 	if m < 0.95 and os.clock() - (gapNotified[pl] or -1000) > 40 then
 		gapNotified[pl] = os.clock()
