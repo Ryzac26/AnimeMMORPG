@@ -27,9 +27,17 @@ local ServerScriptService = game:GetService("ServerScriptService")
 
 local AdminList = require(ReplicatedStorage.Modules.AdminList)
 
--- ¿Puede usar comandos? Admins de AdminList (o cualquiera dentro de Studio, que es tu propia prueba)
+-- INTERRUPTORES del Fundador (panel en su pantalla): "Owner" = sus propios comandos, "Admin" = los de los administradores.
+-- Con uno en OFF ese grupo juega normal (sus comandos se ignoran). Se guardan y valen para todos los servidores.
+local switches: { [string]: boolean } = { Owner = true, Admin = true }
+
+-- ¿Puede usar comandos? Admins de AdminList con su interruptor en ON (o cualquiera dentro de Studio, que es tu propia prueba)
 local function allowed(player: Player): boolean
-	return RunService:IsStudio() or AdminList.IsAdmin(player)
+	local entry = AdminList.Get(player)
+	if entry then
+		return switches[entry.Kind] ~= false
+	end
+	return RunService:IsStudio()
 end
 
 local Services = ServerScriptService.Services
@@ -149,6 +157,70 @@ Net.Get("DevCommand").OnServerEvent:Connect(function(pl: Player, text: any)
 		handle(pl, text)
 	end
 end)
+
+do
+	local DataStoreService = game:GetService("DataStoreService")
+	local store: DataStore? = nil
+	pcall(function()
+		store = DataStoreService:GetDataStore("AdminSwitch_v1")
+	end)
+	if store then
+		pcall(function()
+			local d: any = (store :: DataStore):GetAsync("state")
+			if typeof(d) == "table" then
+				if d.Owner == false then
+					switches.Owner = false
+				end
+				if d.Admin == false then
+					switches.Admin = false
+				end
+			end
+		end)
+	end
+	local switchRemote = Net.Get("AdminSwitch")
+	local notifyRemote = Net.Get("Notify")
+	local function refresh(notice: boolean)
+		for _, pl in ipairs(Players:GetPlayers()) do
+			local entry = AdminList.Get(pl)
+			if entry then
+				local on = switches[entry.Kind] ~= false
+				if pl:GetAttribute("AdminCmds") ~= on then
+					pl:SetAttribute("AdminCmds", on)
+					if notice and entry.Kind ~= "Owner" then
+						notifyRemote:FireClient(pl, if on then "Tus comandos de administrador fueron ACTIVADOS." else "Tus comandos de administrador fueron DESACTIVADOS.")
+					end
+				end
+				if entry.Kind == "Owner" then
+					switchRemote:FireClient(pl, switches.Owner, switches.Admin)
+				end
+			end
+		end
+	end
+	switchRemote.OnServerEvent:Connect(function(pl: Player, which: any)
+		local entry = AdminList.Get(pl)
+		if not entry or entry.Kind ~= "Owner" then
+			return -- solo el Fundador maneja los interruptores
+		end
+		if which == "Owner" or which == "Admin" then
+			switches[which] = not switches[which]
+			if store then
+				local snapshot = { Owner = switches.Owner, Admin = switches.Admin }
+				task.spawn(function()
+					pcall(function()
+						(store :: DataStore):SetAsync("state", snapshot)
+					end)
+				end)
+			end
+			refresh(true)
+		elseif which == "Sync" then
+			switchRemote:FireClient(pl, switches.Owner, switches.Admin)
+		end
+	end)
+	Players.PlayerAdded:Connect(function()
+		task.delay(2, refresh, false)
+	end)
+	task.delay(2, refresh, false)
+end
 
 local function hook(pl: Player)
 	pl.Chatted:Connect(function(msg)

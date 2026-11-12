@@ -5,6 +5,7 @@
     Lee los atributos TitleEquipped y ProfileFrame que publica el servidor (TitleService / MissionService).
 ]]
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Modules = ReplicatedStorage:WaitForChild("Modules", 10) :: Folder
@@ -12,6 +13,9 @@ local TitleBadge: any = require(Modules:WaitForChild("TitleBadge", 10))
 local TitleCatalog: any = require(Modules:WaitForChild("TitleCatalog", 10))
 
 local HEIGHT = 52
+local TITLE_FULL_DIST = 14 -- hasta esta distancia de la cámara la placa va a tamaño completo; más lejos se encoge (si no, tapa al personaje)
+local TITLE_MIN_SCALE = 0.32
+local titleScales: { [UIScale]: BasePart } = {}
 local MANY = 10 -- con más jugadores que esto, las placas de los DEMÁS salen sin animación (la tuya siempre animada)
 
 local function refresh(pl: Player)
@@ -41,12 +45,37 @@ local function refresh(pl: Player)
 	bb.AlwaysOnTop = false
 	bb.ResetOnSpawn = false
 	bb.Parent = head
-	TitleBadge.Build(bb, def, {
+	local root = Instance.new("Frame")
+	root.Name = "Raiz"
+	root.BackgroundTransparency = 1
+	root.AnchorPoint = Vector2.new(0.5, 0.5)
+	root.Position = UDim2.fromScale(0.5, 0.5)
+	root.Size = UDim2.fromScale(1, 1)
+	root.Parent = bb
+	local us = Instance.new("UIScale")
+	us.Parent = root
+	titleScales[us] = head
+	TitleBadge.Build(root, def, {
 		Width = w, Height = HEIGHT, Position = UDim2.fromOffset(mg.H, mg.V),
 		Static = pl ~= Players.LocalPlayer and #Players:GetPlayers() > MANY,
 		Frame = if typeof(frame) == "string" and frame ~= "" then frame else nil,
 	})
 end
+
+RunService.RenderStepped:Connect(function()
+	local cam = workspace.CurrentCamera
+	if not cam then
+		return
+	end
+	local cp = cam.CFrame.Position
+	for us, head in pairs(titleScales) do
+		if us.Parent == nil or head.Parent == nil then
+			titleScales[us] = nil
+		else
+			us.Scale = math.clamp(TITLE_FULL_DIST / math.max((head.Position - cp).Magnitude, 1), TITLE_MIN_SCALE, 1)
+		end
+	end
+end)
 
 local function watch(pl: Player)
 	local pending = false
@@ -94,7 +123,6 @@ do
 		local TAG_NAME = "AdminPlaca"
 		local FULL_DIST = 14 -- hasta esta distancia de la cámara el cartel va a tamaño completo; más lejos se encoge (si no, tapa al personaje)
 		local MIN_SCALE = 0.32
-		local RunService = game:GetService("RunService")
 		local scales: { [UIScale]: BasePart } = {}
 
 		local function build(pl: Player, head: BasePart)
