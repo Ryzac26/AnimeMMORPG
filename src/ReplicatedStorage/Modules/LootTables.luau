@@ -315,7 +315,7 @@ end
 
 -- Equipo que cae, YA resuelto al personaje que lo recibe. Devuelve el id del objeto.
 function LootTables.RollGear(faction: string, role: string, level: number, rarityWeights: { [string]: number }, rng: RNG, jewelryChance: number?, upgradeRarity: boolean?): string?
-	local tier = GearCatalog.TierOfLevel(level)
+	local tier = GearCatalog.StepOfLevel(level) -- escalón de equipo (1 cada 100 niveles)
 	local rarity = LootTables.Pick(rarityWeights, rng)
 	if upgradeRarity then
 		local order = GearCatalog.Rarities
@@ -341,7 +341,7 @@ function LootTables.RollGear(faction: string, role: string, level: number, rarit
 end
 
 function LootTables.RollEmblem(faction: string, level: number, rarityWeights: { [string]: number }, rng: RNG): string?
-	local id = GearCatalog.EmblemId(faction, GearCatalog.TierOfLevel(level), LootTables.Pick(rarityWeights, rng))
+	local id = GearCatalog.EmblemId(faction, GearCatalog.StepOfLevel(level), LootTables.Pick(rarityWeights, rng))
 	if GearCatalog.Items[id] then
 		return id
 	end

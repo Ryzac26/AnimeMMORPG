@@ -12,7 +12,8 @@
         Ataque (daño) · Defensa (reduce daño recibido, tope 50%) · Vida (vida máxima) · Critico (prob., daño x1.5) · Curacion (poder de cura)
     FÓRMULA de cada estadística de una pieza:
         valor = BASE_SET_BUDGET x TierMult(tier) x RarityMult[rareza] x RoleScale[rol] x PieceShare[ranura] x RoleWeights[rol][estadística]
-        TierMult = 1 + TIER_STEP x (tier-1)        (11 tramos de nivel: 1,10,20...100)
+        TierMult = 1 + TIER_STEP x (nivel-1)/300   (un ESCALÓN de equipo cada 100 niveles: 1,100,200...3000 = 31 escalones; mismos valores que antes en los múltiplos de 300)
+    "tier" en las funciones y en los ids = ESCALÓN (1..31). El objeto guarda además Tier = aspecto visual (1..11, para armas/escudos) y Step = escalón.
     PARIDAD entre roles: RoleScale se calibró para que el "Índice de Poder" del set completo sea igual en los 6 roles
         (ValidateBalance() lo comprueba: dispersión máxima 3%). Si cambias pesos o presupuesto, corre ValidateBalance().
     +1..+9 (mejora futura): EnhanceMult(plus) ya está; GearService lee el atributo "EquipPlus_<ranura>" (0 si no existe).
@@ -32,6 +33,15 @@ GearCatalog.Factions = { "Saiyan", "Shinobi", "Pirate", "Shinigami" }
 GearCatalog.FactionDisplay = { Saiyan = "Saiyan", Shinobi = "Shinobi", Pirate = "Pirata", Shinigami = "Shinigami" } :: { [string]: string }
 
 GearCatalog.TierLevels = { 1, 300, 600, 900, 1200, 1500, 1800, 2100, 2400, 2700, 3000 } -- (antes 1,10,20...100; x30)
+-- ESCALONES de equipo (un set nuevo cada 100 niveles). Un mob/jefe/cofre de nivel N suelta el escalón más alto con nivel <= N.
+GearCatalog.STEP = 100
+GearCatalog.Levels = {} :: { number }
+do
+	table.insert(GearCatalog.Levels, 1)
+	for lv = GearCatalog.STEP, 3000, GearCatalog.STEP do
+		table.insert(GearCatalog.Levels, lv)
+	end
+end
 GearCatalog.TierNames = { "Cobre", "Bronce", "Hierro", "Acero", "Plata", "Oro", "Platino", "Cristal", "Obsidiana", "Celestial", "Divino" }
 
 GearCatalog.Rarities = { "Comun", "Raro", "Epico", "Legendario", "Mitico" }
@@ -340,8 +350,20 @@ local function round4(x: number): number
 	return math.floor(x * 10000 + 0.5) / 10000
 end
 
-function GearCatalog.TierMult(tier: number): number
-	return 1 + GearCatalog.TIER_STEP * (tier - 1)
+function GearCatalog.TierMult(step: number): number
+	local lv = GearCatalog.Levels[math.clamp(step, 1, #GearCatalog.Levels)]
+	return 1 + GearCatalog.TIER_STEP * math.max(0, (lv - 1) / 300)
+end
+
+-- Escalón de equipo (1..31) que corresponde a un nivel: el más alto con nivel <= el pedido
+function GearCatalog.StepOfLevel(level: number): number
+	local step = 1
+	for i, req in ipairs(GearCatalog.Levels) do
+		if level >= req then
+			step = i
+		end
+	end
+	return step
 end
 
 -- Tramo de equipo que corresponde a un nivel (el más alto con ReqLevel <= nivel)
@@ -451,7 +473,7 @@ end
 function GearCatalog.ValidateBalance(): (boolean, string)
 	local worst = 0
 	local lines: { string } = {}
-	for _, tier in ipairs({ 1, 6, 11 }) do
+	for _, tier in ipairs({ 1, 16, 31 }) do
 		for _, rarity in ipairs({ "Comun", "Epico", "Mitico" }) do
 			local lo: number, hi: number = math.huge, 0
 			for _, role in ipairs(GearCatalog.Roles) do
@@ -467,7 +489,7 @@ function GearCatalog.ValidateBalance(): (boolean, string)
 			table.insert(lines, string.format("7 piezas tramo %2d %-10s %.3f-%.3f (%.1f%%)", tier, rarity, lo, hi, spread * 100))
 		end
 	end
-	for _, tier in ipairs({ 1, 6, 11 }) do
+	for _, tier in ipairs({ 1, 16, 31 }) do
 		for _, rarity in ipairs({ "Comun", "Epico", "Mitico" }) do
 			local lo: number, hi: number = math.huge, 0
 			for _, role in ipairs(GearCatalog.Roles) do
@@ -537,20 +559,28 @@ local function variantsFor(role: string, slot: string): { { Style: string? } }
 	return list
 end
 
-for tier, req in ipairs(GearCatalog.TierLevels) do
-	local tierName = GearCatalog.TierNames[tier]
+for step, req in ipairs(GearCatalog.Levels) do
+	local tier = GearCatalog.TierOfLevel(req) -- aspecto visual (1..11): armas, escudos, temas
+	local gradesInTier = 0
+	for _, r2 in ipairs(GearCatalog.Levels) do
+		if GearCatalog.TierOfLevel(r2) == tier then
+			gradesInTier += 1
+		end
+	end
+	local grade = (req % 300) // 100 + 1
+	local tierName = if gradesInTier > 1 then GearCatalog.TierNames[tier] .. " " .. ({ "I", "II", "III" })[math.clamp(grade, 1, 3)] else GearCatalog.TierNames[tier]
 	for _, rarity in ipairs(GearCatalog.Rarities) do
 		-- Set de clase
 		for _, role in ipairs(GearCatalog.Roles) do
 			for slot in pairs(GearCatalog.PieceShare) do
 				for _, variant in ipairs(variantsFor(role, slot)) do
 					local styleName = variant.Style
-					local gear = GearCatalog.SetPieceGear(role, slot, tier, rarity)
+					local gear = GearCatalog.SetPieceGear(role, slot, step, rarity)
 					local pieceName = if styleName then GearCatalog.WeaponNames[styleName] else GearCatalog.PieceNames[slot]
 					local weight = GearCatalog.Weights[role]
 					local theme = GearCatalog.ThemeOfTier(weight, tier)
 					local artPiece = if styleName then "arma_" .. string.lower(styleName) else string.lower(({ Armadura = "armadura", Casco = "casco", Zapatos = "botas" } :: any)[slot])
-					Items[GearCatalog.SetPieceId(role, slot, styleName, tier, rarity)] = {
+					Items[GearCatalog.SetPieceId(role, slot, styleName, step, rarity)] = {
 						Name = string.format("%s %s [%s]", pieceName, theme.Name, tierName),
 						Theme = theme.Id,
 						Weight = weight,
@@ -563,6 +593,7 @@ for tier, req in ipairs(GearCatalog.TierLevels) do
 						Role = role,
 						Set = role,
 						Tier = tier,
+						Step = step,
 						Kind = "Set",
 						Desc = describe(string.format("Nv %d · Solo %s", req, role), gear),
 					}
@@ -572,12 +603,12 @@ for tier, req in ipairs(GearCatalog.TierLevels) do
 		-- Piezas de clase extra: Escudo, Cinturón, Capa (solo su rol; no cuentan para el bono de set)
 		for _, role in ipairs(GearCatalog.Roles) do
 			for _, slot in ipairs(GearCatalog.ClassExtraOrder) do
-				local gear = GearCatalog.SetPieceGear(role, slot, tier, rarity)
+				local gear = GearCatalog.SetPieceGear(role, slot, step, rarity)
 				local pieceName = if slot == "Escudo" then GearCatalog.ShieldNames[role] else GearCatalog.ExtraNames[slot]
 				local weight = GearCatalog.Weights[role]
 				local theme = GearCatalog.ThemeOfTier(weight, tier)
 				local artPiece = if slot == "Escudo" then "escudo_" .. string.lower(role) elseif slot == "Cinturon" then "cinturon" else "capa"
-				Items[GearCatalog.SetPieceId(role, slot, nil, tier, rarity)] = {
+				Items[GearCatalog.SetPieceId(role, slot, nil, step, rarity)] = {
 					Name = string.format("%s %s [%s]", pieceName, theme.Name, tierName),
 					Theme = theme.Id,
 					Weight = weight,
@@ -589,6 +620,7 @@ for tier, req in ipairs(GearCatalog.TierLevels) do
 					Role = role,
 					Set = role, -- cuenta para el set de rol (hasta 7 piezas)
 					Tier = tier,
+					Step = step,
 					Kind = "ClassPiece",
 					Desc = describe(string.format("Nv %d · Solo %s", req, role), gear),
 				}
@@ -597,14 +629,15 @@ for tier, req in ipairs(GearCatalog.TierLevels) do
 		-- Joyas universales
 		for slot in pairs(GearCatalog.JewelryShare) do
 			for _, focus in ipairs(GearCatalog.JewelFocus) do
-				local gear = GearCatalog.JewelGear(slot, focus, tier, rarity)
-				Items[GearCatalog.JewelId(slot, focus, tier, rarity)] = {
+				local gear = GearCatalog.JewelGear(slot, focus, step, rarity)
+				Items[GearCatalog.JewelId(slot, focus, step, rarity)] = {
 					Name = string.format("%s de %s [%s]", GearCatalog.JewelNames[slot], GearCatalog.JewelFocusName[focus], tierName),
 					Slot = slot,
 					Rarity = rarity,
 					Gear = gear,
 					ReqLevel = req,
 					Tier = tier,
+					Step = step,
 					Focus = focus, -- para el combo de joyería
 					Kind = "Jewel",
 					ArtKey = string.format("joyas/%s_%s", string.lower(slot), string.lower(focus)),
@@ -616,8 +649,8 @@ for tier, req in ipairs(GearCatalog.TierLevels) do
 	-- Emblemas de facción (solo rarezas altas)
 	for _, rarity in ipairs(GearCatalog.EmblemRarities) do
 		for _, faction in ipairs(GearCatalog.Factions) do
-			local gear = GearCatalog.EmblemGear(tier, rarity)
-			Items[GearCatalog.EmblemId(faction, tier, rarity)] = {
+			local gear = GearCatalog.EmblemGear(step, rarity)
+			Items[GearCatalog.EmblemId(faction, step, rarity)] = {
 				Name = string.format("%s [%s]", GearCatalog.EmblemNames[faction], tierName),
 				Slot = "Accesorio1",
 				Rarity = rarity,
@@ -625,6 +658,7 @@ for tier, req in ipairs(GearCatalog.TierLevels) do
 				ReqLevel = req,
 				Faction = faction,
 				Tier = tier,
+				Step = step,
 				Kind = "Emblem",
 				ArtKey = "emblemas/emblema_" .. string.lower(faction),
 				Desc = describe(string.format("Nv %d · Solo %s", req, GearCatalog.FactionDisplay[faction]), gear),

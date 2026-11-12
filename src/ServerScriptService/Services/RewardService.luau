@@ -97,6 +97,12 @@ end
 
 -- Llamado por MobService cuando el mob muere
 function RewardService.OnMobKilled(mob: Model, mobId: string, level: number, isBoss: boolean, summoned: boolean, xpMult: number?)
+	if xpMult == nil then
+		local extra = mob:GetAttribute("XpMult") -- cuevas: multiplicador de XP por tamaño de grupo (DungeonService)
+		if typeof(extra) == "number" then
+			xpMult = extra
+		end
+	end
 	local log = damageLog[mob]
 	damageLog[mob] = nil
 	if not log or log.Total <= 0 or summoned then
