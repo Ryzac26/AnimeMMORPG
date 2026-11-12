@@ -600,6 +600,11 @@ local function buildRidge(faction: string, base: Color3)
 		end
 	end
 	table.clear(ridgeLayers)
+	-- las piezas nuevas se crean alrededor del origen: devolver el pivote al origen (si no, quedan donde estaba el modelo y el anillo
+	-- de montañas pasa por encima del jugador al cambiar de facción) y forzar que se vuelva a centrar en la cámara
+	ridgeModel:PivotTo(CFrame.new(0, 0, 0))
+	ridgeLastPos = Vector3.new(1e9, 0, 1e9)
+	ridgeBaseY = 0
 	local hs = wedgeHighSide()
 	local style = RIDGE_STYLE[faction] or RIDGE_STYLE.Saiyan
 	local defs = {
