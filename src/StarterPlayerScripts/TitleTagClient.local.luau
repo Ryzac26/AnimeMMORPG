@@ -224,6 +224,14 @@ do
 			if not head or not head:IsA("BasePart") then
 				return
 			end
+			-- interruptor del Fundador en OFF (atributo AdminCmds que pone DevCommands): el cartel desaparece
+			if pl:GetAttribute("AdminCmds") == false then
+				local old = head:FindFirstChild(TAG_NAME)
+				if old then
+					old:Destroy()
+				end
+				return
+			end
 			local cur = head:FindFirstChild(TAG_NAME)
 			if cur and cur:IsA("BillboardGui") and cur.Adornee == head then
 				return

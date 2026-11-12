@@ -59,13 +59,28 @@ stroke.Thickness = 1.5
 stroke.Parent = panel
 
 local head = Instance.new("TextLabel")
-head.Size = UDim2.new(1, 0, 0, 24)
+head.Size = UDim2.new(1, -30, 0, 26)
 head.BackgroundTransparency = 1
 head.Font = Enum.Font.GothamBlack
 head.TextSize = 13
 head.Text = "PANEL DEL FUNDADOR"
 head.TextColor3 = GOLD
 head.Parent = panel
+
+-- flecha para esconder / mostrar el panel (queda solo la flecha)
+local arrow = Instance.new("TextButton")
+arrow.Size = UDim2.fromOffset(24, 20)
+arrow.Position = UDim2.new(1, -28, 0, 3)
+arrow.BackgroundColor3 = Color3.fromRGB(60, 48, 30)
+arrow.BorderSizePixel = 0
+arrow.Font = Enum.Font.GothamBlack
+arrow.TextSize = 14
+arrow.TextColor3 = GOLD
+arrow.Text = "▾"
+arrow.Parent = panel
+local arrowCorner = Instance.new("UICorner")
+arrowCorner.CornerRadius = UDim.new(0, 5)
+arrowCorner.Parent = arrow
 
 local buttons: { [string]: TextButton } = {}
 local labels: { [string]: string } = { Owner = "Mis comandos", Admin = "Comandos de admins" }
@@ -106,6 +121,18 @@ remote.OnClientEvent:Connect(function(ownerOn: any, adminOn: any)
 	show("Admin", adminOn)
 end)
 remote:FireServer("Sync")
+
+local collapsed = false
+arrow.Activated:Connect(function()
+	collapsed = not collapsed
+	for _, b in pairs(buttons) do
+		b.Visible = not collapsed
+	end
+	head.Visible = not collapsed
+	arrow.Text = if collapsed then "▸" else "▾"
+	panel.Size = if collapsed then UDim2.fromOffset(34, 26) else UDim2.fromOffset(206, 104)
+	arrow.Position = if collapsed then UDim2.fromOffset(5, 3) else UDim2.new(1, -28, 0, 3)
+end)
 
 -- arrastrar desde el título
 local dragging = false
