@@ -136,6 +136,22 @@ local function handle(player: Player, msg: string)
 		MountService.DevGrantMount(player, args[2], args[3]) -- /montura Lobo Epico
 	elseif cmd == "/listo" then
 		MountService.DevFinishIncubation(player) -- termina la incubación al instante
+	elseif cmd == "/rankpos" and root and root:IsA("BasePart") then
+		-- coloca el cartel del ranking global 16 studs delante de ti, mirándote; imprime el CFrame para dejarlo fijo en GlobalRankService.SPOTS
+		local f = tostring(player:GetAttribute("Faction"))
+		local look = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z)
+		if look.Magnitude > 0.1 then
+			look = look.Unit
+			local ground = Vector3.new(root.Position.X, root.Position.Y - 3, root.Position.Z) + look * 16
+			local cf = CFrame.lookAt(ground, ground - look)
+			local ok, GR = pcall(function()
+				return require(Services.GlobalRankService)
+			end)
+			if ok then
+				(GR :: any).PlaceAt(f, cf)
+				print(string.format("[RankPos] SPOTS.%s = CFrame.lookAt(Vector3.new(%.1f, %.1f, %.1f), Vector3.new(%.1f, %.1f, %.1f))", f, ground.X, ground.Y, ground.Z, ground.X - look.X, ground.Y, ground.Z - look.Z))
+			end
+		end
 	elseif cmd == "/vida" and char then
 		local h = char:FindFirstChildOfClass("Humanoid")
 		if h then

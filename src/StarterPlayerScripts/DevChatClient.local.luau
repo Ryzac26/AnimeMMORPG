@@ -26,7 +26,7 @@ if not RunService:IsStudio() then
 	end
 end
 
-for _, name in ipairs({ "clase", "nivel", "xp", "mob", "mobs", "limpiar", "arena", "cerrar", "item", "items", "vida", "dano", "metin", "boss", "tema" }) do
+for _, name in ipairs({ "clase", "nivel", "xp", "mob", "mobs", "limpiar", "arena", "cerrar", "item", "items", "vida", "dano", "metin", "boss", "tema", "rankpos" }) do
 	local cmd = Instance.new("TextChatCommand")
 	cmd.Name = "Dev_" .. name
 	cmd.PrimaryAlias = "/" .. name

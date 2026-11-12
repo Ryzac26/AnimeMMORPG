@@ -66,6 +66,8 @@ local THEMES: { [string]: Theme } = {
 	Shinigami = { Primary = c(96, 80, 170), Secondary = c(24, 24, 36), Glow = c(170, 200, 255), Emblem = "⚔️", Name = "Corte Espiritual" },
 }
 local GOLD = c(240, 196, 90)
+-- etiqueta que sale junto al nombre en los rankings de cada facción
+local FACTION_TAG: { [string]: string } = { Saiyan = "FACCIÓN ÉLITE", Shinobi = "FACCIÓN SIGILO", Pirate = "FACCIÓN NAVEGANTES", Shinigami = "FACCIÓN ESPÍRITU" }
 
 local HallService = {}
 
@@ -73,7 +75,7 @@ local HallService = {}
 -- DATOS: ranking global
 ---------------------------------------------------------------------
 type Entry = { UserId: number, Name: string, Value: number }
-type Rows = { { Rank: TextLabel, Name: TextLabel, Value: TextLabel } }
+type Rows = { { Rank: TextLabel, Name: TextLabel, Value: TextLabel, Faction: TextLabel } }
 type Hall = { Faction: string, LevelRows: Rows, DmgRows: Rows, Podium: ({ Entry }) -> () }
 
 local halls: { [string]: Hall } = {}
@@ -182,17 +184,19 @@ local function fmt(n: number): string
 	return (out:gsub("^,", ""))
 end
 
-local function paint(rows: Rows, list: { Entry }, asDamage: boolean)
+local function paint(rows: Rows, list: { Entry }, asDamage: boolean, factionTag: string)
 	for i, r in ipairs(rows) do
 		local e = list[i]
 		if e then
 			r.Rank.Text = tostring(i)
 			r.Name.Text = e.Name
+			r.Faction.Text = factionTag
 			r.Value.Text = if asDamage then fmt(e.Value) else ("Nv. " .. tostring(e.Value))
 			r.Name.TextColor3 = if i <= 3 then MEDAL[i] else c(235, 238, 245)
 			r.Rank.TextColor3 = if i <= 3 then MEDAL[i] else c(170, 176, 196)
 		else
 			r.Rank.Text = tostring(i)
+			r.Faction.Text = ""
 			r.Name.Text = "—"
 			r.Value.Text = ""
 			r.Name.TextColor3 = c(110, 116, 136)
@@ -253,11 +257,11 @@ local function refreshFaction(faction: string)
 	local levelSig, dmgSig = signature(levelList), signature(dmgList)
 	if levelSig ~= sigs.Level then
 		sigs.Level = levelSig
-		paint(hall.LevelRows, levelList, false)
+		paint(hall.LevelRows, levelList, false, FACTION_TAG[faction] or "")
 	end
 	if dmgSig ~= sigs.Dmg then
 		sigs.Dmg = dmgSig
-		paint(hall.DmgRows, dmgList, true)
+		paint(hall.DmgRows, dmgList, true, FACTION_TAG[faction] or "")
 		hall.Podium(dmgList)
 	end
 	for i = 1, math.min(3, #dmgList) do
@@ -545,9 +549,10 @@ local function buildBoard(parent: Instance, bcf: CFrame, x: number, y: number, z
 			bar.Parent = row
 		end
 		local rk = label(row, tostring(i), UDim2.fromOffset(70, 50), UDim2.fromOffset(10, 0), Enum.Font.GothamBlack, c(170, 176, 196), nil, 40)
-		local nm = label(row, "—", UDim2.fromOffset(500, 50), UDim2.fromOffset(95, 0), Enum.Font.GothamBlack, c(110, 116, 136), Enum.TextXAlignment.Left, 40)
+		local nm = label(row, "—", UDim2.fromOffset(560, 34), UDim2.fromOffset(95, 1), Enum.Font.GothamBlack, c(110, 116, 136), Enum.TextXAlignment.Left, 32)
+		local ft = label(row, "", UDim2.fromOffset(500, 16), UDim2.fromOffset(97, 33), Enum.Font.GothamBold, th.Glow, Enum.TextXAlignment.Left, 14)
 		local vl = label(row, "", UDim2.fromOffset(250, 50), UDim2.fromOffset(605, 0), Enum.Font.GothamBlack, th.Glow, Enum.TextXAlignment.Right, 38)
-		table.insert(rows, { Rank = rk, Name = nm, Value = vl })
+		table.insert(rows, { Rank = rk, Name = nm, Value = vl, Faction = ft })
 	end
 	label(bg, "Ranking global de toda la facción · se actualiza cada minuto", UDim2.fromOffset(880, 22), UDim2.fromOffset(15, 684), Enum.Font.Gotham, c(140, 146, 170))
 	return rows, ph
@@ -1080,6 +1085,16 @@ game:BindToClose(function()
 	end
 	for _, pl in ipairs(Players:GetPlayers()) do
 		writeLevel(pl)
+	end
+end)
+
+-- ranking global de las 4 facciones (Top 100 + tu puesto); si falla no afecta al salón
+task.spawn(function()
+	local ok, err = pcall(function()
+		require(Services.GlobalRankService)
+	end)
+	if not ok then
+		warn("[HallService] GlobalRankService no cargó: " .. tostring(err))
 	end
 end)
 
