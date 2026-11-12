@@ -600,12 +600,14 @@ local function buildRidge(faction: string, base: Color3)
 		end
 	end
 	table.clear(ridgeLayers)
-	-- las piezas nuevas se crean alrededor del origen: devolver el pivote al origen (si no, quedan donde estaba el modelo y el anillo
-	-- de montañas pasa por encima del jugador al cambiar de facción) y forzar que se vuelva a centrar en la cámara
+	-- mientras se reconstruye, el bucle de cámara NO debe mover el modelo (wedgeHighSide espera 0.15 s)
+	ridgeBuilt = false
+	local hs = wedgeHighSide()
+	-- las piezas nuevas se crean alrededor del origen: devolver el pivote al origen JUSTO antes de crearlas (sin esperas en medio) y
+	-- forzar que después se vuelva a centrar en la cámara; si no, el anillo de montañas queda donde estaba el modelo y pasa por encima del jugador
 	ridgeModel:PivotTo(CFrame.new(0, 0, 0))
 	ridgeLastPos = Vector3.new(1e9, 0, 1e9)
 	ridgeBaseY = 0
-	local hs = wedgeHighSide()
 	local style = RIDGE_STYLE[faction] or RIDGE_STYLE.Saiyan
 	local defs = {
 		{ R = 2000, ElevMin = 14, ElevMax = 23, Depth = 520, N = if MOBILE then 64 else 96 },
