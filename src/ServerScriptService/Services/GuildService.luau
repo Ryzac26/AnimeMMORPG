@@ -33,7 +33,8 @@ local NotifyRemote = Net.Get("Notify")
 
 local FLUSH_SECONDS = 40
 local FACTIONS = { "Saiyan", "Shinobi", "Pirate", "Shinigami" }
-local STORE_NAME = "FactionGuild_v1"
+local DataVersion = require(script.Parent.DataVersion)
+local STORE_NAME = DataVersion.Name("FactionGuild_v1")
 
 local GuildService = {}
 

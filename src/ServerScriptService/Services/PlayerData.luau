@@ -28,9 +28,11 @@ local DataStoreService = game:GetService("DataStoreService")
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 
-local STORE_NAME = "PlayerData_v1"
-local LEGACY_PROGRESS_STORE = "PlayerProgress_v1"
-local LEGACY_CLASS_STORE = "ClassChoice_v1"
+local DataVersion = require(script.Parent.DataVersion)
+local STORE_NAME = DataVersion.Name("PlayerData_v1")
+-- stores antiguos (migración): con versión nueva apuntan a stores vacíos, así un reinicio no recupera niveles viejos
+local LEGACY_PROGRESS_STORE = DataVersion.Name("PlayerProgress_v1")
+local LEGACY_CLASS_STORE = DataVersion.Name("ClassChoice_v1")
 
 local AUTOSAVE_INTERVAL = 120 -- s entre autoguardados (también sirve de "latido" del bloqueo)
 local LOCK_DEAD_AFTER = 360 -- s sin latido: el servidor dueño se considera caído y otro puede tomar el perfil

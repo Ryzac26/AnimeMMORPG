@@ -43,7 +43,7 @@ local claiming: { [Player]: boolean } = {}
 local refundStore: DataStore? = nil
 do
 	local ok, r = pcall(function()
-		return DataStoreService:GetDataStore("BlessRefund_v1")
+		return DataStoreService:GetDataStore(require(script.Parent.DataVersion).Name("BlessRefund_v1"))
 	end)
 	if ok then
 		refundStore = r :: DataStore

@@ -18,6 +18,7 @@ local Workspace = game:GetService("Workspace")
 
 local Services = ServerScriptService.Services
 local Net = require(Services.Net)
+local DataVersion = require(Services.DataVersion)
 local StatService = require(Services.StatService)
 
 local TOP_N = 100
@@ -63,7 +64,7 @@ type Entry = { UserId: number, Name: string, Level: number, Faction: string }
 local stores: { [string]: OrderedDataStore? } = {}
 for _, f in ipairs(FACTIONS) do
 	local ok, s = pcall(function()
-		return DataStoreService:GetOrderedDataStore("HallLevel_v2_" .. f)
+		return DataStoreService:GetOrderedDataStore(DataVersion.Name("HallLevel_v2_" .. f))
 	end)
 	stores[f] = if ok then s else nil
 end

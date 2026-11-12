@@ -1221,7 +1221,7 @@ end)
 local registryStore: DataStore? = nil
 do
 	local ok, r = pcall(function()
-		return DataStoreService:GetDataStore("VipHouses_v1")
+		return DataStoreService:GetDataStore(require(script.Parent.DataVersion).Name("VipHouses_v1"))
 	end)
 	if ok then
 		registryStore = r :: DataStore

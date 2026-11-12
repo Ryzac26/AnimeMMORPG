@@ -27,6 +27,7 @@ local DamageService = require(Services.DamageService)
 local StatService = require(Services.StatService)
 local NpcBuilder = require(Services.NpcBuilder)
 
+local DataVersion = require(script.Parent.DataVersion)
 local OpenRemote = Net.Get("HallOpen")
 local function grantTitle(pl: Player, id: string)
 	task.spawn(function()
@@ -98,10 +99,10 @@ local warnedNoStore = false
 
 for faction in pairs(THEMES) do
 	local okL, sL = pcall(function()
-		return DataStoreService:GetOrderedDataStore("HallLevel_v2_" .. faction)
+		return DataStoreService:GetOrderedDataStore(DataVersion.Name("HallLevel_v2_" .. faction))
 	end)
 	local okD, sD = pcall(function()
-		return DataStoreService:GetOrderedDataStore("HallDmg_v1_" .. faction)
+		return DataStoreService:GetOrderedDataStore(DataVersion.Name("HallDmg_v1_" .. faction))
 	end)
 	levelStores[faction] = if okL then sL else nil
 	dmgStores[faction] = if okD then sD else nil
