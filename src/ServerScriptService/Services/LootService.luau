@@ -124,6 +124,12 @@ local function deliver(player: Player, h: Haul, header: string, alwaysNotify: bo
 	return allAdded
 end
 
+-- Nivel con el que se genera el EQUIPO que recibe un jugador: nunca más alto que su nivel ni que el de la fuente (mob, jefe, cofre...).
+-- Así lo que cae siempre es del nivel de quien lo recibe: un jugador de nivel 100 no recibe equipo de nivel 600 que no podría usar.
+local function gearLevel(player: Player, level: number): number
+	return math.max(1, math.min(level, LevelService.GetLevel(player)))
+end
+
 local function goldFor(player: Player, level: number, mult: number): number
 	return math.floor(LootTables.GoldFor(level, mult, rng) * GearService.GoldMult(player) * (gapMult[player] or 1))
 end
@@ -157,7 +163,7 @@ local function runLottery(participants: { Player }, shares: { [Player]: number }
 	for _, pl in ipairs(participants) do
 		if isWinner[pl] then
 			local faction, role = classOf(pl)
-			local id = LootTables.RollGear(faction, role, level, prizeRarity, rng)
+			local id = LootTables.RollGear(faction, role, gearLevel(pl, level), prizeRarity, rng)
 			if id and Inventory.Add(pl, id, 1) then
 				Wallet.SetPity(pl, "Boss", 0)
 				notify(pl, string.format("¡Ganaste el sorteo del %s! %s", title, label(id, 1)))
@@ -209,7 +215,7 @@ local function onMob(level: number, strip: number, participants: { Player }, sha
 				end
 			end
 			if rng:NextNumber() < chance(M.GearChanceByStrip[strip] or M.GearChanceByStrip[1], luck) then
-				addItem(h, LootTables.RollGear(faction, role, level, M.GearRarityByStrip[strip] or M.GearRarityByStrip[1], rng), 1, true)
+				addItem(h, LootTables.RollGear(faction, role, gearLevel(pl, level), M.GearRarityByStrip[strip] or M.GearRarityByStrip[1], rng), 1, true)
 			end
 			if rng:NextNumber() < chance(M.MinorGemChance, luck) then
 				addItem(h, "Mat_GemaMenor", 1, false)
@@ -266,10 +272,10 @@ local function onMetin(rarityId: string, level: number, participants: { Player }
 				addItem(h, "Mat_Gema", LootTables.Count(R.GemCount, rng), false)
 			end
 			if rng:NextNumber() < chance(X.ChestChance, luck) then
-				addItem(h, LootTables.RollGear(faction, role, level, R.ChestRarity, rng), 1, true)
+				addItem(h, LootTables.RollGear(faction, role, gearLevel(pl, level), R.ChestRarity, rng), 1, true)
 			end
 			if rng:NextNumber() < chance(X.EmblemChance, luck) then
-				addItem(h, LootTables.RollEmblem(faction, level, R.EmblemRarity, rng), 1, true)
+				addItem(h, LootTables.RollEmblem(faction, gearLevel(pl, level), R.EmblemRarity, rng), 1, true)
 			end
 			if rng:NextNumber() < chance(X.PetChance, luck) then
 				addItem(h, LootTables.RollPet(R.PetRarity, rng, faction), 1, true)
@@ -302,7 +308,7 @@ local function onMini(strip: number, level: number, participants: { Player }, sh
 				addItem(h, "Mat_GemaMenor", 1, false)
 			end
 			if rng:NextNumber() < chance(X.GearChance[strip], luck) then
-				addItem(h, LootTables.RollGear(faction, role, GB.FromOld(strip * 25), X.GearRarity[strip], rng), 1, true)
+				addItem(h, LootTables.RollGear(faction, role, gearLevel(pl, GB.FromOld(strip * 25)), X.GearRarity[strip], rng), 1, true)
 			end
 			if rng:NextNumber() < chance(X.PetChance, luck) then
 				addItem(h, LootTables.RollPet(X.PetRarity, rng, faction), 1, true)
@@ -337,7 +343,7 @@ local function grant(player: Player, kind: string, strip: number): boolean
 		end
 		if rng:NextNumber() < chance(X.GearChance[strip], luck) then
 			local upgraded = rng:NextNumber() < chance(X.UpgradedChance[strip], luck)
-			local id = LootTables.RollGear(faction, role, level, X.GearRarity[strip], rng, nil, upgraded)
+			local id = LootTables.RollGear(faction, role, gearLevel(player, level), X.GearRarity[strip], rng, nil, upgraded)
 			addItem(h, id, 1, true, if upgraded then LootTables.Count(X.UpgradedPlus, rng) else nil)
 			if upgraded and id then
 				notify(player, "¡Cofre MEJORADO! El equipo subió de rareza y viene con mejora")
@@ -347,7 +353,7 @@ local function grant(player: Player, kind: string, strip: number): boolean
 		local X = LootTables.Offering
 		header = "Ofrenda aceptada"
 		addItem(h, "Mat_GemaMenor", LootTables.Count(X.GemCount, rng), false)
-		addItem(h, LootTables.RollGear(faction, role, level, X.GearRarity[strip], rng, X.JewelryBias), 1, true)
+		addItem(h, LootTables.RollGear(faction, role, gearLevel(player, level), X.GearRarity[strip], rng, X.JewelryBias), 1, true)
 	else
 		local X = LootTables.Challenge
 		if not DailyLimits.Use(player, "Challenge", strip) then
@@ -362,7 +368,7 @@ local function grant(player: Player, kind: string, strip: number): boolean
 			addItem(h, "Mat_GemaMenor", 1, false)
 		end
 		if rng:NextNumber() < chance(X.GearChance[strip], luck) then
-			addItem(h, LootTables.RollGear(faction, role, level, X.GearRarity[strip], rng), 1, true)
+			addItem(h, LootTables.RollGear(faction, role, gearLevel(player, level), X.GearRarity[strip], rng), 1, true)
 		end
 		if rng:NextNumber() < chance(X.PetChance, luck) then
 			addItem(h, LootTables.RollPet(X.PetRarity, rng, faction), 1, true)
