@@ -44,24 +44,30 @@ local PARTS: { { any } } = {
 -- MODELOS PROPIOS: ServerStorage > BossModels > (Model con PrimaryPart, AnimationController/Animator y carpeta Animations > Monster).
 -- Cada vez que aparece el jefe se elige uno al azar. Si la carpeta no existe o está vacía, se usa la estatua de bloques.
 local TARGET_LENGTH = 170 -- largo (studs) al que se escala el modelo propio
+local Y_OFFSET = 0 -- ajuste manual de altura (studs): negativo = más bajo, positivo = más alto
 local SINK = 1 -- studs que se hunde el punto más bajo en el piso (para que "toque" de verdad)
 local FACING_Y = 0 -- grados para girarlo si mira al lado equivocado (prueba 90, 180 o -90)
-local IDLE_ANIM = "Swim" -- animación en bucle (Animations > Monster > ...)
-local ATTACK_ANIM = "Bite" -- animación al golpear
+-- (las animaciones del modelo original NO se pueden usar: pertenecen a otro creador y Roblox no las carga en tu juego.
+--  El movimiento lo hace BossAnimClient por código, con los Motor6D del cuerpo; aquí solo se avisa cuándo ataca.)
 
 local BossBeaconService = {}
 local model: Model? = nil
-local attackTrack: AnimationTrack? = nil
+local customCenter: Vector3? = nil -- centro del cuerpo visible del modelo propio (para la raíz invisible)
 
--- punto más bajo (Y) de un conjunto de partes, contando su rotación
-local function lowestY(parts: { BasePart }): number
-	local low = math.huge
+-- punto más bajo (Y) de las partes VISIBLES, contando su rotación. Devuelve (Y, nombre de la parte más baja)
+local function lowestY(parts: { BasePart }): (number, string)
+	local low, who = math.huge, "?"
 	for _, p in ipairs(parts) do
-		local cf, sz = p.CFrame, p.Size
-		local ext = 0.5 * (math.abs(cf.RightVector.Y) * sz.X + math.abs(cf.UpVector.Y) * sz.Y + math.abs(cf.LookVector.Y) * sz.Z)
-		low = math.min(low, cf.Position.Y - ext)
+		if p.Transparency < 0.9 then -- las partes invisibles (cajas de colisión, raíces) no cuentan
+			local cf, sz = p.CFrame, p.Size
+			local ext = 0.5 * (math.abs(cf.RightVector.Y) * sz.X + math.abs(cf.UpVector.Y) * sz.Y + math.abs(cf.LookVector.Y) * sz.Z)
+			local y = cf.Position.Y - ext
+			if y < low then
+				low, who = y, p:GetFullName()
+			end
+		end
 	end
-	return low
+	return low, who
 end
 
 local function pickTemplate(): Model?
@@ -81,27 +87,24 @@ local function pickTemplate(): Model?
 	return list[math.random(1, #list)]
 end
 
-local function findAnim(m: Model, name: string): Animation?
-	local folder = m:FindFirstChild("Animations")
-	local monster = folder and folder:FindFirstChild("Monster")
-	local a = monster and monster:FindFirstChild(name)
-	if a and a:IsA("Animation") then
-		return a
-	end
-	return nil
-end
-
--- clona el modelo, lo escala, lo apoya en el piso y arranca sus animaciones
+-- clona el modelo, lo escala y lo apoya en el piso (el movimiento lo pone BossAnimClient en cada cliente)
 local function buildFromTemplate(tpl: Model, base: Vector3): Model
 	local m = tpl:Clone()
 	m.Name = "Maqueta_Jefe"
 	m.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 	for _, d in ipairs(m:GetDescendants()) do
-		if d:IsA("LuaSourceContainer") then
-			d:Destroy() -- por seguridad: los modelos del Toolbox pueden traer scripts
+		if d:IsA("LuaSourceContainer") or d:IsA("Animator") or d:IsA("AnimationController") then
+			d:Destroy() -- scripts del Toolbox por seguridad; el Animator ya no hace falta (sus animaciones no cargan)
 		elseif d:IsA("BasePart") then
 			d.CanQuery = true -- clic sobre cualquier parte del cuerpo selecciona al jefe
+			if d.Name == "HumanoidRootPart" then
+				d.Name = "BodyRoot" -- el nombre HumanoidRootPart lo usa la raíz invisible de abajo (selección y rango de ataque)
+			end
 		end
+	end
+	local anims = m:FindFirstChild("Animations")
+	if anims then
+		anims:Destroy()
 	end
 	if FACING_Y ~= 0 then
 		m:PivotTo(m:GetPivot() * CFrame.Angles(0, math.rad(FACING_Y), 0))
@@ -111,77 +114,43 @@ local function buildFromTemplate(tpl: Model, base: Vector3): Model
 	if longest > 0 then
 		m:ScaleTo(m:GetScale() * TARGET_LENGTH / longest)
 	end
-	local cf, size = m:GetBoundingBox()
-	local bottom = cf.Position.Y - size.Y / 2
-	m:PivotTo(m:GetPivot() + Vector3.new(base.X - cf.Position.X, base.Y - bottom, base.Z - cf.Position.Z))
-	m.Parent = Workspace
+	local cf = m:GetBoundingBox()
+	m:PivotTo(m:GetPivot() + Vector3.new(base.X - cf.Position.X, 0, base.Z - cf.Position.Z))
 
+	-- apoyar el punto visible más bajo en el piso (las partes invisibles no cuentan)
 	local bodyParts: { BasePart } = {}
 	for _, d in ipairs(m:GetDescendants()) do
 		if d:IsA("BasePart") then
 			table.insert(bodyParts, d)
 		end
 	end
-	local animator = m:FindFirstChildWhichIsA("Animator", true)
-	local startedAnim = false
-	if animator then
-		local idle = findAnim(m, IDLE_ANIM)
-		if idle then
-			local t = animator:LoadAnimation(idle)
-			t.Looped = true
-			t:Play()
-			startedAnim = true
-		end
-		local atk = findAnim(m, ATTACK_ANIM)
-		if atk then
-			attackTrack = animator:LoadAnimation(atk)
-			attackTrack.Priority = Enum.AnimationPriority.Action
+	local lowest, lowestName = lowestY(bodyParts)
+	if lowest ~= math.huge then
+		local delta = base.Y - lowest - SINK + Y_OFFSET
+		print(string.format("[BossBeacon] punto más bajo Y=%.1f (%s) | piso Y=%.1f | ajuste %.1f", lowest, lowestName, base.Y, delta))
+		m:PivotTo(m:GetPivot() + Vector3.new(0, delta, 0))
+	end
+	local mn: Vector3?, mx: Vector3?
+	for _, p in ipairs(bodyParts) do
+		if p.Transparency < 0.9 then
+			local lo, hi = p.Position - p.Size / 2, p.Position + p.Size / 2
+			mn = if mn then Vector3.new(math.min(mn.X, lo.X), math.min(mn.Y, lo.Y), math.min(mn.Z, lo.Z)) else lo
+			mx = if mx then Vector3.new(math.max(mx.X, hi.X), math.max(mx.Y, hi.Y), math.max(mx.Z, hi.Z)) else hi
 		end
 	end
-	-- con la animación en marcha el cuerpo sube y baja: se mide su punto más bajo y se apoya ESE en el piso
-	if startedAnim then
-		task.spawn(function()
-			local lowest = math.huge
-			for _ = 1, 10 do
-				task.wait(0.25)
-				if m.Parent == nil then
-					return
-				end
-				lowest = math.min(lowest, lowestY(bodyParts))
-			end
-			if m.Parent == nil or lowest == math.huge then
-				return
-			end
-			local delta = base.Y - lowest - SINK
-			m:PivotTo(m:GetPivot() + Vector3.new(0, delta, 0)) -- mueve todo el modelo (cuerpo, raíz, rayo y cartel) junto
-		end)
-	end
+	customCenter = if mn and mx then (mn + mx) / 2 else nil
+	m:SetAttribute("BossRig", true) -- BossAnimClient mueve a los que tienen esto
+	m:SetAttribute("BossLength", TARGET_LENGTH)
+	m.Parent = Workspace
 	return m
 end
 
--- BossService la llama justo antes de cada golpe grande
+-- BossService la llama justo antes de cada golpe grande: los clientes lo ven en AttackAt y hacen la mordida
 function BossBeaconService.Attack()
-	local t = attackTrack
-	if model and t then
-		t:Play()
+	local m = model
+	if m and m:GetAttribute("BossRig") == true then
+		m:SetAttribute("AttackAt", Workspace:GetServerTimeNow())
 	end
-end
-
-local function part(parent: Instance, name: string, size: Vector3, pos: Vector3, color: Color3, material: Enum.Material): Part
-	local p = Instance.new("Part")
-	p.Name = name
-	p.Anchored = true
-	p.CanCollide = false
-	p.CanQuery = false
-	p.CanTouch = false
-	p.Size = size
-	p.Position = pos
-	p.Color = color
-	p.Material = material
-	p.TopSurface = Enum.SurfaceType.Smooth
-	p.BottomSurface = Enum.SurfaceType.Smooth
-	p.Parent = parent
-	return p
 end
 
 function BossBeaconService.Hide()
@@ -201,7 +170,7 @@ end
 
 function BossBeaconService.Show(bossName: string?): Model
 	BossBeaconService.Hide()
-	attackTrack = nil
+	customCenter = nil
 	local base = Vector3.new(CENTER.X, GROUND_Y, CENTER.Z)
 	local m: Model
 	local tpl = pickTemplate()
@@ -217,7 +186,6 @@ function BossBeaconService.Show(bossName: string?): Model
 	if custom then
 		m = built :: Model
 	else
-		attackTrack = nil
 		m = Instance.new("Model")
 		m.Name = "Maqueta_Jefe"
 		m.ModelStreamingMode = Enum.ModelStreamingMode.Persistent -- se ve desde cualquier fuerte
@@ -232,9 +200,8 @@ function BossBeaconService.Show(bossName: string?): Model
 	local root = part(m, "HumanoidRootPart", Vector3.new(40, 30, 40), base + Vector3.new(0, 15, 0), Color3.new(1, 1, 1), Enum.Material.SmoothPlastic)
 	root.Transparency = 1
 	root.CanQuery = true
-	if custom then
-		local bcf = m:GetBoundingBox()
-		root.CFrame = CFrame.new(bcf.Position)
+	if custom and customCenter then
+		root.CFrame = CFrame.new(customCenter)
 	end
 	m.PrimaryPart = root
 	local head = m:FindFirstChild("Cabeza")

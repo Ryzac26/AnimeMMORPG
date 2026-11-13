@@ -268,7 +268,7 @@ function BossService.Spawn()
 	m:SetAttribute("Level", CONFIG.Level)
 	m:SetAttribute("MaxHp", hp)
 	m:SetAttribute("DisplayName", CONFIG.Name)
-	m:SetAttribute("HitRadius", 55) -- alcance desde su superficie (el cuerpo mide ~90 studs de ancho)
+	m:SetAttribute("HitRadius", if m:GetAttribute("BossRig") == true then 95 else 55) -- alcance desde su superficie (estatua ~90 studs; modelo propio 170 de largo)
 	CollectionService:AddTag(m, "Targetable") -- (sin tag "Mob": ni el auto-farm ni MobBrain lo manejan)
 	model = m
 	token += 1
