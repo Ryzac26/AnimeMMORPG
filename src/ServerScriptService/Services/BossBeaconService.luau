@@ -141,10 +141,21 @@ local function buildFromTemplate(tpl: Model, base: Vector3): Model
 			table.insert(bodyParts, d)
 		end
 	end
+	-- apoyar en el piso: las PATAS tocan el suelo (la cola puede quedar un poco bajo tierra, pero nunca más de 12% del largo)
 	local lowest, lowestName = lowestY(bodyParts)
+	local feet: { BasePart } = {}
+	for _, p in ipairs(bodyParts) do
+		if string.find(p.Name, "Foot", 1, true) then
+			table.insert(feet, p)
+		end
+	end
 	if lowest ~= math.huge then
-		local delta = base.Y - lowest - SINK + Y_OFFSET
-		print(string.format("[BossBeacon] punto más bajo Y=%.1f (%s) | piso Y=%.1f | ajuste %.1f", lowest, lowestName, base.Y, delta))
+		local feetLow = lowestY(feet)
+		local ref = if feetLow ~= math.huge then feetLow else lowest
+		local delta = base.Y - ref - SINK
+		local tailLimit = (base.Y - 0.12 * TARGET_LENGTH) - lowest -- no bajar más que esto: la cola no se entierra del todo
+		delta = math.max(delta, tailLimit) + Y_OFFSET
+		print(string.format("[BossBeacon] más bajo Y=%.1f (%s) | patas Y=%.1f | piso Y=%.1f | ajuste %.1f", lowest, lowestName, feetLow, base.Y, delta))
 		m:PivotTo(m:GetPivot() + Vector3.new(0, delta, 0))
 	end
 	local mn: Vector3?, mx: Vector3?
@@ -218,7 +229,7 @@ function BossBeaconService.Show(bossName: string?): Model
 	root.Transparency = 1
 	root.CanQuery = true
 	if custom and customCenter then
-		root.CFrame = CFrame.new(customCenter)
+		root.CFrame = CFrame.new(customCenter.X, base.Y + 15, customCenter.Z) -- a ras del piso: provocaciones y habilidades miden la altura desde aquí
 	end
 	m.PrimaryPart = root
 	local head = m:FindFirstChild("Cabeza")

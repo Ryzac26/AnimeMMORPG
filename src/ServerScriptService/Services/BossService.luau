@@ -42,6 +42,8 @@ local CONFIG = {
 	-- MECÁNICAS DE ROL: exigen tanque y soporte (un grupo de puro daño se queda sin vida)
 	PulseEvery = 28, PulseMult = 2.2, PulseWarn = 3, -- Pulso Devastador: daño a TODOS los jugadores; curación y escudos lo compensan
 	ExecEvery = 40, ExecMult = 7, ExecRadius = 10, ExecWarn = 2.2, -- Golpe del Verdugo: va contra quien tiene la provocación; sin tanque, contra el más resistente
+	-- ATAQUE BÁSICO (mordida): contra quien lo provocó; si no hay provocación, contra el tanque más cercano; si no hay tanque, el más cercano
+	BasicEvery = 2.6, BasicMult = 1.0, BasicReach = 15, BasicHitDelay = 0.55, -- Reach: studs desde su superficie (HitRadius)
 	EnrageBelow = 0.30, EnrageSpeed = 0.6, -- en furia los tiempos se multiplican por esto
 	WarnSeconds = { 300, 60 },
 }
@@ -163,10 +165,39 @@ local function pulse(boss: Model)
 	end)
 end
 
+-- A quién mira y muerde el jefe: 1) quien tiene la provocación activa, 2) el tanque más cercano, 3) el jugador más cercano
+local function pickTarget(boss: Model, near: { { Player: Player, Char: Model, Root: BasePart } }): { Player: Player, Char: Model, Root: BasePart }?
+	local by, untilT = boss:GetAttribute("TauntBy"), boss:GetAttribute("TauntUntil")
+	if typeof(by) == "string" and typeof(untilT) == "number" and untilT > os.clock() then
+		for _, e in ipairs(near) do
+			if e.Char.Name == by then
+				return e
+			end
+		end
+	end
+	local bp = boss.PrimaryPart
+	local center = if bp then bp.Position else CONFIG.Center
+	local function flat(e: { Player: Player, Char: Model, Root: BasePart }): number
+		return Vector3.new(e.Root.Position.X - center.X, 0, e.Root.Position.Z - center.Z).Magnitude
+	end
+	local bestTank, bestTankD, bestAny, bestAnyD = nil, math.huge, nil, math.huge
+	for _, e in ipairs(near) do
+		local d = flat(e)
+		if e.Player:GetAttribute("Role") == "Tanque" and d < bestTankD then
+			bestTank, bestTankD = e, d
+		end
+		if d < bestAnyD then
+			bestAny, bestAnyD = e, d
+		end
+	end
+	return bestTank or bestAny
+end
+
 local function loop(boss: Model, hum: Humanoid, myToken: number)
 	local t0 = os.clock()
 	local nextSlam, nextWave, nextSummon = t0 + 5, t0 + CONFIG.WaveEvery, t0 + 12
 	local nextPulse, nextExec = t0 + CONFIG.PulseEvery, t0 + CONFIG.ExecEvery
+	local nextBasic = t0 + 3
 	while model == boss and token == myToken and hum.Health > 0 do
 		task.wait(0.5)
 		local now = os.clock()
@@ -177,6 +208,30 @@ local function loop(boss: Model, hum: Humanoid, myToken: number)
 		end
 		local speed = if hum.Health / hum.MaxHealth < CONFIG.EnrageBelow then CONFIG.EnrageSpeed else 1
 		local near = playersNear(CONFIG.Center, 450)
+		-- objetivo: el cliente gira al jefe hacia él (BossAnimClient lee BossTarget = UserId)
+		local tgt = pickTarget(boss, near)
+		local tid = if tgt then tgt.Player.UserId else 0
+		if boss:GetAttribute("BossTarget") ~= tid then
+			boss:SetAttribute("BossTarget", tid)
+		end
+		-- ataque básico: mordida al objetivo si está al alcance (se esquiva saliendo de su superficie)
+		if tgt and now >= nextBasic then
+			local hr = boss:GetAttribute("HitRadius")
+			local reach = (if typeof(hr) == "number" then hr else 0) + CONFIG.BasicReach
+			local bp = boss.PrimaryPart
+			local c = if bp then bp.Position else CONFIG.Center
+			local d = Vector3.new(tgt.Root.Position.X - c.X, 0, tgt.Root.Position.Z - c.Z).Magnitude
+			if d <= reach then
+				nextBasic = now + CONFIG.BasicEvery * speed
+				BossBeacon.Attack()
+				local victim = tgt
+				task.delay(CONFIG.BasicHitDelay, function()
+					if boss.Parent and hum.Health > 0 and victim.Char.Parent then
+						DamageService.Deal(boss, victim.Char, CONFIG.BasicMult, {})
+					end
+				end)
+			end
+		end
 		if #near > 0 then
 			if now >= nextSlam then
 				nextSlam = now + CONFIG.SlamEvery * speed

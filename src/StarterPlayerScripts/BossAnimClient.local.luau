@@ -4,15 +4,18 @@
     Movimiento POR CÓDIGO del jefe mundial con modelo propio (BossBeaconService marca el modelo con BossRig = true).
     Las animaciones del modelo original no cargan (son de otro creador), así que se mueven sus Motor6D cada fotograma:
       - Reposo: respiración, cola que ondula, cuello que mira alrededor, mandíbula que se abre a veces, bigotes y patas que se balancean.
+      - Giro: mira al jugador que indica el servidor (provocación > tanque > más cercano), girando todo el modelo en el cliente.
       - Mordida: el servidor escribe AttackAt (hora del servidor); el jefe echa atrás el cuello, abre la boca, se lanza y vuelve.
     Cada rotación se calcula en el eje del MUNDO (arriba / derecha / adelante del jefe) convertido al marco de cada articulación,
     así funciona aunque los huesos del modelo tengan ejes raros.
     Huesos esperados (Abomination): Torso1-3, Neck, Head, LowerHeadRot (mandíbula), Tail1-4, Whisker.L/R, patas FrontLeg*/BackLeg*. Los que falten se ignoran.
 ]]
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local BITE_DURATION = 1.1
+local TURN_SPEED = 1.4 -- rad/s con que el jefe gira hacia su objetivo (BossTarget = UserId, lo elige BossService)
 
 type JointInfo = { Joint: Motor6D, Up: Vector3, Right: Vector3, Fwd: Vector3 }
 
@@ -37,6 +40,10 @@ local function setup(model: Model)
 	fwd = fwd.Unit
 	local up = Vector3.yAxis
 	local right = fwd:Cross(up) -- (adelante x arriba) = derecha
+
+	local a0 = math.atan2(-fwd.X, -fwd.Z) -- ángulo del frente inicial (CFrame.Angles(0, a, 0) * -Z = (-sin a, -cos a))
+	local pivotCF0 = model:GetPivot()
+	local yaw = 0
 
 	local joints: { [string]: JointInfo } = {}
 	for _, d in ipairs(model:GetDescendants()) do
@@ -69,10 +76,30 @@ local function setup(model: Model)
 	end
 
 	local conn: RBXScriptConnection
-	conn = RunService.RenderStepped:Connect(function()
+	conn = RunService.RenderStepped:Connect(function(dt)
 		if not model.Parent then
 			conn:Disconnect()
 			return
+		end
+
+		-- GIRO hacia el objetivo
+		local tid = model:GetAttribute("BossTarget")
+		if typeof(tid) == "number" and tid ~= 0 then
+			local pl = Players:GetPlayerByUserId(tid)
+			local hrp = pl and pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")
+			if hrp and hrp:IsA("BasePart") then
+				local pos = pivotCF0.Position
+				local d = Vector3.new(hrp.Position.X - pos.X, 0, hrp.Position.Z - pos.Z)
+				if d.Magnitude > 1 then
+					local want = math.atan2(-d.X, -d.Z) - a0
+					local diff = (want - yaw + math.pi) % (2 * math.pi) - math.pi
+					local step = math.clamp(diff, -TURN_SPEED * dt, TURN_SPEED * dt)
+					if math.abs(step) > 1e-4 then
+						yaw += step
+						model:PivotTo(pivotCF0 * CFrame.Angles(0, yaw, 0))
+					end
+				end
+			end
 		end
 		local t = os.clock()
 		table.clear(acc)
