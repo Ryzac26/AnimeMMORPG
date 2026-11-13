@@ -1,48 +1,56 @@
 --!strict
 --[[
-    SCRIPT: SpeedTestTool.client.luau
-    UBICACIÓN: StarterPlayer > StarterPlayerScripts (LocalScript)
-    DESCRIPCIÓN: Opciones rápidas de velocidad y vuelo para inspeccionar el mapa.
+    SpeedTestTool (LocalScript) -> StarterPlayer > StarterPlayerScripts > SpeedTestTool
+    SHIFT IZQUIERDO = súper velocidad, SOLO para el Soberano (dueño del juego). El resto de jugadores usa la velocidad base
+    (BaseSpeedService) y este script no hace nada para ellos.
 ]]
-
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
-local ContextActionService = game:GetService("ContextActionService")
 
 local player = Players.LocalPlayer
 
--- Ajusta la velocidad normal y la súper velocidad aquí
-local WALK_SPEED_NORMAL = 16
-local WALK_SPEED_FAST = 200
-
-local function applySpeed(speed: number)
-	local character = player.Character
-	if character then
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
-		if humanoid then
-			humanoid.WalkSpeed = speed
-		end
-	end
+local okList, AdminList: any = pcall(function()
+	return require(ReplicatedStorage:WaitForChild("Modules", 10):WaitForChild("AdminList", 10))
+end)
+if not okList then
+	return
+end
+local entry = AdminList.Get(player)
+if not entry or entry.Kind ~= "Owner" then
+	return
 end
 
--- Mantener presionado SHIFT IZQUIERDO para correr súper rápido
+local WALK_SPEED_FAST = 200
+local savedSpeed: number? = nil
+
+local function humanoid(): Humanoid?
+	local c = player.Character
+	return c and c:FindFirstChildOfClass("Humanoid")
+end
+
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
-	if input.KeyCode == Enum.KeyCode.LeftShift then
-		applySpeed(WALK_SPEED_FAST)
+	if gameProcessed or input.KeyCode ~= Enum.KeyCode.LeftShift then
+		return
+	end
+	local h = humanoid()
+	if h and savedSpeed == nil then
+		savedSpeed = h.WalkSpeed -- vuelve a ESTA velocidad al soltar (no a un número fijo)
+		h.WalkSpeed = WALK_SPEED_FAST
 	end
 end)
 
-UserInputService.InputEnded:Connect(function(input, gameProcessed)
-	if input.KeyCode == Enum.KeyCode.LeftShift then
-		applySpeed(WALK_SPEED_NORMAL)
+UserInputService.InputEnded:Connect(function(input)
+	if input.KeyCode ~= Enum.KeyCode.LeftShift then
+		return
 	end
+	local h = humanoid()
+	if h and savedSpeed ~= nil then
+		h.WalkSpeed = savedSpeed
+	end
+	savedSpeed = nil
 end)
 
--- Restablecer velocidad si el personaje reaparece
-player.CharacterAdded:Connect(function(character)
-	character:WaitForChild("Humanoid")
-	applySpeed(WALK_SPEED_NORMAL)
+player.CharacterAdded:Connect(function()
+	savedSpeed = nil
 end)
-
-print("[SpeedTestTool] Listo: Mantén presionado SHIFT IZQUIERDO para moverte a súper velocidad (200).")

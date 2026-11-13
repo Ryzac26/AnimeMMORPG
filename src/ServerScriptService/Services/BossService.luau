@@ -88,6 +88,9 @@ end
 
 local function strike(boss: Model, center: Vector3, radius: number, mult: number, delay: number)
 	telegraph(center, radius, delay)
+	task.delay(math.max(0, delay - 0.6), function()
+		BossBeacon.Attack() -- animación de mordida del modelo propio (no hace nada con la estatua)
+	end)
 	task.delay(delay, function()
 		if not boss.Parent then
 			return

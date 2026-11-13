@@ -40,6 +40,7 @@ require(Services:WaitForChild("TitleService")) -- títulos únicos (desbloqueo, 
 require(Services:WaitForChild("AdminTagService")) -- título de fundador / etiquetas de administrador
 require(Services:WaitForChild("HallService")) -- Salón de Honor del Gremio: rankings globales por facción y maniquíes
 require(Services:WaitForChild("BoostService")) -- Hermandad de franja: +4% XP por aliado de tu facción en tu franja (máx +12%)
+require(Services:WaitForChild("BaseSpeedService")) -- velocidad base de todos los jugadores (sin shift para el público)
 require(Services:WaitForChild("LevelLabelService")) -- pasa los carteles/atributos de franja del mapa ya construido a la escala 1-3000
 require(Services:WaitForChild("LevelMilestoneService")) -- hitos de nivel (cada 50) y auras
 require(Services:WaitForChild("TalentService")) -- árbol de talentos (3 builds) y auras de grupo

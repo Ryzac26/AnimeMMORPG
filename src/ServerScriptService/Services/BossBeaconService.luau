@@ -9,6 +9,7 @@
 ]]
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
+local ServerStorage = game:GetService("ServerStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local Net = require(ServerScriptService.Services.Net)
@@ -40,8 +41,93 @@ local PARTS: { { any } } = {
 	{ "CuernoDer", Vector3.new(14, 60, 14), Vector3.new(30, 440, 0), COLOR },
 }
 
+-- MODELOS PROPIOS: ServerStorage > BossModels > (Model con PrimaryPart, AnimationController/Animator y carpeta Animations > Monster).
+-- Cada vez que aparece el jefe se elige uno al azar. Si la carpeta no existe o está vacía, se usa la estatua de bloques.
+local TARGET_LENGTH = 110 -- largo (studs) al que se escala el modelo propio
+local FACING_Y = 0 -- grados para girarlo si mira al lado equivocado (prueba 90, 180 o -90)
+local IDLE_ANIM = "Swim" -- animación en bucle (Animations > Monster > ...)
+local ATTACK_ANIM = "Bite" -- animación al golpear
+
 local BossBeaconService = {}
 local model: Model? = nil
+local attackTrack: AnimationTrack? = nil
+
+local function pickTemplate(): Model?
+	local folder = ServerStorage:FindFirstChild("BossModels")
+	if not folder then
+		return nil
+	end
+	local list: { Model } = {}
+	for _, c in ipairs(folder:GetChildren()) do
+		if c:IsA("Model") then
+			table.insert(list, c)
+		end
+	end
+	if #list == 0 then
+		return nil
+	end
+	return list[math.random(1, #list)]
+end
+
+local function findAnim(m: Model, name: string): Animation?
+	local folder = m:FindFirstChild("Animations")
+	local monster = folder and folder:FindFirstChild("Monster")
+	local a = monster and monster:FindFirstChild(name)
+	if a and a:IsA("Animation") then
+		return a
+	end
+	return nil
+end
+
+-- clona el modelo, lo escala, lo apoya en el piso y arranca sus animaciones
+local function buildFromTemplate(tpl: Model, base: Vector3): Model
+	local m = tpl:Clone()
+	m.Name = "Maqueta_Jefe"
+	m.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+	for _, d in ipairs(m:GetDescendants()) do
+		if d:IsA("LuaSourceContainer") then
+			d:Destroy() -- por seguridad: los modelos del Toolbox pueden traer scripts
+		elseif d:IsA("BasePart") then
+			d.CanQuery = true -- clic sobre cualquier parte del cuerpo selecciona al jefe
+		end
+	end
+	if FACING_Y ~= 0 then
+		m:PivotTo(m:GetPivot() * CFrame.Angles(0, math.rad(FACING_Y), 0))
+	end
+	local _, size0 = m:GetBoundingBox()
+	local longest = math.max(size0.X, size0.Z)
+	if longest > 0 then
+		m:ScaleTo(m:GetScale() * TARGET_LENGTH / longest)
+	end
+	local cf, size = m:GetBoundingBox()
+	local bottom = cf.Position.Y - size.Y / 2
+	m:PivotTo(m:GetPivot() + Vector3.new(base.X - cf.Position.X, base.Y - bottom, base.Z - cf.Position.Z))
+	m.Parent = Workspace
+
+	local animator = m:FindFirstChildWhichIsA("Animator", true)
+	if animator then
+		local idle = findAnim(m, IDLE_ANIM)
+		if idle then
+			local t = animator:LoadAnimation(idle)
+			t.Looped = true
+			t:Play()
+		end
+		local atk = findAnim(m, ATTACK_ANIM)
+		if atk then
+			attackTrack = animator:LoadAnimation(atk)
+			attackTrack.Priority = Enum.AnimationPriority.Action
+		end
+	end
+	return m
+end
+
+-- BossService la llama justo antes de cada golpe grande
+function BossBeaconService.Attack()
+	local t = attackTrack
+	if model and t then
+		t:Play()
+	end
+end
 
 local function part(parent: Instance, name: string, size: Vector3, pos: Vector3, color: Color3, material: Enum.Material): Part
 	local p = Instance.new("Part")
@@ -77,28 +163,51 @@ end
 
 function BossBeaconService.Show(bossName: string?): Model
 	BossBeaconService.Hide()
-	local m = Instance.new("Model")
-	m.Name = "Maqueta_Jefe"
-	m.ModelStreamingMode = Enum.ModelStreamingMode.Persistent -- se ve desde cualquier fuerte
+	attackTrack = nil
 	local base = Vector3.new(CENTER.X, GROUND_Y, CENTER.Z)
-	for _, spec in ipairs(PARTS) do
-		local nm, size, off, color = spec[1] :: string, spec[2] :: Vector3, spec[3] :: Vector3, spec[4] :: Color3
-		local p = part(m, nm, size * SCALE, base + off * SCALE, color, if color == COLOR then Enum.Material.Neon else Enum.Material.Slate)
-		p.Transparency = 0
-		p.CanQuery = true -- el cursor puede seleccionar al jefe haciendo clic en cualquier parte del cuerpo
+	local m: Model
+	local tpl = pickTemplate()
+	local okT: boolean = false
+	local built: any = nil
+	if tpl then
+		okT, built = pcall(buildFromTemplate, tpl, base)
+		if not okT then
+			warn("[BossBeacon] falló el modelo propio, uso la estatua:", built)
+		end
+	end
+	local custom = okT and built ~= nil
+	if custom then
+		m = built :: Model
+	else
+		attackTrack = nil
+		m = Instance.new("Model")
+		m.Name = "Maqueta_Jefe"
+		m.ModelStreamingMode = Enum.ModelStreamingMode.Persistent -- se ve desde cualquier fuerte
+		for _, spec in ipairs(PARTS) do
+			local nm, size, off, color = spec[1] :: string, spec[2] :: Vector3, spec[3] :: Vector3, spec[4] :: Color3
+			local p = part(m, nm, size * SCALE, base + off * SCALE, color, if color == COLOR then Enum.Material.Neon else Enum.Material.Slate)
+			p.Transparency = 0
+			p.CanQuery = true -- el cursor puede seleccionar al jefe haciendo clic en cualquier parte del cuerpo
+		end
 	end
 	-- raíz invisible: la usan la selección de objetivo, el rango del auto-ataque y el pivote de la animación
 	local root = part(m, "HumanoidRootPart", Vector3.new(40, 30, 40), base + Vector3.new(0, 15, 0), Color3.new(1, 1, 1), Enum.Material.SmoothPlastic)
 	root.Transparency = 1
 	root.CanQuery = true
+	if custom then
+		local bcf = m:GetBoundingBox()
+		root.CFrame = CFrame.new(bcf.Position)
+	end
 	m.PrimaryPart = root
-	local head = m:FindFirstChild("Cabeza") :: Part
-	for _, x in ipairs({ -16, 16 }) do
-		local eye = part(m, "Ojo", Vector3.new(14, 8, 6) * SCALE, head.Position + Vector3.new(x * SCALE, 6 * SCALE, 36 * SCALE), Color3.fromRGB(255, 230, 90), Enum.Material.Neon)
-		local l = Instance.new("PointLight")
-		l.Color = eye.Color
-		l.Range = 60
-		l.Parent = eye
+	local head = m:FindFirstChild("Cabeza")
+	if not custom and head and head:IsA("BasePart") then
+		for _, x in ipairs({ -16, 16 }) do
+			local eye = part(m, "Ojo", Vector3.new(14, 8, 6) * SCALE, head.Position + Vector3.new(x * SCALE, 6 * SCALE, 36 * SCALE), Color3.fromRGB(255, 230, 90), Enum.Material.Neon)
+			local l = Instance.new("PointLight")
+			l.Color = eye.Color
+			l.Range = 60
+			l.Parent = eye
+		end
 	end
 	-- rayo de luz al cielo
 	local beam = part(m, "Rayo", Vector3.new(1800, 30, 30), base + Vector3.new(0, 900, 0), COLOR, Enum.Material.Neon)
