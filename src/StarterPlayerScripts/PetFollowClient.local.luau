@@ -41,7 +41,11 @@ local RARITY_INDEX = { Comun = 1, Raro = 2, Epico = 3, Legendario = 4, Mitico = 
 -- Si no hay modelo se usa el cuerpo de bloques. "Mariposa_Alas" reemplaza las alas de bloques de la mariposa.
 local CUSTOM_SIZE = 0.55 -- los modelos vienen preparados a 4 studs de largo: se escalan x esto x rareza x nivel
 local CUSTOM_SCALE: { [string]: number } = {} -- ajuste de tamaño por modelo, ej. Dragon = 1.2, Lobo_Mitico = 0.9
-local CUSTOM_YAW: { [string]: number } = {} -- grados para girar un modelo que mira de lado o de espaldas (el frente es -Z), ej. Lobo = 90
+-- grados para girar un modelo que mira de lado o de espaldas (el frente es -Z). Vale para <Familia> y también para <Familia>_Mitico
+-- (si un Mítico mira distinto, ponle su propia entrada, ej. Lobo_Mitico = 0). Mira a la izquierda = -90 · a la derecha = 90 · atrás = 180
+local CUSTOM_YAW: { [string]: number } = { Sabiduria = 180, Fenix = -90, Hada = 90, Lobo = 90, Sapo = -90 }
+-- familias SIN modelo propio (usan el cuerpo de bloques aunque exista el modelo en PetModels): para volver a usarlo, quitar de la lista
+local CUSTOM_OFF: { [string]: boolean } = { Furia = true, Loro = true }
 
 local folder = Workspace:FindFirstChild("PetsFx") or Instance.new("Folder")
 folder.Name = "PetsFx"
@@ -117,6 +121,9 @@ local function part(model: Model, root: Part, shape: Enum.PartType, size: Vector
 end
 
 local function templateFor(name: string): Model?
+	if CUSTOM_OFF[(string.gsub(name, "_Mitico$", ""))] then
+		return nil
+	end
 	local f = ReplicatedStorage:FindFirstChild("PetModels")
 	local m = if f then f:FindFirstChild(name) else nil
 	if m and m:IsA("Model") then
@@ -158,7 +165,7 @@ local function attachTemplate(model: Model, root: Part, tpl: Model, key: string,
 	local cx, cz = (minX + maxX) / 2, (minZ + maxZ) / 2
 	local yRef = if flies then (minY + maxY) / 2 else minY
 	local yTarget = if flies then 0 else -0.75 * s -- el Root de las de tierra flota 0.75*s sobre el suelo
-	local base = (offset or CFrame.identity) * CFrame.new(0, yTarget, 0) * CFrame.Angles(0, math.rad(CUSTOM_YAW[key] or 0), 0)
+	local base = (offset or CFrame.identity) * CFrame.new(0, yTarget, 0) * CFrame.Angles(0, math.rad(CUSTOM_YAW[key] or CUSTOM_YAW[(string.gsub(key, "_Mitico$", ""))] or 0), 0)
 	for _, p in ipairs(parts) do
 		local rel = base * CFrame.new(-cx, -yRef, -cz) * p.CFrame
 		p.Anchored = false
@@ -399,8 +406,8 @@ local function build(pl: Player, id: string, family: string, rarity: string, cha
 			end
 		end
 
-		-- alas
-		if look.Wings then
+		-- alas (la mariposa con alas nuevas "Mariposa_Alas" no lleva las de bloques)
+		if look.Wings and not (sp == "Mariposa" and wingsTpl) then
 			for _, side in ipairs({ -1, 1 }) do
 				if sp == "Dragon" then
 					wing(side, V(1.7, 0.08, 1.0), V(0.9, 0.5, 0.45), body:Lerp(accent, 0.25))
