@@ -16,6 +16,9 @@ local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 local KeyBinds = require(script.Parent:WaitForChild("KeyBinds", 10))
 local KeyBindCatalog = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("KeyBindCatalog"))
+local RS = game:GetService("ReplicatedStorage")
+local AdminList = require(RS:WaitForChild("Modules"):WaitForChild("AdminList"))
+local PetCatalog = require(RS:WaitForChild("Modules"):WaitForChild("PetCatalog"))
 local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")
 
@@ -44,6 +47,7 @@ gui.Parent = player:WaitForChild("PlayerGui", 10)
 
 local win: Frame? = nil
 local openKeyboard: () -> () = function() end
+local openPetTester: () -> () = function() end
 local refreshers: { () -> () } = {}
 
 local function current(key: string): string
@@ -59,11 +63,16 @@ local function build()
 	local theme = UITheme.For(player:GetAttribute("Faction"))
 	local pal = NpcKit.Palette(theme)
 	local W = 460
+	local ad = AdminList.Get(player)
+	local isOwner = ad ~= nil and ad.Kind == "Owner" -- SOLO el Soberano Fundador ve la herramienta de mascotas
 	local height = NpcKit.TOP + 14
 	for _, sec in ipairs(SETTINGS) do
 		height += 28 + #sec.Items * 112
 	end
 	height += 28 + 74 + 28 + 152 + 14
+	if isOwner then
+		height += 10 + 28 + 60
+	end
 	local w = NpcKit.Window(gui, theme, UDim2.fromOffset(W, height), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), "Ajustes", "Se guardan en tu perfil", "⚙", function()
 		gui.Enabled = false
 	end)
@@ -146,6 +155,20 @@ local function build()
 		NpcKit.Button(card2, theme, l[1], UDim2.fromOffset(bw, 40), UDim2.fromOffset(12 + col * (bw2 + 8), 46 + row * 48), "action", function()
 			gui.Enabled = false
 			MenuBus.Fire(l[2])
+		end)
+	end
+	-- SOLO FUNDADOR: lista de mascotas para probar cada cuerpo
+	if isOwner then
+		y += 152 + 10
+		local head3 = UITheme.Text(w, "SOLO FUNDADOR", 13, pal.FText, UDim2.fromOffset(18, y), UDim2.fromOffset(W - 36, 18))
+		head3.TextStrokeTransparency = 1
+		y += 28
+		local card3 = NpcKit.Panel(w, theme, UDim2.fromOffset(W - 28, 60), UDim2.fromOffset(14, y), "card")
+		local hint3 = UITheme.Text(card3, "Prueba cada mascota con su cuerpo. Solo se ve en tu pantalla.", 11, pal.Muted, UDim2.fromOffset(12, 6), UDim2.new(1, -24, 0, 16))
+		hint3.TextStrokeTransparency = 1
+		NpcKit.Button(card3, theme, "Lista de mascotas", UDim2.fromOffset(W - 52, 28), UDim2.fromOffset(12, 26), "buy", function()
+			gui.Enabled = false
+			openPetTester()
 		end)
 	end
 end
@@ -341,6 +364,186 @@ KeyBinds.Changed:Connect(function()
 		renderKeyboard()
 	end
 end)
+
+---------------------------------------------------------------------
+-- LISTA DE MASCOTAS (SOLO FUNDADOR): ON/OFF junto a cada mascota para verla con su cuerpo. Solo se ve en TU pantalla:
+-- pone el atributo local PetPreview (id Pet_<Familia>_<Rareza>) y PetFollowClient lo muestra en lugar de la mascota equipada.
+---------------------------------------------------------------------
+local FACTION_NAME: { [string]: string } = { Saiyan = "Élite", Shinobi = "Sigilo", Pirate = "Navegantes", Shinigami = "Espíritu" }
+local ptGui = Instance.new("ScreenGui")
+ptGui.Name = "PetTesterGui"
+ptGui.ResetOnSpawn = false
+ptGui.Enabled = false
+ptGui.DisplayOrder = 13
+ptGui.Parent = player:WaitForChild("PlayerGui", 10)
+
+local ptWin: Frame? = nil
+local ptRefreshers: { () -> () } = {}
+
+local function previewId(): string
+	local v = player:GetAttribute("PetPreview")
+	return if typeof(v) == "string" then v else ""
+end
+
+local function previewLevel(): number
+	local v = player:GetAttribute("PetPreviewLevel")
+	return if typeof(v) == "number" then math.clamp(math.floor(v), 1, 10) else 1
+end
+
+local function isOwnerNow(): boolean
+	local ad = AdminList.Get(player)
+	return ad ~= nil and ad.Kind == "Owner"
+end
+
+local function renderPetTester()
+	if ptWin then
+		ptWin:Destroy()
+	end
+	table.clear(ptRefreshers)
+	local theme = UITheme.For(player:GetAttribute("Faction"))
+	local pal = NpcKit.Palette(theme)
+	local W, H = 440, 640
+	local w = NpcKit.Window(ptGui, theme, UDim2.fromOffset(W, H), UDim2.new(1, -20, 0.5, 0), Vector2.new(1, 0.5), "Lista de mascotas",
+		"Solo para ti · ON muestra esa mascota siguiéndote", "🐾", function()
+			ptGui.Enabled = false
+		end)
+	ptWin = w
+	WindowDrag.Attach(w, "PetTester", 40, 50)
+
+	-- barra de control: nivel de la mascota (para ver las etapas 4, 7 y 10) y apagar todo
+	local top = NpcKit.Panel(w, theme, UDim2.fromOffset(W - 28, 52), UDim2.fromOffset(14, NpcKit.TOP), "card")
+	local lvlLabel = UITheme.Text(top, "", 14, pal.Text, UDim2.fromOffset(12, 0), UDim2.fromOffset(120, 52))
+	lvlLabel.TextStrokeTransparency = 1
+	local function setLevel(n: number)
+		player:SetAttribute("PetPreviewLevel", math.clamp(n, 1, 10))
+	end
+	NpcKit.Button(top, theme, "−", UDim2.fromOffset(34, 28), UDim2.fromOffset(136, 12), "neutral", function()
+		setLevel(previewLevel() - 1)
+	end)
+	NpcKit.Button(top, theme, "+", UDim2.fromOffset(34, 28), UDim2.fromOffset(176, 12), "neutral", function()
+		setLevel(previewLevel() + 1)
+	end)
+	NpcKit.Button(top, theme, "Apagar todo", UDim2.fromOffset(W - 28 - 12 - 226, 28), UDim2.fromOffset(226, 12), "danger", function()
+		player:SetAttribute("PetPreview", nil)
+	end)
+	table.insert(ptRefreshers, function()
+		lvlLabel.Text = "Nivel: " .. previewLevel()
+	end)
+
+	-- lista con scroll
+	local listY = NpcKit.TOP + 52 + 10
+	local listH = H - listY - 14
+	NpcKit.Panel(w, theme, UDim2.fromOffset(W - 28, listH), UDim2.fromOffset(14, listY), "inset")
+	local scroll = Instance.new("ScrollingFrame")
+	scroll.Position = UDim2.fromOffset(14, listY)
+	scroll.Size = UDim2.fromOffset(W - 28, listH)
+	scroll.BackgroundTransparency = 1
+	scroll.BorderSizePixel = 0
+	scroll.ScrollBarThickness = 5
+	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	scroll.CanvasSize = UDim2.fromOffset(0, 0)
+	scroll.ZIndex = 3
+	scroll.Parent = w
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop, pad.PaddingLeft, pad.PaddingRight, pad.PaddingBottom = UDim.new(0, 6), UDim.new(0, 6), UDim.new(0, 10), UDim.new(0, 6)
+	pad.Parent = scroll
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 4)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = scroll
+
+	local order = 0
+	local function nextOrder(): number
+		order += 1
+		return order
+	end
+
+	for _, family in ipairs(PetCatalog.AllFamilies) do
+		local def = PetCatalog.Families[family]
+		local tag = if def.Faction then ("  ·  facción " .. (FACTION_NAME[def.Faction] or def.Faction)) else ""
+		local head = UITheme.Text(scroll, string.upper(def.Name) .. tag, 12, pal.FText, UDim2.new(), UDim2.new(1, 0, 0, 20))
+		head.TextStrokeTransparency = 1
+		head.LayoutOrder = nextOrder()
+		head.ZIndex = 4
+		for _, rarity in ipairs(PetCatalog.Rarities) do
+			local id = PetCatalog.Id(family, rarity)
+			local row = Instance.new("Frame")
+			row.Size = UDim2.new(1, 0, 0, 32)
+			row.BackgroundColor3 = pal.Slot
+			row.BorderSizePixel = 0
+			row.LayoutOrder = nextOrder()
+			row.ZIndex = 4
+			row.Parent = scroll
+			local rc = Instance.new("UICorner")
+			rc.CornerRadius = UDim.new(0, 6)
+			rc.Parent = row
+			local nameLbl = UITheme.Text(row, string.format("%s (%s)", def.Name, PetCatalog.RarityName[rarity]), 13, pal.Text, UDim2.fromOffset(10, 0), UDim2.new(1, -86, 1, 0))
+			nameLbl.TextStrokeTransparency = 1
+			nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+			nameLbl.ZIndex = 5
+			local tgl = Instance.new("TextButton")
+			tgl.AnchorPoint = Vector2.new(1, 0.5)
+			tgl.Position = UDim2.new(1, -6, 0.5, 0)
+			tgl.Size = UDim2.fromOffset(60, 24)
+			tgl.Font = Enum.Font.GothamBold
+			tgl.TextSize = 13
+			tgl.AutoButtonColor = true
+			tgl.BorderSizePixel = 0
+			tgl.ZIndex = 5
+			tgl.Parent = row
+			local tc = Instance.new("UICorner")
+			tc.CornerRadius = UDim.new(0, 6)
+			tc.Parent = tgl
+			local ts = Instance.new("UIStroke")
+			ts.Thickness = 1
+			ts.Parent = tgl
+			local function refresh()
+				local on = previewId() == id
+				tgl.Text = if on then "ON" else "OFF"
+				tgl.BackgroundColor3 = if on then pal.TabOn else pal.TabOff
+				tgl.TextColor3 = if on then pal.TabOnText else pal.TabOffText
+				ts.Color = if on then pal.Edge else pal.Edge2
+				row.BackgroundColor3 = if on then pal.Panel else pal.Slot
+			end
+			refresh()
+			table.insert(ptRefreshers, refresh)
+			tgl.Activated:Connect(function()
+				if not isOwnerNow() then
+					return
+				end
+				if previewId() == id then
+					player:SetAttribute("PetPreview", nil) -- OFF
+				else
+					player:SetAttribute("PetPreview", id) -- ON (apaga la anterior: solo una a la vez)
+				end
+			end)
+		end
+		local gap = Instance.new("Frame")
+		gap.Size = UDim2.new(1, 0, 0, 4)
+		gap.BackgroundTransparency = 1
+		gap.LayoutOrder = nextOrder()
+		gap.Parent = scroll
+	end
+	for _, f in ipairs(ptRefreshers) do
+		f()
+	end
+end
+
+local function refreshPetTester()
+	for _, f in ipairs(ptRefreshers) do
+		f()
+	end
+end
+player:GetAttributeChangedSignal("PetPreview"):Connect(refreshPetTester)
+player:GetAttributeChangedSignal("PetPreviewLevel"):Connect(refreshPetTester)
+
+openPetTester = function()
+	if not isOwnerNow() then
+		return
+	end
+	renderPetTester()
+	ptGui.Enabled = true
+end
 
 build()
 

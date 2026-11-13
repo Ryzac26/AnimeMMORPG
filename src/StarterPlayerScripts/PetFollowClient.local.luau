@@ -567,10 +567,24 @@ local function reconcile()
 			local home = pl:GetAttribute("PetsHome" .. i)
 			local refPos = if typeof(home) == "Vector3" then home else (if hrp then hrp.Position else nil)
 			local visible = baseVisible
-			if visible and (pl ~= localPlayer or typeof(home) == "Vector3") and cam and refPos and (cam.CFrame.Position - refPos).Magnitude > VIEW_RANGE then
+			-- VISTA PREVIA (solo Fundador, desde Ajustes > Lista de mascotas): atributo local PetPreview reemplaza la mascota de la ranura 1
+			local rawId: any = pl:GetAttribute("Equip_" .. slotName)
+			local previewing = false
+			local pvLevel = 1
+			if i == 1 and pl == localPlayer then
+				local pv = pl:GetAttribute("PetPreview")
+				if typeof(pv) == "string" and parse(pv) ~= nil then
+					rawId = pv
+					previewing = true
+					local lv = pl:GetAttribute("PetPreviewLevel")
+					pvLevel = if typeof(lv) == "number" then math.clamp(math.floor(lv), 1, 10) else 1
+					visible = alive -- se ve aunque "Mostrar mascotas" esté en Ninguna
+				end
+			end
+			if visible and not previewing and (pl ~= localPlayer or typeof(home) == "Vector3") and cam and refPos and (cam.CFrame.Position - refPos).Magnitude > VIEW_RANGE then
 				visible = false
 			end
-			local family, rarity = parse(pl:GetAttribute("Equip_" .. slotName))
+			local family, rarity = parse(rawId)
 			local want = visible and family ~= nil and rarity ~= nil
 			if want and i == 2 and pl:GetAttribute("Pass_PetSlot") ~= true then
 				want = false
@@ -581,9 +595,12 @@ local function reconcile()
 					remove(key)
 				end
 			else
-				local id = pl:GetAttribute("Equip_" .. slotName) :: string
+				local id = rawId :: string
 				local plus = pl:GetAttribute("EquipPlus_" .. slotName)
 				local level = PetCatalog.LevelOf(if typeof(plus) == "number" then plus else 0)
+				if previewing then
+					level = PetCatalog.LevelOf(pvLevel - 1)
+				end
 				if not cur or cur.Id ~= id or cur.Char ~= char or cur.Level ~= level then
 					remove(key)
 					local made = build(pl, id, family :: string, rarity :: string, char :: Model, level, i)

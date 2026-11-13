@@ -1,26 +1,31 @@
 --!strict
 --[[
-    DungeonService v2 (ModuleScript) -> ServerScriptService.Services.DungeonService
+    DungeonService v3 (ModuleScript) -> ServerScriptService.Services.DungeonService
     CUEVAS por franja, inspiradas en las mazmorras aleatorias de Albion Online.
 
     ENTRADA: un ARCO de piedra con portal brillante (runas, braseros, círculo de luz) en cada franja de cada facción.
     PRUEBAS (CONFIG.TEST_ONLY = true): solo el dueño de la experiencia (Soberano de AdminList) puede entrar; el resto ve "PRÓXIMAMENTE".
       El dueño no gasta entradas ni necesita nivel mientras TEST_FREE_ENTRY = true. Para abrirlo a todos: TEST_ONLY = false.
+      CONFIG.TEST_SIM_GROUP = 3 genera la cueva como si entraran 3 jugadores (para ver el aumento de dificultad y premios sin grupo).
 
     ESTRUCTURA: cada cueva es PRIVADA (instancia propia, lejos del mapa) y tiene 2 PISOS. Cada piso es un LABERINTO de galerías:
-      - se genera con una semilla al azar (nunca dos iguales) y se garantiza un recorrido largo hasta la salida;
-      - galerías de roca irregular, estalactitas, cristales, antorchas; las ANTORCHAS marcan el camino principal y los CRISTALES las ramas;
+      - se genera con una semilla al azar (nunca dos iguales); el camino hasta la salida es largo y la SALIDA queda LEJOS del inicio;
+      - galerías de roca irregular, estalactitas, cristales, antorchas (camino principal) y cristales (ramales), escombros, huesos,
+        cajas, hongos, charcos, columnas rotas, raíces y polvo en el aire;
       - 3 SALAS al azar dentro del recorrido (Lago subterráneo, Sala de columnas, Cámara de cristales);
-      - RAMALES sin salida con COFRE del tesoro (a veces custodiado por un campeón);
-      - MANADAS de monstruos a lo largo del camino (con algún campeón) que aparecen al acercarte;
-      - al fondo del piso 1: la cámara del GUARDIÁN; al vencerlo se abre el portal al piso 2;
-      - al fondo del piso 2: la cámara del JEFE de la franja; al vencerlo se abre la salida.
+      - RAMALES sin salida con COFRE: los 2 más lejanos son cofres RAROS custodiados, el resto cofres comunes (CONFIG.CHESTS_PER_FLOOR);
+      - MANADAS de monstruos a lo largo del camino (con algún campeón). Aparecen cuando estás a pocas celdas POR EL CAMINO;
+      - al fondo del piso 1: la cámara del GUARDIÁN. Al vencerlo se abre el portal al piso 2 y aparece el COFRE DEL GUARDIÁN;
+      - al fondo del piso 2: la cámara del JEFE de la franja. Al vencerlo se abre la salida y aparece el TESORO DEL JEFE (cofre épico).
+    MONSTRUOS: no te ven a través de las paredes y, si te pierden de vista, siguen el laberinto (módulo DungeonNav + 6 cambios cortos en MobBrain).
     SOLO / GRUPO: sin grupo = dificultad normal. Con grupo (máx. MAX_GROUP) entran juntos los que estén cerca del portal a UNA cueva solo suya;
-      cada extra sube vida, daño y manadas, y la XP sube más que la vida (rinde más que en solitario).
+      cada extra sube vida (+30 %), daño (+12 %) y manadas, la XP sube más que la vida (+60 %) y los PREMIOS suben +15 % por extra.
       Dos grupos seguidos reciben cuevas distintas. Si alguien del grupo no puede entrar se avisa a TODO el grupo con su nombre.
+    PREMIOS: cada cofre da botín PERSONAL a cada miembro cercano (ver REWARD): oro, material de la franja, fragmentos, gemas, pociones,
+      equipo y, en los cofres grandes, mejora y mascota. El jefe además da su botín normal de jefe de franja.
     ENTRADAS DIARIAS por franja (perfil, sección "Dungeon"). Muerte: reapareces fuera y vuelves a entrar gratis mientras tu cueva siga abierta.
     Ambiente: mientras estás dentro el jugador lleva el atributo InDungeon = franja (DungeonAmbientClient oscurece la luz y apaga el clima).
-    Conexión: require(Services:WaitForChild("DungeonService")) en GameServerMain. Todo se ajusta en CONFIG.
+    Conexión: require(Services:WaitForChild("DungeonService")) en GameServerMain. Requiere el módulo DungeonNav. Todo se ajusta en CONFIG / REWARD.
 ]]
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -32,19 +37,27 @@ local Workspace = game:GetService("Workspace")
 local MobCatalog = require(ReplicatedStorage.Modules.MobCatalog)
 local LootTables = require(ReplicatedStorage.Modules.LootTables)
 local AdminList = require(ReplicatedStorage.Modules.AdminList)
+local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
+local GearCatalog = require(ReplicatedStorage.Modules.GearCatalog)
+local PlayerClass = require(ReplicatedStorage.Modules.PlayerClass)
+local LevelGap = require(ReplicatedStorage.Modules.LevelGap)
 local Services = ServerScriptService.Services
 local Net = require(Services.Net)
 local PlayerData = require(Services.PlayerData)
 local LevelService = require(Services.LevelService)
 local PartyService = require(Services.PartyService)
-local LootService = require(Services.LootService)
 local MobService = require(Services.Mobs.MobService)
+local DungeonNav = require(Services.DungeonNav)
+local Wallet = require(Services.WalletService)
+local Inventory = require(Services.InventoryService)
+local GearService = require(Services.GearService)
 
 local CONFIG = {
 	-- PRUEBAS
 	TEST_ONLY = true, -- true: solo el dueño entra; los demás ven "PRÓXIMAMENTE"
 	TEST_ALLOW_ADMINS = false, -- true: también entran los admins de AdminList
 	TEST_FREE_ENTRY = true, -- en pruebas el dueño no gasta entradas ni necesita nivel
+	TEST_SIM_GROUP = 0, -- en pruebas: genera la cueva como si entraran tantos jugadores (0 = el tamaño real del grupo). Ej.: 3 para ver el aumento
 
 	-- ENTRADA
 	ENTRIES_PER_DAY = { 3, 3, 3, 3 },
@@ -77,11 +90,18 @@ local CONFIG = {
 	GUARDIAN_SCALE = 1.5,
 	GUARDIAN_XP = 4,
 	BOSS_HP_FACTOR = 0.6, -- el jefe de la cueva es el jefe élite de la franja con esta fracción de su vida
-	ACTIVATE_RADIUS = 130, -- las manadas aparecen cuando alguien se acerca a esta distancia
+	ACTIVATE_CELLS = 4, -- las manadas aparecen cuando alguien está a esta cantidad de celdas POR EL CAMINO (una pared no cuenta)
+	ACTIVATE_CELLS_BOSS = 3, -- lo mismo para el guardián y el jefe: solo aparecen cuando te acercas a su cámara
 
-	-- COFRES
-	CHEST_ROLLS = 3, -- tiradas de botín de monstruo normal por cofre
-	CHEST_RADIUS = 55, -- reciben botín los miembros a menos de esta distancia
+	-- COFRES (los premios están en REWARD, más abajo)
+	CHESTS_PER_FLOOR = 5, -- ramales sin salida con cofre por piso (los más lejanos del inicio)
+	RARE_CHESTS_PER_FLOOR = 2, -- de esos, los más lejanos son "raros" y están custodiados
+	CHEST_RADIUS = 55, -- reciben premio los miembros a menos de esta distancia del cofre
+	CHEST_RADIUS_BIG = 90, -- ídem para el cofre del guardián y el del jefe (están en una cámara grande)
+
+	-- LUZ: todo el brillo de la cueva con dos números
+	LIGHT_SCALE = 0.65, -- multiplica la fuerza de TODAS las luces (1 = como antes; menos = más tenue)
+	GLOW = 0.7, -- menos = el neón (portales, cristales, lago, runas) se ve más transparente
 
 	-- CICLO DE VIDA
 	TTL = 50 * 60,
@@ -95,12 +115,33 @@ local CONFIG = {
 	FLOOR2_DZ = 480,
 }
 
--- Mapas con rareza (pendiente del ítem): multiplican vida/daño/XP. Valores de Albion Online.
-local RARITY: { [string]: { Hp: number, Dmg: number, Xp: number } } = {
-	Normal = { Hp = 1, Dmg = 1, Xp = 1 },
-	Poco = { Hp = 1.16, Dmg = 1.08, Xp = 1.2 },
-	Raro = { Hp = 1.36, Dmg = 1.18, Xp = 1.5 },
-	Excepcional = { Hp = 1.58, Dmg = 1.3, Xp = 1.9 },
+-- Mapas con rareza (pendiente del ítem): multiplican vida/daño/XP/premios. Valores de Albion Online.
+local RARITY: { [string]: { Hp: number, Dmg: number, Xp: number, Loot: number } } = {
+	Normal = { Hp = 1, Dmg = 1, Xp = 1, Loot = 1 },
+	Poco = { Hp = 1.16, Dmg = 1.08, Xp = 1.2, Loot = 1.15 },
+	Raro = { Hp = 1.36, Dmg = 1.18, Xp = 1.5, Loot = 1.35 },
+	Excepcional = { Hp = 1.58, Dmg = 1.3, Xp = 1.9, Loot = 1.6 },
+}
+
+-- PREMIOS DE LOS COFRES. Son PERSONALES: cada jugador a menos de CHEST_RADIUS del cofre tira por su cuenta.
+--   Gold = multiplicador del oro de un monstruo del tope de la franja (nv. 750/1500/2250/3000). Strip/Frag/Gem = rangos {min, max}.
+--   Gear = probabilidad de equipo (1 = garantizado); MobGear = usa las rarezas de un monstruo normal (si no, las del cofre del mapa).
+--   Upgraded = veces la probabilidad de "cofre MEJORADO" del mapa (el equipo sube una rareza y trae mejora). Pet = prob. de mascota.
+-- Con grupo todo sube: oro y cantidades x(1 + PER_EXTRA por jugador extra) y las probabilidades x(1 + 0,7 de ese aumento).
+-- Comparación con el resto del juego (oro x): mini jefe 5 · cofre del mapa 6 · desafío 7 · jefe de franja 12 · jefe mundial 40.
+type Tier = {
+	Gold: number, Strip: { number }, Frag: { number }, GemChance: number, Gem: { number }, Potion: number,
+	Gear: number, MobGear: boolean, Upgraded: number, Pet: number, Points: number, ExtraGear: number,
+}
+local REWARD = {
+	PER_EXTRA = 0.15, -- +15 % de premio por jugador extra
+	LEVEL_GAP = true, -- quien está muy por encima de la franja recibe menos (igual que en el resto del juego). En pruebas del dueño no se aplica
+	Tiers = {
+		Comun = { Gold = 4, Strip = { 1, 2 }, Frag = { 0, 1 }, GemChance = 0.20, Gem = { 1, 1 }, Potion = 0.40, Gear = 0.03, MobGear = true, Upgraded = 0, Pet = 0, Points = 0, ExtraGear = 0 },
+		Raro = { Gold = 8, Strip = { 2, 4 }, Frag = { 1, 2 }, GemChance = 0.45, Gem = { 1, 2 }, Potion = 0.60, Gear = 0.18, MobGear = false, Upgraded = 1, Pet = 0.003, Points = 3, ExtraGear = 0 },
+		Guardian = { Gold = 10, Strip = { 2, 4 }, Frag = { 1, 3 }, GemChance = 0.60, Gem = { 1, 2 }, Potion = 0.60, Gear = 0.30, MobGear = false, Upgraded = 1.5, Pet = 0.004, Points = 6, ExtraGear = 0 },
+		Final = { Gold = 20, Strip = { 3, 6 }, Frag = { 2, 4 }, GemChance = 0.80, Gem = { 1, 3 }, Potion = 0.80, Gear = 1, MobGear = false, Upgraded = 3, Pet = 0.015, Points = 15, ExtraGear = 0.10 },
+	} :: { [string]: Tier },
 }
 
 local NotifyRemote = Net.Get("Notify")
@@ -128,8 +169,8 @@ local PALETTE: { [number]: Palette } = {
 
 type Portal = { Membrane: { BasePart }, Prompt: ProximityPrompt, Label: TextLabel, Light: PointLight, Emitter: ParticleEmitter, Color: Color3, Set: (boolean, string) -> () }
 type Spawn = { Pos: Vector3, Def: MobCatalog.MobDef, Level: number?, HpF: number, Scale: number, XpF: number, Kind: string }
-type Group = { Center: Vector3, Spawns: { Spawn }, Floor: number, Done: boolean }
-type Floor = { Index: number, Origin: Vector3, Arrive: CFrame, BackCF: CFrame, ExitCF: CFrame, ArenaCenter: Vector3, PathLen: number, Rooms: { string } }
+type Group = { Center: Vector3, Spawns: { Spawn }, Floor: number, Done: boolean, Reach: number }
+type Floor = { Index: number, Origin: Vector3, Arrive: CFrame, BackCF: CFrame, ExitCF: CFrame, ArenaCenter: Vector3, PathLen: number, Rooms: { string }, Folder: Folder, Nav: DungeonNav.FloorData }
 type Inst = {
 	Id: number,
 	Slot: number,
@@ -146,6 +187,8 @@ type Inst = {
 	HpMult: number,
 	DmgMult: number,
 	XpMult: number,
+	RewardMult: number,
+	Simulated: boolean,
 	Mobs: { Model },
 	Groups: { Group },
 	GuardianDead: boolean,
@@ -242,10 +285,15 @@ local function addLight(parent: BasePart, color: Color3, range: number, brightne
 	local l = Instance.new("PointLight")
 	l.Color = color
 	l.Range = range
-	l.Brightness = brightness
+	l.Brightness = brightness * CONFIG.LIGHT_SCALE
 	l.Shadows = false
 	l.Parent = parent
 	return l
+end
+
+-- neón más tenue: transparencia efectiva = 1 - (1 - t) * GLOW
+local function glow(p: BasePart, t: number)
+	p.Transparency = 1 - (1 - t) * CONFIG.GLOW
 end
 
 local function memberList(inst: Inst): { Player }
@@ -371,7 +419,7 @@ local function crystal(parent: Instance, pos: Vector3, color: Color3, rng: Rando
 	local h = (if big then 6 else 3) + rng:NextNumber() * (if big then 8 else 4)
 	local w = if big then 2.2 else 1.2
 	local p = mk(parent, "Cristal", Vector3.new(w, h, w), CFrame.new(pos + Vector3.new(0, h / 2, 0)) * CFrame.Angles((rng:NextNumber() - 0.5) * 0.5, rng:NextNumber() * 6, (rng:NextNumber() - 0.5) * 0.5), color, Enum.Material.Neon, false)
-	p.Transparency = 0.15
+	glow(p, 0.15)
 	if withLight then
 		addLight(p, color, if big then 34 else 20, if big then 1.8 else 1.1)
 	end
@@ -387,6 +435,112 @@ local function brazier(parent: Instance, pos: Vector3, scale: number)
 	fire.SecondaryColor = Color3.fromRGB(255, 60, 20)
 	fire.Parent = bowl
 	addLight(bowl, Color3.fromRGB(255, 170, 90), 48, 1.6)
+end
+
+-- escombros, huesos, cajas, hongos, charcos, columnas rotas, raíces, polvo, estandartes y tarima (decoración; casi todo sin colisión)
+local function rubble(parent: Instance, pos: Vector3, rng: Random, color: Color3)
+	for _ = 1, 4 do
+		local sz = 0.8 + rng:NextNumber() * 2
+		local cf = CFrame.new(pos + Vector3.new((rng:NextNumber() - 0.5) * 5, sz * 0.35, (rng:NextNumber() - 0.5) * 5)) * CFrame.Angles(rng:NextNumber() * 3, rng:NextNumber() * 3, rng:NextNumber() * 3)
+		mk(parent, "Escombro", Vector3.new(sz * 1.4, sz, sz * 1.2), cf, color:Lerp(Color3.new(0, 0, 0), rng:NextNumber() * 0.3), Enum.Material.Rock, false)
+	end
+end
+
+local function bones(parent: Instance, pos: Vector3, rng: Random)
+	local bone = Color3.fromRGB(214, 206, 188)
+	mk(parent, "Calavera", Vector3.new(1.5, 1.4, 1.6), CFrame.new(pos + Vector3.new(0, 0.7, 0)) * CFrame.Angles(0, rng:NextNumber() * 6, 0), bone, Enum.Material.Marble, false, Enum.PartType.Ball)
+	for _ = 1, 3 do
+		local a = rng:NextNumber() * math.pi * 2
+		mk(parent, "Hueso", Vector3.new(0.35, 0.35, 2.6 + rng:NextNumber()), CFrame.new(pos + Vector3.new(math.cos(a) * 2, 0.25, math.sin(a) * 2)) * CFrame.Angles(0, a + 1, 0), bone, Enum.Material.Marble, false)
+	end
+end
+
+local function crateStack(parent: Instance, pos: Vector3, rng: Random)
+	local wood = Color3.fromRGB(104, 76, 48)
+	local dark = Color3.fromRGB(70, 50, 34)
+	for i = 1, 2 do
+		local sz = 2.4 + rng:NextNumber() * 0.8
+		mk(parent, "Caja", Vector3.new(sz, sz, sz), CFrame.new(pos + Vector3.new(i * 1.2 - 1.8, sz / 2, (rng:NextNumber() - 0.5) * 2)) * CFrame.Angles(0, rng:NextNumber() * 1.2, 0), wood:Lerp(dark, rng:NextNumber() * 0.5), Enum.Material.Wood, true)
+	end
+	cyl(parent, "Barril", 2.4, 3.2, pos + Vector3.new(2.6, 1.6, 1.2), Color3.fromRGB(92, 62, 38), Enum.Material.Wood, true)
+	cyl(parent, "AroBarril", 2.55, 0.25, pos + Vector3.new(2.6, 2.4, 1.2), Color3.fromRGB(60, 60, 64), Enum.Material.Metal, false)
+	cyl(parent, "AroBarril", 2.55, 0.25, pos + Vector3.new(2.6, 0.8, 1.2), Color3.fromRGB(60, 60, 64), Enum.Material.Metal, false)
+end
+
+local function mushrooms(parent: Instance, pos: Vector3, color: Color3, rng: Random)
+	for i = 1, 3 + rng:NextInteger(0, 2) do
+		local h = 1 + rng:NextNumber() * 2.2
+		local p = pos + Vector3.new((rng:NextNumber() - 0.5) * 5, 0, (rng:NextNumber() - 0.5) * 5)
+		cyl(parent, "Tallo", 0.5, h, p + Vector3.new(0, h / 2, 0), Color3.fromRGB(190, 180, 160), Enum.Material.SmoothPlastic, false)
+		local cap = mk(parent, "Sombrero", Vector3.new(h * 1.3, h * 0.55, h * 1.3), CFrame.new(p + Vector3.new(0, h, 0)), color, Enum.Material.Neon, false, Enum.PartType.Ball)
+		glow(cap, 0.25)
+		if i == 1 then
+			addLight(cap, color, 12, 0.7)
+		end
+	end
+end
+
+local function puddle(parent: Instance, pos: Vector3, color: Color3, rng: Random)
+	local d = 5 + rng:NextNumber() * 6
+	local p = cyl(parent, "Charco", d, 0.1, pos + Vector3.new(0, 0.1, 0), color:Lerp(Color3.new(0, 0, 0), 0.5), Enum.Material.Glass, false)
+	p.Reflectance = 0.25
+	p.Transparency = 0.25
+end
+
+local function brokenColumn(parent: Instance, pos: Vector3, color: Color3, rng: Random)
+	local h = 7 + rng:NextNumber() * 9
+	cyl(parent, "ColumnaRota", 4.2, h, pos + Vector3.new(0, h / 2, 0), color, Enum.Material.Basalt, true)
+	local fh = 5 + rng:NextNumber() * 4
+	mk(parent, "Fuste", Vector3.new(fh, 3.6, 3.6), CFrame.new(pos + Vector3.new(5.5, 1.8, (rng:NextNumber() - 0.5) * 4)) * CFrame.Angles(0, rng:NextNumber() * 1.2, 0), color, Enum.Material.Basalt, true, Enum.PartType.Cylinder)
+	rubble(parent, pos, rng, color)
+end
+
+local function roots(parent: Instance, pos: Vector3, ceilY: number, rng: Random)
+	for _ = 1, 3 do
+		local len = 5 + rng:NextNumber() * 10
+		local p = pos + Vector3.new((rng:NextNumber() - 0.5) * 8, ceilY - len / 2, (rng:NextNumber() - 0.5) * 8)
+		cyl(parent, "Raiz", 0.35 + rng:NextNumber() * 0.4, len, p, Color3.fromRGB(70, 50, 34), Enum.Material.Wood, false)
+	end
+end
+
+local function dust(parent: Instance, pos: Vector3, height: number)
+	local a = Instance.new("Part")
+	a.Name = "Polvo"
+	a.Anchored = true
+	a.CanCollide = false
+	a.CanQuery = false
+	a.CanTouch = false
+	a.CastShadow = false
+	a.Transparency = 1
+	a.Size = Vector3.new(26, height * 0.7, 26)
+	a.CFrame = CFrame.new(pos + Vector3.new(0, height * 0.4, 0))
+	a.Parent = parent
+	local e = Instance.new("ParticleEmitter")
+	e.Rate = 3
+	e.Lifetime = NumberRange.new(5, 8)
+	e.Speed = NumberRange.new(0.2, 0.8)
+	e.SpreadAngle = Vector2.new(180, 180)
+	e.Size = NumberSequence.new(0.25)
+	e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.3, 0.75), NumberSequenceKeypoint.new(1, 1) })
+	e.Color = ColorSequence.new(Color3.fromRGB(200, 190, 170))
+	e.LightEmission = 0.1
+	e.Shape = Enum.ParticleEmitterShape.Box
+	e.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+	e.Parent = a
+end
+
+local function banner(parent: Instance, pos: Vector3, lookAt: Vector3, color: Color3, height: number)
+	local h = 13
+	local top = Vector3.new(pos.X, pos.Y + height - 3, pos.Z)
+	local face = Vector3.new(lookAt.X, top.Y, lookAt.Z)
+	mk(parent, "Estandarte", Vector3.new(4.2, h, 0.4), CFrame.lookAt(top - Vector3.new(0, h / 2, 0), face), color, Enum.Material.Fabric, false)
+	mk(parent, "Remate", Vector3.new(5, 0.5, 0.7), CFrame.lookAt(top, face), Color3.fromRGB(200, 160, 70), Enum.Material.Metal, false)
+end
+
+-- tarima de la cámara final: dos escalones bajos de piedra (se sube andando)
+local function dais(parent: Instance, c: Vector3, color: Color3, k: number)
+	cyl(parent, "Tarima", 56 * k, 0.4, c + Vector3.new(0, 0.2, 0), color, Enum.Material.Cobblestone, true)
+	cyl(parent, "Tarima", 38 * k, 0.8, c + Vector3.new(0, 0.4, 0), color:Lerp(Color3.new(1, 1, 1), 0.06), Enum.Material.Cobblestone, true)
 end
 
 -- ARCO DE PIEDRA CON PORTAL (cf: base en el suelo, el eje del portal es el lookVector; las runas y el cartel se ven por ambos lados)
@@ -417,19 +571,20 @@ local function makeArch(parent: Instance, name: string, cf: CFrame, color: Color
 	-- membrana del portal (rectángulo + remate redondeado con tiras)
 	local membrane: { BasePart } = {}
 	local base = part("Portal", Vector3.new(14 * s, 12 * s, 0.5 * s), CFrame.new(0, 6 * s, 0), color, Enum.Material.Neon, false)
-	base.Transparency = 0.45
+	glow(base, 0.45)
 	table.insert(membrane, base)
 	local SL = 10
 	for i = 1, SL do
 		local x = -7 + (i - 0.5) * 14 / SL
 		local h = math.sqrt(math.max(0.01, 49 - x * x)) * s
 		local slat = part("Portal", Vector3.new(14 / SL * s + 0.05, h, 0.5 * s), CFrame.new(x * s, 12 * s + h / 2, 0), color, Enum.Material.Neon, false)
-		slat.Transparency = 0.45
+		glow(slat, 0.45)
 		table.insert(membrane, slat)
 	end
-	-- círculo de luz en el suelo
-	local ring = cyl(model, "Circulo", 28 * s, 0.2, cf.Position + Vector3.new(0, 0.12, 0), color, Enum.Material.Neon, false)
-	ring.Transparency = 0.6
+	-- tarima de piedra y círculo de luz tenue en el suelo
+	cyl(model, "Tarima", 24 * s, 0.5, cf.Position + Vector3.new(0, 0.25, 0), dark, Enum.Material.Slate, false)
+	local ring = cyl(model, "Circulo", 20 * s, 0.2, cf.Position + Vector3.new(0, 0.55, 0), color, Enum.Material.Neon, false)
+	glow(ring, 0.78)
 	-- partículas
 	local emitter = Instance.new("ParticleEmitter")
 	emitter.Color = ColorSequence.new(color)
@@ -481,65 +636,252 @@ local function makeArch(parent: Instance, name: string, cf: CFrame, color: Color
 			pp.Enabled = open
 			for _, m in ipairs(membrane) do
 				m.Color = if open then color else Color3.fromRGB(70, 70, 82)
-				m.Transparency = if open then 0.45 else 0.72
+				glow(m, if open then 0.45 else 0.72)
 			end
 			emitter.Enabled = open
 			light.Color = if open then color else Color3.fromRGB(120, 120, 135)
-			light.Brightness = if open then 2.4 else 0.6
+			light.Brightness = (if open then 2.4 else 0.6) * CONFIG.LIGHT_SCALE
 		end,
 	}
 end
 
--- COFRE DEL TESORO: el primero que lo abre reparte botín a todos los del grupo cercanos (tiradas de monstruo normal)
-local function buildChest(inst: Inst, parent: Instance, pos: Vector3, faceTo: Vector3, defId: string, level: number)
+-- COFRES: el primero que lo abre reparte premios PERSONALES a todos los del grupo que estén cerca (ver REWARD)
+local lootRng = Random.new()
+
+local function itemLabel(id: string, count: number, plus: number?): string
+	local item = (ItemCatalog.Items :: any)[id]
+	if not item then
+		return id
+	end
+	local text: string = item.Name
+	if item.Gear or item.Pet then
+		text = string.format("[%s] %s", GearCatalog.RarityName[item.Rarity] or item.Rarity, item.Name)
+		if plus and plus > 0 then
+			text ..= " +" .. plus
+		end
+	end
+	if count > 1 then
+		text ..= " x" .. count
+	end
+	return text
+end
+
+-- cantidad en un rango, escalada con decimales al azar (1,4 = 1 y 40 % de que sea 2)
+local function countOf(range: { number }, mult: number): number
+	local base = lootRng:NextInteger(range[1], range[2]) * mult
+	local whole = math.floor(base)
+	if lootRng:NextNumber() < base - whole then
+		whole += 1
+	end
+	return whole
+end
+
+local function grantChest(pl: Player, inst: Inst, tier: string, title: string)
+	if not pl.Parent then
+		return
+	end
+	local T = REWARD.Tiers[tier] or REWARD.Tiers.Comun
+	local strip = inst.Strip
+	local level = strip * 750 -- tope de la franja en la escala de niveles actual (750 / 1500 / 2250 / 3000)
+	local gap = 1
+	if REWARD.LEVEL_GAP and not freeEntry(pl) then
+		gap = LevelGap.Mult(LevelService.GetLevel(pl), level)
+	end
+	local mult = inst.RewardMult
+	local luck = (1 + GearService.Luck(pl)) * gap - 1
+	local function chance(p: number): number
+		return math.min(0.95, p * (1 + luck) * (1 + (mult - 1) * 0.7))
+	end
+	local class = PlayerClass.Get(pl)
+	local faction, role = class.Faction, class.Role
+	local parts: { string } = {}
+	local notable = false
+	local allAdded = true
+	local function give(id: string?, count: number, plus: number?, important: boolean)
+		if not id or count <= 0 then
+			return
+		end
+		if Inventory.Add(pl, id, count, plus) then
+			table.insert(parts, itemLabel(id, count, plus))
+			if important then
+				notable = true
+			end
+		else
+			allAdded = false
+		end
+	end
+
+	local gold = Wallet.AddGold(pl, math.floor(LootTables.GoldFor(level, T.Gold * mult, lootRng) * GearService.GoldMult(pl) * gap), "Cofres")
+	if gold > 0 then
+		table.insert(parts, string.format("+%d oro", gold))
+	end
+	if T.Points > 0 then
+		local pts = Wallet.AddFactionPoints(pl, math.floor(T.Points * mult))
+		if pts > 0 then
+			table.insert(parts, string.format("+%d pts de facción", pts))
+		end
+	end
+	give(LootTables.StripMaterial[strip], countOf(T.Strip, mult), nil, false)
+	give("Mat_FragArmadura", countOf(T.Frag, mult), nil, false)
+	if lootRng:NextNumber() < chance(T.GemChance) then
+		give("Mat_GemaMenor", countOf(T.Gem, mult), nil, false)
+	end
+	if lootRng:NextNumber() < chance(T.Potion) then
+		give(if lootRng:NextNumber() < 0.6 then "Pocion_Vida" else "Pocion_Energia", lootRng:NextInteger(1, 3), nil, false)
+	end
+	-- equipo (resuelto al rol y a la facción de quien lo recibe)
+	local gearW = if T.MobGear then LootTables.Mob.GearRarityByStrip[strip] else LootTables.MapChest.GearRarity[strip]
+	local function rollGear()
+		local upgraded = T.Upgraded > 0 and lootRng:NextNumber() < chance(LootTables.MapChest.UpgradedChance[strip] * T.Upgraded)
+		local id = LootTables.RollGear(faction, role, level, gearW, lootRng, nil, upgraded)
+		if id then
+			give(id, 1, if upgraded then LootTables.Count(LootTables.MapChest.UpgradedPlus, lootRng) else nil, true)
+			if upgraded then
+				notify(pl, "✨ ¡Cofre MEJORADO! El equipo subió de rareza y viene con mejora")
+			end
+		end
+	end
+	if T.Gear >= 1 or lootRng:NextNumber() < chance(T.Gear) then
+		rollGear()
+	end
+	if T.ExtraGear > 0 and lootRng:NextNumber() < chance(T.ExtraGear) then
+		rollGear()
+	end
+	if T.Pet > 0 and lootRng:NextNumber() < chance(T.Pet) then
+		give(LootTables.RollPet(if tier == "Final" then LootTables.EliteBoss.PetRarity else LootTables.MiniBoss.PetRarity, lootRng, faction), 1, nil, true)
+	end
+
+	local head = "🎁 " .. title
+	if mult > 1.001 then
+		head ..= string.format(" (premio +%d%% por grupo)", math.floor((mult - 1) * 100 + 0.5))
+	end
+	notify(pl, head .. ": " .. (if #parts > 0 then table.concat(parts, " · ") else "vacío"))
+	if not allAdded then
+		notify(pl, "⚠ Tu inventario está lleno: parte del premio no cupo. Haz espacio antes de abrir el próximo cofre.")
+	end
+	if notable then
+		PlayerData.Save(pl) -- un premio importante no debe esperar al autoguardado
+	end
+end
+
+type ChestLook = { Scale: number, Wood: Color3, Band: Color3, Gem: Color3, Name: string }
+local CHEST_LOOK: { [string]: ChestLook } = {
+	Comun = { Scale = 1, Wood = Color3.fromRGB(112, 72, 40), Band = Color3.fromRGB(150, 150, 156), Gem = Color3.fromRGB(255, 190, 90), Name = "Cofre del tesoro" },
+	Raro = { Scale = 1.15, Wood = Color3.fromRGB(52, 58, 76), Band = Color3.fromRGB(170, 190, 215), Gem = Color3.fromRGB(110, 190, 255), Name = "Cofre reforzado" },
+	Guardian = { Scale = 1.3, Wood = Color3.fromRGB(86, 40, 40), Band = Color3.fromRGB(210, 170, 70), Gem = Color3.fromRGB(255, 120, 90), Name = "Cofre del Guardián" },
+	Final = { Scale = 1.5, Wood = Color3.fromRGB(70, 40, 24), Band = Color3.fromRGB(255, 205, 90), Gem = Color3.fromRGB(255, 240, 160), Name = "Tesoro del Jefe" },
+}
+
+local function buildChest(inst: Inst, parent: Instance, pos: Vector3, faceTo: Vector3, tier: string)
+	local look = CHEST_LOOK[tier] or CHEST_LOOK.Comun
+	local k = look.Scale
 	local model = Instance.new("Model")
-	model.Name = "Cofre"
+	model.Name = "Cofre_" .. tier
 	model.Parent = parent
-	local look = Vector3.new(faceTo.X, pos.Y, faceTo.Z)
-	if (look - pos).Magnitude < 0.1 then
-		look = pos + Vector3.new(0, 0, -1)
+	local flat = Vector3.new(faceTo.X, pos.Y, faceTo.Z)
+	if (flat - pos).Magnitude < 0.1 then
+		flat = pos + Vector3.new(0, 0, -1)
 	end
-	local cf = CFrame.lookAt(pos, look)
-	local wood = Color3.fromRGB(112, 72, 40)
-	local gold = Color3.fromRGB(240, 190, 80)
-	local body = mk(model, "Cuerpo", Vector3.new(5, 2.6, 3.4), cf * CFrame.new(0, 1.3, 0), wood, Enum.Material.Wood, true)
-	local lid = mk(model, "Tapa", Vector3.new(5.2, 1.2, 3.6), cf * CFrame.new(0, 3.2, 0), wood, Enum.Material.Wood, false)
+	local cf = CFrame.lookAt(pos, flat)
+	local body = mk(model, "Cuerpo", Vector3.new(5, 2.6, 3.4) * k, cf * CFrame.new(0, 1.3 * k, 0), look.Wood, Enum.Material.Wood, true)
+	local lidParts: { BasePart } = {}
+	table.insert(lidParts, mk(model, "Tapa", Vector3.new(5.2, 3.4, 3.4) * k, cf * CFrame.new(0, 2.6 * k, 0), look.Wood, Enum.Material.Wood, false, Enum.PartType.Cylinder))
 	for _, x in ipairs({ -1.7, 1.7 }) do
-		mk(model, "Banda", Vector3.new(0.5, 3.9, 3.7), cf * CFrame.new(x, 2.1, 0), gold, Enum.Material.Metal, false)
+		mk(model, "Banda", Vector3.new(0.5, 2.7, 3.6) * k, cf * CFrame.new(x * k, 1.35 * k, 0), look.Band, Enum.Material.Metal, false)
+		table.insert(lidParts, mk(model, "BandaTapa", Vector3.new(0.5, 3.7, 3.7) * k, cf * CFrame.new(x * k, 2.6 * k, 0), look.Band, Enum.Material.Metal, false, Enum.PartType.Cylinder))
 	end
-	local gem = mk(model, "Cerradura", Vector3.new(0.9, 0.9, 0.5), cf * CFrame.new(0, 2.8, -1.85), gold, Enum.Material.Neon, false)
-	addLight(gem, gold, 26, 1.6)
+	if tier == "Guardian" or tier == "Final" then
+		for _, sx in ipairs({ -1, 1 }) do
+			for _, sz in ipairs({ -1, 1 }) do
+				mk(model, "Esquina", Vector3.new(0.8, 0.8, 0.8) * k, cf * CFrame.new(sx * 2.5 * k, 0.4 * k, sz * 1.7 * k), look.Band, Enum.Material.Metal, false)
+			end
+		end
+	end
+	local gem = mk(model, "Cerradura", Vector3.new(0.9, 0.9, 0.5) * k, cf * CFrame.new(0, 2.3 * k, -1.75 * k), look.Gem, Enum.Material.Neon, false)
+	glow(gem, 0.1)
+	addLight(gem, look.Gem, 14 + 10 * k, 1.1)
+	local halo = cyl(model, "BrilloCofre", 9 * k, 0.15, pos + Vector3.new(0, 0.1, 0), look.Gem, Enum.Material.Neon, false)
+	glow(halo, 0.82)
+
+	local sparkle: ParticleEmitter? = nil
+	if tier == "Guardian" or tier == "Final" then
+		local e = Instance.new("ParticleEmitter")
+		e.Color = ColorSequence.new(look.Gem)
+		e.LightEmission = 0.6
+		e.Rate = 6
+		e.Lifetime = NumberRange.new(1.2, 2)
+		e.Speed = NumberRange.new(1, 3)
+		e.SpreadAngle = Vector2.new(35, 35)
+		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
+		e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 1) })
+		e.Parent = body
+		sparkle = e
+	end
+	if tier ~= "Comun" then
+		local bb = Instance.new("BillboardGui")
+		bb.Size = UDim2.fromOffset(220, 34)
+		bb.StudsOffset = Vector3.new(0, 5.5 * k, 0)
+		bb.AlwaysOnTop = true
+		bb.MaxDistance = 70
+		bb.Parent = body
+		local tl = Instance.new("TextLabel")
+		tl.Size = UDim2.fromScale(1, 1)
+		tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBold
+		tl.TextSize = 15
+		tl.TextColor3 = look.Gem
+		tl.TextStrokeTransparency = 0.4
+		tl.Text = (if tier == "Final" then "👑 " elseif tier == "Guardian" then "💎 " else "") .. look.Name
+		tl.Parent = bb
+	end
+
 	local pp = Instance.new("ProximityPrompt")
 	pp.ActionText = "Abrir"
-	pp.ObjectText = "Cofre del tesoro"
+	pp.ObjectText = look.Name
 	pp.KeyboardKeyCode = Enum.KeyCode.E
 	pp.HoldDuration = 0.8
-	pp.MaxActivationDistance = 11
+	pp.MaxActivationDistance = 11 * k
 	pp.RequiresLineOfSight = false
 	pp.Parent = body
 	local opened = false
+	local radius = if tier == "Guardian" or tier == "Final" then CONFIG.CHEST_RADIUS_BIG else CONFIG.CHEST_RADIUS
 	pp.Triggered:Connect(function(pl: Player)
 		if opened or inst.Closed or instOf[pl] ~= inst then
 			return
 		end
 		opened = true
 		pp.Enabled = false
-		lid.CFrame = lid.CFrame * CFrame.new(0, 0.3, 1.5) * CFrame.Angles(math.rad(65), 0, 0)
-		gem.Color = Color3.fromRGB(255, 255, 255)
+		local hinge = cf * CFrame.new(0, 2.6 * k, 1.7 * k)
+		local swing = hinge * CFrame.Angles(math.rad(70), 0, 0) * hinge:Inverse()
+		for _, lp in ipairs(lidParts) do
+			lp.CFrame = swing * lp.CFrame
+		end
+		gem.Color = Color3.new(1, 1, 1)
+		if sparkle then
+			sparkle:Emit(40)
+			sparkle.Enabled = false
+		end
 		inst.ChestsOpened += 1
 		local near: { Player } = {}
 		for _, m in ipairs(memberList(inst)) do
 			local r = rootOf(m)
-			if r and (r.Position - pos).Magnitude <= CONFIG.CHEST_RADIUS then
+			if r and (r.Position - pos).Magnitude <= radius then
 				table.insert(near, m)
+			else
+				notify(m, "Se abrió un cofre y no estabas cerca: sin premio para ti (acércate al abrir)")
 			end
 		end
 		if #near == 0 then
 			near = { pl }
 		end
-		notifyAll(near, string.format("🎁 Cofre abierto (%d/%d)", inst.ChestsOpened, inst.Chests))
-		for _ = 1, CONFIG.CHEST_ROLLS do
-			LootService.OnKilled(defId, level, near, nil)
+		for _, m in ipairs(near) do
+			task.spawn(function()
+				local ok, err = pcall(grantChest, m, inst, tier, look.Name)
+				if not ok then
+					warn("[DungeonService] Error al dar el premio del cofre: " .. tostring(err))
+					notify(m, "⚠ Error al entregar el premio del cofre (avisa al desarrollador).")
+				end
+			end)
 		end
 	end)
 end
@@ -731,6 +1073,19 @@ local function onSpawnDied(inst: Inst, kind: string)
 		end
 		notifyAll(memberList(inst), "¡Jefe de la cueva derrotado! La salida está abierta (la cueva se cierra en 5 min).")
 	end
+	-- el guardián y el jefe dejan su cofre en el centro de la cámara
+	local f = if kind == "guard" then inst.F1 elseif kind == "boss" then inst.F2 else nil
+	if f then
+		local tier = if kind == "guard" then "Guardian" else "Final"
+		task.delay(1.5, function()
+			if inst.Closed then
+				return
+			end
+			inst.Chests += 1
+			buildChest(inst, f.Folder, f.ArenaCenter + Vector3.new(0, 0.8, 0), f.ExitCF.Position, tier)
+			notifyAll(memberList(inst), if kind == "guard" then "💎 Apareció el COFRE DEL GUARDIÁN en el centro de la cámara. ¡Ábranlo juntos!" else "👑 Apareció el TESORO DEL JEFE en el centro de la cámara. ¡Ábranlo juntos!")
+		end)
+	end
 end
 
 local function spawnGroup(inst: Inst, g: Group)
@@ -773,34 +1128,39 @@ local function buildFloor(inst: Inst, idx: number, folder: Folder, o: Vector3, p
 		return o + Vector3.new((cx - (W - 1) / 2) * S, 0, (cy - (H - 1) / 2) * S)
 	end
 
-	-- 1) laberinto: se prueba varias veces y se queda con el de recorrido más largo
+	-- 1) laberinto: se prueban varios y se queda el de mejor puntuación = camino largo + salida LEJOS del inicio en línea recta
 	local maze: Maze? = nil
-	local sx, sy, bestLen = 0, 0, -1
-	for _ = 1, 8 do
+	local sx, sy, bestLen, bestScore, bestExit = 0, 0, -1, -1, 0
+	for _ = 1, 12 do
 		local m, x, y = genMaze(W, H, rng)
 		local dist = bfs(m, x, y)
 		local far = 0
 		for _, d in pairs(dist) do
 			far = math.max(far, d)
 		end
-		if far > bestLen then
-			maze, sx, sy, bestLen = m, x, y, far
+		-- salida: entre las celdas casi tan lejanas como la más lejana, la más alejada del inicio en línea recta
+		local pick, pickD = -1, -1
+		for id, d in pairs(dist) do
+			if d >= far * 0.9 then
+				local straight = math.sqrt(((id % W) - x) ^ 2 + ((id // W) - y) ^ 2)
+				if straight > pickD or (straight == pickD and id < pick) then
+					pick, pickD = id, straight
+				end
+			end
 		end
-		if far >= CONFIG.MIN_PATH[idx] then
+		local pathLen = dist[pick] or far
+		local score = pathLen + pickD * 3
+		if score > bestScore then
+			maze, sx, sy, bestLen, bestScore, bestExit = m, x, y, pathLen, score, pick
+		end
+		if far >= CONFIG.MIN_PATH[idx] and pickD >= W * 0.6 then
 			break
 		end
 	end
 	local m = maze :: Maze
 	local dist, parent = bfs(m, sx, sy)
 	local startId = sy * W + sx
-	local exitIds: { number } = {}
-	for id, d in pairs(dist) do
-		if d == bestLen then
-			table.insert(exitIds, id)
-		end
-	end
-	table.sort(exitIds)
-	local exitId = exitIds[rng:NextInteger(1, #exitIds)]
+	local exitId = bestExit
 	local ex, ey = exitId % W, exitId // W
 	local path: { number } = {}
 	do
@@ -898,22 +1258,54 @@ local function buildFloor(inst: Inst, idx: number, folder: Folder, o: Vector3, p
 		table.insert(roomNames, rm.Theme)
 	end
 
+	-- ramales sin salida: los más lejanos del inicio llevan cofre (los más lejanos de todos son "raros")
+	local fd = bfs(m, sx, sy)
+	type Dead = { Id: number, Cx: number, Cy: number, Dir: number, D: number }
+	local dead: { Dead } = {}
+	for cy = 0, H - 1 do
+		for cx = 0, W - 1 do
+			local id = cy * W + cx
+			if not taken[id] and id ~= startId and id ~= exitId and degree(m, cx, cy) == 1 then
+				local pd = 1
+				for d = 1, 4 do
+					if passage(m, cx, cy, d) then
+						pd = d
+					end
+				end
+				table.insert(dead, { Id = id, Cx = cx, Cy = cy, Dir = pd, D = fd[id] or 0 })
+			end
+		end
+	end
+	table.sort(dead, function(a: Dead, b: Dead): boolean
+		if a.D ~= b.D then
+			return a.D > b.D
+		end
+		return a.Id < b.Id
+	end)
+	local chestTier: { [number]: string } = {}
+	for rank, dd in ipairs(dead) do
+		if rank > CONFIG.CHESTS_PER_FLOOR then
+			break
+		end
+		chestTier[dd.Id] = if rank <= CONFIG.RARE_CHESTS_PER_FLOOR then "Raro" else "Comun"
+	end
+
 	-- 4) geometría: suelo, techo, muros irregulares, pilares
 	local FW, FH = W * S + T + 6, H * S + T + 6
 	mk(folder, "Suelo", Vector3.new(FW, 2, FH), CFrame.new(o + Vector3.new(0, -1, 0)), pal.Floor, Enum.Material.Slate, true)
 	local ceiling = mk(folder, "Techo", Vector3.new(FW, 3, FH), CFrame.new(o + Vector3.new(0, Hh + 1.5, 0)), pal.Wall, Enum.Material.Slate, true)
 	ceiling.CastShadow = true -- el sol no atraviesa el techo (con el ambiente de cueva ya es de noche, esto es un seguro)
 	local function chunks(slabPos: Vector3, alongX: boolean)
-		for _ = 1, 3 do
+		for _ = 1, 4 do
 			local w = 7 + rng:NextNumber() * 6
-			local h = Hh * (0.4 + rng:NextNumber() * 0.6)
+			local h = Hh * (0.35 + rng:NextNumber() * 0.65)
 			local d = 3 + rng:NextNumber() * 2.5
 			local side = if rng:NextNumber() < 0.5 then -1 else 1
 			local along = (rng:NextNumber() - 0.5) * (S - T - w)
 			local off = side * (T / 2 + d / 2 - 1)
 			local p = if alongX then slabPos + Vector3.new(along, 0, off) else slabPos + Vector3.new(off, 0, along)
 			local size = if alongX then Vector3.new(w, h, d) else Vector3.new(d, h, w)
-			local cf = CFrame.new(p.X, o.Y + h / 2, p.Z) * CFrame.Angles(0, (rng:NextNumber() - 0.5) * 0.5, 0)
+			local cf = CFrame.new(p.X, o.Y + h / 2, p.Z) * CFrame.Angles((rng:NextNumber() - 0.5) * 0.12, (rng:NextNumber() - 0.5) * 0.5, (rng:NextNumber() - 0.5) * 0.12)
 			mk(folder, "Roca", size, cf, pal.Wall:Lerp(pal.Floor, rng:NextNumber() * 0.45), Enum.Material.Rock, true)
 		end
 	end
@@ -921,7 +1313,7 @@ local function buildFloor(inst: Inst, idx: number, folder: Folder, o: Vector3, p
 		for vx = 0, W do
 			if vx == 0 or vx == W or not m.HE[cy][vx - 1] then
 				local pos = o + Vector3.new((vx - W / 2) * S, Hh / 2, (cy - (H - 1) / 2) * S)
-				mk(folder, "Muro", Vector3.new(T, Hh + 6, S - T + 1), CFrame.new(pos), pal.Wall, Enum.Material.Slate, true)
+				mk(folder, "Muro", Vector3.new(T, Hh + 6, S - T + 1), CFrame.new(pos), pal.Wall:Lerp(pal.Floor, rng:NextNumber() * 0.18), Enum.Material.Slate, true)
 				chunks(Vector3.new(pos.X, o.Y, pos.Z), false)
 			end
 		end
@@ -930,7 +1322,7 @@ local function buildFloor(inst: Inst, idx: number, folder: Folder, o: Vector3, p
 		for cx = 0, W - 1 do
 			if vy == 0 or vy == H or not m.VS[vy - 1][cx] then
 				local pos = o + Vector3.new((cx - (W - 1) / 2) * S, Hh / 2, (vy - H / 2) * S)
-				mk(folder, "Muro", Vector3.new(S - T + 1, Hh + 6, T), CFrame.new(pos), pal.Wall, Enum.Material.Slate, true)
+				mk(folder, "Muro", Vector3.new(S - T + 1, Hh + 6, T), CFrame.new(pos), pal.Wall:Lerp(pal.Floor, rng:NextNumber() * 0.18), Enum.Material.Slate, true)
 				chunks(Vector3.new(pos.X, o.Y, pos.Z), true)
 			end
 		end
@@ -943,15 +1335,17 @@ local function buildFloor(inst: Inst, idx: number, folder: Folder, o: Vector3, p
 		end
 	end
 
-	-- 5) detalle de cada celda: manchas de suelo, estalagmitas, estalactitas; antorchas en el camino, cristales en las ramas
+	-- 5) detalle de cada celda: manchas de suelo, estalagmitas, estalactitas; antorchas en el camino, cristales en las ramas;
+	--    escombros, huesos, cajas, hongos, charcos, columnas rotas, raíces y polvo en el aire
 	local nonPathCount = 0
+	local wallMid = pal.Wall:Lerp(pal.Floor, 0.5)
 	for cy = 0, H - 1 do
 		for cx = 0, W - 1 do
 			local id = cy * W + cx
 			local c = cc(cx, cy)
 			local patch = cyl(folder, "Mancha", 10 + rng:NextNumber() * 12, 0.12, c + Vector3.new((rng:NextNumber() - 0.5) * 14, 0.07, (rng:NextNumber() - 0.5) * 14), pal.Floor:Lerp(Color3.new(0, 0, 0), 0.12 + rng:NextNumber() * 0.25), Enum.Material.Mud, false)
 			patch.CanQuery = false
-			spike(folder, c + Vector3.new((rng:NextNumber() - 0.5) * 20, 0, (rng:NextNumber() - 0.5) * 20), true, 4 + rng:NextNumber() * 6, 1.4 + rng:NextNumber() * 1.6, pal.Wall:Lerp(pal.Floor, 0.5), rng)
+			spike(folder, c + Vector3.new((rng:NextNumber() - 0.5) * 20, 0, (rng:NextNumber() - 0.5) * 20), true, 4 + rng:NextNumber() * 6, 1.4 + rng:NextNumber() * 1.6, wallMid, rng)
 			spike(folder, c + Vector3.new((rng:NextNumber() - 0.5) * 20, Hh - 1, (rng:NextNumber() - 0.5) * 20), false, 6 + rng:NextNumber() * 9, 1.6 + rng:NextNumber() * 2, pal.Wall, rng)
 			if not taken[id] or id == startId then
 				if onPath[id] then
@@ -966,17 +1360,43 @@ local function buildFloor(inst: Inst, idx: number, folder: Folder, o: Vector3, p
 						crystal(folder, c + Vector3.new((rng:NextNumber() - 0.5) * 22, 0, (rng:NextNumber() - 0.5) * 22), pal.Crystal, rng, false, nonPathCount % 4 == 0)
 					end
 				end
+				if not taken[id] and not chestTier[id] then
+					local r = rng:NextNumber()
+					local rp = c + Vector3.new((rng:NextNumber() - 0.5) * 16, 0, (rng:NextNumber() - 0.5) * 16)
+					if r < 0.06 then
+						rubble(folder, rp, rng, wallMid)
+					elseif r < 0.11 then
+						bones(folder, rp, rng)
+					elseif r < 0.15 and not onPath[id] then
+						crateStack(folder, rp, rng)
+					elseif r < 0.23 and not onPath[id] then
+						mushrooms(folder, rp, pal.Crystal, rng)
+					elseif r < 0.29 then
+						puddle(folder, rp, pal.Lake, rng)
+					elseif r < 0.33 then
+						brokenColumn(folder, rp, pal.Wall:Lerp(pal.Floor, 0.3), rng)
+					end
+					if rng:NextNumber() < 0.12 then
+						roots(folder, c, Hh, rng)
+					end
+				end
+			end
+			if (cx + cy) % 2 == 0 then
+				dust(folder, c, Hh)
 			end
 		end
 	end
 
-	-- 6) decoración de las salas
+	-- 6) decoración de las salas y de la cámara final
 	for _, rm in ipairs(rooms) do
 		local c = rm.Center
 		if rm.Theme == "lago" then
-			local lake = cyl(folder, "Lago", 30, 0.4, c + Vector3.new(0, 0.25, 0), pal.Lake, Enum.Material.Neon, false)
-			lake.Transparency = 0.2
-			addLight(lake, pal.Lake, 60, 2)
+			local lake = cyl(folder, "Lago", 30, 0.3, c + Vector3.new(0, 0.2, 0), pal.Lake:Lerp(Color3.new(0, 0, 0), 0.5), Enum.Material.Glass, false)
+			lake.Transparency = 0.3
+			lake.Reflectance = 0.2
+			addLight(lake, pal.Lake, 40, 1.1)
+			local rim = cyl(folder, "OrillaLago", 31.5, 0.12, c + Vector3.new(0, 0.1, 0), pal.Lake, Enum.Material.Neon, false)
+			glow(rim, 0.5)
 			for i = 0, 9 do
 				local a = i / 10 * math.pi * 2
 				local rh = 4 + rng:NextNumber() * 5
@@ -998,19 +1418,21 @@ local function buildFloor(inst: Inst, idx: number, folder: Folder, o: Vector3, p
 		end
 	end
 	local arenaColor = pal.Crystal
-	do -- cámara final: anillo de runas y pilares
+	do -- cámara final: tarima de piedra con anillos de runas tenues
 		local c = arenaCenter
-		local ring = cyl(folder, "Runas", 46, 0.2, c + Vector3.new(0, 0.15, 0), arenaColor, Enum.Material.Neon, false)
-		ring.Transparency = 0.55
-		local ring2 = cyl(folder, "Runas", 32, 0.2, c + Vector3.new(0, 0.2, 0), arenaColor, Enum.Material.Neon, false)
-		ring2.Transparency = 0.7
+		local k = if arenaBlock then 1 else 0.5
+		dais(folder, c, pal.Floor:Lerp(pal.Wall, 0.25), k)
+		local ring = cyl(folder, "Runas", 46 * k, 0.2, c + Vector3.new(0, 0.45, 0), arenaColor, Enum.Material.Neon, false)
+		glow(ring, 0.6)
+		local ring2 = cyl(folder, "Runas", 30 * k, 0.2, c + Vector3.new(0, 0.85, 0), arenaColor, Enum.Material.Neon, false)
+		glow(ring2, 0.72)
 	end
 
-	-- 7) manadas, campeones, ramales con cofre, guardián / jefe (aparecen cuando alguien se acerca)
+	-- 7) manadas, campeones, cofres, guardián / jefe (aparecen cuando alguien se acerca POR EL CAMINO del laberinto)
 	local extra = math.floor((inst.N - 1) * CONFIG.PACK_EXTRA_PER_PLAYER + 0.5)
-	local function addGroup(center: Vector3, spawns: { Spawn })
+	local function addGroup(center: Vector3, spawns: { Spawn }, reach: number?)
 		if #spawns > 0 then
-			table.insert(inst.Groups, { Center = center, Spawns = spawns, Floor = idx, Done = false })
+			table.insert(inst.Groups, { Center = center, Spawns = spawns, Floor = idx, Done = false, Reach = reach or CONFIG.ACTIVATE_CELLS })
 		end
 	end
 	local function packAt(center: Vector3, size: number, t: number, champion: boolean)
@@ -1048,45 +1470,40 @@ local function buildFloor(inst: Inst, idx: number, folder: Folder, o: Vector3, p
 	for _, rm in ipairs(rooms) do
 		packAt(rm.Center + Vector3.new(0, 0, 0), CONFIG.PACK_SIZE[idx] + 2 + extra, rm.T, true)
 	end
-	local lootDef = normals[math.max(1, #normals - 1)]
+	-- cofres en los ramales sin salida (los raros siempre con un campeón y su manada; los comunes a veces) y manadas sueltas
 	local chestCount = 0
 	for cy = 0, H - 1 do
 		for cx = 0, W - 1 do
 			local id = cy * W + cx
-			if not taken[id] and id ~= startId and id ~= exitId then
-				local c = cc(cx, cy)
-				if degree(m, cx, cy) == 1 then
-					local pd = 1
-					for d = 1, 4 do
-						if passage(m, cx, cy, d) then
-							pd = d
-						end
+			local tier = chestTier[id]
+			local c = cc(cx, cy)
+			if tier then
+				local pd = 1
+				for d = 1, 4 do
+					if passage(m, cx, cy, d) then
+						pd = d
 					end
-					chestCount += 1
-					local chestPos = c - DIRV[pd] * 9
-					if lootDef then
-						buildChest(inst, folder, chestPos, c + DIRV[pd] * 20, lootDef.Id, lootDef.MaxLevel)
-					end
-					local glow = cyl(folder, "BrilloCofre", 9, 0.15, chestPos + Vector3.new(0, 0.1, 0), Color3.fromRGB(255, 210, 110), Enum.Material.Neon, false)
-					glow.Transparency = 0.6
-					if rng:NextNumber() < 0.5 then
-						packAt(c + DIRV[pd] * 5, 3 + extra, 0.7, true)
-					end
-				elseif not onPath[id] and rng:NextNumber() < 0.12 then
-					packAt(c, 2 + extra, 0.5, false)
 				end
+				chestCount += 1
+				buildChest(inst, folder, c - DIRV[pd] * 9, c + DIRV[pd] * 20, tier)
+				if tier == "Raro" or rng:NextNumber() < 0.35 then
+					packAt(c + DIRV[pd] * 5, 3 + extra, 0.7, true)
+				end
+			elseif not taken[id] and id ~= startId and id ~= exitId and not onPath[id] and rng:NextNumber() < 0.12 then
+				packAt(c, 2 + extra, 0.5, false)
 			end
 		end
 	end
 	inst.Chests += chestCount
-	-- guardián (piso 1) o jefe (piso 2) en la cámara final
+	-- guardián (piso 1) o jefe (piso 2) en la cámara final: solo aparecen cuando te acercas a ella
 	local guardDef = normals[#normals]
+	local arenaSpawn = arenaCenter + Vector3.new(0, 1, 0)
 	if idx == 1 and guardDef then
-		addGroup(arenaCenter, { { Pos = arenaCenter, Def = guardDef, Level = guardDef.MaxLevel, HpF = CONFIG.GUARDIAN_HP, Scale = CONFIG.GUARDIAN_SCALE, XpF = CONFIG.GUARDIAN_XP, Kind = "guard" } })
+		addGroup(arenaCenter, { { Pos = arenaSpawn, Def = guardDef, Level = guardDef.MaxLevel, HpF = CONFIG.GUARDIAN_HP, Scale = CONFIG.GUARDIAN_SCALE, XpF = CONFIG.GUARDIAN_XP, Kind = "guard" } }, CONFIG.ACTIVATE_CELLS_BOSS)
 	elseif idx == 2 then
 		local bd = boss or guardDef
 		if bd then
-			addGroup(arenaCenter, { { Pos = arenaCenter, Def = bd, Level = nil, HpF = if boss then CONFIG.BOSS_HP_FACTOR else CONFIG.GUARDIAN_HP, Scale = 1, XpF = 1, Kind = "boss" } })
+			addGroup(arenaCenter, { { Pos = arenaSpawn, Def = bd, Level = nil, HpF = if boss then CONFIG.BOSS_HP_FACTOR else CONFIG.GUARDIAN_HP, Scale = 1, XpF = 1, Kind = "boss" } }, CONFIG.ACTIVATE_CELLS_BOSS)
 		end
 	end
 
@@ -1123,21 +1540,33 @@ local function buildFloor(inst: Inst, idx: number, folder: Folder, o: Vector3, p
 			exitCF = CFrame.lookAt(pos, pos - DIRV[d])
 		end
 	end
-	-- columnas de la cámara final (sin tapar el arco de salida)
+	-- columnas y estandartes de la cámara final (sin tapar el arco de salida)
 	if arenaBlock then
-		for i = 0, 7 do
-			local a = i / 8 * math.pi * 2 + math.pi / 8
+		local banCol = (FACTION_COLOR[inst.Faction] or Color3.fromRGB(200, 60, 60)):Lerp(Color3.new(0, 0, 0), 0.5)
+		for i2 = 0, 7 do
+			local a = i2 / 8 * math.pi * 2 + math.pi / 8
 			local cp = arenaCenter + Vector3.new(math.cos(a) * 27, Hh / 2, math.sin(a) * 27)
 			local flat = Vector3.new(cp.X - exitCF.Position.X, 0, cp.Z - exitCF.Position.Z)
 			if flat.Magnitude > 16 then
 				cyl(folder, "Columna", 4, Hh, cp, pal.Wall:Lerp(pal.Floor, 0.3), Enum.Material.Basalt, true)
+				banner(folder, arenaCenter + Vector3.new(math.cos(a) * 24.4, 0, math.sin(a) * 24.4), arenaCenter, banCol, Hh)
 			end
+		end
+	end
+	-- datos del laberinto para los monstruos (línea de visión y camino por celdas, ver DungeonNav)
+	local adj: { [number]: { boolean } } = {}
+	for cy = 0, H - 1 do
+		for cx = 0, W - 1 do
+			adj[cy * W + cx] = { passage(m, cx, cy, 1), passage(m, cx, cy, 2), passage(m, cx, cy, 3), passage(m, cx, cy, 4) }
 		end
 	end
 	-- longitud real del recorrido (después de abrir las salas)
 	local finalDist = bfs(m, sx, sy)
 	local realLen = (finalDist[exitId] or #path - 1) + 1
-	return { Index = idx, Origin = o, Arrive = arrive, BackCF = backCF, ExitCF = exitCF, ArenaCenter = arenaCenter, PathLen = realLen, Rooms = roomNames }
+	return {
+		Index = idx, Origin = o, Arrive = arrive, BackCF = backCF, ExitCF = exitCF, ArenaCenter = arenaCenter, PathLen = realLen, Rooms = roomNames,
+		Folder = folder, Nav = { Origin = o, W = W, H = H, S = S, Adj = adj },
+	}
 end
 
 ---------------------------------------------------------------------
@@ -1173,14 +1602,16 @@ local function closeInstance(inst: Inst, reason: string)
 	end
 	inst.Folder:Destroy()
 	slotUsed[inst.Slot] = nil
+	DungeonNav.Unregister(inst.Id)
 	instances[inst.Id] = nil
 end
 
-local function difficultyText(n: number, hp: number, dmg: number, xp: number): string
+local function difficultyText(n: number, hp: number, dmg: number, xp: number, loot: number, simulated: boolean): string
+	local tag = if simulated then "[PRUEBA: grupo simulado] " else ""
 	if n <= 1 then
-		return "Dificultad normal (en solitario)"
+		return tag .. "Dificultad normal (en solitario)"
 	end
-	return string.format("Grupo de %d: monstruos +%d%% vida, +%d%% daño, manadas más grandes · XP x%.1f", n, math.floor((hp - 1) * 100 + 0.5), math.floor((dmg - 1) * 100 + 0.5), xp)
+	return string.format("%sGrupo de %d: monstruos +%d%% vida, +%d%% daño, manadas más grandes · XP x%.1f · premios +%d%%", tag, n, math.floor((hp - 1) * 100 + 0.5), math.floor((dmg - 1) * 100 + 0.5), xp, math.floor((loot - 1) * 100 + 0.5))
 end
 
 local function createInstance(strip: number, faction: string, group: { Player }, exitCF: CFrame, rarityName: string?): Inst?
@@ -1197,7 +1628,7 @@ local function createInstance(strip: number, faction: string, group: { Player },
 	slotUsed[slot] = true
 	nextId += 1
 	local rar = RARITY[rarityName or "Normal"] or RARITY.Normal
-	local n = #group
+	local n = if CONFIG.TEST_ONLY and CONFIG.TEST_SIM_GROUP > #group then CONFIG.TEST_SIM_GROUP else #group -- en pruebas se puede simular un grupo
 	local o = CONFIG.ORIGIN + Vector3.new((slot % CONFIG.SLOT_COLS) * CONFIG.SLOT_DX, 0, math.floor(slot / CONFIG.SLOT_COLS) * CONFIG.SLOT_DZ)
 	local rng = Random.new()
 	local folder = Instance.new("Folder")
@@ -1212,6 +1643,8 @@ local function createInstance(strip: number, faction: string, group: { Player },
 		HpMult = (1 + CONFIG.HP_PER_EXTRA * (n - 1)) * rar.Hp,
 		DmgMult = (1 + CONFIG.DMG_PER_EXTRA * (n - 1)) * rar.Dmg,
 		XpMult = (1 + CONFIG.XP_PER_EXTRA * (n - 1)) * rar.Xp,
+		RewardMult = (1 + REWARD.PER_EXTRA * (n - 1)) * rar.Loot,
+		Simulated = n ~= #group,
 		Mobs = {}, Groups = {}, GuardianDead = false, Floor2Open = false, BossDead = false, P1Exit = nil, P2Exit = nil,
 		ExpireAt = os.clock() + CONFIG.TTL, EmptySince = nil, Warned = false, Closed = false, Chests = 0, ChestsOpened = 0,
 	}
@@ -1233,6 +1666,7 @@ local function createInstance(strip: number, faction: string, group: { Player },
 	local f1 = buildFloor(inst, 1, floor1, o, pal, rng, normals, boss)
 	local f2 = buildFloor(inst, 2, floor2, o + Vector3.new(0, 0, CONFIG.FLOOR2_DZ), pal, rng, normals, boss)
 	inst.F1, inst.F2 = f1, f2
+	DungeonNav.Register(inst.Id, folder, { f1.Nav, f2.Nav })
 	local color = FACTION_COLOR[faction] or Color3.fromRGB(255, 255, 255)
 
 	local function memberOnly(p: Player): boolean
@@ -1370,9 +1804,9 @@ local function tryEnter(player: Player, strip: number, faction: string, portalPo
 		end
 		entering[m] = nil
 	end
-	local text = difficultyText(inst.N, inst.HpMult, inst.DmgMult, inst.XpMult)
+	local text = difficultyText(inst.N, inst.HpMult, inst.DmgMult, inst.XpMult, inst.RewardMult, inst.Simulated)
 	for _, m in ipairs(group) do
-		notify(m, string.format("Cueva de la Franja %d · %d guardianes de manada · camino de %d galerías · entradas restantes hoy: %d", strip, #inst.Groups, f1.PathLen, entriesLeft(m, strip)))
+		notify(m, string.format("Cueva de la Franja %d · %d manadas · 2 pisos de %d y %d galerías hasta el fondo · entradas restantes hoy: %d", strip, #inst.Groups, f1.PathLen, if inst.F2 then (inst.F2 :: Floor).PathLen else 0, entriesLeft(m, strip)))
 		notify(m, text)
 		moveTo(m, f1.Arrive)
 	end
@@ -1494,7 +1928,8 @@ task.spawn(function()
 			for _, g in ipairs(inst.Groups) do
 				if not g.Done then
 					for _, pos in ipairs(rootsIn) do
-						if (Vector3.new(pos.X, 0, pos.Z) - Vector3.new(g.Center.X, 0, g.Center.Z)).Magnitude <= CONFIG.ACTIVATE_RADIUS and math.abs(pos.Y - g.Center.Y) < 60 then
+						local steps = DungeonNav.CellDistance(inst.Id, pos, g.Center)
+						if steps ~= nil and steps <= g.Reach then
 							g.Done = true
 							task.spawn(spawnGroup, inst, g)
 							break

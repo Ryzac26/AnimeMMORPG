@@ -17,6 +17,30 @@ local MobSkills = require(MobsFolder.MobSkills)
 local MobBuilder = require(MobsFolder.MobBuilder)
 local DamageService = require(ServerScriptService.Services.DamageService)
 local PassiveService = require(ServerScriptService.Services.PassiveService)
+-- CUEVAS (DungeonService): los monstruos de una cueva no ven a través de las paredes y, si te pierden de vista, siguen el laberinto
+-- celda por celda. Si el módulo DungeonNav no existe, todo funciona como antes.
+local navModule = ServerScriptService.Services:FindFirstChild("DungeonNav")
+local DungeonNav: any = if navModule and navModule:IsA("ModuleScript") then require(navModule) else nil
+
+local function caveId(model: Model): number?
+	local id = model:GetAttribute("Dungeon")
+	return if DungeonNav and typeof(id) == "number" then id else nil
+end
+
+local function canSee(model: Model, from: Vector3, to: Vector3): boolean
+	local id = caveId(model)
+	if not id then
+		return true
+	end
+	return DungeonNav.CanSee(id, from + Vector3.new(0, 2.5, 0), to + Vector3.new(0, 1.5, 0))
+end
+local function chasePoint(model: Model, from: Vector3, to: Vector3): Vector3
+	local id = caveId(model)
+	if not id then
+		return to
+	end
+	return DungeonNav.Waypoint(id, from, to) or to
+end
 
 local AGGRO_RANGE = 55
 local LEASH_RANGE = 80 -- si se aleja tanto de su punto, abandona la persecución y regresa
@@ -121,7 +145,7 @@ local function inSafe(pos: Vector3): boolean
 	return false
 end
 
-local function nearestPlayer(pos: Vector3, range: number): Model?
+local function nearestPlayer(pos: Vector3, range: number, viewer: Model?): Model?
 	local best: Model? = nil
 	local bestD = range
 	for _, pl in ipairs(Players:GetPlayers()) do
@@ -130,7 +154,7 @@ local function nearestPlayer(pos: Vector3, range: number): Model?
 		if c and r and not inSafe(r.Position) then
 			local d = (r.Position - pos).Magnitude
 			-- los Invisible/ocultos no cambian objetivo; el ForceField (protección) los hace ignorar
-			if d < bestD then
+			if d < bestD and (not viewer or canSee(viewer, pos, r.Position)) then
 				bestD = d
 				best = c
 			end
@@ -177,8 +201,10 @@ function MobBrain.OnDamaged(mob: Mob, newHealth: number)
 	-- Transform (50% vida): más daño y más grande
 	if mob.Passives.Transform and not mob.Transformed and newHealth <= maxHp * 0.5 then
 		mob.Transformed = true
-		mob.Model:SetAttribute("DmgBuff", 1.3)
-		mob.Model:SetAttribute("BaseBuff", 1.3)
+		local baseBuff = mob.Model:GetAttribute("BaseBuff") -- en una cueva ya trae el aumento por grupo: se multiplica, no se pisa
+		local transformed = (if typeof(baseBuff) == "number" then baseBuff else 1) * 1.3
+		mob.Model:SetAttribute("DmgBuff", transformed)
+		mob.Model:SetAttribute("BaseBuff", transformed)
 		mob.Model:ScaleTo(mob.Model:GetScale() * 1.12)
 	end
 	-- Flee (20% vida): huye una vez hacia su punto
@@ -363,7 +389,7 @@ function MobBrain.Step(mob: Mob, dt: number, now: number): boolean
 		mob.Target = nil
 	end
 	if not blinded and not mob.Target and (mob.Def.Aggressive or mob.Provoked) then
-		local found = nearestPlayer(root.Position, AGGRO_RANGE)
+		local found = nearestPlayer(root.Position, AGGRO_RANGE, mob.Model)
 		if found then
 			mob.Target = found
 			mob.LastSeen = now
@@ -404,7 +430,13 @@ function MobBrain.Step(mob: Mob, dt: number, now: number): boolean
 		startReturn(mob, now)
 		return true
 	end
-
+	
+	-- cueva: con una pared de por medio no ataca; sigue el camino del laberinto hasta volver a verte
+	if not canSee(mob.Model, root.Position, troot.Position) then
+		hum:MoveTo(chasePoint(mob.Model, root.Position, troot.Position))
+		return true
+	end
+	
 	local skill, idx = chooseSkill(mob, dist, now)
 	if skill and idx then
 		mob.Cooldowns[idx] = now + (skill.Cd or 8)
