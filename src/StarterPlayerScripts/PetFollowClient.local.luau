@@ -3,6 +3,7 @@
     PetFollowClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > PetFollowClient
     MASCOTAS CON CUERPO: la mascota equipada (ranura "Mascota" = Equip_Accesorio2, ids Pet_<Familia>_<Rareza>) aparece
     como una criatura pequeña que SIGUE al personaje. Todos ven las mascotas de los jugadores cercanos.
+      - Modelos propios opcionales en ReplicatedStorage > PetModels (<Familia>, <Familia>_Mitico, Mariposa_Alas); si faltan, cuerpo de bloques.
       - Aspecto por familia (PetCatalog.Looks.Species): zorro, tanuki, búho, tortuga, tigre, fénix, dragón, hada, lobo; cada una con su propia silueta y cola que se mueve.
       - La rareza cambia tamaño y brillo: Común sencilla · Raro chispas · Épico luz · Legendario luz y más grande · Mítico halo.
       - Las que vuelan flotan y aletean; las de tierra caminan pegadas al suelo y saltan al correr.
@@ -35,6 +36,12 @@ local RARITY = {
 	Mitico = { Scale = 1.3, Color = Color3.fromRGB(255, 70, 110) },
 } :: { [string]: { Scale: number, Color: Color3 } }
 local RARITY_INDEX = { Comun = 1, Raro = 2, Epico = 3, Legendario = 4, Mitico = 5 } :: { [string]: number }
+
+-- MODELOS PROPIOS (ReplicatedStorage > PetModels): <Familia> y, para el Mítico, <Familia>_Mitico (aspecto exclusivo).
+-- Si no hay modelo se usa el cuerpo de bloques. "Mariposa_Alas" reemplaza las alas de bloques de la mariposa.
+local CUSTOM_SIZE = 0.55 -- los modelos vienen preparados a 4 studs de largo: se escalan x esto x rareza x nivel
+local CUSTOM_SCALE: { [string]: number } = {} -- ajuste de tamaño por modelo, ej. Dragon = 1.2, Lobo_Mitico = 0.9
+local CUSTOM_YAW: { [string]: number } = {} -- grados para girar un modelo que mira de lado o de espaldas (el frente es -Z), ej. Lobo = 90
 
 local folder = Workspace:FindFirstChild("PetsFx") or Instance.new("Folder")
 folder.Name = "PetsFx"
@@ -109,6 +116,68 @@ local function part(model: Model, root: Part, shape: Enum.PartType, size: Vector
 	return p, w
 end
 
+local function templateFor(name: string): Model?
+	local f = ReplicatedStorage:FindFirstChild("PetModels")
+	local m = if f then f:FindFirstChild(name) else nil
+	if m and m:IsA("Model") then
+		return m
+	end
+	return nil
+end
+
+-- clona un modelo propio, lo escala, lo pega al Root con Welds y lo apoya (en el suelo, o centrado si vuela). Devuelve false si no tiene partes.
+local function attachTemplate(model: Model, root: Part, tpl: Model, key: string, s: number, flies: boolean, offset: CFrame?, sizeMult: number?): boolean
+	local c = tpl:Clone()
+	for _, d in ipairs(c:GetDescendants()) do
+		if d:IsA("Motor6D") or d:IsA("Weld") or d:IsA("WeldConstraint") or d:IsA("ManualWeld") or d:IsA("Snap") then
+			d:Destroy() -- las uniones del modelo original sobran: lo pegamos nosotros
+		elseif d:IsA("BasePart") and d.Transparency >= 0.95 and #d:GetChildren() == 0 then
+			d:Destroy() -- partes invisibles (cajas de rig): pesan y no se ven
+		end
+	end
+	c:ScaleTo(c:GetScale() * CUSTOM_SIZE * (CUSTOM_SCALE[key] or 1) * s * (sizeMult or 1))
+	local parts: { BasePart } = {}
+	local minX, maxX, minY, maxY, minZ, maxZ = math.huge, -math.huge, math.huge, -math.huge, math.huge, -math.huge
+	for _, d in ipairs(c:GetDescendants()) do
+		if d:IsA("BasePart") then
+			table.insert(parts, d)
+			local cf, sz = d.CFrame, d.Size
+			local r, u, l = cf.RightVector, cf.UpVector, cf.LookVector
+			local hx = 0.5 * (math.abs(r.X) * sz.X + math.abs(u.X) * sz.Y + math.abs(l.X) * sz.Z)
+			local hy = 0.5 * (math.abs(r.Y) * sz.X + math.abs(u.Y) * sz.Y + math.abs(l.Y) * sz.Z)
+			local hz = 0.5 * (math.abs(r.Z) * sz.X + math.abs(u.Z) * sz.Y + math.abs(l.Z) * sz.Z)
+			minX, maxX = math.min(minX, cf.X - hx), math.max(maxX, cf.X + hx)
+			minY, maxY = math.min(minY, cf.Y - hy), math.max(maxY, cf.Y + hy)
+			minZ, maxZ = math.min(minZ, cf.Z - hz), math.max(maxZ, cf.Z + hz)
+		end
+	end
+	if #parts == 0 then
+		c:Destroy()
+		return false
+	end
+	local cx, cz = (minX + maxX) / 2, (minZ + maxZ) / 2
+	local yRef = if flies then (minY + maxY) / 2 else minY
+	local yTarget = if flies then 0 else -0.75 * s -- el Root de las de tierra flota 0.75*s sobre el suelo
+	local base = (offset or CFrame.identity) * CFrame.new(0, yTarget, 0) * CFrame.Angles(0, math.rad(CUSTOM_YAW[key] or 0), 0)
+	for _, p in ipairs(parts) do
+		local rel = base * CFrame.new(-cx, -yRef, -cz) * p.CFrame
+		p.Anchored = false
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.CastShadow = false
+		p.Massless = true
+		local w = Instance.new("Weld")
+		w.Part0 = root
+		w.Part1 = p
+		w.C0 = rel
+		w.Parent = p
+	end
+	c.Name = "Cuerpo"
+	c.Parent = model
+	return true
+end
+
 local function build(pl: Player, id: string, family: string, rarity: string, char: Model, level: number, slotIndex: number): Pet?
 	local look = PetCatalog.Looks[family]
 	local rr = RARITY[rarity]
@@ -128,6 +197,11 @@ local function build(pl: Player, id: string, family: string, rarity: string, cha
 	root.CastShadow = false
 	root.Parent = model
 	model.PrimaryPart = root
+
+	local tplKey = if rarity == "Mitico" and templateFor(family .. "_Mitico") then family .. "_Mitico" else family
+	local tpl = templateFor(tplKey)
+	local custom = tpl ~= nil
+	local wingsTpl = if sp == "Mariposa" then templateFor("Mariposa_Alas") else nil
 
 	local body: Color3, accent: Color3 = look.Body, look.Accent
 	local belly: Color3 = look.Belly or accent
@@ -155,243 +229,255 @@ local function build(pl: Player, id: string, family: string, rarity: string, cha
 		table.insert(wings, { Weld = w, Side = side, Base = w.C0 })
 	end
 
-	-- proporciones por especie
-	local bs = ({ Zorro = 1.4, Tanuki = 1.7, Buho = 1.5, Tortuga = 1.3, Tigre = 1.5, Fenix = 1.3, Dragon = 1.5, Hada = 1.1, Lobo = 1.5, Mono = 1.5, Sapo = 1.7, Loro = 1.2, Mariposa = 0.9 } :: { [string]: number })[sp] or 1.5
-	local hs = ({ Zorro = 1.0, Tanuki = 1.05, Buho = 1.25, Tortuga = 0.8, Tigre = 1.0, Fenix = 0.9, Dragon = 1.0, Hada = 1.1, Lobo = 1.0, Mono = 1.05, Sapo = 1.1, Loro = 0.9, Mariposa = 0.7 } :: { [string]: number })[sp] or 1.0
-	local hp = ({ Buho = V(0, 0.65, -0.35), Tortuga = V(0, 0.3, -1.0), Hada = V(0, 0.8, -0.35) } :: { [string]: Vector3 })[sp] or V(0, 0.75, -0.55)
+	local hs: number, hp: Vector3 = 1.0, V(0, 0.75, -0.55)
+	if not custom then
+		-- proporciones por especie
+		local bs = ({ Zorro = 1.4, Tanuki = 1.7, Buho = 1.5, Tortuga = 1.3, Tigre = 1.5, Fenix = 1.3, Dragon = 1.5, Hada = 1.1, Lobo = 1.5, Mono = 1.5, Sapo = 1.7, Loro = 1.2, Mariposa = 0.9 } :: { [string]: number })[sp] or 1.5
+		hs = ({ Zorro = 1.0, Tanuki = 1.05, Buho = 1.25, Tortuga = 0.8, Tigre = 1.0, Fenix = 0.9, Dragon = 1.0, Hada = 1.1, Lobo = 1.0, Mono = 1.05, Sapo = 1.1, Loro = 0.9, Mariposa = 0.7 } :: { [string]: number })[sp] or 1.0
+		hp = ({ Buho = V(0, 0.65, -0.35), Tortuga = V(0, 0.3, -1.0), Hada = V(0, 0.8, -0.35) } :: { [string]: Vector3 })[sp] or V(0, 0.75, -0.55)
 
-	-- cuerpo, cabeza y panza
-	ball(bs, body, V(0, 0, 0.2))
-	ball(hs, body, hp)
-	ball(bs * (if sp == "Tanuki" then 0.75 else 0.57), belly, V(0, -0.15, -0.5))
+		-- cuerpo, cabeza y panza
+		ball(bs, body, V(0, 0, 0.2))
+		ball(hs, body, hp)
+		ball(bs * (if sp == "Tanuki" then 0.75 else 0.57), belly, V(0, -0.15, -0.5))
 
-	-- ojos (brillan desde Épico; lobo y dragón siempre)
-	local glowEyes = sp == "Lobo" or sp == "Dragon" or idx >= 3
-	local eyeColor = if sp == "Lobo" or sp == "Dragon" then accent elseif idx >= 3 then rr.Color elseif sp == "Tanuki" then Color3.fromRGB(245, 245, 235) else dark
-	local eyeMat = if glowEyes then Enum.Material.Neon else Enum.Material.SmoothPlastic
-	if sp == "Buho" then
-		for _, sx in ipairs({ -1, 1 }) do
-			ball(0.5, Color3.fromRGB(250, 250, 245), hp + V(sx * 0.3, 0.1, -0.5))
-			ball(0.24, if glowEyes then eyeColor else dark, hp + V(sx * 0.3, 0.1, -0.7), eyeMat)
-		end
-		add(K, V(0.2, 0.2, 0.3), Color3.fromRGB(240, 170, 50), hp + V(0, -0.15, -0.72), CFrame.Angles(-0.3, 0, 0))
-	else
-		for _, sx in ipairs({ -1, 1 }) do
-			if sp == "Tanuki" then
-				add(K, V(0.3, 0.22, 0.1), dark, hp + V(sx * 0.22 * hs, 0.1 * hs, -0.4 * hs))
-			end
-			ball(0.18, eyeColor, hp + V(sx * 0.2 * hs, 0.1 * hs, -0.45 * hs), eyeMat)
-		end
-	end
-
-	-- hocico
-	if look.Snout then
-		local long = if sp == "Lobo" or sp == "Dragon" then 0.55 else 0.35
-		local muzzle = if sp == "Lobo" or sp == "Dragon" then body:Lerp(accent, 0.25) else belly
-		add(K, V(0.34, 0.28, long), muzzle, hp + V(0, -0.12 * hs, -(0.5 * hs + long * 0.5 - 0.1)))
-		ball(0.16, dark, hp + V(0, -0.04 * hs, -(0.5 * hs + long - 0.05)))
-	end
-
-	-- orejas: puntiagudas (zorro, lobo) o redondas (tanuki, tigre)
-	if look.Ears then
-		for _, sx in ipairs({ -1, 1 }) do
-			if sp == "Zorro" or sp == "Lobo" then
-				local h = if sp == "Lobo" then 0.8 else 0.65
-				add(K, V(0.28, h, 0.16), body, hp + V(sx * 0.32 * hs, 0.62 * hs + h * 0.15, 0), CFrame.Angles(0, 0, -sx * 0.25))
-				add(K, V(0.14, h * 0.6, 0.1), if sp == "Lobo" then accent else dark, hp + V(sx * 0.32 * hs, 0.58 * hs + h * 0.1, -0.06), CFrame.Angles(0, 0, -sx * 0.25))
-			else
-				ball(0.38, body, hp + V(sx * 0.4 * hs, 0.48 * hs, 0))
-				ball(0.2, if sp == "Tigre" then dark else belly, hp + V(sx * 0.4 * hs, 0.48 * hs, -0.1))
-			end
-		end
-	end
-
-	-- cuernos / penachos
-	if look.Horns then
-		for _, sx in ipairs({ -1, 1 }) do
-			if sp == "Buho" then
-				add(K, V(0.22, 0.5, 0.14), accent, hp + V(sx * 0.4, 0.62, -0.1), CFrame.Angles(0, 0, -sx * 0.45))
-			else
-				add(K, V(0.14, 0.5, 0.14), accent, hp + V(sx * 0.3 * hs, 0.55 * hs + 0.1, 0.05), CFrame.Angles(0.35, 0, -sx * 0.4))
-			end
-		end
-	end
-
-	-- tortuga: caparazón con placas, cuello y patas
-	if look.Shell then
-		ball(1.9, accent, V(0, 0.45, 0.35))
-		ball(1.4, body:Lerp(accent, 0.35), V(0, 0.85, 0.35))
-		for _, o in ipairs({ V(0, 1.5, 0.35), V(0.5, 1.3, 0.35), V(-0.5, 1.3, 0.35), V(0, 1.3, -0.15), V(0, 1.3, 0.85) }) do
-			ball(0.45, body, o)
-		end
-		add(K, V(0.45, 0.45, 0.5), body, V(0, 0.3, -0.7))
-		for _, lx in ipairs({ -1, 1 }) do
-			for _, lz in ipairs({ -0.2, 0.9 }) do
-				add(K, V(0.4, 0.45, 0.4), body, V(lx * 0.7, -0.6, lz))
-			end
-		end
-	end
-
-	-- tigre: rayas en el lomo y la frente
-	if look.Stripes then
-		for i = -1, 1 do
-			add(K, V(1.55, 0.14, 0.16), accent, V(0, 0.62, 0.2 + i * 0.42))
-			add(K, V(0.08, 0.04, 0.3), accent, hp + V(i * 0.15, 0.5 * hs, -0.05))
-		end
-	end
-
-	-- dragón: púas en el lomo
-	if sp == "Dragon" then
-		for i = 0, 2 do
-			add(K, V(0.14, 0.3 - i * 0.04, 0.2), accent, V(0, 0.78 - i * 0.12, 0.05 + i * 0.4), CFrame.Angles(-0.4 + i * 0.2, 0, 0))
-		end
-	end
-
-	-- fénix: cresta de fuego y pico
-	if sp == "Fenix" then
-		add(K, V(0.16, 0.55, 0.14), accent, hp + V(0, 0.6, 0), CFrame.Angles(-0.25, 0, 0), Enum.Material.Neon)
-		for _, sx in ipairs({ -1, 1 }) do
-			add(K, V(0.13, 0.42, 0.12), body, hp + V(sx * 0.16, 0.55, 0.05), CFrame.Angles(-0.2, 0, -sx * 0.4), Enum.Material.Neon)
-		end
-		add(K, V(0.18, 0.14, 0.32), Color3.fromRGB(255, 190, 60), hp + V(0, -0.08, -0.62), CFrame.Angles(0.15, 0, 0))
-	end
-
-	-- hada: peinado y varita
-	if sp == "Hada" then
-		ball(0.75, accent, hp + V(0, 0.4, 0.12))
-		for _, sx in ipairs({ -1, 1 }) do
-			ball(0.3, accent, hp + V(sx * 0.55, 0.1, 0.15))
-		end
-		add(K, V(0.07, 0.07, 0.9), Color3.fromRGB(250, 250, 255), V(0.85, 0.1, -0.55), CFrame.Angles(0.5, 0, 0))
-		ball(0.3, accent, V(0.85, 0.32, -0.95), Enum.Material.Neon)
-	end
-
-	-- lobo: crin en el cuello
-	if sp == "Lobo" then
-		ball(1.15, body:Lerp(accent, 0.2), hp + V(0, -0.3, 0.4))
-	end
-
-	-- mono: cara clara y mejillas
-	if sp == "Mono" then
-		ball(0.75, belly, hp + V(0, -0.05, -0.28))
-		for _, sx in ipairs({ -1, 1 }) do
-			ball(0.18, accent, hp + V(sx * 0.42, 0.05, -0.1), Enum.Material.Neon)
-		end
-	end
-
-	-- sapo: ojos saltones, boca ancha y manchas en el lomo
-	if sp == "Sapo" then
-		for _, sx in ipairs({ -1, 1 }) do
-			ball(0.42, belly, hp + V(sx * 0.3, 0.5, -0.2))
-			ball(0.2, dark, hp + V(sx * 0.3, 0.52, -0.38))
-		end
-		add(K, V(0.8, 0.07, 0.3), dark, hp + V(0, -0.2, -0.5))
-		for _, o in ipairs({ V(-0.35, 0.8, 0.0), V(0.3, 0.85, 0.5), V(-0.1, 0.8, 0.9) }) do
-			ball(0.3, accent, o)
-		end
-	end
-
-	-- loro: pico curvo y cresta
-	if sp == "Loro" then
-		add(K, V(0.2, 0.2, 0.34), Color3.fromRGB(255, 205, 70), hp + V(0, -0.05, -0.55), CFrame.Angles(0.25, 0, 0))
-		add(K, V(0.12, 0.12, 0.2), dark, hp + V(0, -0.2, -0.62))
-		for i = -1, 1 do
-			add(K, V(0.12, 0.4, 0.14), accent, hp + V(i * 0.14, 0.5, 0.05), CFrame.Angles(-0.2, 0, i * -0.3))
-		end
-		for _, sx in ipairs({ -1, 1 }) do
-			ball(0.32, Color3.fromRGB(250, 250, 245), hp + V(sx * 0.24, 0.08, -0.35))
-			ball(0.16, dark, hp + V(sx * 0.24, 0.08, -0.5))
-		end
-	end
-
-	-- mariposa: antenas
-	if sp == "Mariposa" then
-		for _, sx in ipairs({ -1, 1 }) do
-			add(K, V(0.06, 0.6, 0.06), dark, hp + V(sx * 0.2, 0.6, -0.1), CFrame.Angles(0.2, 0, -sx * 0.35))
-			ball(0.14, accent, hp + V(sx * 0.42, 0.9, -0.15), Enum.Material.Neon)
-		end
-	end
-
-	-- adornos de familia: hoja y saco (tanuki), trébol (zorro)
-	if look.Charm == "Leaf" then
-		add(K, V(0.7, 0.05, 0.5), Color3.fromRGB(90, 190, 90), hp + V(0, 0.55 * hs, 0), CFrame.Angles(0.1, 0.6, 0.25))
-		ball(0.7, Color3.fromRGB(205, 170, 110), V(0, 0.95, 1.1))
-		ball(0.25, Color3.fromRGB(255, 210, 70), V(0, 1.3, 1.1), Enum.Material.Neon)
-	elseif look.Charm == "Clover" then
-		for _, o in ipairs({ V(-0.14, 0.14, 0), V(0.14, 0.14, 0), V(-0.14, -0.14, 0), V(0.14, -0.14, 0) }) do
-			ball(0.24, Color3.fromRGB(90, 230, 120), hp + V(0, 1.15, 0) + o, Enum.Material.Neon)
-		end
-	end
-
-	-- alas
-	if look.Wings then
-		for _, side in ipairs({ -1, 1 }) do
-			if sp == "Dragon" then
-				wing(side, V(1.7, 0.08, 1.0), V(0.9, 0.5, 0.45), body:Lerp(accent, 0.25))
-			elseif sp == "Fenix" then
-				wing(side, V(1.5, 0.1, 0.9), V(0.85, 0.4, 0.35), accent)
-				wing(side, V(1.1, 0.1, 0.6), V(0.8, 0.3, 0.9), body)
-			elseif sp == "Hada" then
-				wing(side, V(1.2, 0.06, 0.9), V(0.7, 0.55, 0.2), accent)
-				wing(side, V(0.8, 0.06, 0.6), V(0.6, 0.2, 0.55), accent)
-			elseif sp == "Buho" then
-				wing(side, V(1.2, 0.1, 0.9), V(0.8, 0.35, 0.35), body:Lerp(accent, 0.3))
-			elseif sp == "Mariposa" then
-				wing(side, V(1.9, 0.06, 1.3), V(0.95, 0.5, 0.0), accent)
-				wing(side, V(1.3, 0.06, 0.9), V(0.8, 0.3, 0.8), belly)
-			elseif sp == "Loro" then
-				wing(side, V(1.1, 0.1, 0.9), V(0.7, 0.3, 0.3), accent)
-			else
-				wing(side, V(1.3, 0.1, 0.85), V(0.8, 0.4, 0.35), accent)
-			end
-		end
-	end
-
-	-- colas (se mueven al caminar)
-	if look.Tail then
-		if sp == "Zorro" then
-			tail(B, Vector3.one * 0.75, body, V(0, 0.25, 1.2), 0.1)
-			tail(B, Vector3.one * 0.6, body, V(0, 0.45, 1.7), 0.18)
-			tail(B, Vector3.one * 0.45, accent, V(0, 0.6, 2.1), 0.26)
-		elseif sp == "Tanuki" then
-			tail(B, Vector3.one * 0.6, body, V(0, 0.3, 1.2), 0.08)
-			tail(B, Vector3.one * 0.55, dark, V(0, 0.45, 1.55), 0.14)
-			tail(B, Vector3.one * 0.5, body, V(0, 0.6, 1.9), 0.2)
-		elseif sp == "Tigre" then
-			for i = 0, 3 do
-				tail(B, Vector3.one * (0.42 - i * 0.04), if i == 3 then dark else body, V(0, 0.3 + i * 0.15, 1.2 + i * 0.35), 0.08 + i * 0.07)
-			end
-		elseif sp == "Dragon" then
-			tail(B, Vector3.one * 0.5, body, V(0, 0.2, 1.2), 0.08)
-			tail(B, Vector3.one * 0.4, body, V(0, 0.15, 1.6), 0.15)
-			tail(K, V(0.5, 0.08, 0.45), accent, V(0, 0.1, 2.0), 0.22)
-		elseif sp == "Lobo" then
-			tail(B, Vector3.one * 0.6, body, V(0, 0.3, 1.2), 0.08)
-			tail(B, Vector3.one * 0.55, body, V(0, 0.35, 1.55), 0.14)
-			tail(B, Vector3.one * 0.4, accent, V(0, 0.45, 1.95), 0.2, nil, Enum.Material.Neon)
-		elseif sp == "Fenix" then
-			tail(K, V(0.22, 0.08, 1.1), accent, V(0, 0.25, 1.55), 0.05, nil, Enum.Material.Neon)
+		-- ojos (brillan desde Épico; lobo y dragón siempre)
+		local glowEyes = sp == "Lobo" or sp == "Dragon" or idx >= 3
+		local eyeColor = if sp == "Lobo" or sp == "Dragon" then accent elseif idx >= 3 then rr.Color elseif sp == "Tanuki" then Color3.fromRGB(245, 245, 235) else dark
+		local eyeMat = if glowEyes then Enum.Material.Neon else Enum.Material.SmoothPlastic
+		if sp == "Buho" then
 			for _, sx in ipairs({ -1, 1 }) do
-				tail(K, V(0.2, 0.08, 1.0), body, V(sx * 0.3, 0.2, 1.5), 0.08, CFrame.Angles(0, sx * 0.3, 0), Enum.Material.Neon)
+				ball(0.5, Color3.fromRGB(250, 250, 245), hp + V(sx * 0.3, 0.1, -0.5))
+				ball(0.24, if glowEyes then eyeColor else dark, hp + V(sx * 0.3, 0.1, -0.7), eyeMat)
 			end
-		elseif sp == "Tortuga" then
-			tail(B, Vector3.one * 0.3, body, V(0, -0.1, 1.35), 0.2)
-		elseif sp == "Mono" then
-			for i = 0, 4 do
-				tail(B, Vector3.one * (0.3 - i * 0.02), if i == 4 then accent else body, V(0, 0.2 + i * 0.28, 1.2 + math.sin(i * 0.9) * 0.3), 0.08 + i * 0.07)
-			end
-		elseif sp == "Loro" then
-			tail(K, V(0.2, 0.08, 1.2), body, V(0, 0.15, 1.6), 0.06)
-			tail(K, V(0.2, 0.08, 1.0), accent, V(0.25, 0.1, 1.5), 0.08, CFrame.Angles(0, 0.25, 0))
-			tail(K, V(0.2, 0.08, 1.0), Color3.fromRGB(255, 205, 70), V(-0.25, 0.1, 1.5), 0.08, CFrame.Angles(0, -0.25, 0))
+			add(K, V(0.2, 0.2, 0.3), Color3.fromRGB(240, 170, 50), hp + V(0, -0.15, -0.72), CFrame.Angles(-0.3, 0, 0))
 		else
-			tail(B, Vector3.one * 0.5, accent, V(0, 0.2, 1.15), 0.1)
-			tail(B, Vector3.one * 0.38, body, V(0, 0.5, 1.5), 0.2)
+			for _, sx in ipairs({ -1, 1 }) do
+				if sp == "Tanuki" then
+					add(K, V(0.3, 0.22, 0.1), dark, hp + V(sx * 0.22 * hs, 0.1 * hs, -0.4 * hs))
+				end
+				ball(0.18, eyeColor, hp + V(sx * 0.2 * hs, 0.1 * hs, -0.45 * hs), eyeMat)
+			end
 		end
+
+		-- hocico
+		if look.Snout then
+			local long = if sp == "Lobo" or sp == "Dragon" then 0.55 else 0.35
+			local muzzle = if sp == "Lobo" or sp == "Dragon" then body:Lerp(accent, 0.25) else belly
+			add(K, V(0.34, 0.28, long), muzzle, hp + V(0, -0.12 * hs, -(0.5 * hs + long * 0.5 - 0.1)))
+			ball(0.16, dark, hp + V(0, -0.04 * hs, -(0.5 * hs + long - 0.05)))
+		end
+
+		-- orejas: puntiagudas (zorro, lobo) o redondas (tanuki, tigre)
+		if look.Ears then
+			for _, sx in ipairs({ -1, 1 }) do
+				if sp == "Zorro" or sp == "Lobo" then
+					local h = if sp == "Lobo" then 0.8 else 0.65
+					add(K, V(0.28, h, 0.16), body, hp + V(sx * 0.32 * hs, 0.62 * hs + h * 0.15, 0), CFrame.Angles(0, 0, -sx * 0.25))
+					add(K, V(0.14, h * 0.6, 0.1), if sp == "Lobo" then accent else dark, hp + V(sx * 0.32 * hs, 0.58 * hs + h * 0.1, -0.06), CFrame.Angles(0, 0, -sx * 0.25))
+				else
+					ball(0.38, body, hp + V(sx * 0.4 * hs, 0.48 * hs, 0))
+					ball(0.2, if sp == "Tigre" then dark else belly, hp + V(sx * 0.4 * hs, 0.48 * hs, -0.1))
+				end
+			end
+		end
+
+		-- cuernos / penachos
+		if look.Horns then
+			for _, sx in ipairs({ -1, 1 }) do
+				if sp == "Buho" then
+					add(K, V(0.22, 0.5, 0.14), accent, hp + V(sx * 0.4, 0.62, -0.1), CFrame.Angles(0, 0, -sx * 0.45))
+				else
+					add(K, V(0.14, 0.5, 0.14), accent, hp + V(sx * 0.3 * hs, 0.55 * hs + 0.1, 0.05), CFrame.Angles(0.35, 0, -sx * 0.4))
+				end
+			end
+		end
+
+		-- tortuga: caparazón con placas, cuello y patas
+		if look.Shell then
+			ball(1.9, accent, V(0, 0.45, 0.35))
+			ball(1.4, body:Lerp(accent, 0.35), V(0, 0.85, 0.35))
+			for _, o in ipairs({ V(0, 1.5, 0.35), V(0.5, 1.3, 0.35), V(-0.5, 1.3, 0.35), V(0, 1.3, -0.15), V(0, 1.3, 0.85) }) do
+				ball(0.45, body, o)
+			end
+			add(K, V(0.45, 0.45, 0.5), body, V(0, 0.3, -0.7))
+			for _, lx in ipairs({ -1, 1 }) do
+				for _, lz in ipairs({ -0.2, 0.9 }) do
+					add(K, V(0.4, 0.45, 0.4), body, V(lx * 0.7, -0.6, lz))
+				end
+			end
+		end
+
+		-- tigre: rayas en el lomo y la frente
+		if look.Stripes then
+			for i = -1, 1 do
+				add(K, V(1.55, 0.14, 0.16), accent, V(0, 0.62, 0.2 + i * 0.42))
+				add(K, V(0.08, 0.04, 0.3), accent, hp + V(i * 0.15, 0.5 * hs, -0.05))
+			end
+		end
+
+		-- dragón: púas en el lomo
+		if sp == "Dragon" then
+			for i = 0, 2 do
+				add(K, V(0.14, 0.3 - i * 0.04, 0.2), accent, V(0, 0.78 - i * 0.12, 0.05 + i * 0.4), CFrame.Angles(-0.4 + i * 0.2, 0, 0))
+			end
+		end
+
+		-- fénix: cresta de fuego y pico
+		if sp == "Fenix" then
+			add(K, V(0.16, 0.55, 0.14), accent, hp + V(0, 0.6, 0), CFrame.Angles(-0.25, 0, 0), Enum.Material.Neon)
+			for _, sx in ipairs({ -1, 1 }) do
+				add(K, V(0.13, 0.42, 0.12), body, hp + V(sx * 0.16, 0.55, 0.05), CFrame.Angles(-0.2, 0, -sx * 0.4), Enum.Material.Neon)
+			end
+			add(K, V(0.18, 0.14, 0.32), Color3.fromRGB(255, 190, 60), hp + V(0, -0.08, -0.62), CFrame.Angles(0.15, 0, 0))
+		end
+
+		-- hada: peinado y varita
+		if sp == "Hada" then
+			ball(0.75, accent, hp + V(0, 0.4, 0.12))
+			for _, sx in ipairs({ -1, 1 }) do
+				ball(0.3, accent, hp + V(sx * 0.55, 0.1, 0.15))
+			end
+			add(K, V(0.07, 0.07, 0.9), Color3.fromRGB(250, 250, 255), V(0.85, 0.1, -0.55), CFrame.Angles(0.5, 0, 0))
+			ball(0.3, accent, V(0.85, 0.32, -0.95), Enum.Material.Neon)
+		end
+
+		-- lobo: crin en el cuello
+		if sp == "Lobo" then
+			ball(1.15, body:Lerp(accent, 0.2), hp + V(0, -0.3, 0.4))
+		end
+
+		-- mono: cara clara y mejillas
+		if sp == "Mono" then
+			ball(0.75, belly, hp + V(0, -0.05, -0.28))
+			for _, sx in ipairs({ -1, 1 }) do
+				ball(0.18, accent, hp + V(sx * 0.42, 0.05, -0.1), Enum.Material.Neon)
+			end
+		end
+
+		-- sapo: ojos saltones, boca ancha y manchas en el lomo
+		if sp == "Sapo" then
+			for _, sx in ipairs({ -1, 1 }) do
+				ball(0.42, belly, hp + V(sx * 0.3, 0.5, -0.2))
+				ball(0.2, dark, hp + V(sx * 0.3, 0.52, -0.38))
+			end
+			add(K, V(0.8, 0.07, 0.3), dark, hp + V(0, -0.2, -0.5))
+			for _, o in ipairs({ V(-0.35, 0.8, 0.0), V(0.3, 0.85, 0.5), V(-0.1, 0.8, 0.9) }) do
+				ball(0.3, accent, o)
+			end
+		end
+
+		-- loro: pico curvo y cresta
+		if sp == "Loro" then
+			add(K, V(0.2, 0.2, 0.34), Color3.fromRGB(255, 205, 70), hp + V(0, -0.05, -0.55), CFrame.Angles(0.25, 0, 0))
+			add(K, V(0.12, 0.12, 0.2), dark, hp + V(0, -0.2, -0.62))
+			for i = -1, 1 do
+				add(K, V(0.12, 0.4, 0.14), accent, hp + V(i * 0.14, 0.5, 0.05), CFrame.Angles(-0.2, 0, i * -0.3))
+			end
+			for _, sx in ipairs({ -1, 1 }) do
+				ball(0.32, Color3.fromRGB(250, 250, 245), hp + V(sx * 0.24, 0.08, -0.35))
+				ball(0.16, dark, hp + V(sx * 0.24, 0.08, -0.5))
+			end
+		end
+
+		-- mariposa: antenas
+		if sp == "Mariposa" then
+			for _, sx in ipairs({ -1, 1 }) do
+				add(K, V(0.06, 0.6, 0.06), dark, hp + V(sx * 0.2, 0.6, -0.1), CFrame.Angles(0.2, 0, -sx * 0.35))
+				ball(0.14, accent, hp + V(sx * 0.42, 0.9, -0.15), Enum.Material.Neon)
+			end
+		end
+
+		-- adornos de familia: hoja y saco (tanuki), trébol (zorro)
+		if look.Charm == "Leaf" then
+			add(K, V(0.7, 0.05, 0.5), Color3.fromRGB(90, 190, 90), hp + V(0, 0.55 * hs, 0), CFrame.Angles(0.1, 0.6, 0.25))
+			ball(0.7, Color3.fromRGB(205, 170, 110), V(0, 0.95, 1.1))
+			ball(0.25, Color3.fromRGB(255, 210, 70), V(0, 1.3, 1.1), Enum.Material.Neon)
+		elseif look.Charm == "Clover" then
+			for _, o in ipairs({ V(-0.14, 0.14, 0), V(0.14, 0.14, 0), V(-0.14, -0.14, 0), V(0.14, -0.14, 0) }) do
+				ball(0.24, Color3.fromRGB(90, 230, 120), hp + V(0, 1.15, 0) + o, Enum.Material.Neon)
+			end
+		end
+
+		-- alas
+		if look.Wings then
+			for _, side in ipairs({ -1, 1 }) do
+				if sp == "Dragon" then
+					wing(side, V(1.7, 0.08, 1.0), V(0.9, 0.5, 0.45), body:Lerp(accent, 0.25))
+				elseif sp == "Fenix" then
+					wing(side, V(1.5, 0.1, 0.9), V(0.85, 0.4, 0.35), accent)
+					wing(side, V(1.1, 0.1, 0.6), V(0.8, 0.3, 0.9), body)
+				elseif sp == "Hada" then
+					wing(side, V(1.2, 0.06, 0.9), V(0.7, 0.55, 0.2), accent)
+					wing(side, V(0.8, 0.06, 0.6), V(0.6, 0.2, 0.55), accent)
+				elseif sp == "Buho" then
+					wing(side, V(1.2, 0.1, 0.9), V(0.8, 0.35, 0.35), body:Lerp(accent, 0.3))
+				elseif sp == "Mariposa" then
+					wing(side, V(1.9, 0.06, 1.3), V(0.95, 0.5, 0.0), accent)
+					wing(side, V(1.3, 0.06, 0.9), V(0.8, 0.3, 0.8), belly)
+				elseif sp == "Loro" then
+					wing(side, V(1.1, 0.1, 0.9), V(0.7, 0.3, 0.3), accent)
+				else
+					wing(side, V(1.3, 0.1, 0.85), V(0.8, 0.4, 0.35), accent)
+				end
+			end
+		end
+
+		-- colas (se mueven al caminar)
+		if look.Tail then
+			if sp == "Zorro" then
+				tail(B, Vector3.one * 0.75, body, V(0, 0.25, 1.2), 0.1)
+				tail(B, Vector3.one * 0.6, body, V(0, 0.45, 1.7), 0.18)
+				tail(B, Vector3.one * 0.45, accent, V(0, 0.6, 2.1), 0.26)
+			elseif sp == "Tanuki" then
+				tail(B, Vector3.one * 0.6, body, V(0, 0.3, 1.2), 0.08)
+				tail(B, Vector3.one * 0.55, dark, V(0, 0.45, 1.55), 0.14)
+				tail(B, Vector3.one * 0.5, body, V(0, 0.6, 1.9), 0.2)
+			elseif sp == "Tigre" then
+				for i = 0, 3 do
+					tail(B, Vector3.one * (0.42 - i * 0.04), if i == 3 then dark else body, V(0, 0.3 + i * 0.15, 1.2 + i * 0.35), 0.08 + i * 0.07)
+				end
+			elseif sp == "Dragon" then
+				tail(B, Vector3.one * 0.5, body, V(0, 0.2, 1.2), 0.08)
+				tail(B, Vector3.one * 0.4, body, V(0, 0.15, 1.6), 0.15)
+				tail(K, V(0.5, 0.08, 0.45), accent, V(0, 0.1, 2.0), 0.22)
+			elseif sp == "Lobo" then
+				tail(B, Vector3.one * 0.6, body, V(0, 0.3, 1.2), 0.08)
+				tail(B, Vector3.one * 0.55, body, V(0, 0.35, 1.55), 0.14)
+				tail(B, Vector3.one * 0.4, accent, V(0, 0.45, 1.95), 0.2, nil, Enum.Material.Neon)
+			elseif sp == "Fenix" then
+				tail(K, V(0.22, 0.08, 1.1), accent, V(0, 0.25, 1.55), 0.05, nil, Enum.Material.Neon)
+				for _, sx in ipairs({ -1, 1 }) do
+					tail(K, V(0.2, 0.08, 1.0), body, V(sx * 0.3, 0.2, 1.5), 0.08, CFrame.Angles(0, sx * 0.3, 0), Enum.Material.Neon)
+				end
+			elseif sp == "Tortuga" then
+				tail(B, Vector3.one * 0.3, body, V(0, -0.1, 1.35), 0.2)
+			elseif sp == "Mono" then
+				for i = 0, 4 do
+					tail(B, Vector3.one * (0.3 - i * 0.02), if i == 4 then accent else body, V(0, 0.2 + i * 0.28, 1.2 + math.sin(i * 0.9) * 0.3), 0.08 + i * 0.07)
+				end
+			elseif sp == "Loro" then
+				tail(K, V(0.2, 0.08, 1.2), body, V(0, 0.15, 1.6), 0.06)
+				tail(K, V(0.2, 0.08, 1.0), accent, V(0.25, 0.1, 1.5), 0.08, CFrame.Angles(0, 0.25, 0))
+				tail(K, V(0.2, 0.08, 1.0), Color3.fromRGB(255, 205, 70), V(-0.25, 0.1, 1.5), 0.08, CFrame.Angles(0, -0.25, 0))
+			else
+				tail(B, Vector3.one * 0.5, accent, V(0, 0.2, 1.15), 0.1)
+				tail(B, Vector3.one * 0.38, body, V(0, 0.5, 1.5), 0.2)
+			end
+		end
+	end
+
+	-- modelo propio (si existe): reemplaza al cuerpo de bloques; las alas de la mariposa se suman al cuerpo de bloques
+	if custom and tpl then
+		if not attachTemplate(model, root, tpl, tplKey, s, look.Flies == true, nil, 1) then
+			custom = false
+		end
+	elseif wingsTpl then
+		attachTemplate(model, root, wingsTpl, "Mariposa_Alas", s, true, CFrame.new(0, 0.5 * s, 0.15 * s), 2.2)
 	end
 
 	-- corona dorada del Legendario
-	if idx == 4 then
+	if idx == 4 and not custom then
 		for i = 0, 4 do
 			local a = i * math.pi * 2 / 5
 			add(K, V(0.1, 0.26, 0.1), Color3.fromRGB(255, 205, 60), hp + V(math.cos(a) * 0.26, 0.55 * hs + 0.05, math.sin(a) * 0.26), nil, Enum.Material.Neon)
