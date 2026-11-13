@@ -128,6 +128,9 @@ local MAX_SKILL_NAME_LENGTH = 24 -- para que quepa en la barra de habilidades de
 -- 2. NÚMEROS POR ROL (única fuente de balance; los 3 personajes de un rol los comparten)
 -------------------------------------------------------------------------------------
 
+-- Multiplicador de velocidad de TODOS los roles (16 -> 20 de base). Es lo que ve el jugador en la selección de clase y lo que aplica BaseSpeedService.
+local SPEED_MULT = 1.25
+
 local ROLE_BALANCE_SPECS: { [string]: RoleSpec } = {
 	Tanque = {
 		BaseHP = 1600,
@@ -666,7 +669,7 @@ for _, factionName in ipairs(FACTIONS) do
 			BaseHP = spec.BaseHP,
 			BaseEnergy = spec.BaseEnergy,
 			BaseDefense = spec.BaseDefense,
-			WalkSpeed = spec.WalkSpeed,
+			WalkSpeed = math.floor(spec.WalkSpeed * SPEED_MULT + 0.5),
 			PrimarySkill = buildSkill(spec.Primary, flavor.Primary),
 			SecondarySkill = buildSkill(spec.Secondary, flavor.Secondary),
 		}

@@ -46,6 +46,8 @@ AlchemyCatalog.Recipes = {
 	{ Id = "Pocion_Energia_Mayor", Premium = true, Kind = "En", Cost = { Rec_2 = 2, Mat_Colmillo = 1 }, Gold = 40, Yield = 1 },
 	{ Id = "Pocion_Energia_Suprema", Premium = true, Kind = "En", Cost = { Rec_3 = 2, Mat_Esencia = 2 }, Gold = 120, Yield = 1 },
 	-- ELIXIRES (pestaña "Elixires"): efecto temporal, para todos. Materiales de las franjas 1-3 (se consiguen antes del nivel 55).
+	-- FUNDICIÓN (aparece junto a las pociones): los Fragmentos de Armadura se funden en Gemas Menores (mejora +1 a +5 del Herrero).
+	{ Id = "Mat_GemaMenor", Kind = "Gema", Cost = { Mat_FragArmadura = 8 }, Gold = 60, Yield = 1 },
 	{ Id = "Elixir_Oro", Kind = "Elixir", Cost = { Rec_2 = 3, Mat_Piel = 3 }, Gold = 150, Yield = 1 },
 	{ Id = "Elixir_Suerte", Kind = "Elixir", Cost = { Rec_2 = 3, Mat_Colmillo = 3 }, Gold = 200, Yield = 1 },
 	{ Id = "Elixir_Poder", Kind = "Elixir", Cost = { Rec_3 = 3, Mat_Colmillo = 3 }, Gold = 300, Yield = 1 },

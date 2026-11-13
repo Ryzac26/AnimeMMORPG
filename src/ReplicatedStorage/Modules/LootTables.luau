@@ -28,7 +28,7 @@ LootTables.Materials = {
 	Mat_Colmillo = { Name = "Colmillo Afilado", Rarity = "Comun", Stack = 99, Desc = "Material de la Franja 2." },
 	Mat_Esencia = { Name = "Esencia Oscura", Rarity = "Raro", Stack = 99, Desc = "Material de la Franja 3." },
 	Mat_Nucleo = { Name = "Núcleo de Poder", Rarity = "Raro", Stack = 99, Desc = "Material de la Franja 4." },
-	Mat_FragArmadura = { Name = "Fragmento de Armadura", Rarity = "Comun", Stack = 99, Desc = "Material de mejora de armaduras." },
+	Mat_FragArmadura = { Name = "Fragmento de Armadura", Rarity = "Comun", Stack = 99, Desc = "Se funde en el Alquimista: 8 fragmentos + 60 de oro = 1 Gema Menor (para mejorar equipo de +1 a +5). También se vende." },
 	Mat_GemaMenor = { Name = "Gema Menor", Rarity = "Comun", Stack = 99, Desc = "Sirve para mejorar el equipo de +1 a +5. La sueltan los monstruos, los mini jefes, los cofres y los altares." },
 	Mat_Gema = { Name = "Gema Mayor", Rarity = "Raro", Stack = 99, Desc = "Sirve para mejorar el equipo de +6 a +9. Solo la sueltan las piedras Metin." },
 	Pergamino_Proteccion = { Name = "Pergamino de Protección", Rarity = "Epico", Stack = 99, Desc = "Úsalo en el Herrero al intentar +7, +8 o +9: si la mejora falla, la pieza NO baja de nivel ni se rompe (el pergamino se gasta). Solo se consigue en la Tienda." },

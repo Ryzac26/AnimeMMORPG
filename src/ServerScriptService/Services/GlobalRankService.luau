@@ -338,13 +338,13 @@ local function buildBoard(faction: string, base: CFrame): Board
 	label(bg, "#", UDim2.fromOffset(110, 30), UDim2.fromOffset(40, 158), Enum.Font.GothamBold, hc, nil, 24)
 	label(bg, "JUGADOR", UDim2.fromOffset(600, 30), UDim2.fromOffset(170, 158), Enum.Font.GothamBold, hc, Enum.TextXAlignment.Left, 24)
 	label(bg, "FACCIÓN", UDim2.fromOffset(380, 30), UDim2.fromOffset(800, 158), Enum.Font.GothamBold, hc, Enum.TextXAlignment.Left, 24)
-	label(bg, "NIVEL", UDim2.fromOffset(280, 30), UDim2.fromOffset(1190, 158), Enum.Font.GothamBold, hc, Enum.TextXAlignment.Right, 24)
+	label(bg, "NIVEL", UDim2.fromOffset(280, 30), UDim2.fromOffset(1090, 158), Enum.Font.GothamBold, hc, Enum.TextXAlignment.Right, 24)
 	local rows: { Row } = {}
 	for i = 1, PAGE_ROWS do
 		local rowY = 194 + (i - 1) * 74
 		local row = Instance.new("Frame")
 		row.Position = UDim2.fromOffset(25, rowY)
-		row.Size = UDim2.fromOffset(1450, 68)
+		row.Size = UDim2.fromOffset(1400, 68)
 		row.BackgroundColor3 = if i % 2 == 0 then Color3.fromRGB(26, 30, 48) else Color3.fromRGB(20, 23, 38)
 		row.BorderSizePixel = 0
 		row.Parent = bg
@@ -356,7 +356,7 @@ local function buildBoard(faction: string, base: CFrame): Board
 		local rk = label(row, tostring(i), UDim2.fromOffset(110, 68), UDim2.fromOffset(15, 0), Enum.Font.GothamBlack, hc, nil, 48)
 		local nm = label(row, "—", UDim2.fromOffset(620, 68), UDim2.fromOffset(145, 0), Enum.Font.GothamBlack, hc, Enum.TextXAlignment.Left, 46)
 		local fc = label(row, "", UDim2.fromOffset(380, 68), UDim2.fromOffset(775, 0), Enum.Font.GothamBlack, hc, Enum.TextXAlignment.Left, 36)
-		local lv = label(row, "", UDim2.fromOffset(280, 68), UDim2.fromOffset(1165, 0), Enum.Font.GothamBlack, Color3.fromRGB(255, 226, 150), Enum.TextXAlignment.Right, 46)
+		local lv = label(row, "", UDim2.fromOffset(280, 68), UDim2.fromOffset(1065, 0), Enum.Font.GothamBlack, Color3.fromRGB(255, 226, 150), Enum.TextXAlignment.Right, 46)
 		table.insert(rows, { Rank = rk, Name = nm, Faction = fc, Level = lv, Bar = bar })
 	end
 	label(bg, "Las 4 facciones · se actualiza cada 2 minutos · acércate y pulsa E para ver el Top 100 completo", UDim2.fromOffset(1460, 30), UDim2.fromOffset(20, 950), Enum.Font.Gotham, Color3.fromRGB(140, 146, 170), nil, 24)

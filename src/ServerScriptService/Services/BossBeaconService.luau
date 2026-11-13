@@ -43,7 +43,8 @@ local PARTS: { { any } } = {
 
 -- MODELOS PROPIOS: ServerStorage > BossModels > (Model con PrimaryPart, AnimationController/Animator y carpeta Animations > Monster).
 -- Cada vez que aparece el jefe se elige uno al azar. Si la carpeta no existe o está vacía, se usa la estatua de bloques.
-local TARGET_LENGTH = 110 -- largo (studs) al que se escala el modelo propio
+local TARGET_LENGTH = 170 -- largo (studs) al que se escala el modelo propio
+local SINK = 1 -- studs que se hunde el punto más bajo en el piso (para que "toque" de verdad)
 local FACING_Y = 0 -- grados para girarlo si mira al lado equivocado (prueba 90, 180 o -90)
 local IDLE_ANIM = "Swim" -- animación en bucle (Animations > Monster > ...)
 local ATTACK_ANIM = "Bite" -- animación al golpear
@@ -51,6 +52,17 @@ local ATTACK_ANIM = "Bite" -- animación al golpear
 local BossBeaconService = {}
 local model: Model? = nil
 local attackTrack: AnimationTrack? = nil
+
+-- punto más bajo (Y) de un conjunto de partes, contando su rotación
+local function lowestY(parts: { BasePart }): number
+	local low = math.huge
+	for _, p in ipairs(parts) do
+		local cf, sz = p.CFrame, p.Size
+		local ext = 0.5 * (math.abs(cf.RightVector.Y) * sz.X + math.abs(cf.UpVector.Y) * sz.Y + math.abs(cf.LookVector.Y) * sz.Z)
+		low = math.min(low, cf.Position.Y - ext)
+	end
+	return low
+end
 
 local function pickTemplate(): Model?
 	local folder = ServerStorage:FindFirstChild("BossModels")
@@ -104,19 +116,45 @@ local function buildFromTemplate(tpl: Model, base: Vector3): Model
 	m:PivotTo(m:GetPivot() + Vector3.new(base.X - cf.Position.X, base.Y - bottom, base.Z - cf.Position.Z))
 	m.Parent = Workspace
 
+	local bodyParts: { BasePart } = {}
+	for _, d in ipairs(m:GetDescendants()) do
+		if d:IsA("BasePart") then
+			table.insert(bodyParts, d)
+		end
+	end
 	local animator = m:FindFirstChildWhichIsA("Animator", true)
+	local startedAnim = false
 	if animator then
 		local idle = findAnim(m, IDLE_ANIM)
 		if idle then
 			local t = animator:LoadAnimation(idle)
 			t.Looped = true
 			t:Play()
+			startedAnim = true
 		end
 		local atk = findAnim(m, ATTACK_ANIM)
 		if atk then
 			attackTrack = animator:LoadAnimation(atk)
 			attackTrack.Priority = Enum.AnimationPriority.Action
 		end
+	end
+	-- con la animación en marcha el cuerpo sube y baja: se mide su punto más bajo y se apoya ESE en el piso
+	if startedAnim then
+		task.spawn(function()
+			local lowest = math.huge
+			for _ = 1, 10 do
+				task.wait(0.25)
+				if m.Parent == nil then
+					return
+				end
+				lowest = math.min(lowest, lowestY(bodyParts))
+			end
+			if m.Parent == nil or lowest == math.huge then
+				return
+			end
+			local delta = base.Y - lowest - SINK
+			m:PivotTo(m:GetPivot() + Vector3.new(0, delta, 0)) -- mueve todo el modelo (cuerpo, raíz, rayo y cartel) junto
+		end)
 	end
 	return m
 end
