@@ -54,6 +54,23 @@ local BossBeaconService = {}
 local model: Model? = nil
 local customCenter: Vector3? = nil -- centro del cuerpo visible del modelo propio (para la raíz invisible)
 
+local function part(parent: Instance, name: string, size: Vector3, pos: Vector3, color: Color3, material: Enum.Material): Part
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.Size = size
+	p.Position = pos
+	p.Color = color
+	p.Material = material
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Parent = parent
+	return p
+end
+
 -- punto más bajo (Y) de las partes VISIBLES, contando su rotación. Devuelve (Y, nombre de la parte más baja)
 local function lowestY(parts: { BasePart }): (number, string)
 	local low, who = math.huge, "?"
