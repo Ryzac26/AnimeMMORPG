@@ -1,6 +1,6 @@
 --!strict
 --[[
-    DungeonService v4 (ModuleScript) -> ServerScriptService.Services.DungeonService
+    DungeonService v5 (ModuleScript) -> ServerScriptService.Services.DungeonService
     CUEVAS por franja, inspiradas en las mazmorras aleatorias de Albion Online.
 
     ENTRADA: un ARCO de piedra con portal brillante (runas, braseros, círculo de luz) en cada franja de cada facción.
@@ -9,7 +9,9 @@
       nivel mientras TEST_FREE_ENTRY = true (ponlo en false para jugar como cualquiera).
       CONFIG.TEST_SIM_GROUP = 3: la cueva del DUEÑO en solitario se genera como si entraran 3 (para ver dificultad y premios sin grupo).
     CARGA: al entrar solo se construye el piso 1; el piso 2 se construye al vencer al Guardián (la mitad de piezas al entrar). Cada traslado
-      precarga el destino (RequestStreamAroundAsync) y el cliente (DungeonAmbientClient) muestra una transición hasta que el suelo existe.
+      es en dos tiempos: (1) el jugador sigue en el mundo con un aviso mientras su cliente recibe el destino y avisa que ya ve el suelo
+      (remoto DungeonReady); (2) fundido a negro corto, salto con el personaje anclado un instante (no cae al vacío) y destape.
+      Funciona igual con StreamingEnabled apagado (con encendido, además precarga con RequestStreamAroundAsync).
 
     ESTRUCTURA: cada cueva es PRIVADA (instancia propia, lejos del mapa) y tiene 2 PISOS. Cada piso es un LABERINTO de galerías:
       - se genera con una semilla al azar (nunca dos iguales); el camino hasta la salida es largo y la SALIDA queda LEJOS del inicio;
@@ -118,9 +120,11 @@ local CONFIG = {
 	FLOOR2_DZ = 480,
 
 	-- CARGA / TRANSICIÓN
+	READY_TIMEOUT = 5, -- segundos máximos esperando que el cliente avise que ya ve el suelo del destino (si no avisa, salta igual)
 	COVER_TIME = 0.25, -- segundos de fundido a negro antes de teletransportar
-	PRELOAD_TIMEOUT = 6, -- segundos máximos esperando que el cliente cargue el destino (con StreamingEnabled)
-	HOLD_AFTER = 0.15, -- segundos extra con la pantalla tapada después del salto
+	PRELOAD_TIMEOUT = 6, -- segundos máximos de RequestStreamAroundAsync (solo con StreamingEnabled encendido)
+	HOLD_AFTER = 0.15, -- segundos con la pantalla tapada y el personaje anclado después del salto
+	PACE_PARTS = 120, -- piezas que se crean por fotograma al construir (menos = menos tirones en los clientes; con StreamingEnabled apagado TODOS reciben las piezas)
 	MAX_CAVES_NO_STREAMING = 6, -- si Workspace.StreamingEnabled está apagado cada jugador recibe TODAS las cuevas abiertas: se limita
 	DEBUG_LOAD = true, -- imprime en Output cuánto tarda construir y cargar cada traslado (ponlo en false cuando ya no lo necesites)
 }
@@ -244,11 +248,23 @@ local function rootOf(p: Player): BasePart?
 	return if r and r:IsA("BasePart") then r else nil
 end
 
--- Traslado con TRANSICIÓN: el cliente (DungeonAmbientClient) tapa la pantalla (atributo DungeonTransit), el servidor precarga el destino
--- (RequestStreamAroundAsync: con StreamingEnabled el cliente ya tiene el mapa cuando llegas), salta, y el cliente destapa cuando hay suelo.
--- strip = franja de la cueva a la que vas (la luz de cueva ya se va cargando bajo el negro); nil = sales al mundo.
+-- Traslado con TRANSICIÓN en dos tiempos (así no se ve el vacío mientras llega el mapa, haya o no StreamingEnabled):
+--  1) PREPARACIÓN: el jugador sigue en el mundo con un aviso "cargando" (atributos DungeonTransit / DungeonTransitText / DungeonDest).
+--     Con StreamingEnabled se pide al cliente el destino (RequestStreamAroundAsync). El cliente (DungeonAmbientClient) espera a ver el
+--     SUELO del destino y lo avisa por el remoto DungeonReady.
+--  2) SALTO: el servidor pone DungeonCover (fundido a negro), espera COVER_TIME, teletransporta con el personaje anclado un instante
+--     (no cae al vacío) y suelta; el cliente destapa cuando hay suelo bajo los pies.
+-- strip = franja de la cueva a la que vas (la luz de cueva arranca con el fundido); nil = sales al mundo.
 local transiting: { [Player]: number } = {}
+local confirmed: { [Player]: number } = {}
 local transitToken = 0
+local readyRemote = Net.Get("DungeonReady")
+readyRemote.OnServerEvent:Connect(function(p: Player, token: any)
+	if typeof(token) == "number" and transiting[p] == token then
+		confirmed[p] = token
+	end
+end)
+
 local function moveTo(p: Player, cf: CFrame, strip: number?, text: string?)
 	if not rootOf(p) then
 		return -- sin personaje (acaba de morir): no hay a quién mover
@@ -256,31 +272,54 @@ local function moveTo(p: Player, cf: CFrame, strip: number?, text: string?)
 	transitToken += 1
 	local token = transitToken
 	transiting[p] = token
+	confirmed[p] = nil
 	p:SetAttribute("DungeonTransitText", text or "Cargando…")
+	p:SetAttribute("DungeonDest", cf.Position)
 	p:SetAttribute("DungeonTransit", token)
-	p:SetAttribute("InDungeon", strip)
 	task.spawn(function()
 		local t0 = os.clock()
-		task.wait(CONFIG.COVER_TIME)
+		if Workspace.StreamingEnabled then
+			pcall(function()
+				p:RequestStreamAroundAsync(cf.Position, CONFIG.PRELOAD_TIMEOUT)
+			end)
+		end
 		local t1 = os.clock()
-		pcall(function()
-			p:RequestStreamAroundAsync(cf.Position, CONFIG.PRELOAD_TIMEOUT)
-		end)
+		-- el cliente avisa cuando ya ve el suelo del destino (si no avisa a tiempo, se sigue igual)
+		while p.Parent and transiting[p] == token and confirmed[p] ~= token and os.clock() - t1 < CONFIG.READY_TIMEOUT do
+			task.wait(0.05)
+		end
+		if not p.Parent or transiting[p] ~= token then
+			return -- se fue o empezó otro traslado (ese se encarga de todo)
+		end
 		local t2 = os.clock()
+		p:SetAttribute("InDungeon", strip)
+		p:SetAttribute("DungeonCover", token)
+		task.wait(CONFIG.COVER_TIME)
+		if not p.Parent or transiting[p] ~= token then
+			return
+		end
 		local r = rootOf(p)
 		if r then
 			r.AssemblyLinearVelocity = Vector3.zero
+			r.Anchored = true
 			r.CFrame = cf
 		end
 		task.wait(CONFIG.HOLD_AFTER)
 		if transiting[p] == token then
-			transiting[p] = nil
-			if p.Parent then
-				p:SetAttribute("DungeonTransit", nil)
+			if r and r.Parent then
+				r.Anchored = false
 			end
+			transiting[p] = nil
+			confirmed[p] = nil
+			p:SetAttribute("DungeonDest", nil)
+			p:SetAttribute("DungeonCover", nil)
+			p:SetAttribute("DungeonTransit", nil)
 		end
 		if CONFIG.DEBUG_LOAD then
-			print(string.format("[DungeonService] traslado de %s: fundido %.2f s · precarga del destino %.2f s · total %.2f s", p.Name, t1 - t0, t2 - t1, os.clock() - t0))
+			print(string.format(
+				"[DungeonService] traslado de %s: precarga %.2f s · espera al cliente %.2f s%s · fundido y salto %.2f s · total %.2f s",
+				p.Name, t1 - t0, t2 - t1, if confirmed[p] == nil and t2 - t1 >= CONFIG.READY_TIMEOUT then " (SIN AVISO del cliente: salté por tiempo)" else "", os.clock() - t2, os.clock() - t0
+				))
 		end
 	end)
 end
@@ -289,7 +328,7 @@ end
 local built = 0
 local function pace()
 	built += 1
-	if built % 300 == 0 then
+	if built % CONFIG.PACE_PARTS == 0 then
 		RunService.Heartbeat:Wait()
 	end
 end
@@ -1660,7 +1699,9 @@ local function closeInstance(inst: Inst, reason: string)
 			if r and insideBounds(inst, r.Position) then
 				moveTo(p, inst.ExitCF, nil, "🏠 Saliendo de la cueva…")
 			end
-			p:SetAttribute("InDungeon", nil)
+			if not transiting[p] then
+				p:SetAttribute("InDungeon", nil) -- si va de salida, la luz de afuera vuelve con el fundido (ver moveTo)
+			end
 			notify(p, reason)
 		end
 		if instOf[p] == inst then
@@ -1672,10 +1713,27 @@ local function closeInstance(inst: Inst, reason: string)
 			MobService.Despawn(m)
 		end
 	end
-	inst.Folder:Destroy()
-	slotUsed[inst.Slot] = nil
-	DungeonNav.Unregister(inst.Id)
-	instances[inst.Id] = nil
+	-- la cueva se borra cuando los que salen ya fueron trasladados: el suelo no puede desaparecer bajo sus pies mientras esperan el fundido
+	task.spawn(function()
+		local t0 = os.clock()
+		while os.clock() - t0 < CONFIG.READY_TIMEOUT + 3 do
+			local waiting = false
+			for p in pairs(inst.Members) do
+				if p.Parent and transiting[p] then
+					waiting = true
+					break
+				end
+			end
+			if not waiting then
+				break
+			end
+			task.wait(0.1)
+		end
+		inst.Folder:Destroy()
+		slotUsed[inst.Slot] = nil
+		DungeonNav.Unregister(inst.Id)
+		instances[inst.Id] = nil
+	end)
 end
 
 local function difficultyText(n: number, hp: number, dmg: number, xp: number, loot: number, simulated: boolean): string
@@ -2068,7 +2126,7 @@ DungeonService.Config = CONFIG
 DungeonService.Rarity = RARITY
 
 if not Workspace.StreamingEnabled then
-	warn(string.format("[DungeonService] AVISO: Workspace.StreamingEnabled está APAGADO: cada jugador recibe las piezas de TODAS las cuevas abiertas. Se limita a %d cuevas a la vez (con StreamingEnabled = true el tope es %d).", CONFIG.MAX_CAVES_NO_STREAMING, CONFIG.SLOT_COUNT))
+	warn(string.format("[DungeonService] AVISO: Workspace.StreamingEnabled está APAGADO: cada vez que se abre una cueva TODOS los jugadores reciben sus piezas. Se limita a %d cuevas a la vez (con StreamingEnabled = true el tope es %d).", CONFIG.MAX_CAVES_NO_STREAMING, CONFIG.SLOT_COUNT))
 end
 print(string.format("[DungeonService] Listo: cuevas-laberinto por franja (2 pisos, 3 salas, cofres, manadas) · %s · StreamingEnabled=%s.", if CONFIG.TEST_ONLY then "SOLO DUEÑO" else "ABIERTA A TODOS", tostring(Workspace.StreamingEnabled)))
 return DungeonService
