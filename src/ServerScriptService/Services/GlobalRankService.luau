@@ -461,7 +461,26 @@ task.spawn(function()
 	end
 end)
 
+-- límite por jugador y por acción: "Sync" reconstruye y ordena todo el ranking, y pedirlo sin parar saturaría el servidor
+local lastAsk: { [Player]: { [string]: number } } = {}
+Players.PlayerRemoving:Connect(function(p: Player)
+	lastAsk[p] = nil
+end)
+
 remote.OnServerEvent:Connect(function(pl: Player, what: any)
+	if what ~= "Sync" and what ~= "Open" then
+		return
+	end
+	local mine = lastAsk[pl]
+	if not mine then
+		mine = {}
+		lastAsk[pl] = mine
+	end
+	local now = os.clock()
+	if now - (mine[what :: string] or 0) < 1.5 then
+		return
+	end
+	mine[what :: string] = now
 	if what == "Sync" then
 		rebuild()
 		pushMe(pl)

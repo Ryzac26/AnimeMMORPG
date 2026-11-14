@@ -779,7 +779,9 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 		return
 	elseif action == "Move" and typeof(a) == "number" and typeof(b) == "number" then
 		a, b = math.floor(a), math.floor(b)
-		if a >= 1 and b >= 1 and b <= capacity(st) + 0 then
+		-- los DOS huecos deben caer dentro de la mochila: capacity() crece con el hueco más alto usado, así que sin este tope
+		-- un cliente alterado podía mandar un hueco enorme (o infinito) y agrandarse la mochila gratis
+		if a >= 1 and b >= 1 and a <= capacity(st) and b <= capacity(st) then
 			st.Bag[a], st.Bag[b] = st.Bag[b], st.Bag[a]
 		end
 	elseif action == "Sort" then
