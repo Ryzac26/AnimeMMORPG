@@ -1,12 +1,15 @@
 --!strict
 --[[
-    DungeonService v3 (ModuleScript) -> ServerScriptService.Services.DungeonService
+    DungeonService v4 (ModuleScript) -> ServerScriptService.Services.DungeonService
     CUEVAS por franja, inspiradas en las mazmorras aleatorias de Albion Online.
 
     ENTRADA: un ARCO de piedra con portal brillante (runas, braseros, círculo de luz) en cada franja de cada facción.
-    PRUEBAS (CONFIG.TEST_ONLY = true): solo el dueño de la experiencia (Soberano de AdminList) puede entrar; el resto ve "PRÓXIMAMENTE".
-      El dueño no gasta entradas ni necesita nivel mientras TEST_FREE_ENTRY = true. Para abrirlo a todos: TEST_ONLY = false.
-      CONFIG.TEST_SIM_GROUP = 3 genera la cueva como si entraran 3 jugadores (para ver el aumento de dificultad y premios sin grupo).
+    ACCESO: abierta a TODOS (CONFIG.TEST_ONLY = false): cada jugador tiene ENTRIES_PER_DAY entradas al día por franja y un nivel mínimo (MIN_LEVEL).
+      Para cerrarla de nuevo ("PRÓXIMAMENTE", solo el dueño de la experiencia): TEST_ONLY = true. El dueño no gasta entradas ni necesita
+      nivel mientras TEST_FREE_ENTRY = true (ponlo en false para jugar como cualquiera).
+      CONFIG.TEST_SIM_GROUP = 3: la cueva del DUEÑO en solitario se genera como si entraran 3 (para ver dificultad y premios sin grupo).
+    CARGA: al entrar solo se construye el piso 1; el piso 2 se construye al vencer al Guardián (la mitad de piezas al entrar). Cada traslado
+      precarga el destino (RequestStreamAroundAsync) y el cliente (DungeonAmbientClient) muestra una transición hasta que el suelo existe.
 
     ESTRUCTURA: cada cueva es PRIVADA (instancia propia, lejos del mapa) y tiene 2 PISOS. Cada piso es un LABERINTO de galerías:
       - se genera con una semilla al azar (nunca dos iguales); el camino hasta la salida es largo y la SALIDA queda LEJOS del inicio;
@@ -54,10 +57,10 @@ local GearService = require(Services.GearService)
 
 local CONFIG = {
 	-- PRUEBAS
-	TEST_ONLY = true, -- true: solo el dueño entra; los demás ven "PRÓXIMAMENTE"
-	TEST_ALLOW_ADMINS = false, -- true: también entran los admins de AdminList
-	TEST_FREE_ENTRY = true, -- en pruebas el dueño no gasta entradas ni necesita nivel
-	TEST_SIM_GROUP = 0, -- en pruebas: genera la cueva como si entraran tantos jugadores (0 = el tamaño real del grupo). Ej.: 3 para ver el aumento
+	TEST_ONLY = false, -- false: abierta a todos. true: solo el dueño entra; los demás ven "PRÓXIMAMENTE"
+	TEST_ALLOW_ADMINS = false, -- (solo con TEST_ONLY = true) también entran los admins de AdminList
+	TEST_FREE_ENTRY = true, -- el dueño no gasta entradas ni necesita nivel (ponlo en false para jugar como cualquiera)
+	TEST_SIM_GROUP = 0, -- solo para el dueño en solitario: genera la cueva como si entraran tantos (0 = el tamaño real del grupo). Ej.: 3 para ver el aumento
 
 	-- ENTRADA
 	ENTRIES_PER_DAY = { 3, 3, 3, 3 },
@@ -113,6 +116,13 @@ local CONFIG = {
 	SLOT_DZ = 1000,
 	SLOT_COUNT = 36,
 	FLOOR2_DZ = 480,
+
+	-- CARGA / TRANSICIÓN
+	COVER_TIME = 0.25, -- segundos de fundido a negro antes de teletransportar
+	PRELOAD_TIMEOUT = 6, -- segundos máximos esperando que el cliente cargue el destino (con StreamingEnabled)
+	HOLD_AFTER = 0.15, -- segundos extra con la pantalla tapada después del salto
+	MAX_CAVES_NO_STREAMING = 6, -- si Workspace.StreamingEnabled está apagado cada jugador recibe TODAS las cuevas abiertas: se limita
+	DEBUG_LOAD = true, -- imprime en Output cuánto tarda construir y cargar cada traslado (ponlo en false cuando ya no lo necesites)
 }
 
 -- Mapas con rareza (pendiente del ítem): multiplican vida/daño/XP/premios. Valores de Albion Online.
@@ -202,6 +212,8 @@ type Inst = {
 	Closed: boolean,
 	Chests: number,
 	ChestsOpened: number,
+	Build2: (() -> boolean)?, -- construye el piso 2 (se llama al vencer al Guardián)
+	Building2: boolean,
 }
 
 local DungeonService = {}
@@ -232,15 +244,43 @@ local function rootOf(p: Player): BasePart?
 	return if r and r:IsA("BasePart") then r else nil
 end
 
-local function moveTo(p: Player, cf: CFrame)
+-- Traslado con TRANSICIÓN: el cliente (DungeonAmbientClient) tapa la pantalla (atributo DungeonTransit), el servidor precarga el destino
+-- (RequestStreamAroundAsync: con StreamingEnabled el cliente ya tiene el mapa cuando llegas), salta, y el cliente destapa cuando hay suelo.
+-- strip = franja de la cueva a la que vas (la luz de cueva ya se va cargando bajo el negro); nil = sales al mundo.
+local transiting: { [Player]: number } = {}
+local transitToken = 0
+local function moveTo(p: Player, cf: CFrame, strip: number?, text: string?)
+	if not rootOf(p) then
+		return -- sin personaje (acaba de morir): no hay a quién mover
+	end
+	transitToken += 1
+	local token = transitToken
+	transiting[p] = token
+	p:SetAttribute("DungeonTransitText", text or "Cargando…")
+	p:SetAttribute("DungeonTransit", token)
+	p:SetAttribute("InDungeon", strip)
 	task.spawn(function()
+		local t0 = os.clock()
+		task.wait(CONFIG.COVER_TIME)
+		local t1 = os.clock()
 		pcall(function()
-			p:RequestStreamAroundAsync(cf.Position, 3)
+			p:RequestStreamAroundAsync(cf.Position, CONFIG.PRELOAD_TIMEOUT)
 		end)
+		local t2 = os.clock()
 		local r = rootOf(p)
 		if r then
 			r.AssemblyLinearVelocity = Vector3.zero
 			r.CFrame = cf
+		end
+		task.wait(CONFIG.HOLD_AFTER)
+		if transiting[p] == token then
+			transiting[p] = nil
+			if p.Parent then
+				p:SetAttribute("DungeonTransit", nil)
+			end
+		end
+		if CONFIG.DEBUG_LOAD then
+			print(string.format("[DungeonService] traslado de %s: fundido %.2f s · precarga del destino %.2f s · total %.2f s", p.Name, t1 - t0, t2 - t1, os.clock() - t0))
 		end
 	end)
 end
@@ -317,8 +357,14 @@ local function testAllowed(p: Player): boolean
 	return e.Kind == "Owner" or CONFIG.TEST_ALLOW_ADMINS
 end
 
+local function isOwner(p: Player): boolean
+	local e = AdminList.Get(p)
+	return e ~= nil and e.Kind == "Owner"
+end
+
+-- el dueño entra sin gastar entradas ni nivel mínimo (y sin la rebaja por nivel en los premios) mientras TEST_FREE_ENTRY = true
 local function freeEntry(p: Player): boolean
-	return CONFIG.TEST_ONLY and CONFIG.TEST_FREE_ENTRY and testAllowed(p)
+	return CONFIG.TEST_FREE_ENTRY and isOwner(p)
 end
 
 ---------------------------------------------------------------------
@@ -1060,11 +1106,37 @@ local function onSpawnDied(inst: Inst, kind: string)
 	end
 	if kind == "guard" then
 		inst.GuardianDead = true
-		inst.Floor2Open = true
 		if inst.P1Exit then
-			inst.P1Exit.Set(true, "🌀 PISO 2 — portal abierto")
+			inst.P1Exit.Set(false, "⏳ PISO 2 — preparando…")
 		end
-		notifyAll(memberList(inst), "¡Guardián derrotado! El portal al piso 2 se abrió.")
+		notifyAll(memberList(inst), "¡Guardián derrotado! Se está abriendo el portal al piso 2…")
+		-- el piso 2 se construye AHORA (no al entrar): así la cueva carga con la mitad de piezas
+		task.spawn(function()
+			local t0 = os.clock()
+			local build = inst.Build2
+			local ok, err = pcall(function()
+				if build and not inst.Building2 and not inst.F2 then
+					inst.Building2 = true
+					build()
+				end
+			end)
+			if inst.Closed then
+				return
+			end
+			if not ok or not inst.F2 then
+				warn("[DungeonService] Error al construir el piso 2: " .. tostring(err))
+				notifyAll(memberList(inst), "No se pudo preparar el piso 2 (error). Sal por el portal del piso 1 y avisa; mira la consola Output.")
+				return
+			end
+			inst.Floor2Open = true
+			if CONFIG.DEBUG_LOAD then
+				print(string.format("[DungeonService] cueva #%d: piso 2 construido en %.2f s", inst.Id, os.clock() - t0))
+			end
+			if inst.P1Exit then
+				inst.P1Exit.Set(true, "🌀 PISO 2 — portal abierto")
+			end
+			notifyAll(memberList(inst), "El portal al piso 2 está abierto.")
+		end)
 	elseif kind == "boss" then
 		inst.BossDead = true
 		inst.ExpireAt = math.min(inst.ExpireAt, os.clock() + CONFIG.EXPIRE_AFTER_BOSS)
@@ -1586,7 +1658,7 @@ local function closeInstance(inst: Inst, reason: string)
 		if p.Parent then
 			local r = rootOf(p)
 			if r and insideBounds(inst, r.Position) then
-				moveTo(p, inst.ExitCF)
+				moveTo(p, inst.ExitCF, nil, "🏠 Saliendo de la cueva…")
 			end
 			p:SetAttribute("InDungeon", nil)
 			notify(p, reason)
@@ -1615,8 +1687,9 @@ local function difficultyText(n: number, hp: number, dmg: number, xp: number, lo
 end
 
 local function createInstance(strip: number, faction: string, group: { Player }, exitCF: CFrame, rarityName: string?): Inst?
+	local limit = if Workspace.StreamingEnabled then CONFIG.SLOT_COUNT else math.min(CONFIG.SLOT_COUNT, CONFIG.MAX_CAVES_NO_STREAMING)
 	local slot: number? = nil
-	for i = 0, CONFIG.SLOT_COUNT - 1 do
+	for i = 0, limit - 1 do
 		if not slotUsed[i] then
 			slot = i
 			break
@@ -1628,7 +1701,7 @@ local function createInstance(strip: number, faction: string, group: { Player },
 	slotUsed[slot] = true
 	nextId += 1
 	local rar = RARITY[rarityName or "Normal"] or RARITY.Normal
-	local n = if CONFIG.TEST_ONLY and CONFIG.TEST_SIM_GROUP > #group then CONFIG.TEST_SIM_GROUP else #group -- en pruebas se puede simular un grupo
+	local n = if #group == 1 and CONFIG.TEST_SIM_GROUP > 1 and freeEntry(group[1]) then CONFIG.TEST_SIM_GROUP else #group -- solo el dueño en solitario puede simular un grupo
 	local o = CONFIG.ORIGIN + Vector3.new((slot % CONFIG.SLOT_COLS) * CONFIG.SLOT_DX, 0, math.floor(slot / CONFIG.SLOT_COLS) * CONFIG.SLOT_DZ)
 	local rng = Random.new()
 	local folder = Instance.new("Folder")
@@ -1646,7 +1719,7 @@ local function createInstance(strip: number, faction: string, group: { Player },
 		RewardMult = (1 + REWARD.PER_EXTRA * (n - 1)) * rar.Loot,
 		Simulated = n ~= #group,
 		Mobs = {}, Groups = {}, GuardianDead = false, Floor2Open = false, BossDead = false, P1Exit = nil, P2Exit = nil,
-		ExpireAt = os.clock() + CONFIG.TTL, EmptySince = nil, Warned = false, Closed = false, Chests = 0, ChestsOpened = 0,
+		ExpireAt = os.clock() + CONFIG.TTL, EmptySince = nil, Warned = false, Closed = false, Chests = 0, ChestsOpened = 0, Build2 = nil, Building2 = false,
 	}
 	instances[inst.Id] = inst
 	-- los miembros se anotan ya (antes de construir) para que nadie vuelva a entrar mientras se arma la cueva
@@ -1657,16 +1730,15 @@ local function createInstance(strip: number, faction: string, group: { Player },
 
 	local pal = PALETTE[strip] or PALETTE[1]
 	local normals, boss = stripDefs(faction, strip)
+	local tBuild = os.clock()
 	local floor1 = Instance.new("Folder")
 	floor1.Name = "Piso1"
 	floor1.Parent = folder
-	local floor2 = Instance.new("Folder")
-	floor2.Name = "Piso2"
-	floor2.Parent = folder
 	local f1 = buildFloor(inst, 1, floor1, o, pal, rng, normals, boss)
-	local f2 = buildFloor(inst, 2, floor2, o + Vector3.new(0, 0, CONFIG.FLOOR2_DZ), pal, rng, normals, boss)
-	inst.F1, inst.F2 = f1, f2
-	DungeonNav.Register(inst.Id, folder, { f1.Nav, f2.Nav })
+	DungeonNav.Register(inst.Id, folder, { f1.Nav })
+	if CONFIG.DEBUG_LOAD then
+		print(string.format("[DungeonService] cueva #%d (franja %d): piso 1 construido en %.2f s (el piso 2 se construye al vencer al Guardián)", inst.Id, strip, os.clock() - tBuild))
+	end
 	local color = FACTION_COLOR[faction] or Color3.fromRGB(255, 255, 255)
 
 	local function memberOnly(p: Player): boolean
@@ -1678,31 +1750,49 @@ local function createInstance(strip: number, faction: string, group: { Player },
 	end
 	makeArch(floor1, "Portal_Salida_P1", f1.BackCF, Color3.fromRGB(255, 220, 140), 0.8, "🏠 SALIR DE LA CUEVA", "Salir", "Volver a la franja", function(p)
 		if memberOnly(p) then
-			moveTo(p, inst.ExitCF)
+			moveTo(p, inst.ExitCF, nil, "🏠 Saliendo de la cueva…")
 		end
 	end).Set(true, "🏠 SALIR DE LA CUEVA")
 	local p1 = makeArch(floor1, "Portal_Piso2", f1.ExitCF, color, 0.85, "", "Bajar", "Piso 2", function(p)
-		if memberOnly(p) and inst.Floor2Open then
-			moveTo(p, f2.Arrive)
+		local f2 = inst.F2
+		if memberOnly(p) and inst.Floor2Open and f2 then
+			moveTo(p, f2.Arrive, inst.Strip, "⬇ Bajando al piso 2…")
 		end
 	end)
 	p1.Set(false, "🔒 PISO 2 — derrota al Guardián")
 	inst.P1Exit = p1
-	makeArch(floor2, "Portal_Piso1", f2.BackCF, Color3.fromRGB(180, 200, 255), 0.8, "⬆ VOLVER AL PISO 1", "Subir", "Piso 1", function(p)
-		if memberOnly(p) then
-			moveTo(p, CFrame.new(f1.ExitCF.Position + f1.ExitCF.LookVector * 14 + Vector3.new(0, 4, 0)))
+
+	-- piso 2: laberinto, portales y todo se construye cuando cae el Guardián (ver onSpawnDied)
+	inst.Build2 = function(): boolean
+		if inst.Closed then
+			return false
 		end
-	end).Set(true, "⬆ VOLVER AL PISO 1")
-	local p2 = makeArch(floor2, "Portal_Salida_P2", f2.ExitCF, Color3.fromRGB(255, 220, 140), 0.85, "", "Salir", "Cueva completada", function(p)
-		if memberOnly(p) and inst.BossDead then
-			instOf[p] = nil -- cueva completada: ya no se puede volver a entrar
-			inst.Members[p] = nil
-			p:SetAttribute("InDungeon", nil)
-			moveTo(p, inst.ExitCF)
+		local floor2 = Instance.new("Folder")
+		floor2.Name = "Piso2"
+		floor2.Parent = folder
+		local f2 = buildFloor(inst, 2, floor2, o + Vector3.new(0, 0, CONFIG.FLOOR2_DZ), pal, rng, normals, boss)
+		makeArch(floor2, "Portal_Piso1", f2.BackCF, Color3.fromRGB(180, 200, 255), 0.8, "⬆ VOLVER AL PISO 1", "Subir", "Piso 1", function(p)
+			if memberOnly(p) then
+				moveTo(p, CFrame.new(f1.ExitCF.Position + f1.ExitCF.LookVector * 14 + Vector3.new(0, 4, 0)), inst.Strip, "⬆ Subiendo al piso 1…")
+			end
+		end).Set(true, "⬆ VOLVER AL PISO 1")
+		local p2 = makeArch(floor2, "Portal_Salida_P2", f2.ExitCF, Color3.fromRGB(255, 220, 140), 0.85, "", "Salir", "Cueva completada", function(p)
+			if memberOnly(p) and inst.BossDead then
+				instOf[p] = nil -- cueva completada: ya no se puede volver a entrar
+				inst.Members[p] = nil
+				moveTo(p, inst.ExitCF, nil, "🏠 Saliendo de la cueva…")
+			end
+		end)
+		p2.Set(false, "🔒 SALIDA — derrota al jefe")
+		inst.P2Exit = p2
+		if inst.Closed then
+			return false
 		end
-	end)
-	p2.Set(false, "🔒 SALIDA — derrota al jefe")
-	inst.P2Exit = p2
+		inst.F2 = f2
+		DungeonNav.Register(inst.Id, folder, { f1.Nav, f2.Nav })
+		return true
+	end
+	inst.F1 = f1 -- hasta aquí F1 = nil significa "todavía se está construyendo"
 	return inst
 end
 
@@ -1720,15 +1810,16 @@ local function tryEnter(player: Player, strip: number, faction: string, portalPo
 	-- ¿ya tiene una cueva abierta? vuelve a entrar gratis
 	local existing = instOf[player]
 	if existing and not existing.Closed then
-		local ef1, ef2 = existing.F1, existing.F2
-		if not ef1 or not ef2 then
+		local ef1 = existing.F1
+		if not ef1 then
 			return -- todavía se está construyendo
 		end
 		local r = rootOf(player)
 		if r and insideBounds(existing, r.Position) then
 			return
 		end
-		moveTo(player, if existing.Floor2Open then ef2.Arrive else ef1.Arrive)
+		local ef2 = existing.F2
+		moveTo(player, if existing.Floor2Open and ef2 then ef2.Arrive else ef1.Arrive, existing.Strip, "🕳️ Volviendo a tu cueva…")
 		notify(player, "Volviste a tu cueva (no gastas otra entrada)")
 		return
 	end
@@ -1755,7 +1846,9 @@ local function tryEnter(player: Player, strip: number, faction: string, portalPo
 		if not testAllowed(m) then
 			table.insert(blockers, string.format("%s: cuevas PRÓXIMAMENTE", m.DisplayName))
 		elseif not freeEntry(m) then
-			if LevelService.GetLevel(m) < CONFIG.MIN_LEVEL[strip] then
+			if not daily[m] then
+				table.insert(blockers, string.format("%s: el perfil todavía está cargando, espera unos segundos", m.DisplayName))
+			elseif LevelService.GetLevel(m) < CONFIG.MIN_LEVEL[strip] then
 				table.insert(blockers, string.format("%s no llega al nivel %d", m.DisplayName, CONFIG.MIN_LEVEL[strip]))
 			elseif entriesLeft(m, strip) <= 0 then
 				table.insert(blockers, string.format("%s ya usó las entradas diarias de la Franja %d", m.DisplayName, strip))
@@ -1806,9 +1899,9 @@ local function tryEnter(player: Player, strip: number, faction: string, portalPo
 	end
 	local text = difficultyText(inst.N, inst.HpMult, inst.DmgMult, inst.XpMult, inst.RewardMult, inst.Simulated)
 	for _, m in ipairs(group) do
-		notify(m, string.format("Cueva de la Franja %d · %d manadas · 2 pisos de %d y %d galerías hasta el fondo · entradas restantes hoy: %d", strip, #inst.Groups, f1.PathLen, if inst.F2 then (inst.F2 :: Floor).PathLen else 0, entriesLeft(m, strip)))
+		notify(m, string.format("Cueva de la Franja %d · piso 1: %d manadas y %d galerías hasta el Guardián (el piso 2 se abre al vencerlo) · entradas restantes hoy: %d", strip, #inst.Groups, f1.PathLen, entriesLeft(m, strip)))
 		notify(m, text)
-		moveTo(m, f1.Arrive)
+		moveTo(m, f1.Arrive, strip, "🕳️ Entrando a la cueva…")
 	end
 end
 
@@ -1874,7 +1967,7 @@ local function buildEntrances(): boolean
 		local color = FACTION_COLOR[l.Faction] or Color3.new(1, 1, 1)
 		local strip, faction = l.Strip, l.Faction
 		local title = if CONFIG.TEST_ONLY then string.format("🕳️ CUEVA — FRANJA %d\n🔒 PRÓXIMAMENTE", strip) else string.format("🕳️ CUEVA — FRANJA %d", strip)
-		makeArch(root, string.format("Portal_Cueva_%s_%d", faction, strip), CFrame.lookAt(pos, pos + l.Dir), color, 1, title, "Entrar", string.format("Cueva · Franja %d (solo o en grupo)", strip), function(pl)
+		makeArch(root, string.format("Portal_Cueva_%s_%d", faction, strip), CFrame.lookAt(pos, pos + l.Dir), color, 1, title, "Entrar", (if CONFIG.MIN_LEVEL[strip] > 1 then string.format("Cueva · Franja %d · nivel %d+ (solo o en grupo)", strip, CONFIG.MIN_LEVEL[strip]) else string.format("Cueva · Franja %d (solo o en grupo)", strip)), function(pl)
 			tryEnter(pl, strip, faction, pos, exitCF)
 		end)
 		local ns = Instance.new("Part") -- nadie nace encima del portal
@@ -1916,7 +2009,7 @@ task.spawn(function()
 			for p in pairs(inst.Members) do
 				local r = if p.Parent then rootOf(p) else nil
 				local inside = r ~= nil and insideBounds(inst, (r :: BasePart).Position)
-				if p.Parent then
+				if p.Parent and not transiting[p] then
 					p:SetAttribute("InDungeon", if inside then inst.Strip else nil)
 				end
 				if inside and r then
@@ -1926,7 +2019,7 @@ task.spawn(function()
 			end
 			-- aparecen las manadas cercanas a alguien
 			for _, g in ipairs(inst.Groups) do
-				if not g.Done then
+				if not g.Done and (g.Floor == 1 or inst.F2 ~= nil) then -- las del piso 2 esperan a que ese piso esté completo
 					for _, pos in ipairs(rootsIn) do
 						local steps = DungeonNav.CellDistance(inst.Id, pos, g.Center)
 						if steps ~= nil and steps <= g.Reach then
@@ -1958,6 +2051,7 @@ end)
 
 Players.PlayerRemoving:Connect(function(p)
 	entering[p] = nil
+	transiting[p] = nil
 	local inst = instOf[p]
 	instOf[p] = nil
 	if inst then
@@ -1973,5 +2067,8 @@ end
 DungeonService.Config = CONFIG
 DungeonService.Rarity = RARITY
 
-print("[DungeonService] Listo: cuevas-laberinto por franja (2 pisos, 3 salas, cofres, manadas).")
+if not Workspace.StreamingEnabled then
+	warn(string.format("[DungeonService] AVISO: Workspace.StreamingEnabled está APAGADO: cada jugador recibe las piezas de TODAS las cuevas abiertas. Se limita a %d cuevas a la vez (con StreamingEnabled = true el tope es %d).", CONFIG.MAX_CAVES_NO_STREAMING, CONFIG.SLOT_COUNT))
+end
+print(string.format("[DungeonService] Listo: cuevas-laberinto por franja (2 pisos, 3 salas, cofres, manadas) · %s · StreamingEnabled=%s.", if CONFIG.TEST_ONLY then "SOLO DUEÑO" else "ABIERTA A TODOS", tostring(Workspace.StreamingEnabled)))
 return DungeonService

@@ -718,7 +718,7 @@ end
 
 local lastInHouse = false
 local function update(force: boolean)
-	local inHouse = player:GetAttribute("InHouse") == true
+	local inHouse = player:GetAttribute("InHouse") == true or player:GetAttribute("InDungeon") ~= nil -- casa o cueva: sin clima
 	if inHouse ~= lastInHouse then
 		lastInHouse = inHouse
 		setEffectsEnabled(not inHouse)
@@ -789,6 +789,9 @@ end)
 player:GetAttributeChangedSignal("InHouse"):Connect(function()
 	update(false)
 end)
+player:GetAttributeChangedSignal("InDungeon"):Connect(function()
+	update(false)
+end)
 task.spawn(function()
 	while true do
 		update(false)
@@ -849,7 +852,7 @@ end
 task.spawn(function()
 	while true do
 		task.wait(rng:NextNumber(6, 16))
-		if CONFIG.RELAMPAGOS and currentWeather == "storm" and player:GetAttribute("InHouse") ~= true then
+		if CONFIG.RELAMPAGOS and currentWeather == "storm" and player:GetAttribute("InHouse") ~= true and player:GetAttribute("InDungeon") == nil then
 			flash()
 			if rng:NextNumber() < 0.5 then
 				task.wait(0.18)
