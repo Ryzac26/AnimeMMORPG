@@ -10,6 +10,8 @@
       /mobs              lista los Id disponibles en la Output
       /limpiar           borra los enemigos activos
       /quien             lista la facción y el rol que ve el servidor de cada jugador
+      /sospechosos       (solo Fundador) jugadores de este servidor con puntaje del detector de trampas
+      /exploitlog        (solo Fundador) últimos avisos guardados del detector (todos los servidores)
       /arena             abre el evento 1 HORA: puentes + compuertas + vidas de arena (vía ProjectBootstrapper)
       /cerrar            cierra el evento
       /clase Shinobi Asesino   cambia de facción/rol y reaparece
@@ -49,6 +51,8 @@ local MobCatalog = require(ReplicatedStorage.Modules.MobCatalog)
 local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
 local Inventory = require(Services.InventoryService)
 local MountService = require(Services.MountService)
+local AntiExploit = require(Services.AntiExploitService)
+local Net = require(Services.Net)
 
 local lastBossCmd = 0
 local function handle(player: Player, msg: string)
@@ -124,6 +128,16 @@ local function handle(player: Player, msg: string)
 			print("[/quien] " .. msg)
 			require(Services.Net).Get("Notify"):FireClient(player, msg)
 		end
+	elseif cmd == "/sospechosos" or cmd == "/exploitlog" then
+		-- detector de trampas (AntiExploitService): solo el Fundador. /sospechosos = este servidor · /exploitlog = últimos avisos guardados
+		local ad = AdminList.Get(player)
+		if ad and ad.Kind == "Owner" then
+			local lines = if cmd == "/sospechosos" then AntiExploit.Summary() else AntiExploit.History()
+			for _, line in ipairs(lines) do
+				print("[" .. cmd .. "] " .. line)
+				Net.Get("Notify"):FireClient(player, line)
+			end
+		end
 	elseif cmd == "/item" and args[2] then
 		Inventory.Add(player, args[2], tonumber(args[3]) or 1)
 	elseif cmd == "/items" then
@@ -167,7 +181,6 @@ end
 
 -- Chat nuevo (TextChatService): los comandos se registran en el CLIENTE (DevChatClient) y llegan por este remote.
 -- Chat antiguo: se escucha Player.Chatted. Solo admins (ver allowed).
-local Net = require(Services.Net)
 Net.Get("DevCommand").OnServerEvent:Connect(function(pl: Player, text: any)
 	if typeof(text) == "string" and #text < 100 then
 		handle(pl, text)

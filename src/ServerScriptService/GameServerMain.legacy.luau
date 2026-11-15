@@ -48,6 +48,7 @@ require(Services:WaitForChild("GuildService")) -- gremio de facción: bendicione
 require(Services:WaitForChild("MasteryService")) -- maestría de rol + pase Multiclase (cambio de rol en cualquier lugar, equipo por rol)
 require(Services:WaitForChild("AlquimistaService")) -- alquimista de cada ciudad: fabrica pociones y desmonta equipo
 require(Services:WaitForChild("Mobs"):WaitForChild("MobService"))
+require(Services:WaitForChild("AntiExploitService")) -- detector de trampas (fase 1: solo registra y avisa al Fundador)
 require(Services:WaitForChild("DevCommands"))
 require(Services:WaitForChild("AdminTagService")) -- cartel de administrador sobre la cabeza
 require(Services:WaitForChild("AbilityService")) -- habilidades 3 y 4
