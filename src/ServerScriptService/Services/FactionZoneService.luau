@@ -6,6 +6,8 @@
     última posición válida y avisa. No depende de grupos de colisión, así que no se puede esquivar.
     El territorio se calcula con la dirección de cada ciudad (posición de su SpawnLocation "Spawn_<Bioma>") respecto al centro.
     Para pruebas: workspace:SetAttribute("AllowCrossFaction", true) desactiva el bloqueo.
+    INSTANCIAS LEJANAS (cuevas en -40000/+40000, casas VIP en +40000, futuras zonas de farmeo): a más de FAR_LIMIT del centro NO son territorio
+    de nadie. Sin esto esas posiciones caen dentro del "cono" de una ciudad y el servidor devuelve fuera a los jugadores de las otras facciones.
 ]]
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -17,6 +19,7 @@ local PlayerClass = require(ReplicatedStorage.Modules.PlayerClass)
 
 local BIOME_OF: { [string]: string } = { Saiyan = "Imperio_Saiyan", Shinobi = "Alianza_Shinobi", Pirate = "Flota_Pirata", Shinigami = "Corte_Shinigami" }
 local ARENA_EDGE = 765 -- medio lado de la arena (750) + margen
+local FAR_LIMIT = 20000 -- más lejos que esto (en X o en Z) es una instancia (cuevas, casas...), no el mapa: sin territorio
 local CONE_DOT = 0.6 -- dentro de ~53° del eje de una ciudad = su territorio
 local CHECK = 0.2
 
@@ -41,6 +44,9 @@ end
 -- ¿De qué nación es el territorio en esa posición? (nil = arena / neutral)
 function FactionZone.OwnerAt(pos: Vector3): string?
 	if math.abs(pos.X) <= ARENA_EDGE and math.abs(pos.Z) <= ARENA_EDGE then
+		return nil
+	end
+	if math.abs(pos.X) > FAR_LIMIT or math.abs(pos.Z) > FAR_LIMIT then
 		return nil
 	end
 	local p = Vector3.new(pos.X, 0, pos.Z)

@@ -3,8 +3,10 @@
     PartyService (ModuleScript) -> ServerScriptService.Services.PartyService
     Grupo (party) de hasta FactionBalance.Cap() jugadores (15 por defecto = el tope de una facción en el servidor) DE LA MISMA FACCIÓN, para que toda la facción pueda ir en un solo grupo (p. ej. en la Arena). El cliente muestra vida y energía en % de cada miembro.
     Remote "Party":
-      cliente -> servidor: ("Invite", nombre) · ("Accept") · ("Decline") · ("Leave") · ("Kick", nombre)
+      cliente -> servidor: ("Invite", nombre) · ("Accept") · ("Decline") · ("Leave") · ("Kick", nombre) · ("Promote", nombre)
       servidor -> cliente: ("State", { {Name, Hp, En, Leader} ... })  ·  ("Invite", nombreDeQuienInvita)  ·  ("Clear")
+    Solo el LÍDER puede expulsar ("Kick") y pasar el liderazgo ("Promote"); ambos buscan al miembro por su nombre EXACTO dentro del grupo.
+    Si el líder se va, el liderazgo pasa al siguiente miembro y se le avisa.
 ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -58,7 +60,7 @@ local function broadcast(party: Party)
 	end
 end
 
-local function leave(p: Player)
+local function leave(p: Player, kicked: boolean?)
 	local party = partyOf[p]
 	if not party then
 		return
@@ -69,6 +71,9 @@ local function leave(p: Player)
 		table.remove(party.Members, i)
 	end
 	Remote:FireClient(p, "Clear")
+	if kicked then
+		notify(p, "El líder te expulsó del grupo")
+	end
 	if #party.Members <= 1 then
 		for _, m in ipairs(party.Members) do
 			partyOf[m] = nil
@@ -77,13 +82,28 @@ local function leave(p: Player)
 		end
 		return
 	end
+	local newLeader: Player? = nil
 	if party.Leader == p then
 		party.Leader = party.Members[1]
+		newLeader = party.Leader
 	end
 	for _, m in ipairs(party.Members) do
-		notify(m, p.Name .. " salió del grupo")
+		notify(m, p.Name .. (if kicked then " fue expulsado del grupo" else " salió del grupo"))
+	end
+	if newLeader then
+		notify(newLeader, "Ahora eres el líder del grupo")
 	end
 	broadcast(party)
+end
+
+-- miembro del grupo por su nombre exacto (no por DisplayName: dos jugadores pueden compartir nombre visible)
+local function memberByName(party: Party, name: string): Player?
+	for _, m in ipairs(party.Members) do
+		if m.Name == name then
+			return m
+		end
+	end
+	return nil
 end
 
 local function findPlayer(name: string): Player?
@@ -147,11 +167,25 @@ Remote.OnServerEvent:Connect(function(player: Player, action: any, arg: any)
 		invites[player] = nil
 	elseif action == "Leave" then
 		leave(player)
-	elseif action == "Kick" and typeof(arg) == "string" then
+	elseif action == "Kick" and typeof(arg) == "string" and #arg <= 50 then
 		local party = partyOf[player]
-		local other = findPlayer(arg)
-		if party and party.Leader == player and other and other ~= player and partyOf[other] == party then
-			leave(other)
+		if party and party.Leader == player then
+			local other = memberByName(party, arg)
+			if other and other ~= player then
+				leave(other, true)
+			end
+		end
+	elseif action == "Promote" and typeof(arg) == "string" and #arg <= 50 then
+		local party = partyOf[player]
+		if party and party.Leader == player then
+			local other = memberByName(party, arg)
+			if other and other ~= player then
+				party.Leader = other
+				for _, m in ipairs(party.Members) do
+					notify(m, other.Name .. " es el nuevo líder del grupo")
+				end
+				broadcast(party)
+			end
 		end
 	end
 end)

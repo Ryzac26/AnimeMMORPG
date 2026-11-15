@@ -1,6 +1,6 @@
 --!strict
 --[[
-    DungeonService v5 (ModuleScript) -> ServerScriptService.Services.DungeonService
+    DungeonService v6 (ModuleScript) -> ServerScriptService.Services.DungeonService
     CUEVAS por franja, inspiradas en las mazmorras aleatorias de Albion Online.
 
     ENTRADA: un ARCO de piedra con portal brillante (runas, braseros, círculo de luz) en cada franja de cada facción.
@@ -12,6 +12,12 @@
       es en dos tiempos: (1) el jugador sigue en el mundo con un aviso mientras su cliente recibe el destino y avisa que ya ve el suelo
       (remoto DungeonReady); (2) fundido a negro corto, salto con el personaje anclado un instante (no cae al vacío) y destape.
       Funciona igual con StreamingEnabled apagado (con encendido, además precarga con RequestStreamAroundAsync).
+
+    PANEL DE ENTRADAS (ventana "Cuevas" del menú, DungeonPanelClient): este módulo le publica los datos por atributos:
+      Workspace: DungeonOpen, DungeonPerDay_<franja>, DungeonMinLevel_<franja>, DungeonMaxGroup, DungeonPartyRadius, DungeonResetOffset,
+                 DungeonHpExtra, DungeonDmgExtra, DungeonXpExtra, DungeonRewardExtra (el panel nunca tiene números copiados).
+      Jugador:   DungeonLeft_<franja> (entradas que le quedan hoy, se renueva solo al cambiar el día), DungeonFree (dueño en modo prueba),
+                 DungeonCave (franja de su cueva abierta) y DungeonCaveEnd (hora de cierre, en GetServerTimeNow()).
 
     ESTRUCTURA: cada cueva es PRIVADA (instancia propia, lejos del mapa) y tiene 2 PISOS. Cada piso es un LABERINTO de galerías:
       - se genera con una semilla al azar (nunca dos iguales); el camino hasta la salida es largo y la SALIDA queda LEJOS del inicio;
@@ -265,6 +271,18 @@ readyRemote.OnServerEvent:Connect(function(p: Player, token: any)
 	end
 end)
 
+-- avisa al detector de trampas (AntiExploitService) de que este salto de posición es nuestro: así un traslado de cueva no cuenta como
+-- "teletransporte". Es opcional: si el módulo no está o falla, el traslado sigue igual.
+local function graceTeleport(p: Player, seconds: number)
+	local m = script.Parent:FindFirstChild("AntiExploitService")
+	if m and m:IsA("ModuleScript") then
+		local ok, mod = pcall(require, m)
+		if ok and typeof(mod) == "table" and typeof((mod :: any).Grace) == "function" then
+			pcall((mod :: any).Grace, p, seconds)
+		end
+	end
+end
+
 local function moveTo(p: Player, cf: CFrame, strip: number?, text: string?)
 	if not rootOf(p) then
 		return -- sin personaje (acaba de morir): no hay a quién mover
@@ -300,6 +318,7 @@ local function moveTo(p: Player, cf: CFrame, strip: number?, text: string?)
 		end
 		local r = rootOf(p)
 		if r then
+			graceTeleport(p, 4)
 			r.AssemblyLinearVelocity = Vector3.zero
 			r.Anchored = true
 			r.CFrame = cf
@@ -407,6 +426,24 @@ local function freeEntry(p: Player): boolean
 end
 
 ---------------------------------------------------------------------
+-- DATOS PARA EL PANEL DE ENTRADAS (atributos de Workspace; los lee DungeonPanelClient)
+---------------------------------------------------------------------
+do
+	Workspace:SetAttribute("DungeonOpen", not CONFIG.TEST_ONLY)
+	for strip = 1, 4 do
+		Workspace:SetAttribute("DungeonPerDay_" .. strip, CONFIG.ENTRIES_PER_DAY[strip])
+		Workspace:SetAttribute("DungeonMinLevel_" .. strip, CONFIG.MIN_LEVEL[strip])
+	end
+	Workspace:SetAttribute("DungeonMaxGroup", CONFIG.MAX_GROUP)
+	Workspace:SetAttribute("DungeonPartyRadius", CONFIG.PARTY_RADIUS)
+	Workspace:SetAttribute("DungeonResetOffset", LootTables.Daily.ResetUtcOffsetHours)
+	Workspace:SetAttribute("DungeonHpExtra", CONFIG.HP_PER_EXTRA)
+	Workspace:SetAttribute("DungeonDmgExtra", CONFIG.DMG_PER_EXTRA)
+	Workspace:SetAttribute("DungeonXpExtra", CONFIG.XP_PER_EXTRA)
+	Workspace:SetAttribute("DungeonRewardExtra", REWARD.PER_EXTRA)
+end
+
+---------------------------------------------------------------------
 -- ENTRADAS DIARIAS (perfil, sección "Dungeon")
 ---------------------------------------------------------------------
 type Daily = { Day: string, Used: { [string]: number } }
@@ -473,6 +510,7 @@ local function loadDaily(p: Player)
 	for strip = 1, 4 do
 		p:SetAttribute("DungeonLeft_" .. strip, entriesLeft(p, strip))
 	end
+	p:SetAttribute("DungeonFree", if freeEntry(p) then true else nil)
 end
 
 PlayerData.Releasing:Connect(function(p: Player)
@@ -484,6 +522,24 @@ end)
 for _, p in ipairs(Players:GetPlayers()) do
 	task.spawn(loadDaily, p)
 end
+-- cambio de día: los contadores que ve el jugador se renuevan solos (antes solo se refrescaban al volver a entrar a una cueva)
+task.spawn(function()
+	local lastDay = today()
+	while true do
+		task.wait(20)
+		local t = today()
+		if t ~= lastDay then
+			lastDay = t
+			for p in pairs(table.clone(daily)) do
+				if p.Parent then
+					for strip = 1, 4 do
+						p:SetAttribute("DungeonLeft_" .. strip, entriesLeft(p, strip))
+					end
+				end
+			end
+		end
+	end
+end)
 
 ---------------------------------------------------------------------
 -- PIEZAS DE ESCENOGRAFÍA
@@ -2102,6 +2158,32 @@ task.spawn(function()
 			elseif not inst.Warned and inst.ExpireAt - now <= 120 then
 				inst.Warned = true
 				notifyAll(memberList(inst), "La cueva se cierra en 2 minutos")
+			end
+		end
+	end
+end)
+
+-- cueva abierta de cada jugador (franja y hora de cierre) para el panel de entradas. Se revisa cada 2 s y cubre todos los casos
+-- (cueva cerrada, completada, jugador que sale) sin tocar los demás sitios donde se asigna instOf.
+task.spawn(function()
+	while true do
+		task.wait(2)
+		local nowClock = os.clock()
+		local nowEpoch = Workspace:GetServerTimeNow()
+		for _, p in ipairs(Players:GetPlayers()) do
+			local inst = instOf[p]
+			if inst and not inst.Closed and inst.F1 then
+				if p:GetAttribute("DungeonCave") ~= inst.Strip then
+					p:SetAttribute("DungeonCave", inst.Strip)
+				end
+				local endAt = math.floor(nowEpoch + math.max(0, inst.ExpireAt - nowClock))
+				local prev = p:GetAttribute("DungeonCaveEnd")
+				if typeof(prev) ~= "number" or math.abs(prev - endAt) > 2 then
+					p:SetAttribute("DungeonCaveEnd", endAt)
+				end
+			elseif p:GetAttribute("DungeonCave") ~= nil then
+				p:SetAttribute("DungeonCave", nil)
+				p:SetAttribute("DungeonCaveEnd", nil)
 			end
 		end
 	end
