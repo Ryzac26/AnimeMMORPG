@@ -9,6 +9,7 @@
       - XP: cada ayudante equipado recibe el 10% de tu XP (extra, no te la quita) y nunca pasa de TU nivel (ShareXp, lo llama RewardService).
       - Equipo: 4 piezas (Arma, Casco, Armadura, Botas) del set del ROL del ayudante; salen de tu mochila. Bono extra de botín: RollBonusGear (LootService).
       - Efectos pasivos: se suman a tus estadísticas con GearService.SetTemp(player, stats, "Helpers") (Ataque, Defensa, Vida, Crítico, Curación, Energía). Dos ayudantes del mismo rol no se suman. En PvP GearService ya aplica el 50%.
+      - Autoequipar piezas (acción "GearAuto"): mejor pieza de la mochila por hueco, solo si mejora la que lleva
       - Poderes de combate (solo PvE): PetPowerService usa HelperService.Active(player).
       - Atributos del jugador (los lee HelperFollowClient/HelperClient): Helper1..3 = "<id>#<nivel>#<estrellas>" · HelperMail = JSON de cupones en la carta · Pass_PetSlot (pase).
       - Remotes: HelperState (servidor -> cliente: estado) · HelperResult (resultado de reclutar) · HelperAction (cliente -> servidor).
@@ -556,6 +557,119 @@ local function gearUnequip(player: Player, helperId: any, slotName: any)
 	changed(player)
 end
 
+-- AUTOEQUIPAR: por cada hueco (Arma, Casco, Armadura, Zapatos) deja la MEJOR pieza de la mochila que sirva a ese ayudante (su rol, tu nivel,
+-- sin candado). Solo reemplaza si es MEJOR que la que lleva (rareza + mejora); la pieza vieja vuelve a la mochila. Si el ayudante comparte rol
+-- contigo y esa pieza mejoraría TU equipo, se la deja a tu "★ Mejor set" (no te la quita).
+-- target = id de un ayudante, o "all" = todos los que tienes equipados en las ranuras.
+local function pieceScore(item: any, plus: number): number
+	return (HelperCatalog.PieceBonus[item.Rarity] or 0) * (1 + HelperCatalog.PlusBonus * math.clamp(plus, 0, 9))
+end
+
+-- ¿esa pieza de la mochila subiría el poder de TU propio personaje en su ranura?
+local function betterForOwner(player: Player, st: any, stack: any, item: any): boolean
+	if not GearService.CanEquip(player, stack.Id) then
+		return false
+	end
+	local curId = st.Equip[item.Slot]
+	local curItem = if curId then bagItem(curId) else nil
+	if not curItem or not curItem.Gear then
+		return true
+	end
+	local roleAttr = player:GetAttribute("Role")
+	local role = if typeof(roleAttr) == "string" then roleAttr else "Guerrero"
+	local function power(it: any, plus: number): number
+		local mult = GearCatalog.EnhanceMult(plus)
+		local effects: { [string]: number } = {}
+		for stat, v in pairs(it.Gear or {}) do
+			effects[stat] = v * mult
+		end
+		return GearCatalog.PowerGain(role, effects)
+	end
+	return power(item, stack.Plus or 0) > power(curItem, st.EquipPlus[item.Slot] or 0) + 1e-9
+end
+
+local function gearAuto(player: Player, target: any)
+	local p = profiles[player]
+	local st: any = Inventory.Get(player)
+	if not p or not st then
+		return
+	end
+	local ids: { string } = {}
+	if target == "all" then
+		for slot = 1, HelperCatalog.MaxSlots do
+			local id = p.Slots[slot]
+			if id and p.Owned[id] and slotOpen(player, slot) and not table.find(ids, id) then
+				table.insert(ids, id)
+			end
+		end
+	elseif typeof(target) == "string" and p.Owned[target] then
+		ids = { target }
+	else
+		return
+	end
+	if #ids == 0 then
+		notify(player, "No tienes ayudantes equipados")
+		return
+	end
+	local lv = ownerLevel(player)
+	local changedN, keptForOwner, bagFull = 0, 0, false
+	for _, id in ipairs(ids) do
+		local e = p.Owned[id]
+		local parsed = HelperCatalog.Parse(id)
+		if e and parsed then
+			for _, slotName in ipairs(HelperCatalog.GearSlots) do
+				local cur = e.Gear[slotName]
+				local curItem = if cur then bagItem(cur.Id) else nil
+				local bestScore = if cur and curItem then pieceScore(curItem, cur.Plus) else -1
+				local bestIndex: number? = nil
+				local skipped = false
+				for i, stack in pairs(st.Bag) do
+					local item = bagItem(stack.Id)
+					if item and item.Kind == "Set" and item.Slot == slotName and item.Role == parsed.Role and not stack.Locked
+						and (typeof(item.ReqLevel) ~= "number" or item.ReqLevel <= lv) then
+						local sc = pieceScore(item, stack.Plus or 0)
+						if sc > bestScore + 1e-9 then
+							if betterForOwner(player, st, stack, item) then
+								skipped = true
+							else
+								bestScore, bestIndex = sc, i
+							end
+						end
+					end
+				end
+				if bestIndex then
+					local stack = st.Bag[bestIndex]
+					local newId, newPlus = stack.Id, stack.Plus or 0
+					local takenId = Inventory.RemoveSlot(player, bestIndex, 1)
+					if takenId then
+						if cur and not Inventory.Add(player, cur.Id, 1, cur.Plus) then
+							Inventory.Add(player, newId, 1, newPlus) -- sin sitio para devolver la vieja: deshace el cambio
+							bagFull = true
+						else
+							e.Gear[slotName] = { Id = newId, Plus = newPlus }
+							changedN += 1
+						end
+					end
+				elseif skipped then
+					keptForOwner += 1
+				end
+			end
+		end
+	end
+	if changedN > 0 then
+		PlayerData.Save(player)
+		changed(player)
+	end
+	local msg = if changedN > 0 then string.format("Autoequipar: %d pieza(s) mejoradas en tus ayudantes", changedN) else "Tus ayudantes ya llevan lo mejor que tienes"
+	if keptForOwner > 0 then
+		msg ..= string.format(" · %d pieza(s) se quedan en la mochila porque mejoran TU equipo (usa ★ Mejor set)", keptForOwner)
+	end
+	if bagFull then
+		msg ..= " · mochila llena: libera espacio"
+	end
+	notify(player, msg)
+end
+
 -- Bono de botín: cada pieza de set que te cae puede traer OTRA para el rol de uno de tus ayudantes equipados (no te quita la tuya)
 function HelperService.RollBonusGear(player: Player, droppedId: string): string?
 	local list = active[player]
@@ -743,6 +857,8 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 		gearEquip(player, a, b, c)
 	elseif action == "GearUnequip" then
 		gearUnequip(player, a, b)
+	elseif action == "GearAuto" then
+		gearAuto(player, a)
 	elseif action == "ExchangePets" then
 		exchangePets(player)
 	elseif string.sub(action, 1, 3) == "Dev" then

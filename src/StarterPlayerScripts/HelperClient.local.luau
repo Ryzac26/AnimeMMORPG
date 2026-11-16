@@ -157,7 +157,16 @@ local function drawEquipped(w: Frame, theme: any, pal: { [string]: Color3 }, st:
 	rest.TextSize = 12
 
 	-- derecha: equipo
-	label(w, string.format("EQUIPO DEL AYUDANTE  ·  set de %s", parsed.Role), 13, pal.Accent, 246, 184, 400, 18)
+	label(w, string.format("EQUIPO  ·  set de %s", parsed.Role), 13, pal.Accent, 246, 184, 215, 18).TextTruncate = Enum.TextTruncate.AtEnd
+	-- AUTOEQUIPAR: pone solo lo mejor de tu mochila (reemplaza únicamente si es mejor que lo que lleva); "Todos" = los ayudantes de tus ranuras
+	local autoOne = NpcKit.Button(w, theme, "★ Autoequipar", UDim2.fromOffset(112, 22), UDim2.fromOffset(466, 181), "action", function()
+		Store.Action("GearAuto", id)
+	end)
+	autoOne.TextSize = 11
+	local autoAll = NpcKit.Button(w, theme, "★ Todos", UDim2.fromOffset(62, 22), UDim2.fromOffset(584, 181), "neutral", function()
+		Store.Action("GearAuto", "all")
+	end)
+	autoAll.TextSize = 11
 	local slots = HelperCatalog.GearSlots
 	for i, slotName in ipairs(slots) do
 		local card = NpcKit.Panel(w, theme, UDim2.fromOffset(94, 88), UDim2.fromOffset(246 + (i - 1) * 102, 206), "card")
