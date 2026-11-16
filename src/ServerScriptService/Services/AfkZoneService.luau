@@ -16,15 +16,17 @@
         "Entrar ya". Entran el líder y los que aceptaron (máx. MAX_GROUP). Quien no entró puede unirse después ("Unirse a mi grupo") si hay cupo.
       - La franja de la cápsula = la del miembro de MENOR nivel (nadie queda con monstruos de otra liga).
 
-    RECOMPENSAS (perillas en CONFIG): XP_MULT por baja (atributo XpMult del monstruo, ya lo lee RewardService) y LOOT_MULT al oro y a las
-    probabilidades de botín (atributo del jugador AfkLootMult, que lee LootService). DAILY_SECONDS = tiempo máximo por día (perfil, sección "Afk").
-      Más jugadores = más monstruos vivos y +GROUP_XP_BONUS de XP por jugador extra (la XP se reparte entre quienes pegan).
+    RECOMPENSAS POR PRESUPUESTO DE TIEMPO (6.106): DAILY_SECONDS (8 h) de Campo valen EQUIV_HOURS (3 h) jugadas, medidas con la MISMA fórmula
+      que el paquete de horas (ProductCatalog.HoursXp). Cada 2 s la sesión mide sus bajas/s y ajusta el multiplicador de XP de los monstruos
+      nuevos (atributo XpMult, que lee RewardService) y el botín (atributo del jugador AfkLootMult, que lee LootService) para que la XP y el
+      botín POR HORA salgan al objetivo, sin importar cuántas bajas hagas. XP_MULT y LOOT_MULT son solo el TECHO por baja.
+      Grupo: cada jugador extra suma GROUP_BONUS al objetivo de XP y botín de TODOS (un grupo gana igual o más por jugador que solo).
 
     SALIDA: botón Salir (HUD), portal de salida de la cápsula, se agota el tiempo del día, mueres (reapareces en la ciudad) o llevas
     IDLE_EJECT segundos sin ninguna baja (no peleas: no se ocupa una cápsula). Traslados: DungeonService.MoveTo (el mismo traslado en dos tiempos de las cuevas).
 
-    ATRIBUTOS que publica (los lee AfkClient): Workspace: AfkXpPct, AfkLootPct, AfkDaily, AfkMaxGroup, AfkAsk.
-      Jugador: AfkLeft (segundos que le quedan hoy), InAfk (franja de la sesión; nil = fuera), AfkKills, AfkStart (GetServerTimeNow), AfkLootMult.
+    ATRIBUTOS que publica (los lee AfkClient): Workspace: AfkXpPct, AfkLootPct (techos), AfkDaily, AfkEquivHours, AfkGroupBonusPct, AfkMaxGroup, AfkAsk.
+      Jugador: AfkLeft (segundos que le quedan hoy), InAfk (franja de la sesión; nil = fuera), AfkKills, AfkStart (GetServerTimeNow), AfkLootMult, AfkGroupPct.
     REMOTO "Afk": cliente -> servidor ("Solo") ("Group") ("Answer", "yes"|"leave") ("Start") ("Cancel") ("Join") ("Leave")
                   servidor -> cliente ("Open", info) ("Ask", {...}) ("AskClose") ("Wait", {...}) ("WaitClose") ("Close")
     Conexión: require(Services:WaitForChild("AfkZoneService")) en GameServerMain, DESPUÉS de DungeonService. Necesita FactionZoneService del 6.104
@@ -36,6 +38,8 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
 
 local MobCatalog = require(ReplicatedStorage.Modules.MobCatalog)
+local GB = require(ReplicatedStorage.Modules.GameBalance)
+local ProductCatalog = require(ReplicatedStorage.Modules.ProductCatalog)
 local LootTables = require(ReplicatedStorage.Modules.LootTables)
 local PlayerClass = require(ReplicatedStorage.Modules.PlayerClass)
 local Services = ServerScriptService.Services
@@ -51,10 +55,13 @@ local DungeonService = require(Services.DungeonService)
 ---------------------------------------------------------------------
 local CONFIG = {
 	-- RECOMPENSAS (las perillas principales)
-	XP_MULT = 0.5, -- XP de cada baja respecto al farmeo normal
-	LOOT_MULT = 0.5, -- oro y probabilidad de cada botín respecto al farmeo normal (LootService)
-	GROUP_XP_BONUS = 0.15, -- por jugador extra: sube la XP por baja (se reparte entre los que pegan)
 	DAILY_SECONDS = 8 * 3600, -- tiempo máximo por día dentro del Campo
+	EQUIV_HOURS = 3, -- DAILY_SECONDS de Campo valen estas horas jugadas (XP y botín, medidos como el paquete de horas)
+	GROUP_BONUS = 0.08, -- por jugador extra: +8 % al objetivo de XP y botín de cada uno (con 5: +32 %)
+	XP_MULT = 1.0, -- TECHO de XP por baja respecto al farmeo normal (una baja nunca paga más que fuera; normalmente manda el presupuesto)
+	LOOT_MULT = 0.5, -- TECHO de botín por baja (oro, probabilidades y llaves)
+	MIN_XP_MULT = 0.005, -- piso del multiplicador de XP por baja
+	RATE_WINDOW = 90, -- segundos de bajas que se miran para medir el ritmo
 	IDLE_EJECT = 600, -- segundos sin ninguna baja en la sesión: se saca a todos
 	-- MONSTRUOS
 	ALIVE_BASE = 5, -- monstruos vivos a la vez (1 jugador)
@@ -68,7 +75,7 @@ local CONFIG = {
 	MAX_GROUP = 5,
 	ASK_SECONDS = 20,
 	-- CÁPSULAS
-	PODS_PER_THEME = 8,
+	PODS_PER_THEME = 15, -- igual al tope de jugadores por facción (FactionBalance); si sube, se avisa en Output
 	ORIGIN = Vector3.new(-40000, 500, -40000), -- lejos del mapa, de las cuevas (-40000,+40000) y de las casas VIP (+40000)
 	POD_SPACING = 200,
 	POD_RADIUS = 60,
@@ -131,6 +138,12 @@ type Session = {
 	StartedAt: number,
 	LastKill: number,
 	NextSpawn: number,
+	KillTimes: { number },
+	M: number, -- multiplicador de XP por baja vigente
+	Loot: number, -- multiplicador de botín vigente (por jugador)
+	NextRewards: number,
+	NextLevel: number,
+	NextLog: number,
 	Closed: boolean,
 }
 type Req = {
@@ -609,14 +622,87 @@ local function slotCF(pod: Pod, i: number, n: number): CFrame
 	return CFrame.lookAt(pos, pos + Vector3.new(math.cos(a), 0, math.sin(a)) * 20)
 end
 
+---------------------------------------------------------------------
+-- PRESUPUESTO DE RECOMPENSAS (XP y botín por tiempo, no por baja)
+---------------------------------------------------------------------
+local function killRate(s: Session, now: number): number
+	local times = s.KillTimes
+	while #times > 0 and now - times[1] > CONFIG.RATE_WINDOW do
+		table.remove(times, 1)
+	end
+	local n = #s.Members
+	local prior = (1 + 0.6 * (n - 1)) / CONFIG.SPAWN_EVERY * 0.7 -- hasta tener datos: lo esperado
+	local elapsed = now - s.StartedAt - 4
+	if elapsed < 30 or #times < 4 then
+		return prior
+	end
+	return math.max(#times / math.min(elapsed, CONFIG.RATE_WINDOW), 0.02)
+end
+
+local function groupBonus(n: number): number
+	return 1 + CONFIG.GROUP_BONUS * math.max(n - 1, 0)
+end
+
+local function updateRewards(s: Session, now: number)
+	local n = #s.Members
+	if n == 0 then
+		return
+	end
+	local r = killRate(s, now)
+	local bonus = groupBonus(n)
+	-- XP: cada baja reparte su XP entre los participantes (suma 1) -> la sesión entera debe producir n veces el objetivo de uno
+	local granted = ProductCatalog.HoursXp(GB, CONFIG.EQUIV_HOURS, s.Level, 0)
+	local xpPerSec = granted / CONFIG.DAILY_SECONDS * bonus
+	local mobXp = math.max(1, GB.MobXp(s.Level))
+	s.M = math.clamp(n * xpPerSec / (r * mobXp), CONFIG.MIN_XP_MULT, CONFIG.XP_MULT)
+	-- botín: cada participante tira por CADA baja (no se reparte) -> no se multiplica por n. Objetivo en "bajas equivalentes" por segundo
+	local killEq = CONFIG.EQUIV_HOURS * GB.KILLS_PER_HOUR * GB.XpCalib(s.Level) / CONFIG.DAILY_SECONDS * bonus
+	s.Loot = math.clamp(killEq / r, 0.001, CONFIG.LOOT_MULT)
+	local groupPct = math.floor((bonus - 1) * 100 + 0.5)
+	for _, m in ipairs(s.Members) do
+		local cur = m:GetAttribute("AfkLootMult")
+		if typeof(cur) ~= "number" or math.abs(cur - s.Loot) > 0.002 then
+			m:SetAttribute("AfkLootMult", s.Loot)
+		end
+		if m:GetAttribute("AfkGroupPct") ~= groupPct then
+			m:SetAttribute("AfkGroupPct", groupPct)
+		end
+	end
+	if now >= s.NextLog then
+		s.NextLog = now + 60
+		dprint(string.format("sesión #%d · %d jugador(es) · nivel %d · %.1f bajas/min · XP por baja x%.3f · botín por baja x%.3f · objetivo %d XP/h por jugador", s.Id, n, s.Level, r * 60, s.M, s.Loot, math.floor(xpPerSec * 3600)))
+	end
+end
+
+-- el nivel de la sesión sigue al del miembro más bajo (si sube de franja, los monstruos suben con él)
+local function refreshLevel(s: Session)
+	local level = math.huge
+	for _, m in ipairs(s.Members) do
+		level = math.min(level, LevelService.GetLevel(m))
+	end
+	if level == math.huge then
+		return
+	end
+	s.Level = level
+	local tier = tierOf(s.Faction, level)
+	if tier ~= s.Tier then
+		s.Tier = tier
+		for _, m in ipairs(s.Members) do
+			m:SetAttribute("InAfk", tier)
+			notify(m, "Subiste de franja: ahora los monstruos del Campo son de la Franja " .. tier)
+		end
+	end
+end
+
 local function addToSession(s: Session, p: Player, slot: number)
 	table.insert(s.Members, p)
 	sessionOf[p] = s
 	p:SetAttribute("InAfk", s.Tier)
-	p:SetAttribute("AfkLootMult", CONFIG.LOOT_MULT)
+	p:SetAttribute("AfkLootMult", s.Loot)
 	p:SetAttribute("AfkKills", s.Kills)
 	p:SetAttribute("AfkStart", Workspace:GetServerTimeNow())
 	publishLeft(p)
+	updateRewards(s, os.clock())
 	DungeonService.MoveTo(p, slotCF(s.Pod, slot, CONFIG.MAX_GROUP), "⚔️ Entrando al Campo de Entrenamiento…")
 	-- si mueres, reapareces en la ciudad: la sesión termina para ti (sin teletransporte)
 	local old = diedConn[p]
@@ -659,13 +745,19 @@ local function startSession(members: { Player }, faction: string): Session?
 		StartedAt = now,
 		LastKill = now,
 		NextSpawn = now + 4, -- tiempo para que lleguen y se destape la pantalla
+		KillTimes = {},
+		M = CONFIG.XP_MULT,
+		Loot = CONFIG.LOOT_MULT,
+		NextRewards = now + 2,
+		NextLevel = now + 20,
+		NextLog = now + 60,
 		Closed = false,
 	}
 	pod.Busy = true
 	sessions[s.Id] = s
 	for i, m in ipairs(members) do
 		addToSession(s, m, i)
-		notify(m, string.format("⚔️ Campo de Entrenamiento · Franja %d · XP al %d %% y botín al %d %%", s.Tier, math.floor(CONFIG.XP_MULT * 100 + 0.5), math.floor(CONFIG.LOOT_MULT * 100 + 0.5)))
+		notify(m, string.format("⚔️ Campo de Entrenamiento · Franja %d · %d h aquí valen %d h jugadas%s", s.Tier, CONFIG.DAILY_SECONDS // 3600, CONFIG.EQUIV_HOURS, if #members > 1 then string.format(" · grupo +%d %%", math.floor((groupBonus(#members) - 1) * 100 + 0.5)) else ""))
 	end
 	dprint(string.format("sesión #%d (%s, franja %d, nivel %d) abierta en %s con %d jugador(es)", s.Id, faction, s.Tier, level, pod.Id, #members))
 	return s
@@ -706,6 +798,7 @@ leaveSession = function(p: Player, teleport: boolean, reason: string?)
 	if p.Parent then
 		p:SetAttribute("InAfk", nil)
 		p:SetAttribute("AfkLootMult", nil)
+		p:SetAttribute("AfkGroupPct", nil)
 		p:SetAttribute("AfkKills", nil)
 		p:SetAttribute("AfkStart", nil)
 		publishLeft(p)
@@ -718,6 +811,8 @@ leaveSession = function(p: Player, teleport: boolean, reason: string?)
 	end
 	if #s.Members == 0 then
 		closeSession(s)
+	else
+		updateRewards(s, os.clock())
 	end
 end
 
@@ -727,6 +822,7 @@ local function onMobDied(s: Session)
 	end
 	s.Kills += 1
 	s.LastKill = os.clock()
+	table.insert(s.KillTimes, s.LastKill)
 	for _, m in ipairs(s.Members) do
 		m:SetAttribute("AfkKills", s.Kills)
 	end
@@ -785,7 +881,7 @@ local function spawnOne(s: Session)
 	end
 	model:SetAttribute("DmgBuff", CONFIG.MOB_DMG)
 	model:SetAttribute("BaseBuff", CONFIG.MOB_DMG)
-	model:SetAttribute("XpMult", CONFIG.XP_MULT * (1 + CONFIG.GROUP_XP_BONUS * (n - 1)))
+	model:SetAttribute("XpMult", s.M)
 	model:SetAttribute("AfkZone", s.Id)
 	table.insert(s.Mobs, model)
 end
@@ -809,6 +905,14 @@ task.spawn(function()
 				continue
 			end
 			local n = #s.Members
+			if now >= s.NextLevel then
+				s.NextLevel = now + 20
+				refreshLevel(s)
+			end
+			if now >= s.NextRewards then
+				s.NextRewards = now + 2
+				updateRewards(s, now)
+			end
 			-- apariciones: con más jugadores aparecen más rápido
 			if now >= s.NextSpawn then
 				spawnOne(s)
@@ -1116,8 +1220,8 @@ openWindow = function(p: Player)
 		Level = level,
 		Left = math.floor(leftOf(p)),
 		Daily = CONFIG.DAILY_SECONDS,
-		XpPct = math.floor(CONFIG.XP_MULT * 100 + 0.5),
-		LootPct = math.floor(CONFIG.LOOT_MULT * 100 + 0.5),
+		EquivHours = CONFIG.EQUIV_HOURS,
+		GroupBonusPct = math.floor(CONFIG.GROUP_BONUS * 100 + 0.5),
 		Free = freeCount(faction),
 		Party = #members,
 		IsLeader = leader == p,
@@ -1181,11 +1285,25 @@ end)
 ---------------------------------------------------------------------
 Workspace:SetAttribute("AfkXpPct", math.floor(CONFIG.XP_MULT * 100 + 0.5))
 Workspace:SetAttribute("AfkLootPct", math.floor(CONFIG.LOOT_MULT * 100 + 0.5))
+Workspace:SetAttribute("AfkEquivHours", CONFIG.EQUIV_HOURS)
+Workspace:SetAttribute("AfkGroupBonusPct", math.floor(CONFIG.GROUP_BONUS * 100 + 0.5))
 Workspace:SetAttribute("AfkDaily", CONFIG.DAILY_SECONDS)
 Workspace:SetAttribute("AfkMaxGroup", CONFIG.MAX_GROUP)
 Workspace:SetAttribute("AfkAsk", CONFIG.ASK_SECONDS)
 
 task.spawn(function()
+	-- aviso si el tope de jugadores por facción (Creator Hub > Configs "factionCap") supera las cápsulas: no alcanzaría para todos en solitario
+	task.delay(20, function()
+		local okFB, FB = pcall(function()
+			return require(Services.FactionBalance)
+		end)
+		if okFB and typeof(FB) == "table" and typeof(FB.Cap) == "function" then
+			local cap = FB.Cap()
+			if typeof(cap) == "number" and cap > CONFIG.PODS_PER_THEME then
+				warn(string.format("[AfkZoneService] el tope por facción (%d) es mayor que las cápsulas (%d): sube PODS_PER_THEME", cap, CONFIG.PODS_PER_THEME))
+			end
+		end
+	end)
 	buildAllPods()
 	for _, f in ipairs(THEME_ORDER) do
 		task.spawn(buildPortal, f)
@@ -1200,5 +1318,5 @@ end
 
 AfkZoneService.Config = CONFIG
 
-print(string.format("[AfkZoneService] Listo: Campo de Entrenamiento · XP %d %% · botín %d %% · %d h/día · %d cápsulas por facción.", math.floor(CONFIG.XP_MULT * 100 + 0.5), math.floor(CONFIG.LOOT_MULT * 100 + 0.5), CONFIG.DAILY_SECONDS // 3600, CONFIG.PODS_PER_THEME))
+print(string.format("[AfkZoneService] Listo: Campo de Entrenamiento · %d h valen %d h jugadas · grupo +%d %% por jugador extra · %d cápsulas por facción.", CONFIG.DAILY_SECONDS // 3600, CONFIG.EQUIV_HOURS, math.floor(CONFIG.GROUP_BONUS * 100 + 0.5), CONFIG.PODS_PER_THEME))
 return AfkZoneService

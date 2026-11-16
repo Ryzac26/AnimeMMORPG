@@ -8,7 +8,7 @@
       3) ESPERA DEL LÍDER: quién aceptó, quién salió del grupo, [Entrar ya] y [Cancelar].
       4) CHIP DENTRO DEL CAMPO: franja, XP/botín, bajas, tiempo que te queda hoy, [Auto-farm] y [Salir].
       5) Al llegar enciende el Auto-farm (modo Semi) y, mientras estás dentro, evita la expulsión por inactividad de Roblox (20 min sin tocar nada).
-    Todos los números salen de atributos que publica el servidor (Workspace: AfkXpPct, AfkLootPct, AfkDaily; Jugador: InAfk, AfkLeft, AfkKills, AfkStart).
+    Todos los números salen de atributos que publica el servidor (Workspace: AfkDaily, AfkEquivHours, AfkGroupBonusPct; Jugador: InAfk, AfkLeft, AfkKills, AfkStart, AfkGroupPct).
     Las ventanas se llaman "Ventana" (MobileClient las escala en el celular). Está en la lista RELOAD de UIReloadClient.
 ]]
 local Players = game:GetService("Players")
@@ -143,7 +143,7 @@ local function openPortal(info: any)
 	local y0 = 80
 	local box = NpcKit.Panel(w, theme, UDim2.fromOffset(ROW_W, 104), UDim2.fromOffset(14, y0), "inset")
 	text(box, string.format("Tu franja: %s   ·   Nivel %s", tostring(info.Tier or "?"), tostring(info.Level or "?")), 16, pal.Text, UDim2.fromOffset(14, 8), UDim2.fromOffset(ROW_W - 28, 22))
-	text(box, string.format("XP al %s %%   ·   Botín al %s %%", tostring(info.XpPct or "?"), tostring(info.LootPct or "?")), 15, pal.Accent, UDim2.fromOffset(14, 34), UDim2.fromOffset(ROW_W - 28, 20))
+	text(box, string.format("%d h aquí valen %s h jugadas (XP y botín)", daily // 3600, tostring(info.EquivHours or wsNumber("AfkEquivHours", 3))), 15, pal.Accent, UDim2.fromOffset(14, 34), UDim2.fromOffset(ROW_W - 28, 20))
 	local note = text(box, "Entras a una cápsula cerrada con monstruos de tu franja. Se pelea sola con el Auto-farm. Sin PvP. Si no matas nada por 10 minutos, te saca.", 12, pal.Muted, UDim2.fromOffset(14, 58), UDim2.fromOffset(ROW_W - 28, 40))
 	wrapped(note)
 
@@ -159,7 +159,7 @@ local function openPortal(info: any)
 	local groupText: string
 	if party >= 2 then
 		groupText = if isLeader
-			then string.format("Eres el líder de un grupo de %d. Si entras en grupo, a los demás les sale una invitación (máx. %d).", party, maxGroup)
+			then string.format("Eres el líder de un grupo de %d. Si entras en grupo, a los demás les sale una invitación (máx. %d). Cada jugador extra suma +%d %% de XP y botín a todos.", party, maxGroup, tonumber(info.GroupBonusPct) or 0)
 			else string.format("Estás en un grupo de %d. Entra solo el líder; si ya entraron, puedes unirte.", party)
 	else
 		groupText = "No tienes grupo: entra solo, o invita a alguien antes para entrar en grupo."
@@ -227,7 +227,7 @@ local function showAsk(info: any)
 	askWin = w
 	local y0 = 82
 	wrapped(text(w, string.format("★ %s quiere entrar al Campo de Entrenamiento.", tostring(info.Leader or "El líder")), 16, pal.Text, UDim2.fromOffset(18, y0), UDim2.fromOffset(ROW_W - 8, 44)))
-	text(w, string.format("%s · Franja %s · XP al %d %% · Botín al %d %%", tostring(info.Title or "Campo"), tostring(info.Tier or "?"), wsNumber("AfkXpPct", 0), wsNumber("AfkLootPct", 0)), 12, pal.Muted, UDim2.fromOffset(18, y0 + 46), UDim2.fromOffset(ROW_W - 8, 18))
+	text(w, string.format("%s · Franja %s · cada jugador extra suma +%d %% de XP y botín a todos", tostring(info.Title or "Campo"), tostring(info.Tier or "?"), wsNumber("AfkGroupBonusPct", 0)), 12, pal.Muted, UDim2.fromOffset(18, y0 + 46), UDim2.fromOffset(ROW_W - 8, 18))
 	local _, setBar = UITheme.Bar(w, UDim2.fromOffset(18, y0 + 72), UDim2.fromOffset(ROW_W - 8, 20), BLUE, "", 12, pal.Edge2)
 	askBar = function(v: number, m: number, t: string?)
 		setBar(v, m, t)
@@ -315,6 +315,7 @@ end
 ---------------------------------------------------------------------
 local hud: Frame? = nil
 local hudLine: TextLabel? = nil
+local hudTitle: TextLabel? = nil
 local hudWarn: TextLabel? = nil
 local hudFarmBtn: TextButton? = nil
 local hudFarmText = ""
@@ -328,7 +329,7 @@ local function destroyHud()
 		hud:Destroy()
 		hud = nil
 	end
-	hudLine, hudWarn, hudFarmBtn = nil, nil, nil
+	hudLine, hudWarn, hudFarmBtn, hudTitle = nil, nil, nil, nil
 	hudFarmText = ""
 end
 
@@ -341,7 +342,8 @@ local function buildHud()
 	f.Name = "AfkHud"
 	hud = f
 	local tier = player:GetAttribute("InAfk")
-	text(f, string.format("🏕️ CAMPO · Franja %s · XP %d %% · Botín %d %%", tostring(tier), wsNumber("AfkXpPct", 0), wsNumber("AfkLootPct", 0)), 12, pal.Accent, UDim2.fromOffset(12, 6), UDim2.fromOffset(W - 24, 16))
+	hudTitle = text(f, "", 12, pal.Accent, UDim2.fromOffset(12, 6), UDim2.fromOffset(W - 24, 16))
+	hudTitle.Text = string.format("🏕️ CAMPO · Franja %s · %d h = %d h jugadas", tostring(tier), wsNumber("AfkDaily", 28800) // 3600, wsNumber("AfkEquivHours", 3))
 	hudLine = text(f, "", 12, pal.Text, UDim2.fromOffset(12, 24), UDim2.fromOffset(W - 24, 16))
 	hudWarn = text(f, "", 11, RED, UDim2.fromOffset(12, 41), UDim2.fromOffset(W - 24, 14))
 	local fb = NpcKit.Button(f, theme, "Auto-farm", UDim2.fromOffset(190, 36), UDim2.fromOffset(12, 62), "action", function()
@@ -361,6 +363,11 @@ local function updateHud()
 	local inside = if typeof(start) == "number" then serverNow() - start else 0
 	if hudLine then
 		hudLine.Text = string.format("Bajas %d  ·  En el Campo %s  ·  Hoy quedan %s", if typeof(kills) == "number" then kills else 0, clock(inside), clock(currentLeft()))
+	end
+	if hudTitle then
+		local gp = player:GetAttribute("AfkGroupPct")
+		local tierNow = player:GetAttribute("InAfk")
+		hudTitle.Text = string.format("🏕️ CAMPO · Franja %s · %d h = %d h jugadas%s", tostring(tierNow), wsNumber("AfkDaily", 28800) // 3600, wsNumber("AfkEquivHours", 3), if typeof(gp) == "number" and gp > 0 then string.format(" · grupo +%d %%", gp) else "")
 	end
 	local on = farmOn()
 	if hudWarn then
