@@ -64,6 +64,7 @@ require(Services:WaitForChild("BiomeDetails")) -- detalles de suelo (senderos, c
 require(Services:WaitForChild("FloorSkins")) -- pisos con textura nueva, parches de vida y ciudad a ras (usa los ids de FloorSkins)
 require(Services:WaitForChild("BiomeLandmarks")) -- hitos temáticos: un monumento grande por franja (16)
 require(Services:WaitForChild("DungeonService")) -- cuevas (mazmorras) por franja: portales, 2 pisos, 3 salas al azar, entradas diarias
+require(Services:WaitForChild("AfkZoneService")) -- Campo de Entrenamiento (farmeo AFK): portal en cada ciudad, cápsulas lejanas, solo o en grupo (necesita DungeonService y PartyService)
 require(Services:WaitForChild("DamageRankService")) -- ranking de daño en pantalla para jefes, mini jefes y Metin
 require(Services:WaitForChild("PetPowerService")) -- poderes de las mascotas Épicas, Legendarias y Míticas
 require(Services:WaitForChild("PetService")) -- alimentar mascotas: suben de nivel 1..10 (Plus de la mascota)

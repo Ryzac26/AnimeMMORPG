@@ -39,6 +39,11 @@ local LevelGap = require(Modules.LevelGap)
 -- Brecha de nivel (LevelGap): multiplicador de botín por jugador durante la muerte que se está repartiendo.
 -- Escala el oro y las probabilidades (luckOf) de quien mató monstruos de nivel muy bajo.
 local gapMult: { [Player]: number } = {}
+-- Campo de Entrenamiento (AfkZoneService): atributo del jugador AfkLootMult (0 a 1) = botín reducido mientras farmea ahí; sin atributo = 1
+local function afkLootMult(pl: Player): number
+	local v = pl:GetAttribute("AfkLootMult")
+	return if typeof(v) == "number" then math.clamp(v, 0, 1) else 1
+end
 local function luckOf(pl: Player): number
 	return (1 + GearService.Luck(pl)) * (gapMult[pl] or 1) - 1
 end
@@ -387,7 +392,7 @@ local function onKilled(mobId: string, level: number, participants: { Player }, 
 	local shares = sharesOf(participants, rawShares)
 	table.clear(gapMult)
 	for _, pl in ipairs(participants) do
-		gapMult[pl] = LevelGap.Mult(LevelService.GetLevel(pl), level)
+		gapMult[pl] = LevelGap.Mult(LevelService.GetLevel(pl), level) * afkLootMult(pl)
 	end
 	if mobId == "WorldBoss" then
 		onBoss(LootTables.WorldBoss, level, nil, participants, shares, "jefe mundial")

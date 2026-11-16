@@ -222,5 +222,16 @@ function PartyService.SameParty(a: Player, b: Player): boolean
 	return partyOf[a] ~= nil and partyOf[a] == partyOf[b]
 end
 
+-- Líder del grupo (nil si no tiene grupo). Lo usa AfkZoneService (Campo de Entrenamiento) para saber quién puede entrar en grupo.
+function PartyService.LeaderOf(p: Player): Player?
+	local party = partyOf[p]
+	return if party then party.Leader else nil
+end
+
+-- Saca a un jugador de su grupo por decisión propia (igual que "Salir"). Lo usa AfkZoneService cuando eliges "Salir del grupo" en la invitación.
+function PartyService.Remove(p: Player)
+	leave(p)
+end
+
 print("[PartyService] Listo: grupos de hasta el tope de facción (15) de la misma facción.")
 return PartyService

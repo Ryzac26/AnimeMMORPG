@@ -2204,6 +2204,12 @@ function DungeonService.EntriesLeft(player: Player, strip: number): number
 	return entriesLeft(player, strip)
 end
 
+-- Traslado en dos tiempos (aviso "cargando" + fundido a negro + salto) para otros servicios (AfkZoneService: Campo de Entrenamiento).
+-- Sin franja: no marca al jugador como "en cueva" (InDungeon queda vacío).
+function DungeonService.MoveTo(p: Player, cf: CFrame, text: string?)
+	moveTo(p, cf, nil, text)
+end
+
 DungeonService.Config = CONFIG
 DungeonService.Rarity = RARITY
 
