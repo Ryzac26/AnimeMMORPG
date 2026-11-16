@@ -8,7 +8,7 @@
       Arriba centro  retrato con nivel + barras de vida / energía / XP, y debajo el objetivo
       Arriba der.    Perfil · Mochila · Grupo · Misiones · Menú (el Menú trae todo lo demás y los modos de AutoFarm), y debajo el chip de arena/evento
       Izq. abajo     joystick de Roblox (libre)
-      Abajo centro   Montura · FARM (AutoFarm) · AUTO (auto-ataque) · OBJ (siguiente objetivo)
+      Abajo centro   Ayudantes · FARM (AutoFarm) · AUTO (auto-ataque) · OBJ (siguiente objetivo)
       Der. abajo     salto de Roblox; habilidad 1 grande; 2-4 en arco interior; 5-7 en arco exterior
     Toca un enemigo para marcarlo. Si usas una habilidad sin objetivo, marca solo al enemigo más cercano (apuntado automático).
     Cada botón hace lo mismo que su tecla de PC (1-7 / Q / C / B / P / Z) hablando con los mismos remotes que HudClient.
@@ -331,7 +331,7 @@ gl.Parent = grid
 -- { texto, evento de MenuBus ("" = todavía no existe) }  (misma lista que el menú de HudClient; súmale las nuevas aquí)
 local ITEMS: { { string } } = {
 	{ "Perfil", "Character" }, { "Mochila", "Inventory" }, { "Grupo", "Party" }, { "Habilidades", "Skills" },
-	{ "Misiones", "Quests" }, { "Facción", "Guild" }, { "Mascota", "Pets" }, { "Monturas", "Mounts" }, { "Cuevas", "Dungeons" }, { "Ajustes", "Settings" },
+	{ "Misiones", "Quests" }, { "Facción", "Guild" }, { "Ayudantes", "Helpers" }, { "Cuevas", "Dungeons" }, { "Ajustes", "Settings" },
 }
 for _, it in ipairs(ITEMS) do
 	local label, ev = it[1], it[2]
@@ -666,14 +666,11 @@ makeSlot(5, -131, 54, 46)
 makeSlot(6, -131, -54, 46)
 makeSlot(7, -54, -131, 46)
 
--- fila de accesos rápidos (abajo centro): Montura · FARM · AUTO · OBJ
-local mountRemote = ClientNet.Get("MountAction")
-local bMount = cornerButton(-375, 78, 46, Color3.fromRGB(235, 235, 240), "MONT")
-bMount.TextStrokeTransparency = 1
-bMount.Activated:Connect(function()
-	if mountRemote then
-		mountRemote:FireServer("Toggle") -- igual que la tecla de montura de la PC
-	end
+-- fila de accesos rápidos (abajo centro): Ayudantes · FARM · AUTO · OBJ
+local bHelpers = cornerButton(-375, 78, 46, Color3.fromRGB(235, 235, 240), "AYUD")
+bHelpers.TextStrokeTransparency = 1
+bHelpers.Activated:Connect(function()
+	MenuBus.Fire("Helpers") -- abre la ventana de ayudantes de combate
 end)
 local bFarm = cornerButton(-321, 78, 46, theme.Primary, "FARM")
 bFarm.TextStrokeTransparency = 1
@@ -927,7 +924,6 @@ RunService.RenderStepped:Connect(function()
 	local farmOn = player:GetAttribute("AutoFarm") == true
 	bFarm.TextColor3 = if farmOn then Color3.fromRGB(155, 240, 154) else Color3.new(1, 1, 1)
 	bFarm.BackgroundColor3 = if farmOn then Color3.fromRGB(24, 60, 30) else theme.Dark
-	bMount.BackgroundColor3 = if player:GetAttribute("Mounted") == true then Color3.fromRGB(60, 50, 24) else theme.Dark
 	farmOnBtn.Text = if farmOn then "ON" else "OFF"
 	farmOnBtn.TextColor3 = if farmOn then Color3.fromRGB(155, 240, 154) else Color3.fromRGB(190, 190, 200)
 	local curMode = player:GetAttribute("AutoFarmMode")

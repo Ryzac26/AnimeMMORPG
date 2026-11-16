@@ -2,16 +2,16 @@
 --[[
     LootService (ModuleScript) -> ServerScriptService.Services.LootService
     REPARTE EL BOTÍN. Escucha RewardService.MobKilled(mobId, nivel, participantes, partes) y entrega a cada jugador:
-        Mob normal   : oro siempre · 30% objeto (poción o material) · 1.2% a 1.8% equipo según la franja (Épico/Legendario muy raros) · 0.08% mascota
+        Mob normal   : oro siempre · 30% objeto (poción o material) · 1.2% a 1.8% equipo según la franja (Épico/Legendario muy raros) · 0.3% cupón de ayudante
         Mini jefe / cofres / altares: ver LootTables.MiniBoss, MapChest, Offering, Challenge (LootService.Grant)
-        Metin        : oro + puntos de facción · 45% Gema · 17% "cofre" (tirada extra de equipo alto) · 4% Emblema de tu facción · 1% mascota
+        Metin        : oro + puntos de facción · 45% Gema · 17% "cofre" (tirada extra de equipo alto) · 4% Emblema de tu facción · 1% cupón de ayudante
         Jefe de franja / Jefe mundial : TODOS los participantes reciben oro, puntos y materiales garantizados;
                        además hay un SORTEO de un objeto Épico/Legendario entre los participantes: no tocan a todos.
     Todos los números viven en ReplicatedStorage.Modules.LootTables. Las reglas de reparto "parejo":
       - Botín personal: cada jugador con suficiente participación (% del daño) tira por su cuenta.
       - El equipo se RESUELVE a quien lo recibe (su rol y su arma de facción), así nunca cae algo inútil.
       - Sorteo: boletos iguales para todos (+ un extra pequeño por daño) y "pity": cada sorteo perdido suma boletos, al ganar se reinicia.
-      - La Suerte de la mascota "Zorro" multiplica las probabilidades (no el oro ni lo garantizado ni el sorteo).
+      - La Suerte (equipo y temas) multiplica las probabilidades (no el oro ni lo garantizado ni el sorteo).
       - Los monstruos invocados no dan botín (RewardService ya los descarta).
     Avisos: un solo mensaje por jugador y muerte (Notify). Un mob normal solo avisa si soltó algo (el oro se ve en el HUD).
 ]]
@@ -35,6 +35,7 @@ local GearService = require(Services.GearService)
 local MountService = require(Services.MountService)
 local LevelService = require(Services.LevelService)
 local LevelGap = require(Modules.LevelGap)
+local HelperService = require(Services.HelperService)
 
 -- Brecha de nivel (LevelGap): multiplicador de botín por jugador durante la muerte que se está repartiendo.
 -- Escala el oro y las probabilidades (luckOf) de quien mató monstruos de nivel muy bajo.
@@ -75,6 +76,11 @@ local function addItem(h: Haul, id: string?, count: number, notable: boolean, pl
 			h.Notable = true
 		end
 	end
+end
+
+-- CUPÓN de reclutamiento (reemplaza a la mascota): la rareza sale de la tabla del monstruo; HelperService aplica el tope diario y lo manda a la carta
+local function dropCoupon(player: Player, rarityWeights: { [string]: number })
+	HelperService.DropCoupon(player, LootTables.RollCoupon(rarityWeights, rng), "Botín")
 end
 
 local function label(id: string, count: number, plus: number?): string
@@ -118,6 +124,11 @@ local function deliver(player: Player, h: Haul, header: string, alwaysNotify: bo
 		else
 			gotItems = true
 			table.insert(parts, label(entry.Id, entry.Count, entry.Plus))
+			-- BONO AYUDANTES: la pieza que te cae puede traer OTRA para el rol de un ayudante equipado (no te quita la tuya)
+			local bonus = HelperService.RollBonusGear(player, entry.Id)
+			if bonus and Inventory.Add(player, bonus, 1) then
+				table.insert(parts, "🤝 " .. label(bonus, 1, nil) .. " (para tu ayudante)")
+			end
 		end
 	end
 	if #parts > 0 and (alwaysNotify or gotItems) then
@@ -226,7 +237,7 @@ local function onMob(level: number, strip: number, participants: { Player }, sha
 				addItem(h, "Mat_GemaMenor", 1, false)
 			end
 			if rng:NextNumber() < chance(M.PetChance, luck) then
-				addItem(h, LootTables.RollPet(M.PetRarity, rng, faction), 1, true)
+				dropCoupon(pl, M.PetRarity)
 			end
 			deliver(pl, h, "Botín", false, "Monstruos")
 			tryKey(pl, strip, LootTables.KeyDrop.Mob)
@@ -248,7 +259,7 @@ local function onBoss(cfg: any, level: number, strip: number?, participants: { P
 				addItem(h, "Mat_Escama", LootTables.Count(cfg.ScaleCount, rng), false)
 			end
 			if rng:NextNumber() < chance(cfg.PetChance, luck) then
-				addItem(h, LootTables.RollPet(cfg.PetRarity, rng, (classOf(pl))), 1, true)
+				dropCoupon(pl, cfg.PetRarity)
 			end
 			deliver(pl, h, "Jefe derrotado", true, "Jefes")
 			if strip then
@@ -283,7 +294,7 @@ local function onMetin(rarityId: string, level: number, participants: { Player }
 				addItem(h, LootTables.RollEmblem(faction, gearLevel(pl, level), R.EmblemRarity, rng), 1, true)
 			end
 			if rng:NextNumber() < chance(X.PetChance, luck) then
-				addItem(h, LootTables.RollPet(R.PetRarity, rng, faction), 1, true)
+				dropCoupon(pl, R.PetRarity)
 			end
 			deliver(pl, h, "Metin destruido", true, "Metin")
 		end
@@ -316,7 +327,7 @@ local function onMini(strip: number, level: number, participants: { Player }, sh
 				addItem(h, LootTables.RollGear(faction, role, gearLevel(pl, GB.FromOld(strip * 25)), X.GearRarity[strip], rng), 1, true)
 			end
 			if rng:NextNumber() < chance(X.PetChance, luck) then
-				addItem(h, LootTables.RollPet(X.PetRarity, rng, faction), 1, true)
+				dropCoupon(pl, X.PetRarity)
 			end
 			deliver(pl, h, "Mini jefe derrotado", true, "Jefes")
 			tryKey(pl, strip, LootTables.KeyDrop.Mini)
@@ -376,7 +387,7 @@ local function grant(player: Player, kind: string, strip: number): boolean
 			addItem(h, LootTables.RollGear(faction, role, gearLevel(player, level), X.GearRarity[strip], rng), 1, true)
 		end
 		if rng:NextNumber() < chance(X.PetChance, luck) then
-			addItem(h, LootTables.RollPet(X.PetRarity, rng, faction), 1, true)
+			dropCoupon(player, X.PetRarity)
 		end
 	end
 	return deliver(player, h, header, true, if kind == "Challenge" then "Jefes" else "Cofres")

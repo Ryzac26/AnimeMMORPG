@@ -79,7 +79,7 @@ LootTables.Mob = {
 		[4] = { Comun = 51.5, Raro = 41, Epico = 6.5, Legendario = 1.0 },
 	},
 	MinorGemChance = 0.04, -- Gema Menor (mejora +1 a +5): ~5 por hora a 126 kills/h
-	PetChance = 0.0008,
+	PetChance = 0.003, -- ahora es la probabilidad de un CUPÓN de reclutamiento (antes mascota). PetRarity = rareza del cupón
 	PetRarity = { Comun = 85, Raro = 15 },
 }
 
@@ -348,7 +348,12 @@ function LootTables.RollEmblem(faction: string, level: number, rarityWeights: { 
 	return nil
 end
 
--- faction (opcional): 1 de cada 5 mascotas que caen es la de TU facción (Mono / Sapo / Loro / Mariposa); las de otras facciones nunca caen
+-- CUPÓN de reclutamiento (reemplaza a la mascota como premio): devuelve la rareza del cupón ("Comun".."Mitico"). El tope diario lo aplica HelperService.
+function LootTables.RollCoupon(rarityWeights: { [string]: number }, rng: RNG): string
+	return LootTables.Pick(rarityWeights, rng)
+end
+
+-- (LEGADO: las mascotas ya no caen; se conserva para canjear las viejas) faction (opcional): 1 de cada 5 mascotas que caen es la de TU facción (Mono / Sapo / Loro / Mariposa); las de otras facciones nunca caen
 function LootTables.RollPet(rarityWeights: { [string]: number }, rng: RNG, faction: string?): string?
 	local family = PetCatalog.FamilyOrder[rng:NextInteger(1, #PetCatalog.FamilyOrder)]
 	local own = if faction then PetCatalog.FactionFamily[faction] else nil

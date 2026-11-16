@@ -233,12 +233,13 @@ ProductCatalog.Passes = {
 		PassId = 2075939058, PriceText = "149 R$",
 	},
 	{
-		Key = "PetSlot", Attr = "Pass_PetSlot", Name = "Segunda Mascota",
-		Desc = "Lleva dos mascotas a la vez: se suman sus efectos y poderes.",
+		Key = "PetSlot", Attr = "Pass_PetSlot", Name = "Ranuras de Ayudante 2 y 3",
+		Desc = "Desbloquea las ranuras 2 y 3 de ayudantes de combate: lleva hasta 3 ayudantes a la vez y suma sus bonos y poderes en tus batallas.",
 		Perks = {
-			"Desbloquea la ranura \"Mascota 2\" en el perfil (tecla C)",
-			"Las dos mascotas te siguen y suman sus bonos y poderes (deben ser de familias distintas)",
-			"Sin el pase: sigues con tu ranura de mascota normal",
+			"Desbloquea las ranuras de ayudante 2 y 3 desde el nivel 1",
+			"Hasta 3 ayudantes te siguen y combaten a tu lado contra los monstruos",
+			"Se suman sus bonos y poderes (dos ayudantes del mismo rol no se acumulan)",
+			"Sin el pase: sigues con tu primera ranura de ayudante, gratis",
 		},
 		PassId = 2078468250, PriceText = "249 R$"
 	},
@@ -247,7 +248,7 @@ ProductCatalog.Passes = {
 		Desc = "Pago único para tener tu casa privada, con el primer mes incluido. Después se mantiene con la Suscripción Imperial.",
 		Perks = {
 			"Casa VIP privada con portal en la plaza de tu ciudad",
-			"Baúl privado de 60 casillas y jardín para tus mascotas y montura",
+			"Baúl privado de 60 casillas y jardín con Cabaña de ayudantes",
 			"Invita a quien quieras: pueden entrar y mirar, pero no tocar nada",
 			"El primer mes va incluido; después se mantiene con la Suscripción Imperial (199 R$/mes). Si no se renueva, la casa vence",
 		},
@@ -281,7 +282,7 @@ ProductCatalog.Passes = {
 -- Pega el ID (texto "EXP-...") en SubId.
 -- DESCRIPCIÓN para el Creator Hub: "Costo mensual para seguir usando tu Casa VIP (Pabellón Imperial). El primer mes va incluido en la compra del
 -- Pabellón; se cobra al pasar los 30 días. Con la suscripción activa conservas tu
--- casa, tu baúl de 60 casillas y el jardín de mascotas. Si no se renueva, la casa vence: tu baúl pasa al buzón de la ciudad y para volver a
+-- casa, tu baúl de 60 casillas y el jardín con la Cabaña de ayudantes. Si no se renueva, la casa vence: tu baúl pasa al buzón de la ciudad y para volver a
 -- tenerla hay que pagar de nuevo el Pabellón (599 R$), si todavía quedan casas."
 -- Al vencer nada se borra: el baúl entero pasa al buzón.
 ProductCatalog.VipSub = { SubId = "EXP-2977508916442825297", Attr = "Sub_Vip", Name = "Suscripción Imperial", PriceText = "199 R$/mes" }

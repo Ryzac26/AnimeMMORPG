@@ -19,6 +19,7 @@ local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
+local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 local ItemIcon = require(script.Parent:WaitForChild("ItemIcon", 10))
 local ItemCatalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("ItemCatalog"))
 local HouseFurniture = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("HouseFurniture"))
@@ -41,7 +42,7 @@ local vaultPage = 1 -- el baúl se muestra en páginas de 30 casillas (1 = casil
 local VAULT_PAGE_SIZE = 30
 local hover: TextLabel? = nil
 
-local TABS_HOME = { { "Baul", "🧰 Baúl" }, { "Animals", "🐾 Animales" }, { "Decor", "🛋 Decorar" }, { "Guests", "👥 Invitados" }, { "Sub", "👑 Suscripción" } }
+local TABS_HOME = { { "Baul", "🧰 Baúl" }, { "Decor", "🛋 Decorar" }, { "Guests", "👥 Invitados" }, { "Sub", "👑 Suscripción" } }
 local TABS_MAIL = { { "Mail", "📮 Buzón" } }
 local mailMode = false -- true = abierta desde el buzón de la ciudad (solo esa pestaña)
 
@@ -316,19 +317,6 @@ build = function()
 			actionRemote:FireServer("Deposit", e.Slot)
 		end)
 		hover = text(w, "Clic en un objeto para pasarlo al otro lado.", 13, pal.FMuted, UDim2.fromOffset(18, 566), UDim2.fromOffset(740, 20))
-	elseif tab == "Animals" then
-		text(w, "Elige qué animales quedan sueltos en el jardín. Sus bonus siguen activos. Cada uno queda como lo soltaste: puedes soltar varios y cambiar de montura. Agárralos aquí o con F en el portal de la ciudad.", 12, pal.FMuted, UDim2.fromOffset(18, top), UDim2.fromOffset(748, 34)).TextWrapped = true
-		if #state.Animals == 0 then
-			text(w, "No tienes mascotas ni montura equipadas.", 14, pal.FText, UDim2.fromOffset(18, top + 44), UDim2.fromOffset(500, 20))
-		end
-		for i, a in ipairs(state.Animals) do
-			local y = top + 44 + (i - 1) * 44
-			local row = NpcKit.Panel(w, theme, UDim2.fromOffset(748, 38), UDim2.fromOffset(14, y), "inset")
-			text(row, (if string.sub(a.Key, 1, 6) == "Mount:" then "🐎  " else "🐾  ") .. tostring(a.Name) .. (if a.Released then "   (suelto en el jardín)" else ""), 14, pal.Text, UDim2.fromOffset(12, 9), UDim2.fromOffset(500, 20))
-			NpcKit.Button(row, theme, if a.Released then "Agarrar" else "Soltar", UDim2.fromOffset(170, 28), UDim2.fromOffset(570, 5), if a.Released then "danger" else "buy", function()
-				actionRemote:FireServer("Release", a.Key, not a.Released)
-			end)
-		end
 	elseif tab == "Decor" then
 		local inHome = state.Origin ~= nil
 		text(w, if inHome then "Elige un mueble y colócalo donde quieras. Cuadros y pantallas: pega el ID de tu imagen y se genera al instante." else "Entra a tu casa para decorar (usa la mesa de diseño del salón).", 12, pal.FMuted, UDim2.fromOffset(18, top), UDim2.fromOffset(748, 30)).TextWrapped = true
@@ -481,8 +469,12 @@ end
 
 if openRemote then
 	openRemote.OnClientEvent:Connect(function(kind: any)
+		if kind == "Helpers" then
+			MenuBus.Fire("Helpers") -- la Cabaña de ayudantes del jardín abre la ventana de ayudantes
+			return
+		end
 		mailMode = kind == "Mail"
-		tab = if kind == "Guests" then "Guests" elseif kind == "Animals" then "Animals" elseif kind == "Decor" then "Decor" elseif kind == "Mail" then "Mail" else "Baul"
+		tab = if kind == "Guests" then "Guests" elseif kind == "Decor" then "Decor" elseif kind == "Mail" then "Mail" else "Baul"
 		build()
 		gui.Enabled = true
 	end)

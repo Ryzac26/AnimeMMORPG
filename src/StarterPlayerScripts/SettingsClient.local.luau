@@ -3,7 +3,7 @@
     SettingsClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > SettingsClient
     Ventana de AJUSTES (botón "Ajustes" de la barra de menú, también en el menú del celular). Se mueve arrastrando el título.
     Cada ajuste es una fila de la lista SETTINGS; el valor se guarda en el perfil (SettingsService) y viaja como atributo "Setting_<Clave>".
-    Primer ajuste: "Mostrar mascotas" (Todas / Solo la mía / Ninguna) para dejar la pantalla lo más limpia posible.
+    Primer ajuste: "Mostrar ayudantes" (Todos / Solo el mío / Ninguno) para dejar la pantalla lo más limpia posible.
     IMPORTANTE: está en la lista RELOAD de UIReloadClient.
 ]]
 local Players = game:GetService("Players")
@@ -18,18 +18,19 @@ local KeyBinds = require(script.Parent:WaitForChild("KeyBinds", 10))
 local KeyBindCatalog = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("KeyBindCatalog"))
 local RS = game:GetService("ReplicatedStorage")
 local AdminList = require(RS:WaitForChild("Modules"):WaitForChild("AdminList"))
-local PetCatalog = require(RS:WaitForChild("Modules"):WaitForChild("PetCatalog"))
+local HelperCatalog = require(RS:WaitForChild("Modules"):WaitForChild("HelperCatalog"))
+local HelperStore = require(script.Parent:WaitForChild("HelperStore", 10))
 local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")
 
 type Setting = { Key: string, Label: string, Hint: string, Options: { { string } } } -- Options: { valor, texto }
 local SETTINGS: { { Section: string, Items: { Setting } } } = {
 	{
-		Section = "MASCOTAS",
+		Section = "AYUDANTES",
 		Items = {
 			{
-				Key = "PetsMode", Label = "Mostrar mascotas", Hint = "Oculta las mascotas para ver menos cosas en pantalla.",
-				Options = { { "all", "Todas" }, { "mine", "Solo la mía" }, { "none", "Ninguna" } },
+				Key = "PetsMode", Label = "Mostrar ayudantes", Hint = "Oculta los ayudantes de combate para ver menos cosas en pantalla.",
+				Options = { { "all", "Todos" }, { "mine", "Solo el mío" }, { "none", "Ninguno" } },
 			},
 		},
 	},
@@ -47,7 +48,7 @@ gui.Parent = player:WaitForChild("PlayerGui", 10)
 
 local win: Frame? = nil
 local openKeyboard: () -> () = function() end
-local openPetTester: () -> () = function() end
+local openHelperTester: () -> () = function() end
 local refreshers: { () -> () } = {}
 
 local function current(key: string): string
@@ -157,18 +158,18 @@ local function build()
 			MenuBus.Fire(l[2])
 		end)
 	end
-	-- SOLO FUNDADOR: lista de mascotas para probar cada cuerpo
+	-- SOLO FUNDADOR: probador de ayudantes y cupones
 	if isOwner then
 		y += 152 + 10
 		local head3 = UITheme.Text(w, "SOLO FUNDADOR", 13, pal.FText, UDim2.fromOffset(18, y), UDim2.fromOffset(W - 36, 18))
 		head3.TextStrokeTransparency = 1
 		y += 28
 		local card3 = NpcKit.Panel(w, theme, UDim2.fromOffset(W - 28, 60), UDim2.fromOffset(14, y), "card")
-		local hint3 = UITheme.Text(card3, "Prueba cada mascota con su cuerpo. Solo se ve en tu pantalla.", 11, pal.Muted, UDim2.fromOffset(12, 6), UDim2.new(1, -24, 0, 16))
+		local hint3 = UITheme.Text(card3, "Prueba cada ayudante, dáte cupones y mira la carta. Solo para ti.", 11, pal.Muted, UDim2.fromOffset(12, 6), UDim2.new(1, -24, 0, 16))
 		hint3.TextStrokeTransparency = 1
-		NpcKit.Button(card3, theme, "Lista de mascotas", UDim2.fromOffset(W - 52, 28), UDim2.fromOffset(12, 26), "buy", function()
+		NpcKit.Button(card3, theme, "Probar ayudantes y cupones", UDim2.fromOffset(W - 52, 28), UDim2.fromOffset(12, 26), "buy", function()
 			gui.Enabled = false
-			openPetTester()
+			openHelperTester()
 		end)
 	end
 end
@@ -366,12 +367,12 @@ KeyBinds.Changed:Connect(function()
 end)
 
 ---------------------------------------------------------------------
--- LISTA DE MASCOTAS (SOLO FUNDADOR): ON/OFF junto a cada mascota para verla con su cuerpo. Solo se ve en TU pantalla:
--- pone el atributo local PetPreview (id Pet_<Familia>_<Rareza>) y PetFollowClient lo muestra en lugar de la mascota equipada.
+-- PROBADOR DE AYUDANTES (SOLO FUNDADOR). Modo VER: ON/OFF muestra ese ayudante siguiéndote (solo en TU pantalla: atributos locales
+-- HelperPreview / HelperPreviewLevel que lee HelperFollowClient). Modo DAR: lo añade a tu colección (el servidor valida que seas Fundador).
+-- También: cupones al stock y a la carta, y reinicio de tus ayudantes.
 ---------------------------------------------------------------------
-local FACTION_NAME: { [string]: string } = { Saiyan = "Élite", Shinobi = "Sigilo", Pirate = "Navegantes", Shinigami = "Espíritu" }
 local ptGui = Instance.new("ScreenGui")
-ptGui.Name = "PetTesterGui"
+ptGui.Name = "HelperTesterGui"
 ptGui.ResetOnSpawn = false
 ptGui.Enabled = false
 ptGui.DisplayOrder = 13
@@ -379,15 +380,17 @@ ptGui.Parent = player:WaitForChild("PlayerGui", 10)
 
 local ptWin: Frame? = nil
 local ptRefreshers: { () -> () } = {}
+local giveMode = false
+local RARITY_SHORT: { [string]: string } = { Comun = "Co", Raro = "Ra", Epico = "Ép", Legendario = "Le", Mitico = "Mí" }
 
 local function previewId(): string
-	local v = player:GetAttribute("PetPreview")
+	local v = player:GetAttribute("HelperPreview")
 	return if typeof(v) == "string" then v else ""
 end
 
 local function previewLevel(): number
-	local v = player:GetAttribute("PetPreviewLevel")
-	return if typeof(v) == "number" then math.clamp(math.floor(v), 1, 10) else 1
+	local v = player:GetAttribute("HelperPreviewLevel")
+	return if typeof(v) == "number" then math.clamp(math.floor(v), 1, 3000) else 1
 end
 
 local function isOwnerNow(): boolean
@@ -395,7 +398,7 @@ local function isOwnerNow(): boolean
 	return ad ~= nil and ad.Kind == "Owner"
 end
 
-local function renderPetTester()
+local function renderHelperTester()
 	if ptWin then
 		ptWin:Destroy()
 	end
@@ -403,31 +406,64 @@ local function renderPetTester()
 	local theme = UITheme.For(player:GetAttribute("Faction"))
 	local pal = NpcKit.Palette(theme)
 	local W, H = 440, 640
-	local w = NpcKit.Window(ptGui, theme, UDim2.fromOffset(W, H), UDim2.new(1, -20, 0.5, 0), Vector2.new(1, 0.5), "Lista de mascotas",
-		"Solo para ti · ON muestra esa mascota siguiéndote", "🐾", function()
+	local w = NpcKit.Window(ptGui, theme, UDim2.fromOffset(W, H), UDim2.new(1, -20, 0.5, 0), Vector2.new(1, 0.5), "Probador de ayudantes",
+		"Solo para ti · Ver = vista previa · Dar = a tu colección", "🛡", function()
 			ptGui.Enabled = false
 		end)
 	ptWin = w
-	WindowDrag.Attach(w, "PetTester", 40, 50)
+	WindowDrag.Attach(w, "HelperTester", 40, 50)
 
-	-- barra de control: nivel de la mascota (para ver las etapas 4, 7 y 10) y apagar todo
+	-- botoncito de la lista (OFF/ON, +cupón...). Devuelve el botón y su borde para recolorear.
+	local function mini(parent: Instance, text: string, size: UDim2, pos: UDim2, cb: () -> ()): (TextButton, UIStroke)
+		local b = Instance.new("TextButton")
+		b.Position = pos
+		b.Size = size
+		b.Font = Enum.Font.GothamBold
+		b.TextSize = 12
+		b.Text = text
+		b.AutoButtonColor = true
+		b.BorderSizePixel = 0
+		b.ZIndex = 5
+		b.Parent = parent
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, 6)
+		c.Parent = b
+		local st = Instance.new("UIStroke")
+		st.Thickness = 1
+		st.Parent = b
+		b.Activated:Connect(function()
+			if isOwnerNow() then
+				cb()
+			end
+		end)
+		return b, st
+	end
+
+	-- barra de control: nivel de la vista previa, modo Ver/Dar, apagar
 	local top = NpcKit.Panel(w, theme, UDim2.fromOffset(W - 28, 52), UDim2.fromOffset(14, NpcKit.TOP), "card")
-	local lvlLabel = UITheme.Text(top, "", 14, pal.Text, UDim2.fromOffset(12, 0), UDim2.fromOffset(120, 52))
+	local lvlLabel = UITheme.Text(top, "", 13, pal.Text, UDim2.fromOffset(10, 0), UDim2.fromOffset(70, 52))
 	lvlLabel.TextStrokeTransparency = 1
 	local function setLevel(n: number)
-		player:SetAttribute("PetPreviewLevel", math.clamp(n, 1, 10))
+		player:SetAttribute("HelperPreviewLevel", math.clamp(n, 1, 3000))
 	end
-	NpcKit.Button(top, theme, "−", UDim2.fromOffset(34, 28), UDim2.fromOffset(136, 12), "neutral", function()
-		setLevel(previewLevel() - 1)
+	for k, d in ipairs({ -10, -1, 1, 10 }) do
+		NpcKit.Button(top, theme, (if d > 0 then "+" else "") .. tostring(d), UDim2.fromOffset(32, 28), UDim2.fromOffset(78 + (k - 1) * 35, 12), "neutral", function()
+			setLevel(previewLevel() + d)
+		end)
+	end
+	local modeBtn: TextButton
+	modeBtn = NpcKit.Button(top, theme, "", UDim2.fromOffset(86, 28), UDim2.fromOffset(222, 12), "buy", function()
+		giveMode = not giveMode
+		for _, f in ipairs(ptRefreshers) do
+			f()
+		end
 	end)
-	NpcKit.Button(top, theme, "+", UDim2.fromOffset(34, 28), UDim2.fromOffset(176, 12), "neutral", function()
-		setLevel(previewLevel() + 1)
-	end)
-	NpcKit.Button(top, theme, "Apagar todo", UDim2.fromOffset(W - 28 - 12 - 226, 28), UDim2.fromOffset(226, 12), "danger", function()
-		player:SetAttribute("PetPreview", nil)
+	NpcKit.Button(top, theme, "Apagar", UDim2.fromOffset(W - 28 - 312 - 8, 28), UDim2.fromOffset(312, 12), "danger", function()
+		player:SetAttribute("HelperPreview", nil)
 	end)
 	table.insert(ptRefreshers, function()
 		lvlLabel.Text = "Nivel: " .. previewLevel()
+		modeBtn.Text = if giveMode then "Modo: DAR" else "Modo: VER"
 	end)
 
 	-- lista con scroll
@@ -457,66 +493,95 @@ local function renderPetTester()
 		order += 1
 		return order
 	end
-
-	for _, family in ipairs(PetCatalog.AllFamilies) do
-		local def = PetCatalog.Families[family]
-		local tag = if def.Faction then ("  ·  facción " .. (FACTION_NAME[def.Faction] or def.Faction)) else ""
-		local head = UITheme.Text(scroll, string.upper(def.Name) .. tag, 12, pal.FText, UDim2.new(), UDim2.new(1, 0, 0, 20))
+	local function heading(text: string)
+		local head = UITheme.Text(scroll, text, 12, pal.FText, UDim2.new(), UDim2.new(1, 0, 0, 20))
 		head.TextStrokeTransparency = 1
 		head.LayoutOrder = nextOrder()
 		head.ZIndex = 4
-		for _, rarity in ipairs(PetCatalog.Rarities) do
-			local id = PetCatalog.Id(family, rarity)
-			local row = Instance.new("Frame")
-			row.Size = UDim2.new(1, 0, 0, 32)
-			row.BackgroundColor3 = pal.Slot
-			row.BorderSizePixel = 0
-			row.LayoutOrder = nextOrder()
-			row.ZIndex = 4
-			row.Parent = scroll
-			local rc = Instance.new("UICorner")
-			rc.CornerRadius = UDim.new(0, 6)
-			rc.Parent = row
-			local nameLbl = UITheme.Text(row, string.format("%s (%s)", def.Name, PetCatalog.RarityName[rarity]), 13, pal.Text, UDim2.fromOffset(10, 0), UDim2.new(1, -86, 1, 0))
-			nameLbl.TextStrokeTransparency = 1
-			nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
-			nameLbl.ZIndex = 5
-			local tgl = Instance.new("TextButton")
-			tgl.AnchorPoint = Vector2.new(1, 0.5)
-			tgl.Position = UDim2.new(1, -6, 0.5, 0)
-			tgl.Size = UDim2.fromOffset(60, 24)
-			tgl.Font = Enum.Font.GothamBold
-			tgl.TextSize = 13
-			tgl.AutoButtonColor = true
-			tgl.BorderSizePixel = 0
-			tgl.ZIndex = 5
-			tgl.Parent = row
-			local tc = Instance.new("UICorner")
-			tc.CornerRadius = UDim.new(0, 6)
-			tc.Parent = tgl
-			local ts = Instance.new("UIStroke")
-			ts.Thickness = 1
-			ts.Parent = tgl
-			local function refresh()
-				local on = previewId() == id
-				tgl.Text = if on then "ON" else "OFF"
-				tgl.BackgroundColor3 = if on then pal.TabOn else pal.TabOff
-				tgl.TextColor3 = if on then pal.TabOnText else pal.TabOffText
-				ts.Color = if on then pal.Edge else pal.Edge2
-				row.BackgroundColor3 = if on then pal.Panel else pal.Slot
+	end
+	local function newRow(): Frame
+		local row = Instance.new("Frame")
+		row.Size = UDim2.new(1, 0, 0, 32)
+		row.BackgroundColor3 = pal.Slot
+		row.BorderSizePixel = 0
+		row.LayoutOrder = nextOrder()
+		row.ZIndex = 4
+		row.Parent = scroll
+		local rc = Instance.new("UICorner")
+		rc.CornerRadius = UDim.new(0, 6)
+		rc.Parent = row
+		return row
+	end
+	local function rowLabel(row: Frame, text: string, width: number, color: Color3)
+		local l = UITheme.Text(row, text, 12, color, UDim2.fromOffset(10, 0), UDim2.new(0, width, 1, 0))
+		l.TextStrokeTransparency = 1
+		l.TextTruncate = Enum.TextTruncate.AtEnd
+		l.ZIndex = 5
+	end
+
+	-- 1) cupones y reinicio
+	heading("CUPONES (para probar el reclutamiento)")
+	for _, rarity in ipairs(HelperCatalog.Rarities) do
+		local row = newRow()
+		local col = HelperCatalog.RarityColor[rarity]
+		rowLabel(row, "Cupón " .. HelperCatalog.RarityName[rarity], 150, col)
+		local _, s1 = mini(row, "Cupón +5", UDim2.fromOffset(84, 24), UDim2.new(1, -184, 0.5, -12), function()
+			HelperStore.Action("DevCoupon", rarity, 5)
+		end)
+		s1.Color = col
+		local _, s2 = mini(row, "Carta +1", UDim2.fromOffset(84, 24), UDim2.new(1, -94, 0.5, -12), function()
+			HelperStore.Action("DevMail", rarity, 1)
+		end)
+		s2.Color = col
+		for _, c in ipairs(row:GetChildren()) do
+			if c:IsA("TextButton") then
+				c.BackgroundColor3 = pal.TabOff
+				c.TextColor3 = pal.TabOffText
 			end
-			refresh()
-			table.insert(ptRefreshers, refresh)
-			tgl.Activated:Connect(function()
-				if not isOwnerNow() then
-					return
-				end
-				if previewId() == id then
-					player:SetAttribute("PetPreview", nil) -- OFF
-				else
-					player:SetAttribute("PetPreview", id) -- ON (apaga la anterior: solo una a la vez)
-				end
-			end)
+		end
+	end
+	do
+		local row = newRow()
+		rowLabel(row, "Reiniciar mis ayudantes y cupones", 230, Color3.fromRGB(235, 140, 90))
+		local rb, rs = mini(row, "Reiniciar", UDim2.fromOffset(84, 24), UDim2.new(1, -94, 0.5, -12), function()
+			HelperStore.Action("DevReset")
+		end)
+		rb.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+		rb.TextColor3 = Color3.new(1, 1, 1)
+		rs.Color = Color3.fromRGB(235, 140, 90)
+	end
+	local gap0 = Instance.new("Frame")
+	gap0.Size = UDim2.new(1, 0, 0, 4)
+	gap0.BackgroundTransparency = 1
+	gap0.LayoutOrder = nextOrder()
+	gap0.Parent = scroll
+
+	-- 2) todos los ayudantes: facción > rol > 5 rarezas
+	for _, faction in ipairs(HelperCatalog.Factions) do
+		heading(string.upper("Facción " .. (HelperCatalog.FactionName[faction] or faction)))
+		for _, role in ipairs(HelperCatalog.Roles) do
+			local entry = HelperCatalog.Roster[faction][role]
+			local row = newRow()
+			rowLabel(row, (HelperCatalog.RoleIcon[role] or "") .. " " .. entry.Name, 124, pal.Text)
+			for k, rarity in ipairs(HelperCatalog.Rarities) do
+				local id = HelperCatalog.Id(faction, role, rarity)
+				local col = HelperCatalog.RarityColor[rarity]
+				local btn, st = mini(row, RARITY_SHORT[rarity], UDim2.fromOffset(48, 24), UDim2.new(1, -(6 - k) * 52 - 2, 0.5, -12), function()
+					if giveMode then
+						HelperStore.Action("DevHelper", id)
+					elseif previewId() == id then
+						player:SetAttribute("HelperPreview", nil) -- OFF
+					else
+						player:SetAttribute("HelperPreview", id) -- ON (apaga el anterior: solo uno a la vez)
+					end
+				end)
+				table.insert(ptRefreshers, function()
+					local on = (not giveMode) and previewId() == id
+					btn.BackgroundColor3 = if on then col else pal.TabOff
+					btn.TextColor3 = if on then Color3.new(0, 0, 0) else col
+					st.Color = col
+				end)
+			end
 		end
 		local gap = Instance.new("Frame")
 		gap.Size = UDim2.new(1, 0, 0, 4)
@@ -529,19 +594,19 @@ local function renderPetTester()
 	end
 end
 
-local function refreshPetTester()
+local function refreshHelperTester()
 	for _, f in ipairs(ptRefreshers) do
 		f()
 	end
 end
-player:GetAttributeChangedSignal("PetPreview"):Connect(refreshPetTester)
-player:GetAttributeChangedSignal("PetPreviewLevel"):Connect(refreshPetTester)
+player:GetAttributeChangedSignal("HelperPreview"):Connect(refreshHelperTester)
+player:GetAttributeChangedSignal("HelperPreviewLevel"):Connect(refreshHelperTester)
 
-openPetTester = function()
+openHelperTester = function()
 	if not isOwnerNow() then
 		return
 	end
-	renderPetTester()
+	renderHelperTester()
 	ptGui.Enabled = true
 end
 

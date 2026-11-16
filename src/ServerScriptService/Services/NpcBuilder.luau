@@ -6,7 +6,7 @@
         local model, head = NpcBuilder.Person("Herrero", "Pirate", cf)     -- cf = centro del torso (pies a 3 studs por debajo)
     Cada pieza lleva el atributo "Grp" (Head / ArmL / ArmR / Body / LegL / LegR) para que NpcIdleClient la anime en el cliente
     (respiración, brazos, y la cabeza mira a quien se acerca). El modelo se etiqueta "NpcRig".
-    Facciones: Saiyan · Shinobi · Pirate · Shinigami. Roles: Mercader · Herrero · Alquimista · Instructor · Mayordomo.
+    Facciones: Saiyan · Shinobi · Pirate · Shinigami. Roles: Mercader · Herrero · Alquimista · Instructor · Mayordomo · Reclutador.
     Los diseños son originales (paleta de cada facción + atuendo del oficio), no copian a ningún personaje concreto.
 ]]
 local CollectionService = game:GetService("CollectionService")
@@ -63,6 +63,12 @@ local LOOKS: { [string]: { [string]: Look } } = {
 		Shinobi = { Skin = SKIN_A, Hair = c(70, 46, 36), Style = "Ponytail", Brow = "stern", Main = c(64, 92, 74), Main2 = c(56, 80, 66), Pants = c(40, 50, 90), Accent = c(220, 210, 190), Hat = "Headband" },
 		Pirate = { Skin = SKIN_C, Hair = c(232, 228, 212), Style = "Long", Brow = "stern", Main = c(236, 236, 240), Main2 = c(236, 236, 240), Pants = c(60, 60, 78), Accent = GOLD, Beard = true },
 		Shinigami = { Skin = SKIN_B, Hair = c(236, 236, 236), Style = "Wild", Brow = "stern", Main = c(30, 30, 40), Main2 = c(30, 30, 40), Pants = c(30, 30, 40), Accent = WHITE, Beard = true },
+	},
+	Reclutador = {
+		Saiyan = { Skin = SKIN_B, Hair = c(30, 30, 44), Style = "Spiky", Brow = "stern", Main = c(46, 84, 164), Main2 = c(236, 130, 42), Pants = c(34, 40, 72), Accent = GOLD },
+		Shinobi = { Skin = SKIN_A, Hair = c(96, 62, 46), Style = "Short", Brow = "kind", Main = c(54, 94, 72), Main2 = c(212, 216, 226), Pants = c(34, 40, 62), Accent = c(212, 216, 226), Hat = "Headband" },
+		Pirate = { Skin = SKIN_C, Hair = c(112, 62, 32), Style = "Short", Brow = "kind", Main = c(36, 72, 132), Main2 = c(236, 236, 240), Pants = c(56, 50, 60), Accent = GOLD, Hat = "Bandana" },
+		Shinigami = { Skin = SKIN_A, Hair = c(236, 236, 246), Style = "Long", Brow = "stern", Main = c(28, 28, 38), Main2 = c(72, 56, 112), Pants = c(28, 28, 38), Accent = c(172, 122, 255) },
 	},
 	Mayordomo = {
 		Saiyan = { Skin = SKIN_A, Hair = c(46, 40, 40), Style = "Short", Brow = "kind", Main = c(110, 40, 70), Main2 = c(110, 40, 70), Pants = c(40, 34, 44), Accent = GOLD },

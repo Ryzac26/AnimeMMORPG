@@ -43,7 +43,7 @@ local function boostMult(pl: Player): number
 	return mult
 end
 
--- Mascota Búho (XP): GearService se carga al usarlo, igual que BoostService
+-- (LEGADO) bono de XP de la mascota Búho: ya no hay mascotas, devuelve 1. GearService se carga al usarlo, igual que BoostService
 local function petXpMult(pl: Player): number
 	local ok, gs = pcall(function()
 		return require(Services.GearService)
@@ -52,6 +52,17 @@ local function petXpMult(pl: Player): number
 		return gs.XpMult(pl)
 	end
 	return 1
+end
+
+-- AYUDANTES: cada ayudante equipado recibe el 10% de la XP que ganas (EXTRA: no te la descuenta). HelperService se carga al usarlo.
+local function giveXp(pl: Player, amount: number)
+	LevelService.AddXp(pl, amount)
+	local ok, hs = pcall(function()
+		return require(Services.HelperService)
+	end)
+	if ok and type(hs) == "table" and hs.ShareXp then
+		hs.ShareXp(pl, amount)
+	end
 end
 
 local RewardService = {}
@@ -126,7 +137,7 @@ function RewardService.OnMobKilled(mob: Model, mobId: string, level: number, isB
 		end
 		local xp = math.floor(GB.BossXp(level) * (xpMult or 1))
 		for _, pl in ipairs(participants) do
-			LevelService.AddXp(pl, math.floor(xp * boostMult(pl) * petXpMult(pl) * gapMult(pl, level)))
+			giveXp(pl, math.floor(xp * boostMult(pl) * petXpMult(pl) * gapMult(pl, level)))
 			Net.Get("Notify"):FireClient(pl, string.format("Jefe derrotado: +%d XP", xp))
 		end
 		-- El botín del jefe (reparto garantizado + sorteo) lo hace LootService con MobKilled; ya no se elige un único ganador aquí.
@@ -135,7 +146,7 @@ function RewardService.OnMobKilled(mob: Model, mobId: string, level: number, isB
 		for pl, share in pairs(cShares) do
 			if pl.Parent then
 				table.insert(participants, pl)
-				LevelService.AddXp(pl, math.max(1, math.floor(xp * share * boostMult(pl) * petXpMult(pl) * gapMult(pl, level))))
+				giveXp(pl, math.max(1, math.floor(xp * share * boostMult(pl) * petXpMult(pl) * gapMult(pl, level))))
 			end
 		end
 	end

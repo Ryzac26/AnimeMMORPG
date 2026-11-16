@@ -32,6 +32,7 @@ require(Services:WaitForChild("HerreroService")) -- herrero de cada ciudad: mejo
 require(Services:WaitForChild("BlessingService")) -- bendiciones de facción de pago (Tienda)
 require(Services:WaitForChild("PurchaseService")) -- compras repetibles: boost de XP y paquetes de horas (Tienda)
 require(Services:WaitForChild("InstructorService")) -- instructor de cada ciudad: cambio de clase gratis
+require(Services:WaitForChild("ReclutadorService")) -- reclutador de ayudantes (gacha con cupones) junto al instructor de cada ciudad
 require(Services:WaitForChild("MercaderService")) -- mercader de cada ciudad: compra pociones, vende botín
 require(Services:WaitForChild("MissionService")) -- misiones del Pabellón VIP (NPC en cada ciudad) y marcos de perfil
 require(Services:WaitForChild("HouseService")) -- Casa VIP (Pabellón Imperial): portal, salón privado, baúl, invitados
@@ -66,8 +67,8 @@ require(Services:WaitForChild("BiomeLandmarks")) -- hitos temáticos: un monumen
 require(Services:WaitForChild("DungeonService")) -- cuevas (mazmorras) por franja: portales, 2 pisos, 3 salas al azar, entradas diarias
 require(Services:WaitForChild("AfkZoneService")) -- Campo de Entrenamiento (farmeo AFK): portal en cada ciudad, cápsulas lejanas, solo o en grupo (necesita DungeonService y PartyService)
 require(Services:WaitForChild("DamageRankService")) -- ranking de daño en pantalla para jefes, mini jefes y Metin
-require(Services:WaitForChild("PetPowerService")) -- poderes de las mascotas Épicas, Legendarias y Míticas
-require(Services:WaitForChild("PetService")) -- alimentar mascotas: suben de nivel 1..10 (Plus de la mascota)
+require(Services:WaitForChild("HelperService")) -- AYUDANTES DE COMBATE (reemplazan a las mascotas): colección, ranuras, cupones, XP, equipo, efectos
+require(Services:WaitForChild("PetPowerService")) -- poderes de los ayudantes de combate (solo PvE)
 require(Services:WaitForChild("SettingsService")) -- ajustes del jugador (ocultar mascotas) guardados en el perfil
 require(Services:WaitForChild("MountService")) -- monturas: huevos, incubadora, eclosión, montar y pasivas
 require(Services:WaitForChild("IncubatorService")) -- incubadora de cada ciudad (junto al Mercader)

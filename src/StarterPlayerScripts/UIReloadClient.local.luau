@@ -8,7 +8,7 @@
 local Players = game:GetService("Players")
 
 local player = Players.LocalPlayer
-local RELOAD = { "HudClient", "AutoFarmClient", "BoostClient", "PartyClient", "InventoryClient", "CharacterClient", "ShrineClient", "MobileClient", "SmithClient", "GearAlertClient", "ShopClient", "ClassChangeClient", "TiendaClient", "AlquimiaClient", "BossBarClient", "DeathScreenClient", "DamageRankClient", "SettingsClient", "PetClient", "MountClient", "MasteryClient", "GuildClient", "HouseClient", "MissionClient", "SkillsClient", "ProbabilityClient", "TitleClient", "MilestoneClient", "TalentClient", "VipShopClient", "ReportClient", "BlessMailClient", "UpdateNoticeClient", "DungeonPanelClient", "AfkClient" }
+local RELOAD = { "HudClient", "AutoFarmClient", "BoostClient", "PartyClient", "InventoryClient", "CharacterClient", "ShrineClient", "MobileClient", "SmithClient", "GearAlertClient", "ShopClient", "ClassChangeClient", "TiendaClient", "AlquimiaClient", "BossBarClient", "DeathScreenClient", "DamageRankClient", "SettingsClient", "HelperClient", "RecruitClient", "MountClient", "MasteryClient", "GuildClient", "HouseClient", "MissionClient", "SkillsClient", "ProbabilityClient", "TitleClient", "MilestoneClient", "TalentClient", "VipShopClient", "ReportClient", "BlessMailClient", "UpdateNoticeClient", "DungeonPanelClient", "AfkClient" }
 local KEEP_GUIS = { ClassSelect = true, ClassSelectGui = true, PatchNotesGui = true, PatchNotes = true, LoadingScreen = true, TouchGui = true, PanelFundador = true, GlobalRankGui = true, BetaBannerGui = true }
 
 local token = 0

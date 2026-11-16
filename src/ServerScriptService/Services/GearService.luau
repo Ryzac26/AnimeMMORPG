@@ -23,7 +23,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local ItemCatalog = require(ReplicatedStorage.Modules.ItemCatalog)
-local PetCatalog = require(ReplicatedStorage.Modules.PetCatalog)
 local GearCatalog = require(ReplicatedStorage.Modules.GearCatalog)
 local PlayerClass = require(ReplicatedStorage.Modules.PlayerClass)
 local ClassStats = require(ReplicatedStorage.Modules.ClassStats)
@@ -64,7 +63,6 @@ local function compute(player: Player): Stats
 	local themeItems: { any } = {}
 	local jewelItems: { any } = {}
 
-	local petFamilies: { [string]: boolean } = {}
 	for _, slot in ipairs(ItemCatalog.EquipSlots) do
 		local id = player:GetAttribute("Equip_" .. slot)
 		local item: any = if typeof(id) == "string" then (ItemCatalog.Items :: any)[id] else nil
@@ -99,21 +97,9 @@ local function compute(player: Player): Stats
 						table.insert(jewelItems, item)
 					end
 				end
-			elseif item.Pet then
-				-- la mascota de facción solo vale para su facción; el nivel (Plus) multiplica los efectos
-				local fOk = typeof(item.Faction) ~= "string" or item.Faction == faction
-				if fOk and petFamilies[item.Pet.Family] then
-					fOk = false -- dos mascotas de la misma familia no se suman
-				end
-				if fOk then
-					petFamilies[item.Pet.Family] = true
-					local plus = player:GetAttribute("EquipPlus_" .. slot)
-					local mult = PetCatalog.LevelMult(if typeof(plus) == "number" then plus else 0)
-					for effect, v in pairs(item.Pet.Effects) do
-						pet[effect] = (pet[effect] or 0) + v * mult
-					end
-				end
 			end
+			-- LEGADO: las mascotas (item.Pet) ya no dan nada; se canjean por cupones de ayudante en el Reclutador.
+			-- Los ayudantes aportan sus efectos por GearService.SetTemp(player, stats, "Helpers") (HelperService).
 		end
 	end
 

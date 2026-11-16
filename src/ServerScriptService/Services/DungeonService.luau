@@ -62,6 +62,7 @@ local DungeonNav = require(Services.DungeonNav)
 local Wallet = require(Services.WalletService)
 local Inventory = require(Services.InventoryService)
 local GearService = require(Services.GearService)
+local HelperService = require(Services.HelperService)
 
 local CONFIG = {
 	-- PRUEBAS
@@ -877,6 +878,10 @@ local function grantChest(pl: Player, inst: Inst, tier: string, title: string)
 		local id = LootTables.RollGear(faction, role, level, gearW, lootRng, nil, upgraded)
 		if id then
 			give(id, 1, if upgraded then LootTables.Count(LootTables.MapChest.UpgradedPlus, lootRng) else nil, true)
+			local bonus = HelperService.RollBonusGear(pl, id) -- bono AYUDANTES: otra pieza para el rol de un ayudante equipado
+			if bonus then
+				give(bonus, 1, nil, true)
+			end
 			if upgraded then
 				notify(pl, "✨ ¡Cofre MEJORADO! El equipo subió de rareza y viene con mejora")
 			end
@@ -889,7 +894,8 @@ local function grantChest(pl: Player, inst: Inst, tier: string, title: string)
 		rollGear()
 	end
 	if T.Pet > 0 and lootRng:NextNumber() < chance(T.Pet) then
-		give(LootTables.RollPet(if tier == "Final" then LootTables.EliteBoss.PetRarity else LootTables.MiniBoss.PetRarity, lootRng, faction), 1, nil, true)
+		-- CUPÓN de reclutamiento (antes mascota): llega a la carta, con tope diario por rareza
+		HelperService.DropCoupon(pl, LootTables.RollCoupon(if tier == "Final" then LootTables.EliteBoss.PetRarity else LootTables.MiniBoss.PetRarity, lootRng), "Cofre")
 	end
 
 	local head = "🎁 " .. title

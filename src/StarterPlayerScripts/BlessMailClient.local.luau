@@ -5,11 +5,14 @@
     que se le devolvió al cerrarse un servidor (atributo del jugador "BlessMail", lo pone BlessingService). Al abrirla, cada bendición
     tiene su botón RECLAMAR: el tiempo vuelve a ser una bendición de toda su facción. Si no queda nada, la carta desaparece.
     Si la misma bendición ya está activa en su facción, el servidor le avisa que espere a que termine.
+    También llegan aquí los CUPONES de reclutamiento (atributo "HelperMail", lo pone HelperService): una fila con RECLAMAR que los pasa a tu
+    reserva para gastarlos en el Reclutador de la ciudad.
     IMPORTANTE: está en la lista RELOAD de UIReloadClient.
 ]]
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
@@ -18,6 +21,11 @@ if not claimR then
 	return
 end
 local houseR = ClientNet.Get("HouseAction") -- para "Suscribirme" desde la carta del Pabellón
+local HelperCatalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("HelperCatalog"))
+local helperR = nil -- HelperAction (reclamar cupones); se resuelve aparte para no frenar la carta
+task.spawn(function()
+	helperR = ClientNet.Get("HelperAction")
+end)
 
 local BG, PANEL, ACCENT, TXT, GREY = Color3.fromRGB(24, 24, 34), Color3.fromRGB(38, 38, 52), Color3.fromRGB(235, 175, 60), Color3.fromRGB(235, 235, 240), Color3.fromRGB(160, 164, 184)
 local LETTER_POS = UDim2.new(1, -92, 0, 206) -- debajo del botón REPORTAR (que está en 1,-92 / 0,172)
@@ -135,13 +143,31 @@ local function render()
 			house = dec
 		end
 	end
-	local hasMail = #data > 0 or house ~= nil
+	-- cupones de reclutamiento por reclamar (JSON { [rareza] = cantidad })
+	local coupons = {}
+	local couponTotal = 0
+	local craw = player:GetAttribute("HelperMail")
+	if typeof(craw) == "string" and craw ~= "" then
+		local ok, dec = pcall(function()
+			return HttpService:JSONDecode(craw)
+		end)
+		if ok and typeof(dec) == "table" then
+			for _, r in ipairs(HelperCatalog.Rarities) do
+				local n = dec[r]
+				if typeof(n) == "number" and n > 0 then
+					table.insert(coupons, { r = r, n = math.floor(n) })
+					couponTotal += math.floor(n)
+				end
+			end
+		end
+	end
+	local hasMail = #data > 0 or house ~= nil or couponTotal > 0
 	letter.Visible = true
 	letter.BackgroundColor3 = if hasMail then ACCENT else PANEL
 	letter.TextColor3 = if hasMail then Color3.fromRGB(40, 28, 6) else GREY
 	letter.Text = if hasMail then "✉ CARTA" else "✉ sin cartas"
 	if not hasMail then
-		intro.Text = "No tienes cartas por ahora. Aquí te avisamos de bendiciones por reclamar y recordatorios de tu Casa VIP."
+		intro.Text = "No tienes cartas por ahora. Aquí te avisamos de bendiciones, cupones de reclutamiento por reclamar y recordatorios de tu Casa VIP."
 		intro.Size = UDim2.new(1, -32, 0, 48)
 		list.Position = UDim2.fromOffset(16, 94)
 		win.Size = UDim2.fromOffset(440, 110)
@@ -149,10 +175,11 @@ local function render()
 	end
 	intro.Text = if #data > 0
 		then "El servidor se cerró y te quedó tiempo de bendición de facción. Al reclamarlo vuelve a activarse para toda tu facción. Si tu facción ya tiene esa misma bendición activa, espera a que termine."
-		else "Tienes un aviso de tu Casa VIP."
+		elseif house then "Tienes un aviso de tu Casa VIP."
+		else "Tienes cupones de reclutamiento. Reclámalos y gástalos en el Reclutador de la ciudad."
 	intro.Size = if #data > 0 then UDim2.new(1, -32, 0, 48) else UDim2.new(1, -32, 0, 20)
 	list.Position = if #data > 0 then UDim2.fromOffset(16, 94) else UDim2.fromOffset(16, 66)
-	win.Size = UDim2.fromOffset(440, (if #data > 0 then 110 else 82) + 64 * (#data + (if house then 1 else 0)))
+	win.Size = UDim2.fromOffset(440, (if #data > 0 then 110 else 82) + 64 * (#data + (if house then 1 else 0) + (if couponTotal > 0 then 1 else 0)))
 	if house then
 		local row = Instance.new("Frame")
 		row.BackgroundColor3 = PANEL
@@ -176,6 +203,35 @@ local function render()
 			if houseR then
 				houseR:FireServer("BuySub")
 			end
+		end)
+	end
+	if couponTotal > 0 then
+		local row = Instance.new("Frame")
+		row.BackgroundColor3 = PANEL
+		row.Size = UDim2.new(1, 0, 0, 58)
+		row.LayoutOrder = 100
+		row.Parent = list
+		corner(row, 8)
+		label(row, string.format("🎟 Cupones de reclutamiento (%d)", couponTotal), 14, UDim2.fromOffset(10, 4), UDim2.new(1, -120, 0, 20), TXT, true)
+		local parts = {}
+		for _, c in ipairs(coupons) do
+			table.insert(parts, string.format("%d %s", c.n, HelperCatalog.RarityName[c.r]))
+		end
+		label(row, table.concat(parts, " · ") .. ". Se gastan en el Reclutador.", 11, UDim2.fromOffset(10, 26), UDim2.new(1, -120, 0, 28), GREY)
+		local claimC = button(row, "RECLAMAR", UDim2.new(1, -104, 0.5, -16), UDim2.fromOffset(94, 32), Color3.fromRGB(60, 150, 80))
+		claimC.Activated:Connect(function()
+			if not helperR then
+				return
+			end
+			claimC.Active = false
+			claimC.Text = "..."
+			helperR:FireServer("ClaimMail", "all")
+			task.delay(2, function()
+				if claimC.Parent then
+					claimC.Active = true
+					claimC.Text = "RECLAMAR"
+				end
+			end)
 		end)
 	end
 	for i, e in ipairs(data) do
@@ -211,4 +267,5 @@ letter.Activated:Connect(function()
 end)
 player:GetAttributeChangedSignal("BlessMail"):Connect(render)
 player:GetAttributeChangedSignal("HouseSubMail"):Connect(render)
+player:GetAttributeChangedSignal("HelperMail"):Connect(render)
 render()

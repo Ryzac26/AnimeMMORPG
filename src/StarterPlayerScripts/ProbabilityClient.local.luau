@@ -1,9 +1,9 @@
 --!strict
 --[[
     ProbabilityClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > ProbabilityClient
-    Ventana "PROBABILIDADES": muestra las tasas REALES del juego (botín de monstruos, jefes, Metin, cofres, huevos de monturas,
-    mejora del equipo y desmontaje). No tiene números propios: lee los mismos catálogos que usa el servidor
-    (LootTables, MetinCatalog, MountCatalog, EnhanceCatalog, AlchemyCatalog), así que si rebalanceas, esta ventana se actualiza sola.
+    Ventana "PROBABILIDADES": muestra las tasas REALES del juego (botín de monstruos, jefes, Metin, cofres, cupones y
+    reclutamiento de ayudantes, mejora del equipo y desmontaje). No tiene números propios: lee los mismos catálogos que usa el servidor
+    (LootTables, MetinCatalog, HelperCatalog, EnhanceCatalog, AlchemyCatalog), así que si rebalanceas, esta ventana se actualiza sola.
     Se abre desde Ajustes ("Ver probabilidades") con MenuBus "Probs". IMPORTANTE: está en la lista RELOAD de UIReloadClient.
 ]]
 local Players = game:GetService("Players")
@@ -17,7 +17,7 @@ local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 local LootTables: any = require(Modules:WaitForChild("LootTables", 10))
 local MetinCatalog: any = require(Modules:WaitForChild("MetinCatalog", 10))
-local MountCatalog: any = require(Modules:WaitForChild("MountCatalog", 10))
+local HelperCatalog: any = require(Modules:WaitForChild("HelperCatalog", 10))
 local EnhanceCatalog: any = require(Modules:WaitForChild("EnhanceCatalog", 10))
 local AlchemyCatalog: any = require(Modules:WaitForChild("AlchemyCatalog", 10))
 
@@ -175,14 +175,14 @@ local SECTIONS: { Section } = {
 					kv("   · si cae objeto: consumible", pct(iw.Consumible or 0)),
 					kv("   · si cae objeto: material", pct(iw.Material or 0)),
 					kv("Gema Menor (mejora +1 a +5)", frac(m.MinorGemChance)),
-					kv("Mascota", frac(m.PetChance)),
+					kv("Cupón de reclutamiento", frac(m.PetChance)),
 					kv("Llave de cofre (con tope diario)", frac(LootTables.KeyDrop.Mob)),
 				}),
 				H("Equipo: probabilidad de que caiga"),
 				T(stripCols("Dato"), { perStrip("Equipo por kill", m.GearChanceByStrip) }),
 				H("Equipo: rareza si cae"),
 				rarityByStrip(m.GearRarity),
-				H("Mascota: rareza si cae"),
+				H("Cupón: rareza si cae"),
 				rarityList(m.PetRarity),
 				P("Las 4 facciones comparten estas tablas: no dependen de tu facción."),
 			}
@@ -201,14 +201,14 @@ local SECTIONS: { Section } = {
 				}),
 				T({ "Premio", "Probabilidad" }, {
 					kv("Gema Menor", frac(m.GemChance)),
-					kv("Mascota", frac(m.PetChance)),
+					kv("Cupón de reclutamiento", frac(m.PetChance)),
 					kv("Llave de cofre", frac(LootTables.KeyDrop.Mini)),
 					kv("Material de franja (garantizado)", range(m.StripCount)),
 					kv("Fragmentos de armadura (garantizado)", range(m.FragmentCount)),
 				}),
 				H("Equipo: rareza si cae"),
 				rarityByStrip(m.GearRarity),
-				H("Mascota: rareza si cae"),
+				H("Cupón: rareza si cae"),
 				rarityList(m.PetRarity),
 			}
 		end,
@@ -226,8 +226,8 @@ local SECTIONS: { Section } = {
 				}),
 				H("Equipo del sorteo: rareza"),
 				rarityByStrip(e.PrizeRarity),
-				T({ "Premio extra", "Probabilidad" }, { kv("Mascota", frac(e.PetChance)) }),
-				H("Mascota: rareza si cae"),
+				T({ "Premio extra", "Probabilidad" }, { kv("Cupón de reclutamiento", frac(e.PetChance)) }),
+				H("Cupón: rareza si cae"),
 				rarityList(e.PetRarity),
 			}
 		end,
@@ -241,8 +241,8 @@ local SECTIONS: { Section } = {
 				P(string.format("Sorteo entre quienes participaron: ganan el %s (mínimo %d, máximo %d). Todos reciben Escamas del Titán (%s).", frac(w.WinnerFraction), w.MinWinners, w.MaxWinners, range(w.ScaleCount))),
 				H("Equipo del sorteo: rareza"),
 				rarityList(w.PrizeRarity),
-				T({ "Premio extra", "Probabilidad" }, { kv("Mascota", frac(w.PetChance)) }),
-				H("Mascota: rareza si cae"),
+				T({ "Premio extra", "Probabilidad" }, { kv("Cupón de reclutamiento", frac(w.PetChance)) }),
+				H("Cupón: rareza si cae"),
 				rarityList(w.PetRarity),
 			}
 		end,
@@ -270,7 +270,7 @@ local SECTIONS: { Section } = {
 					kv("Gema Mayor", frac(m.GemChance)),
 					kv("Cofre (tirada extra de equipo)", frac(m.ChestChance)),
 					kv("Emblema de tu facción", frac(m.EmblemChance)),
-					kv("Mascota", frac(m.PetChance)),
+					kv("Cupón de reclutamiento", frac(m.PetChance)),
 				}),
 			}
 			for _, r in ipairs(MetinCatalog.Rarities) do
@@ -316,33 +316,46 @@ local SECTIONS: { Section } = {
 				T(stripCols("Dato"), { perStrip("Equipo", ch.GearChance) }),
 				T({ "Premio", "Probabilidad" }, {
 					kv("Gema Menor", frac(ch.GemChance)),
-					kv("Mascota", frac(ch.PetChance)),
+					kv("Cupón de reclutamiento", frac(ch.PetChance)),
 				}),
 				rarityByStrip(ch.GearRarity),
-				H("Mascota (desafío): rareza si cae"),
+				H("Cupón (desafío): rareza si cae"),
 				rarityList(ch.PetRarity),
 			}
 		end,
 	},
 	{
-		Id = "egg", Title = "🥚 Huevos de monturas",
+		Id = "egg", Title = "🛡 Reclutamiento",
 		Build = function()
 			local rows: { { Cell } } = {}
-			for _, egg in ipairs(MountCatalog.Eggs) do
-				local row: { Cell } = { cell(egg.Name, RARITY_COLOR[egg.Rarity]) }
+			for _, r in ipairs(RARITIES) do
+				local c = HelperCatalog.Coupons[r]
+				local row: { Cell } = { cell(c.Name, RARITY_COLOR[r]) }
 				for i = 1, 5 do
-					local v = egg.Odds[i] or 0
+					local v = c.Odds[i] or 0
 					table.insert(row, cell(if v > 0 then pct(v) else "—", if v > 0 then nil else Color3.fromRGB(120, 120, 130)))
 				end
-				table.insert(row, cell(string.format("%d h", egg.Hours)))
 				table.insert(rows, row)
 			end
-			local pity = MountCatalog.Pity
+			local pityRows: { { Cell } } = {}
+			local capRows: { { Cell } } = {}
+			for _, r in ipairs(RARITIES) do
+				local c = HelperCatalog.Coupons[r]
+				if c.Pity then
+					table.insert(pityRows, kv(c.Name, string.format("cada %d reclutamientos sin %s o mejor, el siguiente lo trae", c.Pity.Every, RARITY_NAME[c.Pity.Min])))
+				end
+				table.insert(capRows, kv(c.Name, string.format("%d por día", HelperCatalog.DailyCouponCap[r] or 0)))
+			end
 			return {
-				H("Rareza de la montura según el huevo"),
-				T({ "Huevo", "Común", "Raro", "Épico", "Legend.", "Mítico", "Incuba" }, rows),
+				H("Rareza del ayudante según el cupón"),
+				T({ "Cupón", "Común", "Raro", "Épico", "Legend.", "Mítico" }, rows),
+				P("Cada fila suma 100 %. Un ayudante repetido sube una estrella (hasta 5); con 5 estrellas se convierte en oro. El ayudante es siempre de tu facción."),
 				H("Garantía (mala racha)"),
-				P(string.format("Si abres %d huevos seguidos sin conseguir Raro o mejor, el siguiente lo trae. Igual con Épico a los %d y Legendario a los %d.", pity.Raro, pity.Epico, pity.Legendario)),
+				T({ "Cupón", "Garantía" }, pityRows),
+				P("La racha se cuenta por tipo de cupón y se reinicia al conseguir la rareza garantizada."),
+				H("Cupones que caen jugando (tope por día)"),
+				T({ "Cupón", "Máximo" }, capRows),
+				P("Los cupones caen de monstruos, jefes, cofres y cuevas, y te llegan por la carta (✉). El tope se reinicia a la misma hora que los demás topes diarios del juego."),
 			}
 		end,
 	},
@@ -395,7 +408,7 @@ local SECTIONS: { Section } = {
 		Build = function()
 			return {
 				H("Suerte de botín"),
-				P("La Suerte (por ejemplo la del Zorro de la Suerte o el Lobo Sombra) multiplica las probabilidades de objetos, equipo, gemas y mascotas. No afecta al oro ni a lo garantizado."),
+				P("La Suerte (por ejemplo la del Zorro de la Suerte o el Lobo Sombra) multiplica las probabilidades de objetos, equipo, gemas y cupones. No afecta al oro ni a lo garantizado."),
 				H("Cómo leer esta ventana"),
 				P("Las probabilidades son por intento y siempre sobre las tablas reales del juego. Las rarezas se reparten entre sí: por ejemplo, en la tabla de rareza de equipo todas las filas suman 100 %."),
 				P("Los premios garantizados (material, fragmentos, Escamas) no dependen de la suerte."),

@@ -7,7 +7,7 @@
         pasa al buzón de la ciudad y para volver a tenerla hay que pagar de nuevo el pase (si aún quedan casas). Atributo del jugador: House_Active.
       - Portal en la plaza de cada ciudad (CityStyler llama AddCityPortal). El dueño entra a SU casa; un invitado entra a la del que lo invitó.
       - La casa se construye lejos del mapa (en lo alto) cuando el dueño entra por primera vez y se borra cuando él sale del servidor.
-        Dentro: portal de SALIDA, BAÚL (solo el dueño lo abre), TABLÓN de invitados (solo el dueño) y rincón de mascotas (próximamente).
+        Dentro: portal de SALIDA, BAÚL (solo el dueño lo abre), TABLÓN de invitados (solo el dueño) y cabaña de ayudantes.
       - Invitados: pueden entrar, mirar y salir. Nada más: todos los prompts comprueban que sea el dueño. Invitar/expulsar: ventana (HouseClient).
       - Baúl: se guarda en el perfil (sección "House" = { V = { ["slot"] = {Id, Count, Plus, Locked} } }). Sin pase se conserva, pero no se abre.
       - Remotes: HouseOpen (servidor -> cliente: abre la ventana) · HouseState · HouseAction ("State" | "Deposit" | "Withdraw" | "Invite" | "Uninvite" | "Exit" | "BuySub").
@@ -50,7 +50,7 @@ local ORIGIN = Vector3.new(40000, 500, 40000) -- cuadrícula de casas MUY lejos 
 local SPACING = 260
 
 type Stack = { Id: string, Count: number, Plus: number?, Locked: boolean? }
-type House = { Owner: Player, Slot: number, Origin: Vector3, Model: Model, Garden: Vector3, Bulbs: { Part } }
+type House = { Owner: Player, Slot: number, Origin: Vector3, Model: Model, Garden: Vector3, Bulbs: { Part }, Spots: { Vector3 } }
 
 local HouseService = {}
 local houses: { [Player]: House } = {}
@@ -375,8 +375,15 @@ local function buildMailbox(parent: Instance, base: CFrame, faction: string): Pa
 	return box
 end
 
+local function clearHelperHomes(player: Player)
+	for i = 1, 3 do
+		player:SetAttribute("HelperHome" .. i, nil)
+	end
+end
+
 local function exitHouse(player: Player)
 	inside[player] = nil
+	clearHelperHomes(player) -- los ayudantes vuelven a seguirte
 	player:SetAttribute("InHouse", nil)
 	player:SetAttribute("HouseNight", nil)
 	local cf = returnCF[player]
@@ -544,7 +551,7 @@ local function buildHouse(owner: Player): House?
 		buildPush(pl)
 	end)
 
-	-- JARDÍN DE MASCOTAS (norte, cielo abierto): césped, estanque, árboles, valla y la caseta donde se sueltan / se agarran
+	-- JARDÍN (norte, cielo abierto): césped, estanque, árboles, valla y la CABAÑA DE AYUDANTES (donde descansan tus ayudantes al entrar a tu casa)
 	local GZ = 42 -- centro del jardín en z
 	part(m, "Cesped", Vector3.new(W - 6, 0.4, 46 + GARDEN_E), at(0, 1.2, 45 + GARDEN_E / 2), Color3.fromRGB(86, 150, 78), Enum.Material.Grass)
 	local pond = part(m, "Estanque", Vector3.new(24, 0.3, 16), at(-30, 1.45, GZ + 14), Color3.fromRGB(70, 150, 210), Enum.Material.Glass)
@@ -553,15 +560,13 @@ local function buildHouse(owner: Player): House?
 		part(m, "Valla" .. i, Vector3.new(2, 4, 2), at(i * 18, 3, 12), wood, Enum.Material.Wood)
 	end
 	part(m, "VallaTravesano", Vector3.new(W - 6, 0.8, 0.8), at(0, 4.2, 12), wood, Enum.Material.Wood)
-	local hut = HouseProps.Hut(m, o, GZ)
-	prompt(hut, "Mascotas y monturas", "Caseta de animales", Enum.KeyCode.E, 0.4, function(pl)
+	local hut, helperSpots = HouseProps.Hut(m, o, GZ)
+	prompt(hut, "Ver ayudantes", "Cabaña de ayudantes", Enum.KeyCode.E, 0.4, function(pl)
 		if pl ~= owner then
-			say(pl, "Solo el dueño puede soltar o agarrar sus animales.")
+			say(pl, "Es la cabaña de ayudantes de " .. owner.DisplayName .. ".")
 			return
 		end
-		pl:SetAttribute("PetsHomeR", 48)
-		OpenRemote:FireClient(pl, "Animals")
-		buildPush(pl)
+		OpenRemote:FireClient(pl, "Helpers")
 	end)
 	local okDecor, errDecor = pcall(HouseDecor.Build, m, o, W, H, GZ, FACTION_COLORS[tostring(owner:GetAttribute("Faction"))] or gold, owner.DisplayName, GARDEN_E)
 	if not okDecor then
@@ -571,7 +576,7 @@ local function buildHouse(owner: Player): House?
 	placedFolder.Name = "Placed"
 	placedFolder.Parent = m
 	m.Parent = Workspace
-	local h: House = { Owner = owner, Slot = slot, Origin = o, Model = m, Garden = at(0, 1.6, GZ + 6 + GARDEN_E / 2), Bulbs = bulbs }
+	local h: House = { Owner = owner, Slot = slot, Origin = o, Model = m, Garden = at(0, 1.6, GZ + 6 + GARDEN_E / 2), Bulbs = bulbs, Spots = helperSpots }
 	houses[owner] = h
 	if not decorSeeded[owner] then
 		-- primera vez: el salón y el jardín se amueblan con la distribución inicial (muebles normales, editables)
@@ -607,6 +612,12 @@ local function enterHouse(player: Player, host: Player)
 	player:SetAttribute("HouseNight", nightOf[host] == true)
 	player:SetAttribute("InHouse", true)
 	moveTo(player, CFrame.new(h.Origin + Vector3.new(0, 5, -54)) * CFrame.Angles(0, math.rad(180), 0))
+	if player == host then
+		-- los ayudantes del dueño van solos a la cabaña (HelperFollowClient lee HelperHome1..3)
+		for i, spot in ipairs(h.Spots) do
+			player:SetAttribute("HelperHome" .. i, spot)
+		end
+	end
 	if player ~= host then
 		say(host, player.DisplayName .. " entró a tu casa.")
 	end
@@ -623,6 +634,7 @@ local function closeHouse(owner: Player)
 			say(pl, "El dueño se fue: la casa se cerró.")
 		end
 	end
+	clearHelperHomes(owner)
 	owner:SetAttribute("PetsHome1", nil)
 	owner:SetAttribute("PetsHome2", nil)
 	owner:SetAttribute("MountHome", nil)
@@ -635,13 +647,6 @@ end
 ---------------------------------------------------------------------
 -- Portal de la ciudad
 ---------------------------------------------------------------------
-local function player_grabAll(pl: Player)
-	pl:SetAttribute("PetsHome1", nil)
-	pl:SetAttribute("PetsHome2", nil)
-	setMountKeys(pl, {})
-	say(pl, "Tus animales volvieron contigo.")
-end
-
 function HouseService.AddCityPortal(faction: string, pos: Vector3, facing: Vector3?)
 	if portals[faction] then
 		return
@@ -667,13 +672,6 @@ function HouseService.AddCityPortal(faction: string, pos: Vector3, facing: Vecto
 	-- PORTAL de la Casa VIP (marco + remolino con la imagen de la facción)
 	local _, pad = buildGate(Workspace, baseAt(pos), faction, 1.15, "PABELLÓN IMPERIAL")
 	pad.Name = "Portal_CasaVIP_" .. faction
-	-- recoger todos los animales sueltos desde la ciudad
-	local grabPrompt = prompt(pad, "Agarrar animales", "Casa VIP", Enum.KeyCode.F, 0.4, function(pl)
-		if houses[pl] then
-			player_grabAll(pl)
-		end
-	end)
-	grabPrompt.UIOffset = Vector2.new(0, -90) -- que no se encime con "Entrar"
 	prompt(pad, "Entrar", "Casa VIP", Enum.KeyCode.E, 0.6, function(pl)
 		if pl:GetAttribute("Faction") ~= faction then
 			say(pl, "Este portal es de la facción " .. faction .. ".")

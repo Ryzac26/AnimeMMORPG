@@ -3,8 +3,8 @@
     CharacterClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > CharacterClient
     PERFIL DEL PERSONAJE (tecla C), inspirado en la ventana de equipo de Metin2:
       - Centro: miniatura 3D del personaje con TODO lo que lleva puesto (se gira arrastrando)
-      - Ranuras alrededor: Casco, Armadura, Arma, Escudo, Zapatos, Cinturón | Collar, Pendientes, Brazalete, Anillo, 2 accesorios
-      - Fila inferior: Capa, Alas, Montura, Traje (skin)
+      - Ranuras alrededor: Casco, Armadura, Arma, Escudo, Zapatos, Cinturón | Collar, Pendientes, Brazalete, Anillo, Emblema
+      - Fila inferior: Capa, Alas, Traje (skin), Anillo 2 + botón "Ayudantes" (abre la ventana de ayudantes de combate)
       - Derecha: estadísticas (nivel, vida, energía, daño, defensa, velocidad, bonus del equipo)
     Clic en una ranura ocupada = desequipar (vuelve a la mochila).
 ]]
@@ -31,7 +31,6 @@ local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet", 10))
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 local ItemIcon = require(script.Parent:WaitForChild("ItemIcon", 10))
-local MountCatalog = require(Modules:WaitForChild("MountCatalog", 10))
 local BagDock = require(script.Parent:WaitForChild("BagDock", 10))
 
 local gui = Instance.new("ScreenGui")
@@ -54,8 +53,9 @@ local dragging = false
 local clone: Model? = nil
 
 local LEFT = { "Casco", "Armadura", "Arma", "Escudo", "Zapatos", "Cinturon" }
-local RIGHT = { "Collar", "Pendientes", "Brazalete", "Anillo", "Accesorio1", "Accesorio2" }
-local BOTTOM = { "Capa", "Alas", "Montura", "Traje", "Anillo2", "Accesorio3" }
+-- (las ranuras de Mascota -Accesorio2/3- ya no se dibujan: las mascotas se cambiaron por ayudantes de combate)
+local RIGHT = { "Collar", "Pendientes", "Brazalete", "Anillo", "Accesorio1" }
+local BOTTOM = { "Capa", "Alas", "Traje", "Anillo2" }
 
 local function makeSlot(slotName: string, pos: UDim2, size: UDim2, parent: Instance)
 	local pal = NpcKit.Palette(theme)
@@ -78,14 +78,10 @@ local function makeSlot(slotName: string, pos: UDim2, size: UDim2, parent: Insta
 	label.TextStrokeTransparency = 1
 	label.ZIndex = 6
 	b.Activated:Connect(function()
-		if slotName == "Montura" then
-			MenuBus.Fire("Mounts") -- la ranura de montura abre la ventana de Monturas
-			return
-		end
 		local cur = PlayerClass.Get(player).Role
 		if (viewRole == nil or viewRole == cur) and Store.Equip[slotName] then
 			Store.Action("Unequip", slotName)
-		elseif slotName == "Accesorio3" and player:GetAttribute("Pass_PetSlot") ~= true then
+		elseif ItemCatalog.SlotPass[slotName] and player:GetAttribute(ItemCatalog.SlotPass[slotName]) ~= true then
 			MenuBus.Fire("Tienda") -- ranura de pase: lleva a la Tienda
 		end
 	end)
@@ -100,52 +96,6 @@ local function refreshSlots()
 	local pal = NpcKit.Palette(theme)
 	local light = NpcKit.Key(theme) == "Shinobi"
 	for name, b in pairs(slotButtons) do
-		if name == "Montura" then
-			-- la montura equipada no es un objeto de la mochila: viene del atributo MountEquipped ("Especie|Rareza")
-			local label = b:FindFirstChild("Label") :: TextLabel
-			local stroke = b:FindFirstChildOfClass("UIStroke") :: UIStroke
-			local old = b:FindFirstChild("ItemIcon")
-			if old then
-				old:Destroy()
-			end
-			local sp, rar = MountCatalog.Parse(player:GetAttribute("MountEquipped"))
-			if sp and rar then
-				local col = MountCatalog.RarityColor[rar]
-				label.Text = sp.Name
-				label.TextColor3 = if light then pal.Text else col
-				label.Position = UDim2.new(0, 0, 1, -22)
-				label.Size = UDim2.new(1, 0, 0, 20)
-				label.TextSize = 8
-				label.TextTruncate = Enum.TextTruncate.AtEnd
-				label.ZIndex = 9
-				local dot = Instance.new("Frame")
-				dot.Name = "ItemIcon"
-				dot.AnchorPoint = Vector2.new(0.5, 0)
-				dot.Position = UDim2.new(0.5, 0, 0, 3)
-				dot.Size = UDim2.fromOffset(24, 18)
-				dot.BackgroundColor3 = sp.Color
-				dot.BorderSizePixel = 0
-				dot.ZIndex = 8
-				dot.Parent = b
-				Instance.new("UICorner", dot).CornerRadius = UDim.new(0, if sp.Float then 9 else 5)
-				local ds = Instance.new("UIStroke")
-				ds.Color = col
-				ds.Thickness = 2
-				ds.Parent = dot
-				stroke.Color = col
-				b.BackgroundColor3 = col:Lerp(pal.Slot, if light then 0.8 else 0.75)
-			else
-				label.Text = "Montura"
-				label.Position = UDim2.fromScale(0, 0.06)
-				label.Size = UDim2.fromScale(1, 0.88)
-				label.TextSize = 10
-				label.ZIndex = 6
-				label.TextColor3 = pal.Muted
-				stroke.Color = pal.Edge2
-				b.BackgroundColor3 = pal.Slot
-			end
-			continue
-		end
 		local id = Store.Equip[name]
 		local plus = Store.EquipPlus[name]
 		local shared = false
@@ -620,9 +570,13 @@ local function build()
 	for i, n in ipairs(RIGHT) do
 		makeSlot(n, UDim2.fromOffset(400, 13 + (i - 1) * 50), UDim2.fromOffset(58, 46), main)
 	end
-	-- fila inferior (6 ranuras: Capa, Alas, Montura, Traje, Anillo 2, Mascota 2)
+	-- 6.º hueco de la columna derecha: acceso a los ayudantes de combate (reemplazan a las mascotas)
+	NpcKit.Button(main, theme, "🛡 Ayudantes", UDim2.fromOffset(58, 46), UDim2.fromOffset(400, 13 + #RIGHT * 50), "primary", function()
+		MenuBus.Fire("Helpers")
+	end).TextSize = 10
+	-- fila inferior (4 ranuras: Capa, Alas, Traje, Anillo 2)
 	for i, n in ipairs(BOTTOM) do
-		makeSlot(n, UDim2.fromOffset(14 + (i - 1) * 79, 434), UDim2.fromOffset(75, 44), win)
+		makeSlot(n, UDim2.fromOffset(14 + (i - 1) * 118, 434), UDim2.fromOffset(112, 44), win)
 	end
 
 	viewport = Instance.new("ViewportFrame")
@@ -745,11 +699,8 @@ player:GetAttributeChangedSignal("Level"):Connect(function()
 end)
 player.AttributeChanged:Connect(function(name: string)
 	local isGold = name == "Gold" or name == "FactionPoints" or string.sub(name, 1, 7) == "GoldIn_" or string.sub(name, 1, 8) == "GoldOut_"
-	if gui.Enabled and (isGold or string.sub(name, 1, 10) == "EquipPlus_" or string.sub(name, 1, 9) == "KeysUsed_" or name == "Pass_PetSlot") then
+	if gui.Enabled and (isGold or string.sub(name, 1, 10) == "EquipPlus_" or string.sub(name, 1, 9) == "KeysUsed_") then
 		refreshStats()
-	end
-	if gui.Enabled and name == "MountEquipped" then
-		refreshSlots()
 	end
 end)
 RunService.RenderStepped:Connect(function()

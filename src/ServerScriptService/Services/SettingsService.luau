@@ -2,7 +2,7 @@
 --[[
     SettingsService (ModuleScript) -> ServerScriptService.Services.SettingsService
     AJUSTES del jugador, guardados en el perfil (sección "Settings" de PlayerData) y publicados como atributos del Player:
-      Setting_PetsMode  "all" (todas) · "mine" (solo la mía) · "none" (ninguna)   -> PetFollowClient
+      Setting_PetsMode  "all" (todas) · "mine" (solo la mía) · "none" (ninguna)   -> HelperFollowClient (ayudantes)
     También publica PetHit (contador): sube cuando el jugador golpea a un mob, para que su mascota salte (solo visual).
     Remote: "SetSetting" (clave, valor) del cliente; se valida contra la lista de abajo.
 ]]

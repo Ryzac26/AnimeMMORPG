@@ -284,12 +284,16 @@ local say: (string) -> () = function() end -- se define más abajo
 local MenuBus = require(script.Parent:WaitForChild("MenuBus", 10))
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
 local pal = NpcKit.Palette(theme)
+-- "@Ayudantes" = los 3 PERFILES de tus ayudantes de combate (donde antes estaba "Mascota"); clic en uno abre su ventana (HelperClient).
+-- Las monturas están desactivadas: ya no aparecen en el menú.
 local MENU = {
 	{ "Perfil", "Perfil", "Character" }, { "Tienda", "", "Tienda" }, { "Habilidades", "", "Skills" }, { "Misiones", "", "Quests" },
-	{ "Facción", "Faccion", "Guild" }, { "Mascota", "", "Pets" }, { "Talentos", "", "Talents" }, { "Monturas", "", "Mounts" }, { "Cuevas", "", "Dungeons" }, { "Ajustes", "", "Settings" },
+	{ "Facción", "Faccion", "Guild" }, { "@Ayudantes", "", "" }, { "Talentos", "", "Talents" }, { "Cuevas", "", "Dungeons" }, { "Ajustes", "", "Settings" },
 }
 local BTN_W, BTN_H, GAP = 88, 30, 6
-local BAR_W = #MENU * BTN_W + (#MENU - 1) * GAP + 24
+local HELPER_BTN_W, HELPER_GAP = 40, 4
+local HELPERS_W = 3 * HELPER_BTN_W + 2 * HELPER_GAP
+local BAR_W = (#MENU - 1) * BTN_W + HELPERS_W + (#MENU - 1) * GAP + 24
 -- contenedor que se desliza hacia abajo (la flecha de arriba queda siempre a la vista)
 local menuHolder = Instance.new("Frame")
 menuHolder.Name = "MenuHolder"
@@ -323,7 +327,99 @@ menuLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 menuLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 menuLayout.Padding = UDim.new(0, GAP)
 menuLayout.Parent = menuRow
+local HelperCatalog = require(Modules:WaitForChild("HelperCatalog", 10))
+local HelperPortrait = require(script.Parent:WaitForChild("HelperPortrait", 10))
+local function buildHelperProfiles()
+	local group = Instance.new("Frame")
+	group.Name = "AyudantesPerfiles"
+	group.Size = UDim2.fromOffset(HELPERS_W, BTN_H)
+	group.BackgroundTransparency = 1
+	group.ZIndex = 11
+	group.Parent = menuRow
+	local gl = Instance.new("UIListLayout")
+	gl.FillDirection = Enum.FillDirection.Horizontal
+	gl.Padding = UDim.new(0, HELPER_GAP)
+	gl.SortOrder = Enum.SortOrder.LayoutOrder
+	gl.Parent = group
+	for i = 1, 3 do
+		local b = Instance.new("TextButton")
+		b.Name = "Ayudante" .. i
+		b.LayoutOrder = i
+		b.Size = UDim2.fromOffset(HELPER_BTN_W, BTN_H)
+		b.BackgroundColor3 = pal.TabOff
+		b.AutoButtonColor = true
+		b.Font = UITheme.Font
+		b.TextSize = 14
+		b.TextColor3 = pal.TabOffText
+		b.ZIndex = 11
+		b.ClipsDescendants = true
+		b.Parent = group
+		Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+		local bs = Instance.new("UIStroke")
+		bs.Color = pal.Edge2
+		bs.Thickness = 1
+		bs.Parent = b
+		local lv = Instance.new("TextLabel")
+		lv.BackgroundTransparency = 1
+		lv.AnchorPoint = Vector2.new(0.5, 1)
+		lv.Position = UDim2.new(0.5, 0, 1, 0)
+		lv.Size = UDim2.new(1, 0, 0, 11)
+		lv.Font = UITheme.Font
+		lv.TextSize = 9
+		lv.TextColor3 = Color3.new(1, 1, 1)
+		lv.TextStrokeTransparency = 0.3
+		lv.ZIndex = 14
+		lv.Text = ""
+		lv.Parent = b
+		local shownId: string? = nil
+		local vp: ViewportFrame? = nil
+		local function refreshSlot()
+			local raw: any = player:GetAttribute("Helper" .. i)
+			local id, level = nil, 1
+			if typeof(raw) == "string" then
+				local a, l = string.match(raw, "^(.-)#(%d+)#%d+$")
+				id, level = a, tonumber(l) or 1
+			end
+			local parsed = if id then HelperCatalog.Parse(id) else nil
+			if shownId ~= id then
+				shownId = id
+				if vp then
+					vp:Destroy()
+					vp = nil
+				end
+				if parsed then
+					local v = HelperPortrait.Build(b, parsed, UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), {})
+					v.ZIndex = 12
+					vp = v
+				end
+			end
+			if parsed then
+				b.Text = ""
+				b.BackgroundColor3 = (HelperCatalog.RarityColor[parsed.Rarity] :: Color3):Lerp(Color3.new(0, 0, 0), 0.6)
+				bs.Color = HelperCatalog.RarityColor[parsed.Rarity]
+				lv.Text = "Nv." .. level
+			else
+				local locked = i > 1 and player:GetAttribute(HelperCatalog.PassAttr) ~= true
+				b.Text = if locked then "🔒" else "＋"
+				b.BackgroundColor3 = pal.TabOff
+				bs.Color = pal.Edge2
+				lv.Text = ""
+			end
+		end
+		refreshSlot()
+		player:GetAttributeChangedSignal("Helper" .. i):Connect(refreshSlot)
+		player:GetAttributeChangedSignal(HelperCatalog.PassAttr):Connect(refreshSlot)
+		b.Activated:Connect(function()
+			MenuBus.Fire("Helpers:" .. i)
+		end)
+	end
+end
+
 for _, m in ipairs(MENU) do
+	if m[1] == "@Ayudantes" then
+		buildHelperProfiles()
+		continue
+	end
 	local b = Instance.new("TextButton")
 	b.Size = UDim2.fromOffset(BTN_W, BTN_H)
 	b.BackgroundColor3 = pal.TabOff
