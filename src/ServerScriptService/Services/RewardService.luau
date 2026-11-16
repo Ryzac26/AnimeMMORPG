@@ -20,6 +20,7 @@ local LevelService = require(Services.LevelService)
 local LevelGap = require(ReplicatedStorage.Modules.LevelGap)
 local DamageService = require(Services.DamageService)
 local Net = require(Services.Net)
+local HuntStats = require(Services.HuntStats) -- analizador de caza (XP y bajas)
 -- BoostService se carga al usarlo (evita el error "required recursively" si otro módulo lo requiere de vuelta)
 local function boostMult(pl: Player): number
 	local ok, bs = pcall(function()
@@ -57,6 +58,7 @@ end
 -- AYUDANTES: cada ayudante equipado recibe el 10% de la XP que ganas (EXTRA: no te la descuenta). HelperService se carga al usarlo.
 local function giveXp(pl: Player, amount: number)
 	LevelService.AddXp(pl, amount)
+	HuntStats.Xp(pl, amount)
 	local ok, hs = pcall(function()
 		return require(Services.HelperService)
 	end)
@@ -138,6 +140,7 @@ function RewardService.OnMobKilled(mob: Model, mobId: string, level: number, isB
 		local xp = math.floor(GB.BossXp(level) * (xpMult or 1))
 		for _, pl in ipairs(participants) do
 			giveXp(pl, math.floor(xp * boostMult(pl) * petXpMult(pl) * gapMult(pl, level)))
+			HuntStats.Kill(pl)
 			Net.Get("Notify"):FireClient(pl, string.format("Jefe derrotado: +%d XP", xp))
 		end
 		-- El botín del jefe (reparto garantizado + sorteo) lo hace LootService con MobKilled; ya no se elige un único ganador aquí.
@@ -147,6 +150,7 @@ function RewardService.OnMobKilled(mob: Model, mobId: string, level: number, isB
 			if pl.Parent then
 				table.insert(participants, pl)
 				giveXp(pl, math.max(1, math.floor(xp * share * boostMult(pl) * petXpMult(pl) * gapMult(pl, level))))
+				HuntStats.Kill(pl)
 			end
 		end
 	end

@@ -28,6 +28,7 @@ local PlayerClass = require(Modules.PlayerClass)
 
 local Services = ServerScriptService.Services
 local Net = require(Services.Net)
+local HuntStats = require(Services.HuntStats) -- analizador de caza (oro y objetos)
 local RewardService = require(Services.RewardService)
 local Inventory = require(Services.InventoryService)
 local Wallet = require(Services.WalletService)
@@ -111,6 +112,7 @@ local function deliver(player: Player, h: Haul, header: string, alwaysNotify: bo
 	local gold = Wallet.AddGold(player, h.Gold, goldReason)
 	if gold > 0 then
 		table.insert(parts, string.format("+%d oro", gold))
+		HuntStats.Gold(player, gold)
 	end
 	local points = Wallet.AddFactionPoints(player, h.Points)
 	if points > 0 then
@@ -123,6 +125,7 @@ local function deliver(player: Player, h: Haul, header: string, alwaysNotify: bo
 			allAdded = false
 		else
 			gotItems = true
+			HuntStats.Loot(player, entry.Id, entry.Count, entry.Plus)
 			table.insert(parts, label(entry.Id, entry.Count, entry.Plus))
 			-- BONO AYUDANTES: la pieza que te cae puede traer OTRA para el rol de un ayudante equipado (no te quita la tuya)
 			local bonus = HelperService.RollBonusGear(player, entry.Id)

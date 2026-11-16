@@ -288,7 +288,7 @@ local pal = NpcKit.Palette(theme)
 -- Las monturas están desactivadas: ya no aparecen en el menú.
 local MENU = {
 	{ "Perfil", "Perfil", "Character" }, { "Tienda", "", "Tienda" }, { "Habilidades", "", "Skills" }, { "Misiones", "", "Quests" },
-	{ "Facción", "Faccion", "Guild" }, { "@Ayudantes", "", "" }, { "Talentos", "", "Talents" }, { "Cuevas", "", "Dungeons" }, { "Ajustes", "", "Settings" },
+	{ "Facción", "Faccion", "Guild" }, { "@Ayudantes", "", "" }, { "Talentos", "", "Talents" }, { "Cuevas", "", "Dungeons" }, { "Analizador", "", "Hunt" }, { "Ajustes", "", "Settings" },
 }
 local BTN_W, BTN_H, GAP = 88, 30, 6
 local HELPER_BTN_W, HELPER_GAP = 40, 4
