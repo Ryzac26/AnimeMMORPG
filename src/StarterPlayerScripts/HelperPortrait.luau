@@ -3,7 +3,7 @@
     HelperPortrait (ModuleScript) -> StarterPlayer > StarterPlayerScripts > HelperPortrait
     Retrato de un ayudante dentro de la interfaz (ViewportFrame con el mismo cuerpo de HelperModel).
       HelperPortrait.Build(parent, parsed, size, pos, opts) -> ViewportFrame
-        opts: { Full: boolean? (cuerpo entero; si no, busto), Animate: boolean? (respira y se mueve), Spin: boolean? (gira despacio), Dim: boolean? (silueta oscura: sin obtener) }
+        opts: { Full: boolean? (cuerpo entero; si no, busto), Animate: boolean? (respira y se mueve), Spin: boolean? (gira despacio), Dim: boolean? (silueta oscura: sin obtener), Rank/Aura/Asc: number? (aspecto de progreso, ver HelperModel) }
     El ViewportFrame se destruye con su ventana; la animación se corta sola al desaparecer.
 ]]
 local RunService = game:GetService("RunService")
@@ -15,7 +15,7 @@ local HelperModel = require(Modules:WaitForChild("HelperModel"))
 
 local HelperPortrait = {}
 
-function HelperPortrait.Build(parent: Instance, parsed: HelperCatalog.Parsed, size: UDim2, pos: UDim2, opts: { Full: boolean?, Animate: boolean?, Spin: boolean?, Dim: boolean? }?): ViewportFrame
+function HelperPortrait.Build(parent: Instance, parsed: HelperCatalog.Parsed, size: UDim2, pos: UDim2, opts: { Full: boolean?, Animate: boolean?, Spin: boolean?, Dim: boolean?, Rank: number?, Aura: number?, Asc: number? }?): ViewportFrame
 	local full = opts ~= nil and opts.Full == true
 	local vp = Instance.new("ViewportFrame")
 	vp.Name = "Retrato"
@@ -28,7 +28,7 @@ function HelperPortrait.Build(parent: Instance, parsed: HelperCatalog.Parsed, si
 	vp.LightDirection = Vector3.new(-0.4, -0.6, -0.8)
 	vp.Parent = parent
 
-	local built = HelperModel.Build(parsed, { Scale = 1 })
+	local built = HelperModel.Build(parsed, { Scale = 1, Rank = if opts then opts.Rank else nil, Aura = if opts then opts.Aura else nil, Asc = if opts then opts.Asc else nil })
 	local s = built.Scale
 	built.Root.CFrame = CFrame.new(0, 0, 0)
 	if opts and opts.Dim then

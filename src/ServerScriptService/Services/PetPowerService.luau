@@ -109,19 +109,19 @@ DamageService.AddDamageListener(function(mob: Model, player: Player, damage: num
 	inPower = true
 	local ok, err = pcall(function()
 		for _, h in ipairs(list) do
-			local cfg = HelperCatalog.Powers[h.Role]
-			local idx = HelperCatalog.RarityIndex[h.Rarity]
-			if cfg and idx then
-				local value = cfg.Value[idx] * h.Factor
-				local name = HelperCatalog.NameOf({ Faction = h.Faction, Role = h.Role, Rarity = h.Rarity })
+			-- ascensión y rama de poder del ayudante cuentan aquí (HelperCatalog.PowerParams)
+			local pp = HelperCatalog.PowerParams(h.Role, h.Rarity, h.Asc, h.Branch, h.Level)
+			if pp then
+				local value = pp.Value * h.Factor
+				local name = HelperService.DisplayName(h)
 				local pos = if mobRoot and mobRoot:IsA("BasePart") then mobRoot.Position else char:GetPivot().Position
 				if h.Role == "Guerrero" then
-					if every(player, "Guerrero", (cfg.Every :: { number })[idx]) and DamageService.TrueDamage(char, mob, damage * value) > 0 then
+					if every(player, "Guerrero", (pp.Every :: number)) and DamageService.TrueDamage(char, mob, damage * value) > 0 then
 						fx(player, h, pos)
 						say(player, name .. ": ¡Golpe de apoyo!", ROLE_COLOR.Guerrero)
 					end
 				elseif h.Role == "Asesino" then
-					if every(player, "Asesino", (cfg.Every :: { number })[idx]) then
+					if every(player, "Asesino", (pp.Every :: number)) then
 						local mult = if isBig(mob) then 1.5 else 1
 						if DamageService.TrueDamage(char, mob, damage * value * mult) > 0 then
 							fx(player, h, pos)
@@ -129,12 +129,12 @@ DamageService.AddDamageListener(function(mob: Model, player: Player, damage: num
 						end
 					end
 				elseif h.Role == "Tirador" then
-					if ready(player, "Tirador", (cfg.Cooldown :: { number })[idx]) and DamageService.TrueDamage(char, mob, damage * value) > 0 then
+					if ready(player, "Tirador", (pp.Cooldown :: number)) and DamageService.TrueDamage(char, mob, damage * value) > 0 then
 						fx(player, h, pos)
 						say(player, name .. ": ¡Disparo certero!", ROLE_COLOR.Tirador)
 					end
 				elseif h.Role == "Mago" then
-					if mobRoot and mobRoot:IsA("BasePart") and ready(player, "Mago", (cfg.Cooldown :: { number })[idx]) then
+					if mobRoot and mobRoot:IsA("BasePart") and ready(player, "Mago", (pp.Cooldown :: number)) then
 						local params = OverlapParams.new()
 						params.FilterType = Enum.RaycastFilterType.Exclude
 						params.FilterDescendantsInstances = { char }
@@ -177,13 +177,12 @@ task.spawn(function()
 				local root = if char then char:FindFirstChild("HumanoidRootPart") else nil
 				if char and hum and root and root:IsA("BasePart") then
 					for _, h in ipairs(list) do
-						local cfg = HelperCatalog.Powers[h.Role]
-						local idx = HelperCatalog.RarityIndex[h.Rarity]
-						if cfg and idx then
-							local value = cfg.Value[idx] * h.Factor
-							local name = HelperCatalog.NameOf({ Faction = h.Faction, Role = h.Role, Rarity = h.Rarity })
+						local pp = HelperCatalog.PowerParams(h.Role, h.Rarity, h.Asc, h.Branch, h.Level)
+						if pp then
+							local value = pp.Value * h.Factor
+							local name = HelperService.DisplayName(h)
 							if h.Role == "Tanque" and hum.Health / hum.MaxHealth < 0.35 then
-								if ready(player, "Tanque", (cfg.Cooldown :: { number })[idx]) then
+								if ready(player, "Tanque", (pp.Cooldown :: number)) then
 									local token = os.clock()
 									char:SetAttribute("ShieldPoints", math.floor(hum.MaxHealth * value))
 									char:SetAttribute("ShieldToken", token)
@@ -209,7 +208,7 @@ task.spawn(function()
 										end
 									end
 								end
-								if hurt and ready(player, "Curador", (cfg.Cooldown :: { number })[idx]) then
+								if hurt and ready(player, "Curador", (pp.Cooldown :: number)) then
 									for _, t in ipairs(targets) do
 										t.Health = math.min(t.MaxHealth, t.Health + t.MaxHealth * value)
 									end

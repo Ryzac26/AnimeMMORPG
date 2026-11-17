@@ -349,7 +349,7 @@ local SECTIONS: { Section } = {
 			return {
 				H("Rareza del ayudante según el cupón"),
 				T({ "Cupón", "Común", "Raro", "Épico", "Legend.", "Mítico" }, rows),
-				P("Cada fila suma 100 %. Un ayudante repetido sube una estrella (hasta 5); con 5 estrellas se convierte en oro. El ayudante es siempre de tu facción."),
+				P("Cada fila suma 100 %. Un ayudante repetido sube una estrella (hasta 5); con 5 estrellas se convierte en Esencia, que sirve para ascender a tus ayudantes (pestaña Poder). El ayudante es siempre de tu facción."),
 				H("Garantía (mala racha)"),
 				T({ "Cupón", "Garantía" }, pityRows),
 				P("La racha se cuenta por tipo de cupón y se reinicia al conseguir la rareza garantizada."),

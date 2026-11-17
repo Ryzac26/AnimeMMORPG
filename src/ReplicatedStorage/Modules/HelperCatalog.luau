@@ -7,7 +7,9 @@
       - 3 ranuras: la 1 es gratis; la 2 y la 3 las da el pase (atributo Pass_PetSlot, el mismo pase de antes). Todas desde nivel 1.
       - Efectos pasivos al dueño (mismas claves que GearService: Ataque, Defensa, Vida, Critico, Curacion, Energia) + un poder de combate por rol (PvE).
       - XP: cada ayudante equipado recibe el 10% de la XP que ganas (extra: NO te la descuenta). Nivel máximo = tu nivel.
-    Id de un ayudante: "<Facción>|<Rol>|<Rareza>"  (ej. "Saiyan|Tanque|Epico"). Una copia repetida sube sus estrellas (máx. 5); después da oro.
+    Id de un ayudante: "<Facción>|<Rol>|<Rareza>"  (ej. "Saiyan|Tanque|Epico"). Una copia repetida sube sus estrellas (máx. 5); después da Esencia.
+    PROGRESO: rangos por nivel (12 hitos, +3,5% a sus bonos cada uno y un aspecto nuevo), ramas de poder (nv. 100/500/1500), ascensión con Esencia
+    (nv. 100/500/1500), vínculo de facción (nv. 100/1000), regalos por rango y personalización (apodo y color de aura). Todo está al final de este archivo.
 ]]
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GB = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GameBalance"))
@@ -140,8 +142,8 @@ HelperCatalog.Coupons = {
 -- Tope diario de cupones que se reciben de monstruos/cofres/cuevas (por rareza). Los de prueba del Fundador no cuentan.
 HelperCatalog.DailyCouponCap = { Comun = 20, Raro = 8, Epico = 4, Legendario = 1, Mitico = 1 } :: { [string]: number }
 HelperCatalog.WelcomeGift = { Comun = 3, Raro = 1 } :: { [string]: number } -- regalo único de bienvenida (llega a la carta)
--- Oro por una copia repetida cuando el ayudante ya tiene 5 estrellas
-HelperCatalog.DuplicateGold = { Comun = 500, Raro = 2000, Epico = 8000, Legendario = 30000, Mitico = 100000 } :: { [string]: number }
+-- Esencia por una copia repetida cuando el ayudante ya tiene 5 estrellas (se gasta en la ascensión)
+HelperCatalog.EssenceDup = { Comun = 2, Raro = 5, Epico = 12, Legendario = 30, Mitico = 60 } :: { [string]: number }
 HelperCatalog.MaxStars = 5
 HelperCatalog.PullsPerBatch = 10
 
@@ -197,6 +199,7 @@ end
 HelperCatalog.MaxLevel = GB.MAX_LEVEL
 
 export type Entry = { Stars: number?, Level: number?, Xp: number?, Gear: { [string]: { Id: string, Plus: number? } }? }
+local RankOfLevel: (number) -> number -- (definida más abajo)
 
 -- +% de poder por el equipo puesto (lo calcula con la rareza del objeto: viene en su Id, p. ej. "Set_..._Epico"; el servidor pasa la rareza ya resuelta)
 HelperCatalog.FullSetBonus = 0.10 -- las 4 piezas puestas: +10% sobre el aporte del equipo
@@ -217,13 +220,15 @@ function HelperCatalog.LevelFactor(helperLevel: number, ownerLevel: number): num
 end
 
 -- Efectos de UN ayudante (antes del tope total)
-function HelperCatalog.Effects(p: Parsed, stars: number, helperLevel: number, ownerLevel: number, gearPower: number): { [string]: number }
+-- asc = ascensión (0..3): suma +5% por escalón. El rango del ayudante (por su nivel) también suma: ver ProgressMult.
+function HelperCatalog.Effects(p: Parsed, stars: number, helperLevel: number, ownerLevel: number, gearPower: number, asc: number?): { [string]: number }
 	local base = HelperCatalog.RoleEffects[p.Role]
 	local out: { [string]: number } = {}
 	if not base then
 		return out
 	end
 	local mult = (HelperCatalog.RarityPower[p.Rarity] or 1) * (1 + HelperCatalog.StarBonus * math.clamp(stars, 0, HelperCatalog.MaxStars)) * (1 + gearPower) * HelperCatalog.LevelFactor(helperLevel, ownerLevel)
+		* HelperCatalog.ProgressMult(helperLevel, asc or 0)
 	for k, v in pairs(base) do
 		out[k] = v * mult
 	end
@@ -260,18 +265,55 @@ HelperCatalog.Powers = {
 } :: { [string]: { Name: string, Cooldown: { number }?, Every: { number }?, Value: { number }, Desc: string } }
 HelperCatalog.PowerName = { Tanque = "Muro", Guerrero = "Golpe de apoyo", Asesino = "Filo cazador", Tirador = "Disparo certero", Mago = "Estallido", Curador = "Brisa sanadora" } :: { [string]: string }
 
--- Texto del poder con sus números para una rareza
-function HelperCatalog.PowerText(role: string, rarity: string): string
+-- Parámetros reales del poder de un ayudante: rareza + ascensión (cada escalón sube 1 el índice, hasta Mítico) + rama según su nivel.
+--   Rama A («Ritmo»): menos tiempo/golpes entre usos. Rama B («Potencia»): más fuerza. Los topes evitan escudos/curaciones desmedidos.
+function HelperCatalog.PowerParams(role: string, rarity: string, asc: number, branch: string?, level: number): { Value: number, Cooldown: number?, Every: number?, Index: number, Tier: number }?
 	local cfg = HelperCatalog.Powers[role]
-	local idx = HelperCatalog.RarityIndex[rarity]
-	if not cfg or not idx then
+	local base = HelperCatalog.RarityIndex[rarity]
+	if not cfg or not base then
+		return nil
+	end
+	local idx = math.clamp(base + math.clamp(asc, 0, HelperCatalog.MaxAsc), 1, #HelperCatalog.Rarities)
+	local value = cfg.Value[idx]
+	local cooldown = if cfg.Cooldown then cfg.Cooldown[idx] else nil
+	local every = if cfg.Every then cfg.Every[idx] else nil
+	local tier = if branch == "A" or branch == "B" then HelperCatalog.BranchTier(level) else 0
+	if tier > 0 then
+		if branch == "A" then
+			local rate = HelperCatalog.BranchRate[tier]
+			if cooldown then
+				cooldown *= 1 - rate
+			end
+			if every then
+				every = math.max(3, math.floor(every * (1 - rate) + 0.5))
+			end
+		else
+			value *= 1 + HelperCatalog.BranchPower[tier]
+		end
+	end
+	local cap = HelperCatalog.ValueCap[role]
+	if cap and value > cap then
+		value = cap
+	end
+	return { Value = value, Cooldown = cooldown, Every = every, Index = idx, Tier = tier }
+end
+
+-- Texto del poder con sus números (con ascensión y rama si se indican)
+function HelperCatalog.PowerTextFor(role: string, rarity: string, asc: number, branch: string?, level: number): string
+	local cfg = HelperCatalog.Powers[role]
+	local params = HelperCatalog.PowerParams(role, rarity, asc, branch, level)
+	if not cfg or not params then
 		return ""
 	end
 	local text = cfg.Desc
-	text = string.gsub(text, "{cd}", string.format("%g", if cfg.Cooldown then cfg.Cooldown[idx] else 0))
-	text = string.gsub(text, "{every}", string.format("%g", if cfg.Every then cfg.Every[idx] else 0))
-	text = string.gsub(text, "{pct}", string.format("%g", math.floor(cfg.Value[idx] * 1000 + 0.5) / 10))
+	text = string.gsub(text, "{cd}", string.format("%.3g", params.Cooldown or 0))
+	text = string.gsub(text, "{every}", string.format("%g", params.Every or 0))
+	text = string.gsub(text, "{pct}", string.format("%g", math.floor(params.Value * 1000 + 0.5) / 10))
 	return text
+end
+
+function HelperCatalog.PowerText(role: string, rarity: string): string
+	return HelperCatalog.PowerTextFor(role, rarity, 0, nil, 1)
 end
 
 -- Texto de un efecto: "Ataque +2,4%"
@@ -285,5 +327,156 @@ function HelperCatalog.EffectText(effects: { [string]: number }): string
 	end
 	return table.concat(parts, " · ")
 end
+
+---------------------------------------------------------------------
+-- PROGRESO DEL AYUDANTE
+---------------------------------------------------------------------
+-- 1) RANGOS: se ganan por NIVEL del ayudante (no depende de tu nivel). Cada rango suma +3,5% a sus bonos pasivos (hasta +42%) y suele traer
+--    un aspecto nuevo y un regalo. Los 12 hitos: 10, 25, 50, 100, 200, 400, 800, 1200, 1600, 2000, 2500 y 3000.
+HelperCatalog.Ranks = {
+	{ Min = 1, Name = "Recluta" }, { Min = 10, Name = "Aprendiz" }, { Min = 25, Name = "Soldado" }, { Min = 50, Name = "Veterano" },
+	{ Min = 100, Name = "Experto" }, { Min = 200, Name = "Élite" }, { Min = 400, Name = "Campeón" }, { Min = 800, Name = "Maestro" },
+	{ Min = 1200, Name = "Gran Maestro" }, { Min = 1600, Name = "Héroe" }, { Min = 2000, Name = "Mito" }, { Min = 2500, Name = "Leyenda" },
+	{ Min = 3000, Name = "Eterno" },
+} :: { { Min: number, Name: string } }
+HelperCatalog.RankBonus = 0.035
+HelperCatalog.RankColors = {
+	Color3.fromRGB(150, 155, 165), Color3.fromRGB(176, 128, 92), Color3.fromRGB(196, 140, 86), Color3.fromRGB(170, 190, 205),
+	Color3.fromRGB(130, 205, 235), Color3.fromRGB(255, 205, 90), Color3.fromRGB(255, 185, 55), Color3.fromRGB(120, 235, 200),
+	Color3.fromRGB(100, 215, 255), Color3.fromRGB(190, 130, 255), Color3.fromRGB(255, 110, 190), Color3.fromRGB(255, 90, 90),
+	Color3.fromRGB(255, 245, 200),
+} :: { Color3 }
+-- Aspecto que se desbloquea al llegar a cada rango (lo dibuja HelperModel)
+HelperCatalog.RankPerks = {
+	[2] = "Pañuelo con los colores de tu facción",
+	[4] = "Hombreras de rango",
+	[6] = "Anillo de aura a sus pies",
+	[8] = "Emblema flotante tras su espalda",
+	[10] = "Aura de partículas",
+	[13] = "Aura prisma que cambia de color",
+} :: { [number]: string }
+
+RankOfLevel = function(level: number): number
+	local rank = 1
+	for i, r in ipairs(HelperCatalog.Ranks) do
+		if level >= r.Min then
+			rank = i
+		end
+	end
+	return rank
+end
+HelperCatalog.RankOf = RankOfLevel
+HelperCatalog.MaxRank = #HelperCatalog.Ranks
+
+-- Multiplicador de sus bonos pasivos por rango y ascensión
+function HelperCatalog.ProgressMult(level: number, asc: number): number
+	return (1 + HelperCatalog.RankBonus * (RankOfLevel(level) - 1)) * (1 + HelperCatalog.AscBonus * math.clamp(asc, 0, HelperCatalog.MaxAsc))
+end
+
+-- 2) RAMAS DE PODER: al nivel 100 se elige A (Ritmo) o B (Potencia); a los 500 y 1500 sube el escalón de la rama elegida.
+HelperCatalog.BranchLevels = { 100, 500, 1500 } :: { number }
+HelperCatalog.BranchRate = { 0.08, 0.16, 0.25 } :: { number } -- A: -% de tiempo/golpes entre usos
+HelperCatalog.BranchPower = { 0.20, 0.40, 0.65 } :: { number } -- B: +% de fuerza
+HelperCatalog.ValueCap = { Tanque = 0.55, Curador = 0.32 } :: { [string]: number } -- tope de fuerza (escudo / cura) tras rama
+HelperCatalog.Branches = {
+	Tanque = { A = { Name = "Bastión", Desc = "El Muro se recarga antes." }, B = { Name = "Coraza", Desc = "El Muro absorbe más daño." } },
+	Guerrero = { A = { Name = "Furia", Desc = "Golpea contigo más a menudo." }, B = { Name = "Filo", Desc = "Cada golpe de apoyo pega más fuerte." } },
+	Asesino = { A = { Name = "Ráfaga", Desc = "Tajos más seguidos." }, B = { Name = "Cazador", Desc = "Tajos mucho más fuertes." } },
+	Tirador = { A = { Name = "Cadencia", Desc = "Dispara más seguido." }, B = { Name = "Mira de águila", Desc = "Cada disparo pega más fuerte." } },
+	Mago = { A = { Name = "Fluir arcano", Desc = "Estallidos más seguidos." }, B = { Name = "Supernova", Desc = "Estallidos más potentes." } },
+	Curador = { A = { Name = "Plegaria rápida", Desc = "Cura más a menudo." }, B = { Name = "Luz plena", Desc = "Cada cura repone más vida." } },
+} :: { [string]: { A: { Name: string, Desc: string }, B: { Name: string, Desc: string } } }
+HelperCatalog.BranchKindText = { A = "Ritmo", B = "Potencia" } :: { [string]: string }
+HelperCatalog.BranchChangeMobs = 300 -- cambiar de rama (después de la primera elección, gratis) cuesta el oro de este número de monstruos de tu nivel
+
+function HelperCatalog.BranchTier(level: number): number
+	local tier = 0
+	for i, lv in ipairs(HelperCatalog.BranchLevels) do
+		if level >= lv then
+			tier = i
+		end
+	end
+	return tier
+end
+
+-- 3) ASCENSIÓN: gasta Esencia (copias repetidas con 5★ y regalos de rango). Cada escalón: +1 al índice del poder (hasta Mítico) y +5% a sus bonos.
+HelperCatalog.MaxAsc = 3
+HelperCatalog.AscLevels = { 100, 500, 1500 } :: { number } -- nivel del ayudante para ascender al escalón 1, 2, 3
+HelperCatalog.AscBase = { Comun = 20, Raro = 30, Epico = 45, Legendario = 70, Mitico = 100 } :: { [string]: number }
+HelperCatalog.AscMult = { 1, 3, 8 } :: { number }
+HelperCatalog.AscBonus = 0.05
+HelperCatalog.AscNames = { "I", "II", "III" } :: { string }
+function HelperCatalog.AscendCost(rarity: string, nextAsc: number): number
+	return (HelperCatalog.AscBase[rarity] or 20) * (HelperCatalog.AscMult[nextAsc] or 8)
+end
+
+-- 4) VÍNCULO DE FACCIÓN: un perk propio de la facción para el DUEÑO, según el nivel del ayudante equipado de mayor nivel.
+HelperCatalog.BondLevels = { 100, 1000 } :: { number }
+HelperCatalog.Bond = {
+	Saiyan = { Name = "Ki desbordado", Stat = "Energia", Label = "Energía", Values = { 0.03, 0.06 } },
+	Shinobi = { Name = "Paso de sombra", Stat = "Critico", Label = "Crítico", Values = { 0.015, 0.03 } },
+	Pirate = { Name = "Instinto de botín", Stat = "Oro", Label = "Oro", Values = { 0.02, 0.04 } },
+	Shinigami = { Name = "Alma serena", Stat = "Regen", Label = "Regeneración", Values = { 0.002, 0.004 } },
+} :: { [string]: { Name: string, Stat: string, Label: string, Values: { number } } }
+function HelperCatalog.BondTier(level: number): number
+	local tier = 0
+	for i, lv in ipairs(HelperCatalog.BondLevels) do
+		if level >= lv then
+			tier = i
+		end
+	end
+	return tier
+end
+function HelperCatalog.BondStats(faction: string, topLevel: number): { [string]: number }
+	local b = HelperCatalog.Bond[faction]
+	local tier = HelperCatalog.BondTier(topLevel)
+	if not b or tier <= 0 then
+		return {}
+	end
+	return { [b.Stat] = b.Values[tier] }
+end
+
+-- 5) REGALOS: uno por rango alcanzado (se reclaman en la ventana). Oro = «mobs» de monstruos de ese nivel; Esencia según rareza; cupón en hitos grandes.
+HelperCatalog.Gifts = {
+	[2] = { Mobs = 20, Essence = 2 }, [3] = { Mobs = 30, Essence = 3 }, [4] = { Mobs = 40, Essence = 5 },
+	[5] = { Mobs = 60, Essence = 8, Coupon = "Raro", CouponN = 1 }, [6] = { Mobs = 80, Essence = 12 },
+	[7] = { Mobs = 100, Essence = 18, Coupon = "Raro", CouponN = 2 }, [8] = { Mobs = 130, Essence = 26 },
+	[9] = { Mobs = 160, Essence = 38, Coupon = "Epico", CouponN = 1 }, [10] = { Mobs = 200, Essence = 55 },
+	[11] = { Mobs = 250, Essence = 80, Coupon = "Epico", CouponN = 2 }, [12] = { Mobs = 300, Essence = 110 },
+	[13] = { Mobs = 400, Essence = 160, Coupon = "Legendario", CouponN = 1 },
+} :: { [number]: { Mobs: number, Essence: number, Coupon: string?, CouponN: number? } }
+function HelperCatalog.GiftEssence(rank: number, rarity: string): number
+	local g = HelperCatalog.Gifts[rank]
+	if not g then
+		return 0
+	end
+	return math.floor(g.Essence * (1 + 0.25 * ((HelperCatalog.RarityIndex[rarity] or 1) - 1)) + 0.5)
+end
+
+-- 6) PERSONALIZACIÓN: apodo (filtrado por el servidor) y color de aura (se desbloquean con el rango).
+HelperCatalog.NickMax = 14
+HelperCatalog.Auras = {
+	{ Name = "De facción", MinRank = 1 },
+	{ Name = "Oro", MinRank = 4, Color = Color3.fromRGB(255, 205, 80) },
+	{ Name = "Cian", MinRank = 5, Color = Color3.fromRGB(90, 210, 255) },
+	{ Name = "Esmeralda", MinRank = 6, Color = Color3.fromRGB(80, 225, 140) },
+	{ Name = "Rosa", MinRank = 7, Color = Color3.fromRGB(255, 130, 200) },
+	{ Name = "Violeta", MinRank = 9, Color = Color3.fromRGB(170, 110, 255) },
+	{ Name = "Carmesí", MinRank = 11, Color = Color3.fromRGB(255, 70, 90) },
+	{ Name = "Prisma", MinRank = 13, Prism = true },
+} :: { { Name: string, MinRank: number, Color: Color3?, Prism: boolean? } }
+-- Color del aura (t = segundos, solo para el prisma)
+function HelperCatalog.AuraColor(aura: number, faction: string, t: number?): Color3
+	local a = HelperCatalog.Auras[aura] or HelperCatalog.Auras[1]
+	if a.Prism then
+		return Color3.fromHSV(((t or 0) * 0.12) % 1, 0.55, 1)
+	end
+	if a.Color then
+		return a.Color
+	end
+	local look = HelperCatalog.Look[faction]
+	return if look then look.Accent else Color3.new(1, 1, 1)
+end
+
 
 return HelperCatalog

@@ -2,11 +2,11 @@
 --[[
     HelperFollowClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > HelperFollowClient
     (REEMPLAZA a PetFollowClient.) AYUDANTES DE COMBATE con cuerpo: los ayudantes equipados (atributos Helper1..3 = "<id>#<nivel>#<estrellas>",
-    los publica HelperService) aparecen como mini personajes (~55% de un jugador) que SIGUEN a su dueño. Todos ven los de los jugadores cercanos.
+    los publica HelperService, junto con HelperLook1..3 = "<rango>#<aura>#<ascensión>#<apodo>") aparecen como mini personajes (~55% de un jugador) que SIGUEN a su dueño. Todos ven los de los jugadores cercanos.
       - Formación: ranura 1 detrás a la derecha, ranura 2 detrás a la izquierda, ranura 3 más atrás.
       - Cuando el dueño entra a SU casa (atributos HelperHome1..3, los pone HouseService) van solos a la Cabaña de ayudantes y descansan allí.
       - Atacan con el dueño: al golpear él, mueven el arma; cuando se activa su poder (remote HelperFx) se lanzan al enemigo con un destello.
-      - Celebran cuando el dueño sube de nivel. Son solo visuales (el daño y los bonos los calcula el servidor; los ayudantes NO atacan a jugadores).
+      - Celebran cuando el dueño sube de nivel o cuando ellos suben de rango, ascienden o cambian de rama (remote HelperCheer). Son solo visuales (el daño y los bonos los calcula el servidor; los ayudantes NO atacan a jugadores).
       - Ajuste "Mostrar mascotas" (Setting_PetsMode): Todas · Solo la mía · Ninguna.
       - Prueba (solo Fundador, Ajustes): el atributo local HelperPreview (id) y HelperPreviewLevel reemplazan al ayudante de la ranura 1.
     No tiene ScreenGui, no va en RELOAD.
@@ -34,6 +34,11 @@ type Active = {
 	Id: string,
 	Level: number,
 	Stars: number,
+	Rank: number,
+	Aura: number,
+	Asc: number,
+	Nick: string,
+	BurstStamp: number,
 	Char: Model,
 	Built: HelperModel.Built,
 	Pos: Vector3,
@@ -45,6 +50,7 @@ type Active = {
 	CheerUntil: number,
 }
 local helpers: { [string]: Active } = {}
+local cheerStamp: { [string]: number } = {} -- cuándo celebró (HelperCheer); se aplica al modelo vigente en el siguiente cuadro
 
 local folder = Instance.new("Folder")
 folder.Name = "AyudantesClient"
@@ -74,8 +80,25 @@ local function starsText(n: number): string
 	return string.rep("★", math.clamp(n, 0, HelperCatalog.MaxStars))
 end
 
-local function tagSub(pl: Player, level: number, stars: number): string
-	return string.format("Ayudante de %s · Nv.%d %s", pl.DisplayName, level, starsText(stars))
+-- "<rango>#<aura>#<ascensión>#<apodo>" (HelperLook1..3)
+local function parseLook(v: any, level: number): (number, number, number, string)
+	if typeof(v) == "string" then
+		local rank, aura, asc, nick = string.match(v, "^(%d+)#(%d+)#(%d+)#(.*)$")
+		if rank then
+			return math.clamp(tonumber(rank) or 1, 1, HelperCatalog.MaxRank), math.max(1, tonumber(aura) or 1), math.clamp(tonumber(asc) or 0, 0, HelperCatalog.MaxAsc), nick or ""
+		end
+	end
+	return HelperCatalog.RankOf(level), 1, 0, ""
+end
+
+local function tagName(parsed: HelperCatalog.Parsed, nick: string): string
+	return if nick ~= "" then nick else HelperCatalog.NameOf(parsed)
+end
+
+local function tagSub(pl: Player, level: number, stars: number, rank: number, asc: number): string
+	local ascText = if asc > 0 then " · Asc." .. HelperCatalog.AscNames[asc] else ""
+	local owner = if pl == localPlayer then "" else " · de " .. pl.DisplayName
+	return string.format("%s · Nv.%d %s%s%s", HelperCatalog.Ranks[rank].Name, level, starsText(stars), ascText, owner)
 end
 
 local function remove(key: string)
@@ -171,6 +194,16 @@ if fxRemote then
 	end)
 end
 
+-- El ayudante celebra: subió de rango, ascendió o cambió de rama/apodo (HelperService)
+local cheerRemote = ClientNet.Get("HelperCheer")
+if cheerRemote then
+	cheerRemote.OnClientEvent:Connect(function(owner: any, slot: any)
+		if typeof(owner) == "Instance" and owner:IsA("Player") and typeof(slot) == "number" then
+			cheerStamp[keyOf(owner, slot)] = os.clock()
+		end
+	end)
+end
+
 ---------------------------------------------------------------------
 -- Qué ayudantes debe haber (cada medio segundo)
 ---------------------------------------------------------------------
@@ -211,17 +244,30 @@ local function reconcile()
 				visible = false
 			end
 			local parsed, level, stars, id = parseAttr(rawAttr)
+			local rank, aura, asc, nick = parseLook(pl:GetAttribute("HelperLook" .. slot), level)
+			if previewing then
+				rank, aura, asc, nick = HelperCatalog.RankOf(level), 1, 0, ""
+			end
 			local cur = helpers[key]
 			if not (visible and parsed and id and char) then
 				if cur then
 					remove(key)
 				end
 			else
-				if not cur or cur.Id ~= id or cur.Char ~= char then
+				-- se reconstruye si cambia el ayudante o su aspecto (rango, aura, ascensión); entonces conserva su sitio
+				local sameBody = cur ~= nil and cur.Id == id and cur.Char == char
+				if not cur or not sameBody or cur.Rank ~= rank or cur.Aura ~= aura or cur.Asc ~= asc then
+					local keepPos = if cur and sameBody then cur.Pos else nil
+					local keepYaw = if cur and sameBody then cur.Yaw else nil
 					remove(key)
-					local built = HelperModel.Build(parsed, { Tag = { Name = HelperCatalog.NameOf(parsed), Sub = tagSub(pl, level, stars), MaxDistance = 45 } })
+					local built = HelperModel.Build(parsed, {
+						Rank = rank,
+						Aura = aura,
+						Asc = asc,
+						Tag = { Name = tagName(parsed, nick), Sub = tagSub(pl, level, stars, rank, asc), MaxDistance = 45 },
+					})
 					built.Model.Name = "Ayudante_" .. pl.Name .. "_" .. slot
-					local start = (if hrp then hrp.Position else Vector3.zero) + Vector3.new(0, 3, 0)
+					local start = keepPos or ((if hrp then hrp.Position else Vector3.zero) + Vector3.new(0, 3, 0))
 					built.Root.CFrame = CFrame.new(start)
 					built.Model.Parent = folder
 					helpers[key] = {
@@ -230,19 +276,24 @@ local function reconcile()
 						Id = id,
 						Level = level,
 						Stars = stars,
+						Rank = rank,
+						Aura = aura,
+						Asc = asc,
+						Nick = nick,
+						BurstStamp = 0,
 						Char = char,
 						Built = built,
 						Pos = start,
-						Yaw = CFrame.identity,
+						Yaw = keepYaw or CFrame.identity,
 						Vel = Vector3.zero,
 						AttackAt = -10,
 						FxUntil = 0,
 						FxPos = start,
 						CheerUntil = 0,
 					}
-				elseif cur.Level ~= level or cur.Stars ~= stars then
-					cur.Level, cur.Stars = level, stars
-					HelperModel.SetTag(cur.Built, HelperCatalog.NameOf(parsed), tagSub(pl, level, stars))
+				elseif cur.Level ~= level or cur.Stars ~= stars or cur.Nick ~= nick then
+					cur.Level, cur.Stars, cur.Nick = level, stars, nick
+					HelperModel.SetTag(cur.Built, tagName(parsed, nick), tagSub(pl, level, stars, rank, asc))
 				end
 			end
 		end
@@ -267,6 +318,12 @@ RunService.RenderStepped:Connect(function(dt)
 			continue
 		end
 		local b = h.Built
+		local stamp = cheerStamp[key]
+		if stamp and t - stamp < 3 and stamp ~= h.BurstStamp then
+			h.BurstStamp = stamp
+			h.CheerUntil = math.max(h.CheerUntil, stamp + 2.0)
+			HelperModel.Burst(b)
+		end
 		local home = h.Player:GetAttribute("HelperHome" .. h.Slot)
 		local atHome = typeof(home) == "Vector3"
 		local fxActive = t < h.FxUntil
@@ -378,6 +435,7 @@ for _, pl in ipairs(Players:GetPlayers()) do
 end
 Players.PlayerRemoving:Connect(function(pl)
 	for slot = 1, SLOTS do
+		cheerStamp[keyOf(pl, slot)] = nil
 		remove(keyOf(pl, slot))
 	end
 	lastLevel[pl] = nil

@@ -3,7 +3,7 @@
     RecruitClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > RecruitClient
     Ventana del RECLUTADOR (el NPC junto al Instructor de tu ciudad): gasta CUPONES para reclutar ayudantes de combate de TU facción.
       - Elige el cupón (Común · Raro · Épico · Legendario · Mítico): cada uno tiene su tabla de probabilidades EN % y su garantía.
-      - Reclutar x1 o x10. Los repetidos suben estrellas (máx. 5) y después dan oro.
+      - Reclutar x1 o x10. Los repetidos suben estrellas (máx. 5) y después dan Esencia.
       - Los cupones llegan a la carta ✉ (debajo de «Reportar»): reclámalos allí, o aquí con «Reclamar de la carta».
       - Canjear mascotas viejas: cada una se cambia por 1 cupón de su misma rareza.
     Todo lo decide el servidor (HelperService). Remote de apertura: RecruitOpen (nombre, título, facción).
@@ -117,8 +117,8 @@ local function drawResult(w: Frame, theme: any, pal: { [string]: Color3 })
 			if it.New then
 				info = "¡NUEVO!"
 				infoColor = Color3.fromRGB(120, 235, 140)
-			elseif it.Gold and it.Gold > 0 then
-				info = string.format("Repetido  +%d oro", it.Gold)
+			elseif it.Essence and it.Essence > 0 then
+				info = string.format("Repetido  +%d Esencia", it.Essence)
 				infoColor = Color3.fromRGB(255, 215, 90)
 			else
 				info = string.format("Repetido  %s", string.rep("★", it.Stars))
@@ -295,7 +295,7 @@ build = function()
 	ex.TextSize = 12
 	ex.TextTransparency = if pets > 0 then 0 else 0.5
 	local pulls = st.Pulls or 0
-	label(w, string.format("Reclutamientos hechos: %d · Los repetidos suben las estrellas (máx. 5) y después dan oro", pulls), 10, pal.FMuted, 262, 474, 384, 28).TextWrapped = true
+	label(w, string.format("Reclutamientos hechos: %d · Los repetidos suben las estrellas (máx. 5) y después dan Esencia (para ascender)", pulls), 10, pal.FMuted, 262, 474, 384, 28).TextWrapped = true
 	label(w, "Los ayudantes ayudan solo en PvE; contra jugadores no atacan y sus bonos valen el 50%.", 10, pal.FMuted, 14, 500, W - 28, 16, Enum.TextXAlignment.Center)
 
 	if lastResult then

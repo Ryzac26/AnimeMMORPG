@@ -5,13 +5,15 @@
       - Perfil (sección "Ayudantes"): colección {id -> estrellas, nivel, XP, equipo}, ranuras 1..3, cupones (carta y reclamados), garantías (pity), tope diario, regalo de bienvenida.
       - Ranuras: la 1 gratis; la 2 y la 3 piden el pase (atributo Pass_PetSlot). Todas desde nivel 1.
       - Cupones: caen de monstruos/jefes/cofres (DropCoupon, con tope diario por rareza) y llegan a la CARTA (atributo HelperMail). Se reclaman ahí y se gastan en el Reclutador.
-      - Reclutar (solo cerca del Reclutador): 1 o 10 tiradas con un cupón de una rareza; las probabilidades en % salen del cupón. Una copia repetida sube estrellas (máx. 5) y después da oro.
+      - Reclutar (solo cerca del Reclutador): 1 o 10 tiradas con un cupón de una rareza; las probabilidades en % salen del cupón. Una copia repetida sube estrellas (máx. 5) y después da Esencia.
+      - Progreso del ayudante: rangos por nivel, ramas de poder (acción "Branch"), ascensión con Esencia ("Ascend"), regalos por rango ("ClaimGift"),
+        apodo ("Nick", filtrado con TextService) y color de aura ("Aura"). Vínculo de facción: bono para ti según el ayudante equipado de mayor nivel.
       - XP: cada ayudante equipado recibe el 10% de tu XP (extra, no te la quita) y nunca pasa de TU nivel (ShareXp, lo llama RewardService).
       - Equipo: 4 piezas (Arma, Casco, Armadura, Botas) del set del ROL del ayudante; salen de tu mochila. Bono extra de botín: RollBonusGear (LootService).
       - Efectos pasivos: se suman a tus estadísticas con GearService.SetTemp(player, stats, "Helpers") (Ataque, Defensa, Vida, Crítico, Curación, Energía). Dos ayudantes del mismo rol no se suman. En PvP GearService ya aplica el 50%.
       - Autoequipar piezas (acción "GearAuto"): mejor pieza de la mochila por hueco, solo si mejora la que lleva
       - Poderes de combate (solo PvE): PetPowerService usa HelperService.Active(player).
-      - Atributos del jugador (los lee HelperFollowClient/HelperClient): Helper1..3 = "<id>#<nivel>#<estrellas>" · HelperMail = JSON de cupones en la carta · Pass_PetSlot (pase).
+      - Atributos del jugador (los lee HelperFollowClient/HelperClient): Helper1..3 = "<id>#<nivel>#<estrellas>" · HelperLook1..3 = "<rango>#<aura>#<ascensión>#<apodo>" · HelperMail = JSON de cupones en la carta · Pass_PetSlot (pase).
       - Remotes: HelperState (servidor -> cliente: estado) · HelperResult (resultado de reclutar) · HelperAction (cliente -> servidor).
       - Canje de mascotas viejas: ExchangePets (en el Reclutador): cada mascota -> 1 cupón de su misma rareza.
 ]]
@@ -19,12 +21,14 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
+local TextService = game:GetService("TextService")
 
 local Modules = ReplicatedStorage.Modules
 local HelperCatalog = require(Modules.HelperCatalog)
 local ItemCatalog = require(Modules.ItemCatalog)
 local GearCatalog = require(Modules.GearCatalog)
 local LootTables = require(Modules.LootTables)
+local GB = require(Modules.GameBalance)
 local AdminList = require(Modules.AdminList)
 
 local Services = ServerScriptService.Services
@@ -39,11 +43,22 @@ local StateRemote = Net.Get("HelperState")
 local ResultRemote = Net.Get("HelperResult")
 local ActionRemote = Net.Get("HelperAction")
 local NotifyRemote = Net.Get("Notify")
+local CheerRemote = Net.Get("HelperCheer") -- (jugador, ranura) a todos: el ayudante celebra (rango, ascensión, rama)
 
 local rng = Random.new()
 
 type GearPiece = { Id: string, Plus: number }
-type Entry = { Stars: number, Level: number, Xp: number, Gear: { [string]: GearPiece } }
+type Entry = {
+	Stars: number,
+	Level: number,
+	Xp: number,
+	Gear: { [string]: GearPiece },
+	Asc: number, -- ascensión 0..3
+	Branch: string?, -- "A" (Ritmo) | "B" (Potencia) | nil
+	Nick: string?, -- apodo (ya filtrado)
+	Aura: number, -- índice en HelperCatalog.Auras
+	Gifts: number, -- mayor rango cuyo regalo ya reclamaste (1 = ninguno)
+}
 type Profile = {
 	Owned: { [string]: Entry },
 	Slots: { [number]: string },
@@ -54,9 +69,24 @@ type Profile = {
 	DayCount: { [string]: number },
 	Gift: boolean,
 	Pulls: number,
+	Essence: number,
 }
 
-export type ActiveHelper = { Slot: number, Id: string, Faction: string, Role: string, Rarity: string, Stars: number, Level: number, Factor: number }
+export type ActiveHelper = {
+	Slot: number,
+	Id: string,
+	Faction: string,
+	Role: string,
+	Rarity: string,
+	Stars: number,
+	Level: number,
+	Factor: number,
+	Asc: number,
+	Branch: string?,
+	Rank: number,
+	Nick: string?,
+	Aura: number,
+}
 
 local profiles: { [Player]: Profile } = {}
 local active: { [Player]: { ActiveHelper } } = {}
@@ -64,6 +94,7 @@ local uiOpen: { [Player]: boolean } = {}
 local pushQueued: { [Player]: boolean } = {}
 local recruitAllowed: { [Player]: { Until: number, Pos: Vector3 } } = {}
 local lastAction: { [Player]: number } = {}
+local nickBusy: { [Player]: boolean } = {}
 
 local HelperService = {}
 
@@ -97,11 +128,33 @@ local function isOwner(player: Player): boolean
 end
 
 local function newProfile(): Profile
-	return { Owned = {}, Slots = {}, Stock = {}, Mail = {}, Pity = {}, Day = today(), DayCount = {}, Gift = false, Pulls = 0 }
+	return { Owned = {}, Slots = {}, Stock = {}, Mail = {}, Pity = {}, Day = today(), DayCount = {}, Gift = false, Pulls = 0, Essence = 0 }
 end
 
 local function newEntry(): Entry
-	return { Stars = 1, Level = 1, Xp = 0, Gear = {} }
+	return { Stars = 1, Level = 1, Xp = 0, Gear = {}, Asc = 0, Branch = nil, Nick = nil, Aura = 1, Gifts = 1 }
+end
+
+-- oro de un monstruo normal de ese nivel (base de los regalos y del coste de cambiar de rama)
+local function goldUnit(level: number): number
+	return math.max(1, math.floor(LootTables.GoldBase * LootTables.GoldGrowth ^ (GB.Eq(level) - 1)))
+end
+
+local function helperName(id: string, e: Entry?): string
+	if e and e.Nick and e.Nick ~= "" then
+		return e.Nick
+	end
+	local parsed = HelperCatalog.Parse(id)
+	return if parsed then HelperCatalog.NameOf(parsed) else id
+end
+
+local function slotOf(p: Profile, id: string): number?
+	for i = 1, HelperCatalog.MaxSlots do
+		if p.Slots[i] == id then
+			return i
+		end
+	end
+	return nil
 end
 
 local function validRarity(r: any): boolean
@@ -138,7 +191,7 @@ PlayerData.RegisterSerializer("Ayudantes", function(player: Player): any?
 		for slot, piece in pairs(e.Gear) do
 			gear[slot] = { I = piece.Id, P = piece.Plus }
 		end
-		owned[id] = { S = e.Stars, L = e.Level, X = e.Xp, G = gear }
+		owned[id] = { S = e.Stars, L = e.Level, X = e.Xp, G = gear, A = e.Asc, B = e.Branch, K = e.Nick, U = e.Aura, R = e.Gifts }
 	end
 	local slots: { [string]: string } = {}
 	for i = 1, HelperCatalog.MaxSlots do
@@ -146,7 +199,7 @@ PlayerData.RegisterSerializer("Ayudantes", function(player: Player): any?
 			slots[tostring(i)] = p.Slots[i]
 		end
 	end
-	return { O = owned, S = slots, C = p.Stock, M = p.Mail, P = p.Pity, D = p.Day, DC = p.DayCount, G = p.Gift, N = p.Pulls }
+	return { O = owned, S = slots, C = p.Stock, M = p.Mail, P = p.Pity, D = p.Day, DC = p.DayCount, G = p.Gift, N = p.Pulls, Es = p.Essence }
 end)
 
 local function numberMap(src: any, rarityKeys: boolean): { [string]: number }
@@ -192,6 +245,11 @@ local function buildActive(player: Player, p: Profile): { ActiveHelper }
 				Stars = e.Stars,
 				Level = e.Level,
 				Factor = HelperCatalog.LevelFactor(e.Level, lvOwner),
+				Asc = e.Asc,
+				Branch = e.Branch,
+				Rank = HelperCatalog.RankOf(e.Level),
+				Nick = e.Nick,
+				Aura = e.Aura,
 			})
 		end
 	end
@@ -204,8 +262,10 @@ local function publishAttributes(player: Player, p: Profile)
 		local e = if id then p.Owned[id] else nil
 		if id and e and slotOpen(player, slot) then
 			player:SetAttribute("Helper" .. slot, string.format("%s#%d#%d", id, e.Level, e.Stars))
+			player:SetAttribute("HelperLook" .. slot, string.format("%d#%d#%d#%s", HelperCatalog.RankOf(e.Level), e.Aura, e.Asc, e.Nick or ""))
 		else
 			player:SetAttribute("Helper" .. slot, nil)
+			player:SetAttribute("HelperLook" .. slot, nil)
 		end
 	end
 	local any = false
@@ -226,14 +286,24 @@ local function recompute(player: Player)
 	active[player] = list
 	local lvOwner = ownerLevel(player)
 	local effects: { { [string]: number } } = {}
+	local topLevel = 0
 	for _, h in ipairs(list) do
 		local e = p.Owned[h.Id]
 		local parsed = HelperCatalog.Parse(h.Id)
 		if e and parsed then
-			table.insert(effects, HelperCatalog.Effects(parsed, e.Stars, e.Level, lvOwner, gearPowerOf(e)))
+			table.insert(effects, HelperCatalog.Effects(parsed, e.Stars, e.Level, lvOwner, gearPowerOf(e), e.Asc))
+			topLevel = math.max(topLevel, e.Level)
 		end
 	end
-	GearService.SetTemp(player, HelperCatalog.Total(effects), "Helpers")
+	local total = HelperCatalog.Total(effects)
+	-- vínculo de facción: perk propio según el ayudante equipado de mayor nivel (suma aparte del tope)
+	local faction = player:GetAttribute("Faction")
+	if typeof(faction) == "string" then
+		for stat, v in pairs(HelperCatalog.BondStats(faction, topLevel)) do
+			total[stat] = (total[stat] or 0) + v
+		end
+	end
+	GearService.SetTemp(player, total, "Helpers")
 	publishAttributes(player, p)
 end
 
@@ -245,7 +315,19 @@ local function snapshot(player: Player, p: Profile): { [string]: any }
 		for slot, piece in pairs(e.Gear) do
 			gear[slot] = { Id = piece.Id, Plus = piece.Plus }
 		end
-		owned[id] = { S = e.Stars, L = e.Level, X = math.floor(e.Xp), N = HelperCatalog.XpToNext(e.Level), G = gear, Gp = gearPowerOf(e) }
+		owned[id] = {
+			S = e.Stars,
+			L = e.Level,
+			X = math.floor(e.Xp),
+			N = HelperCatalog.XpToNext(e.Level),
+			G = gear,
+			Gp = gearPowerOf(e),
+			A = e.Asc,
+			B = e.Branch or "",
+			K = e.Nick or "",
+			U = e.Aura,
+			R = e.Gifts,
+		}
 	end
 	local slots: { string } = {}
 	local open: { boolean } = {}
@@ -265,6 +347,8 @@ local function snapshot(player: Player, p: Profile): { [string]: any }
 		DayCount = p.DayCount,
 		Level = ownerLevel(player),
 		Faction = player:GetAttribute("Faction"),
+		Essence = p.Essence,
+		GoldUnit = goldUnit(ownerLevel(player)),
 	}
 end
 
@@ -297,7 +381,7 @@ end
 ---------------------------------------------------------------------
 -- Colección
 ---------------------------------------------------------------------
--- Suma un ayudante. Devuelve (esNuevo, estrellasFinales, oroPorRepetido)
+-- Suma un ayudante. Devuelve (esNuevo, estrellasFinales, esenciaPorRepetido)
 local function addHelper(player: Player, p: Profile, id: string, rarity: string): (boolean, number, number)
 	local e = p.Owned[id]
 	if not e then
@@ -308,9 +392,9 @@ local function addHelper(player: Player, p: Profile, id: string, rarity: string)
 		e.Stars += 1
 		return false, e.Stars, 0
 	end
-	local gold = HelperCatalog.DuplicateGold[rarity] or 0
-	local given = if gold > 0 then WalletService.AddGold(player, gold, "Ayudantes") else 0
-	return false, e.Stars, given
+	local essence = HelperCatalog.EssenceDup[rarity] or 0
+	p.Essence += essence
+	return false, e.Stars, essence
 end
 
 local function pickByOdds(odds: { number }, minIndex: number): string
@@ -334,7 +418,7 @@ local function pickByOdds(odds: { number }, minIndex: number): string
 	return last
 end
 
-type PullResult = { Id: string, Rarity: string, New: boolean, Stars: number, Gold: number }
+type PullResult = { Id: string, Rarity: string, New: boolean, Stars: number, Essence: number }
 
 local function pullOne(player: Player, p: Profile, coupon: string, faction: string): PullResult
 	local c = HelperCatalog.Coupons[coupon]
@@ -353,9 +437,9 @@ local function pullOne(player: Player, p: Profile, coupon: string, faction: stri
 	end
 	local role = HelperCatalog.Roles[rng:NextInteger(1, #HelperCatalog.Roles)]
 	local id = HelperCatalog.Id(faction, role, rarity)
-	local isNew, stars, gold = addHelper(player, p, id, rarity)
+	local isNew, stars, essence = addHelper(player, p, id, rarity)
 	p.Pulls += 1
-	return { Id = id, Rarity = rarity, New = isNew, Stars = stars, Gold = gold }
+	return { Id = id, Rarity = rarity, New = isNew, Stars = stars, Essence = essence }
 end
 
 local function recruit(player: Player, coupon: any, count: any)
@@ -706,11 +790,13 @@ function HelperService.ShareXp(player: Player, amount: number)
 	end
 	local cap = math.min(ownerLevel(player), HelperCatalog.MaxLevel)
 	local leveled = false
+	local rankUps: { { Slot: number, Id: string, Entry: Entry, Rank: number } } = {}
 	local gain = amount * HelperCatalog.XpShare
 	for slot = 1, HelperCatalog.MaxSlots do
 		local id = p.Slots[slot]
 		local e = if id then p.Owned[id] else nil
 		if id and e and slotOpen(player, slot) then
+			local rankBefore = HelperCatalog.RankOf(e.Level)
 			if e.Level >= cap then
 				e.Xp = 0
 			else
@@ -726,11 +812,24 @@ function HelperService.ShareXp(player: Player, amount: number)
 					e.Xp = 0
 				end
 			end
+			local rankAfter = HelperCatalog.RankOf(e.Level)
+			if rankAfter > rankBefore then
+				table.insert(rankUps, { Slot = slot, Id = id, Entry = e, Rank = rankAfter })
+			end
 		end
 	end
 	if leveled then
 		recompute(player)
 		queuePush(player)
+		for _, up in ipairs(rankUps) do
+			local rankName = HelperCatalog.Ranks[up.Rank].Name
+			local gift = if HelperCatalog.Gifts[up.Rank] then " · ¡trae un regalo! (Ayudantes > Camino)" else ""
+			notify(player, string.format("⭐ %s alcanzó el rango %s%s", helperName(up.Id, up.Entry), rankName, gift))
+			CheerRemote:FireAllClients(player, up.Slot)
+		end
+		if #rankUps > 0 then
+			PlayerData.Save(player)
+		end
 	elseif uiOpen[player] then
 		queuePush(player)
 	end
@@ -797,6 +896,234 @@ local function exchangePets(player: Player)
 end
 
 ---------------------------------------------------------------------
+-- Progreso: ascensión, ramas, regalos, apodo y aura
+---------------------------------------------------------------------
+-- Nombre para mostrar (apodo o nombre del catálogo)
+function HelperService.DisplayName(h: ActiveHelper): string
+	if h.Nick and h.Nick ~= "" then
+		return h.Nick
+	end
+	return HelperCatalog.NameOf({ Faction = h.Faction, Role = h.Role, Rarity = h.Rarity })
+end
+
+local function celebrate(player: Player, p: Profile, id: string)
+	local slot = slotOf(p, id)
+	if slot then
+		CheerRemote:FireAllClients(player, slot)
+	end
+end
+
+-- ASCENDER: gasta Esencia. Cada escalón sube el poder una rareza (hasta Mítico) y suma +5% a los bonos.
+local function ascend(player: Player, id: any)
+	local p = profiles[player]
+	local e = if p and typeof(id) == "string" then p.Owned[id] else nil
+	local parsed = if typeof(id) == "string" then HelperCatalog.Parse(id) else nil
+	if not p or not e or not parsed or typeof(id) ~= "string" then
+		return
+	end
+	local nextAsc = e.Asc + 1
+	if nextAsc > HelperCatalog.MaxAsc then
+		notify(player, "Ya está en su máxima ascensión")
+		return
+	end
+	local needLevel = HelperCatalog.AscLevels[nextAsc]
+	if e.Level < needLevel then
+		notify(player, string.format("Necesita nivel %d para la ascensión %s", needLevel, HelperCatalog.AscNames[nextAsc]))
+		return
+	end
+	local cost = HelperCatalog.AscendCost(parsed.Rarity, nextAsc)
+	if p.Essence < cost then
+		notify(player, string.format("Te falta Esencia: tienes %d y necesitas %d", p.Essence, cost))
+		return
+	end
+	p.Essence -= cost
+	e.Asc = nextAsc
+	notify(player, string.format("✨ %s ascendió (%s): poder y bonos mejorados", helperName(id, e), HelperCatalog.AscNames[nextAsc]))
+	celebrate(player, p, id)
+	PlayerData.Save(player)
+	changed(player)
+end
+
+-- RAMA: A (Ritmo) o B (Potencia). Se abre al nivel 100; la primera elección es gratis, cambiarla cuesta oro.
+local function setBranch(player: Player, id: any, kind: any)
+	local p = profiles[player]
+	local e = if p and typeof(id) == "string" then p.Owned[id] else nil
+	if not p or not e or typeof(id) ~= "string" or (kind ~= "A" and kind ~= "B") then
+		return
+	end
+	if e.Level < HelperCatalog.BranchLevels[1] then
+		notify(player, string.format("Las ramas se abren al nivel %d del ayudante", HelperCatalog.BranchLevels[1]))
+		return
+	end
+	if e.Branch == kind then
+		return
+	end
+	if e.Branch ~= nil then
+		local cost = goldUnit(ownerLevel(player)) * HelperCatalog.BranchChangeMobs
+		if not WalletService.TrySpendGold(player, cost, "Ayudantes") then
+			notify(player, string.format("Cambiar de rama cuesta %s de oro y no te alcanza", tostring(cost)))
+			return
+		end
+	end
+	e.Branch = kind :: string
+	local parsed = HelperCatalog.Parse(id)
+	local info = if parsed then HelperCatalog.Branches[parsed.Role] else nil
+	local branchName = if info then (info :: any)[kind].Name else kind
+	notify(player, string.format("🔀 %s eligió la rama «%s»", helperName(id, e), tostring(branchName)))
+	celebrate(player, p, id)
+	PlayerData.Save(player)
+	changed(player)
+end
+
+-- REGALOS: uno por rango alcanzado (oro, Esencia y a veces un cupón a la carta)
+local function claimGiftFor(player: Player, p: Profile, id: string, e: Entry): (number, number, number, number)
+	local rank = HelperCatalog.RankOf(e.Level)
+	local parsed = HelperCatalog.Parse(id)
+	if not parsed or rank <= e.Gifts then
+		return 0, 0, 0, 0
+	end
+	local gold, essence, coupons = 0, 0, 0
+	local unit = goldUnit(ownerLevel(player))
+	local claimed = 0
+	for r = e.Gifts + 1, rank do
+		local g = HelperCatalog.Gifts[r]
+		if g then
+			claimed += 1
+			gold += g.Mobs * unit
+			essence += HelperCatalog.GiftEssence(r, parsed.Rarity)
+			if g.Coupon and validRarity(g.Coupon) then
+				local n = g.CouponN or 1
+				HelperService.AddCouponMail(player, g.Coupon, n)
+				coupons += n
+			end
+		end
+	end
+	e.Gifts = rank
+	if gold > 0 then
+		WalletService.AddGold(player, gold, "Ayudantes")
+	end
+	p.Essence += essence
+	return claimed, gold, essence, coupons
+end
+
+local function claimGift(player: Player, which: any)
+	local p = profiles[player]
+	if not p then
+		return
+	end
+	local ids: { string } = {}
+	if which == "all" then
+		for id in pairs(p.Owned) do
+			table.insert(ids, id)
+		end
+	elseif typeof(which) == "string" and p.Owned[which] then
+		ids = { which }
+	else
+		return
+	end
+	local n, gold, essence, coupons = 0, 0, 0, 0
+	for _, id in ipairs(ids) do
+		local c, g, es, cp = claimGiftFor(player, p, id, p.Owned[id])
+		n += c
+		gold += g
+		essence += es
+		coupons += cp
+	end
+	if n == 0 then
+		notify(player, "No hay regalos por reclamar")
+		return
+	end
+	local parts = { string.format("%d regalo(s)", n) }
+	if gold > 0 then
+		table.insert(parts, string.format("%s de oro", tostring(gold)))
+	end
+	if essence > 0 then
+		table.insert(parts, string.format("%d de Esencia", essence))
+	end
+	if coupons > 0 then
+		table.insert(parts, string.format("%d cupón(es) en la carta ✉", coupons))
+	end
+	notify(player, "🎁 " .. table.concat(parts, " · "))
+	PlayerData.Save(player)
+	changed(player)
+end
+
+-- AURA: color del aura del ayudante (según el rango)
+local function setAura(player: Player, id: any, idx: any)
+	local p = profiles[player]
+	local e = if p and typeof(id) == "string" then p.Owned[id] else nil
+	if not p or not e or typeof(idx) ~= "number" then
+		return
+	end
+	idx = math.floor(idx)
+	local aura = HelperCatalog.Auras[idx]
+	if not aura or HelperCatalog.RankOf(e.Level) < aura.MinRank then
+		return
+	end
+	e.Aura = idx
+	changed(player)
+end
+
+-- APODO: ≤ NickMax letras/números/espacios y . - _ ' !  · pasa por el filtro de Roblox (si cambia algo, se rechaza)
+local function validNickChars(text: string): boolean
+	if not utf8.len(text) then
+		return false
+	end
+	for _, cp in utf8.codes(text) do
+		local ok = (cp >= 48 and cp <= 57) or (cp >= 65 and cp <= 90) or (cp >= 97 and cp <= 122) or cp == 32 or cp == 46 or cp == 45 or cp == 95
+			or cp == 39 or cp == 33 or (cp >= 0xC0 and cp <= 0x17F and cp ~= 0xD7 and cp ~= 0xF7)
+		if not ok then
+			return false
+		end
+	end
+	return true
+end
+
+local function setNick(player: Player, id: any, text: any)
+	local p = profiles[player]
+	local e = if p and typeof(id) == "string" then p.Owned[id] else nil
+	if not p or not e or typeof(id) ~= "string" or typeof(text) ~= "string" or nickBusy[player] then
+		return
+	end
+	local clean = string.gsub(string.gsub(text, "^%s+", ""), "%s+$", "")
+	clean = string.gsub(clean, "%s+", " ")
+	if clean == "" then
+		e.Nick = nil
+		notify(player, "Apodo quitado")
+		changed(player)
+		return
+	end
+	local len = utf8.len(clean)
+	if not len or len > HelperCatalog.NickMax or not validNickChars(clean) then
+		notify(player, string.format("Apodo no válido: hasta %d letras, números o espacios", HelperCatalog.NickMax))
+		return
+	end
+	nickBusy[player] = true
+	task.spawn(function()
+		local ok, filtered = pcall(function()
+			local res = TextService:FilterStringAsync(clean, player.UserId, Enum.TextFilterContext.PublicChat)
+			return res:GetNonChatStringForBroadcastAsync()
+		end)
+		nickBusy[player] = nil
+		local pp = profiles[player]
+		local ee = if pp then pp.Owned[id] else nil
+		if not player.Parent or not pp or not ee then
+			return
+		end
+		if not ok or filtered ~= clean then
+			notify(player, "Ese apodo no está permitido: prueba con otro")
+			return
+		end
+		ee.Nick = clean
+		notify(player, string.format("Apodo guardado: %s", clean))
+		celebrate(player, pp, id)
+		PlayerData.Save(player)
+		changed(player)
+	end)
+end
+
+
+---------------------------------------------------------------------
 -- Acciones de prueba (SOLO el Fundador)
 ---------------------------------------------------------------------
 local function devAction(player: Player, action: string, a: any, b: any)
@@ -820,8 +1147,15 @@ local function devAction(player: Player, action: string, a: any, b: any)
 			e.Level = math.clamp(math.floor(b), 1, HelperCatalog.MaxLevel)
 			e.Xp = 0
 		end
+	elseif action == "DevEssence" and typeof(a) == "number" then
+		p.Essence = math.max(0, p.Essence + math.clamp(math.floor(a), -9999, 9999))
+	elseif action == "DevLevelAll" and typeof(a) == "number" then
+		for _, e in pairs(p.Owned) do
+			e.Level = math.clamp(math.floor(a), 1, HelperCatalog.MaxLevel)
+			e.Xp = 0
+		end
 	elseif action == "DevReset" then
-		p.Owned, p.Slots, p.Stock, p.Mail, p.Pity, p.DayCount, p.Pulls = {}, {}, {}, {}, {}, {}, 0
+		p.Owned, p.Slots, p.Stock, p.Mail, p.Pity, p.DayCount, p.Pulls, p.Essence = {}, {}, {}, {}, {}, {}, 0, 0
 	end
 	changed(player)
 end
@@ -859,6 +1193,16 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any,
 		gearUnequip(player, a, b)
 	elseif action == "GearAuto" then
 		gearAuto(player, a)
+	elseif action == "Ascend" then
+		ascend(player, a)
+	elseif action == "Branch" then
+		setBranch(player, a, b)
+	elseif action == "ClaimGift" then
+		claimGift(player, a)
+	elseif action == "Aura" then
+		setAura(player, a, b)
+	elseif action == "Nick" then
+		setNick(player, a, b)
 	elseif action == "ExchangePets" then
 		exchangePets(player)
 	elseif string.sub(action, 1, 3) == "Dev" then
@@ -883,6 +1227,18 @@ local function loadProfile(player: Player)
 					e.Stars = math.clamp(math.floor(tonumber(raw.S) or 1), 1, HelperCatalog.MaxStars)
 					e.Level = math.clamp(math.floor(tonumber(raw.L) or 1), 1, HelperCatalog.MaxLevel)
 					e.Xp = math.max(0, tonumber(raw.X) or 0)
+					e.Asc = math.clamp(math.floor(tonumber(raw.A) or 0), 0, HelperCatalog.MaxAsc)
+					if raw.B == "A" or raw.B == "B" then
+						e.Branch = raw.B
+					end
+					if type(raw.K) == "string" and raw.K ~= "" and utf8.len(raw.K) and (utf8.len(raw.K) :: number) <= HelperCatalog.NickMax and validNickChars(raw.K) then
+						e.Nick = raw.K
+					end
+					e.Gifts = math.clamp(math.floor(tonumber(raw.R) or 1), 1, HelperCatalog.MaxRank)
+					local aura = math.floor(tonumber(raw.U) or 1)
+					if HelperCatalog.Auras[aura] and HelperCatalog.RankOf(e.Level) >= HelperCatalog.Auras[aura].MinRank then
+						e.Aura = aura
+					end
 					if type(raw.G) == "table" then
 						for slotName, piece in pairs(raw.G) do
 							if type(slotName) == "string" and table.find(HelperCatalog.GearSlots, slotName) and type(piece) == "table" and type(piece.I) == "string" and bagItem(piece.I) then
@@ -911,6 +1267,7 @@ local function loadProfile(player: Player)
 		end
 		p.Gift = sec.G == true
 		p.Pulls = math.max(0, math.floor(tonumber(sec.N) or 0))
+		p.Essence = math.max(0, math.floor(tonumber(sec.Es) or 0))
 	end
 	dayRollover(p)
 	profiles[player] = p
@@ -956,6 +1313,7 @@ PlayerData.Releasing:Connect(function(pl: Player)
 	active[pl] = nil
 	uiOpen[pl] = nil
 	pushQueued[pl] = nil
+	nickBusy[pl] = nil
 	recruitAllowed[pl] = nil
 	lastAction[pl] = nil
 end)

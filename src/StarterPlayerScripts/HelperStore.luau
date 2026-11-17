@@ -2,12 +2,14 @@
 --[[
     HelperStore (ModuleScript) -> StarterPlayer > StarterPlayerScripts > HelperStore
     Estado de tus AYUDANTES en el cliente (lo envía HelperService por el remote HelperState). Lo usan HelperClient, RecruitClient y SettingsClient.
-      Store.State     última foto: { Owned = { [id] = { S = estrellas, L = nivel, X = xp, N = xp para subir, G = equipo, Gp = poder del equipo } },
-                                     Slots = { id|"" x3 }, Open = { bool x3 }, Pass, Stock = { [rareza] = n }, Mail = { [rareza] = n }, Pity, Pulls, DayCount, Level, Faction }
+      Store.State     última foto: { Owned = { [id] = { S = estrellas, L = nivel, X = xp, N = xp para subir, G = equipo, Gp = poder del equipo,
+                                                       A = ascensión, B = rama "A"|"B"|"", K = apodo, U = aura, R = último rango con regalo reclamado } },
+                                     Slots = { id|"" x3 }, Open = { bool x3 }, Pass, Stock = { [rareza] = n }, Mail = { [rareza] = n }, Pity, Pulls, DayCount, Level, Faction, Essence, GoldUnit (oro de un monstruo de tu nivel) }
       Store.Changed   se dispara al llegar una foto nueva
-      Store.Result    se dispara al terminar un reclutamiento: { Coupon, Results = { { Id, Rarity, New, Stars, Gold } }, Pity }
+      Store.Result    se dispara al terminar un reclutamiento: { Coupon, Results = { { Id, Rarity, New, Stars, Essence } }, Pity }
       Store.Action(a, b, c, d)  pide algo al servidor (HelperAction): "State" (abrí una ventana) · "Close" · "Equip", id, ranura · "Unequip", ranura ·
-                                "Recruit", cupón, 1|10 · "ClaimMail", rareza|"all" · "GearEquip", id, hueco, casilla · "GearUnequip", id, hueco · "ExchangePets"
+                                "Recruit", cupón, 1|10 · "ClaimMail", rareza|"all" · "GearEquip", id, hueco, casilla · "GearUnequip", id, hueco · "ExchangePets" ·
+                                "Ascend", id · "Branch", id, "A"|"B" · "ClaimGift", id|"all" · "Aura", id, índice · "Nick", id, texto
     Es un ModuleScript: sobrevive a la recarga de interfaz (UIReloadClient), así que la foto no se pierde.
 ]]
 local ClientNet = require(script.Parent:WaitForChild("ClientNet"))

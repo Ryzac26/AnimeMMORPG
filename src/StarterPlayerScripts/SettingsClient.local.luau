@@ -550,6 +550,28 @@ local function renderHelperTester()
 		rb.TextColor3 = Color3.new(1, 1, 1)
 		rs.Color = Color3.fromRGB(235, 140, 90)
 	end
+	-- 1b) progreso: Esencia y nivel de todos los ayudantes (para probar rangos, ramas y ascensión)
+	heading("PROGRESO (rangos, ramas y ascensión)")
+	do
+		local row = newRow()
+		rowLabel(row, "Esencia", 150, pal.Text)
+		for k, amount in ipairs({ 100, 1000 }) do
+			local _, st2 = mini(row, "+" .. amount, UDim2.fromOffset(60, 24), UDim2.new(1, -(3 - k) * 66 - 2, 0.5, -12), function()
+				HelperStore.Action("DevEssence", amount)
+			end)
+			st2.Color = pal.Text
+		end
+	end
+	do
+		local row = newRow()
+		rowLabel(row, "Nivel de todos", 110, pal.Text)
+		for k, lv in ipairs({ 10, 100, 500, 1500, 3000 }) do
+			local _, st3 = mini(row, "Nv." .. lv, UDim2.fromOffset(48, 24), UDim2.new(1, -(6 - k) * 52 - 2, 0.5, -12), function()
+				HelperStore.Action("DevLevelAll", lv)
+			end)
+			st3.Color = pal.Text
+		end
+	end
 	local gap0 = Instance.new("Frame")
 	gap0.Size = UDim2.new(1, 0, 0, 4)
 	gap0.BackgroundTransparency = 1
