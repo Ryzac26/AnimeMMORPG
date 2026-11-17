@@ -40,6 +40,7 @@ function HelperPortrait.Build(parent: Instance, parsed: HelperCatalog.Parsed, si
 		end
 	end
 	built.Model.Parent = vp
+	HelperModel.Pose(built) -- en un ViewportFrame los Weld no se aplican solos
 
 	local cam = Instance.new("Camera")
 	cam.FieldOfView = 32
@@ -72,6 +73,7 @@ function HelperPortrait.Build(parent: Instance, parsed: HelperCatalog.Parsed, si
 			local t = os.clock() - t0
 			if opts.Animate then
 				HelperModel.Animate(built, t, 0, -1, 0)
+				HelperModel.Pose(built)
 			end
 			if opts.Spin then
 				place(math.sin(t * 0.6) * 0.7)

@@ -13,6 +13,8 @@
       HelperModel.Animate(b, t, speed, attack, cheer)  speed 0..1 (caminar) · attack -1 (nada) o 0..1 (progreso del golpe) · cheer 0..1 (celebración)
       HelperModel.SetTag(b, name, sub)                 cambia el cartel
       HelperModel.Burst(b)                             estallido de chispas (celebrar un rango, una ascensión o una rama)
+      HelperModel.Pose(b)                              coloca cada pieza según sus Weld a mano. NECESARIO dentro de un ViewportFrame (ahí no hay física y los Weld no
+                                                       mueven nada: sin esto todas las piezas quedan apiladas en el centro). En el mundo no hace falta.
     El frente del modelo es -Z. b.Feet = distancia (studs) de la raíz a los pies: apoya la raíz a b.Feet sobre el suelo.
 ]]
 local HelperCatalog = require(script.Parent:WaitForChild("HelperCatalog"))
@@ -471,6 +473,35 @@ function HelperModel.Animate(b: Built, t: number, speed: number, attack: number,
 		end
 		for _, em in ipairs(b.Emitters) do
 			em.Color = ColorSequence.new(c)
+		end
+	end
+end
+
+-- Soluciona los Weld a mano (para ViewportFrame): cada pieza = Part0 * C0 * C1:Inverse(). Primero las pegadas a la raíz, luego las hijas de otras piezas.
+local weldOrder: { [Model]: { Weld } } = setmetatable({}, { __mode = "k" }) :: any
+function HelperModel.Pose(b: Built)
+	local cached = weldOrder[b.Model]
+	local list: { Weld } = cached or {}
+	if not cached then
+		local deferred: { Weld } = {}
+		for _, d in ipairs(b.Model:GetDescendants()) do
+			if d:IsA("Weld") then
+				if d.Part0 == b.Root then
+					table.insert(list, d)
+				else
+					table.insert(deferred, d)
+				end
+			end
+		end
+		for _, d in ipairs(deferred) do
+			table.insert(list, d)
+		end
+		weldOrder[b.Model] = list
+	end
+	for _, w in ipairs(list) do
+		local p0, p1 = w.Part0, w.Part1
+		if p0 and p1 then
+			p1.CFrame = p0.CFrame * w.C0 * w.C1:Inverse()
 		end
 	end
 end

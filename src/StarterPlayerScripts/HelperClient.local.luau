@@ -562,7 +562,7 @@ local function drawPath(w: Frame, theme: any, pal: { [string]: Color3 }, st: any
 		local nodeCol = HelperCatalog.RankColors[i]
 		local node = dot(track, size, cx - size / 2, lineY - size / 2, if reached then nodeCol else pal.Slot, if current then pal.Accent elseif reached then nodeCol:Lerp(Color3.new(1, 1, 1), 0.4) else pal.Edge, if current then 3 else 1)
 		if HelperCatalog.RankPerks[i] then
-			label(node, "✦", if current then 12 else 10, if reached then Color3.fromRGB(30, 24, 16) else pal.FMuted, 0, 0, size, size, Enum.TextXAlignment.Center).TextYAlignment = Enum.TextYAlignment.Center
+			label(node, "★", if current then 12 else 10, if reached then Color3.fromRGB(30, 24, 16) else pal.FMuted, 0, 0, size, size, Enum.TextXAlignment.Center).TextYAlignment = Enum.TextYAlignment.Center
 		end
 	end
 	local nextRank = HelperCatalog.Ranks[rank + 1]
@@ -570,7 +570,7 @@ local function drawPath(w: Frame, theme: any, pal: { [string]: Color3 }, st: any
 	local perkText = "Ya tiene todos los aspectos de rango"
 	for j = rank + 1, HelperCatalog.MaxRank do
 		if HelperCatalog.RankPerks[j] then
-			perkText = string.format("✦ Aspecto en %s: %s", HelperCatalog.Ranks[j].Name, HelperCatalog.RankPerks[j])
+			perkText = string.format("★ Aspecto en %s: %s", HelperCatalog.Ranks[j].Name, HelperCatalog.RankPerks[j])
 			break
 		end
 	end
@@ -579,10 +579,11 @@ local function drawPath(w: Frame, theme: any, pal: { [string]: Color3 }, st: any
 	-- 2) regalos de rango
 	local gp = NpcKit.Panel(w, theme, UDim2.fromOffset(400, 80), UDim2.fromOffset(246, 308), "card")
 	label(gp, "REGALOS DE RANGO", 12, pal.Accent, 12, 6, 250, 16)
+	label(gp, "🎁", 30, pal.FText, 12, 28, 40, 40, Enum.TextXAlignment.Center).TextYAlignment = Enum.TextYAlignment.Center
 	local cnt, gold, essence, coupons = pendingGifts(st, id)
 	local all = pendingAll(st)
 	if cnt > 0 then
-		wrapped(label(gp, string.format("%d regalo(s) listo(s): %s de oro · %d de Esencia%s", cnt, fmt(gold), essence, couponText(coupons)), 11, pal.FText, 12, 24, 268, 30))
+		wrapped(label(gp, string.format("%d regalo(s) listo(s): %s de oro · %d de Esencia%s", cnt, fmt(gold), essence, couponText(coupons)), 11, pal.FText, 58, 24, 226, 30))
 		NpcKit.Button(gp, theme, "🎁 Reclamar", UDim2.fromOffset(100, 26), UDim2.fromOffset(288, 22), "buy", function()
 			Store.Action("ClaimGift", id)
 		end).TextSize = 12
@@ -596,10 +597,10 @@ local function drawPath(w: Frame, theme: any, pal: { [string]: Color3 }, st: any
 			end
 			text = string.format("Próximo regalo en %s: %s de oro · %d de Esencia%s", nextRank.Name, fmt(nextGift.Mobs * (st.GoldUnit or 0)), HelperCatalog.GiftEssence(rank + 1, parsed.Rarity), couponText(c))
 		end
-		wrapped(label(gp, text, 11, pal.FMuted, 12, 24, 372, 30))
+		wrapped(label(gp, text, 11, pal.FMuted, 58, 24, 330, 30))
 	end
 	if all > cnt then
-		label(gp, string.format("Otros ayudantes tuyos tienen %d regalo(s) pendiente(s)", all - cnt), 10, pal.FMuted, 12, 58, 268, 14)
+		label(gp, string.format("Otros ayudantes tuyos tienen %d regalo(s) pendiente(s)", all - cnt), 10, pal.FMuted, 58, 58, 226, 14)
 		NpcKit.Button(gp, theme, "Reclamar todo", UDim2.fromOffset(100, 22), UDim2.fromOffset(288, 54), "neutral", function()
 			Store.Action("ClaimGift", "all")
 		end).TextSize = 11
@@ -622,7 +623,7 @@ local function drawPath(w: Frame, theme: any, pal: { [string]: Color3 }, st: any
 		local tier = HelperCatalog.BondTier(top)
 		label(bp, "VÍNCULO DE FACCIÓN  ·  " .. bond.Name, 12, pal.Accent, 12, 6, 330, 16)
 		label(bp, string.format("%s: +%s (ayudante nv. %d)  →  +%s (nv. %d)", bond.Label, pct(bond.Values[1]), HelperCatalog.BondLevels[1], pct(bond.Values[2]), HelperCatalog.BondLevels[2]), 11, pal.FText, 12, 24, 376, 16)
-		label(bp, if tier > 0 then string.format("Activo: +%s %s (tu equipado de mayor nivel: nv. %d)", pct(bond.Values[tier]), bond.Label, top) else string.format("Aún sin activar: equipa un ayudante de nivel %d (tu mejor equipado: nv. %d)", HelperCatalog.BondLevels[1], top), 11, if tier > 0 then GOOD else pal.FMuted, 12, 43, 376, 16)
+		label(bp, if tier > 0 then string.format("Activo: +%s %s (tu mejor equipado: nv. %d)", pct(bond.Values[tier]), bond.Label, top) else string.format("Sin activar: equipa uno de nivel %d (el tuyo: nv. %d)", HelperCatalog.BondLevels[1], top), 11, if tier > 0 then GOOD else pal.FMuted, 12, 43, 376, 16)
 		for t = 1, #HelperCatalog.BondLevels do
 			dot(bp, 14, 342 + (t - 1) * 22, 8, if tier >= t then pal.Accent else pal.Slot, if tier >= t then pal.Accent else pal.Edge, 1)
 		end
@@ -712,13 +713,14 @@ local function drawPath(w: Frame, theme: any, pal: { [string]: Color3 }, st: any
 		end)
 	end
 	local cur = HelperCatalog.Auras[e.U or 1] or HelperCatalog.Auras[1]
-	local unlockRanks: { string } = {}
+	local nextAura: { Name: string, MinRank: number }? = nil
 	for _, a in ipairs(HelperCatalog.Auras) do
-		if a.MinRank > 1 and rank < a.MinRank then
-			table.insert(unlockRanks, HelperCatalog.Ranks[a.MinRank].Name)
+		if a.MinRank > rank then
+			nextAura = a
+			break
 		end
 	end
-	label(pp, string.format("Aura: %s%s", cur.Name, if #unlockRanks > 0 then "  ·  más colores en: " .. table.concat(unlockRanks, ", ") else "  ·  ¡todos desbloqueados!"), 10, pal.FText, 12, 110, 376, 14).TextTruncate = Enum.TextTruncate.AtEnd
+	label(pp, string.format("Aura: %s%s", cur.Name, if nextAura then string.format("  ·  próximo color: %s (rango %s)", nextAura.Name, HelperCatalog.Ranks[nextAura.MinRank].Name) else "  ·  ¡todos los colores desbloqueados!"), 10, pal.FText, 12, 110, 376, 14).TextTruncate = Enum.TextTruncate.AtEnd
 end
 
 ---------------------------------------------------------------------
@@ -806,8 +808,10 @@ local function drawPower(w: Frame, theme: any, pal: { [string]: Color3 }, st: an
 		local needLv = HelperCatalog.AscLevels[nextAsc]
 		local cost = HelperCatalog.AscendCost(parsed.Rarity, nextAsc)
 		local lvOk, esOk = e.L >= needLv, (st.Essence or 0) >= cost
-		label(ap, string.format("%s  Nivel %d del ayudante  (tiene %d)", if lvOk then "✔" else "✘", needLv, e.L), 11, if lvOk then GOOD else BAD, 12, 72, 376, 16)
-		label(ap, string.format("%s  %s de Esencia  (tienes %s)", if esOk then "✔" else "✘", fmt(cost), fmt(st.Essence or 0)), 11, if esOk then GOOD else BAD, 12, 89, 376, 16)
+		dot(ap, 9, 12, 76, if lvOk then GOOD else BAD)
+		label(ap, string.format("Nivel %d del ayudante  (tiene %d)", needLv, e.L), 11, if lvOk then GOOD else BAD, 28, 72, 360, 16)
+		dot(ap, 9, 12, 93, if esOk then GOOD else BAD)
+		label(ap, string.format("%s de Esencia  (tienes %s)", fmt(cost), fmt(st.Essence or 0)), 11, if esOk then GOOD else BAD, 28, 89, 360, 16)
 		NpcKit.Button(ap, theme, string.format("✨ Ascender a %s", HelperCatalog.AscNames[nextAsc]), UDim2.fromOffset(376, 28), UDim2.fromOffset(12, 106), if lvOk and esOk then "buy" else "neutral", function()
 			if lvOk and esOk then
 				Store.Action("Ascend", id)
