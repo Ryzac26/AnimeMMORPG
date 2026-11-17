@@ -32,9 +32,16 @@ gui.DisplayOrder = 6
 gui.Parent = player:WaitForChild("PlayerGui", 10)
 
 local WIDTH = if MOBILE then 320 else 560
+-- celular: justo debajo de la tarjeta del jugador (MobileClient: tarjeta de 8 a 64 px a escala 1); se ajusta a la misma escala que MobileClient
+local function mobileTop(): number
+	local cam = workspace.CurrentCamera
+	local vs = if cam then cam.ViewportSize else Vector2.new(844, 380)
+	return math.ceil(68 * math.clamp(math.min(vs.X / 844, vs.Y / 380), 0.7, 1.25))
+end
+local TOP_Y = if MOBILE then mobileTop() else 10
 local panel = Instance.new("Frame")
 panel.AnchorPoint = Vector2.new(0.5, 0)
-panel.Position = UDim2.new(0.5, 0, 0, if MOBILE then 6 else 10)
+panel.Position = UDim2.new(0.5, 0, 0, TOP_Y)
 panel.Size = UDim2.fromOffset(WIDTH, if MOBILE then 46 else 58)
 panel.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
 panel.BackgroundTransparency = 0.25
@@ -221,7 +228,7 @@ RunService.RenderStepped:Connect(function(dt)
 	hpText.Text = string.format("%s / %s", fmt(hum.Health), fmt(hum.MaxHealth))
 	if not panel.Visible then
 		panel.Visible = true
-		panel.Position = UDim2.new(0.5, 0, 0, if MOBILE then -20 else -30)
-		TweenService:Create(panel, TweenInfo.new(0.25, Enum.EasingStyle.Quad), { Position = UDim2.new(0.5, 0, 0, if MOBILE then 6 else 10) }):Play()
+		panel.Position = UDim2.new(0.5, 0, 0, TOP_Y - (if MOBILE then 26 else 40))
+		TweenService:Create(panel, TweenInfo.new(0.25, Enum.EasingStyle.Quad), { Position = UDim2.new(0.5, 0, 0, TOP_Y) }):Play()
 	end
 end)

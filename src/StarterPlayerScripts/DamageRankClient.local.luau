@@ -21,7 +21,7 @@ local theme = UITheme.For(player:GetAttribute("Faction"))
 
 local Remote = ClientNet.Get("DmgRank")
 
-local WIDTH = if MOBILE then 196 else 252
+local WIDTH = if MOBILE then 150 else 252
 local ROW = if MOBILE then 16 else 19
 local TS = if MOBILE then 11 else 13
 local KIND = {
@@ -41,8 +41,8 @@ gui.Parent = player:WaitForChild("PlayerGui", 10)
 
 local win = Instance.new("Frame")
 win.Name = "Win"
-win.AnchorPoint = Vector2.new(1, 0)
-win.Position = if MOBILE then UDim2.new(1, -10, 0.3, 0) else UDim2.new(1, -14, 0.27, 0)
+win.AnchorPoint = if MOBILE then Vector2.new(0, 0) else Vector2.new(1, 0)
+win.Position = if MOBILE then UDim2.new(0, 116, 0, 8) else UDim2.new(1, -14, 0.27, 0) -- celular: arriba, entre el menú de Roblox y la tarjeta del jugador (no tapa los poderes)
 win.Size = UDim2.fromOffset(WIDTH, 0)
 win.AutomaticSize = Enum.AutomaticSize.Y
 win.BackgroundColor3 = Color3.fromRGB(14, 14, 20)

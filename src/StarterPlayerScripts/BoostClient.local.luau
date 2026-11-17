@@ -32,8 +32,10 @@ stackList.Padding = UDim.new(0, 6)
 stackList.SortOrder = Enum.SortOrder.LayoutOrder
 stackList.Parent = stack
 if require(script.Parent:WaitForChild("Platform", 10)).IsMobile() then
-	-- en celular: más pequeño y pegado al chip de evento (no tapa los botones)
-	stack.Position = UDim2.new(1, -12, 0, 42)
+	-- en celular: más pequeño y justo debajo del chip de evento de MobileClient (a su misma escala; no tapa los botones)
+	local cam = workspace.CurrentCamera
+	local vs = if cam then cam.ViewportSize else Vector2.new(844, 380)
+	stack.Position = UDim2.new(1, -12, 0, math.ceil(84 * math.clamp(math.min(vs.X / 844, vs.Y / 380), 0.7, 1.25)))
 	Instance.new("UIScale", stack).Scale = 0.6
 end
 local holder = Instance.new("Frame")

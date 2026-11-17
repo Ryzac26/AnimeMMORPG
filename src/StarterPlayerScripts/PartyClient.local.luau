@@ -146,7 +146,8 @@ local function render()
 		return
 	end
 	local leader = amLeader()
-	local compact = #members > 5 -- grupos grandes (hasta 15): tarjetas de una sola línea para que quepan en pantalla
+	local compact = #members > 5 or MOBILE -- grupos grandes (hasta 15) y celular: tarjetas de una sola línea para que quepan en pantalla
+	local rowH = if MOBILE then 28 else 24
 	for i, m in ipairs(members) do
 		local name = tostring(m.Name)
 		local clickable = leader and name ~= player.Name
@@ -166,7 +167,7 @@ local function render()
 			card = Instance.new("Frame")
 		end
 		card.LayoutOrder = i * 10
-		card.Size = UDim2.fromOffset(190, if compact then 24 else 46)
+		card.Size = UDim2.fromOffset(190, if compact then rowH else 46)
 		card.BackgroundColor3 = if isSel then theme.Primary:Lerp(theme.Dark, 0.65) else theme.Dark
 		card.BackgroundTransparency = 0.2
 		card.BorderSizePixel = 0
@@ -179,10 +180,10 @@ local function render()
 			st.Parent = card
 		end
 		if compact then
-			local nm = UITheme.Text(card, (if m.Leader then "★ " else "") .. name, 10, Color3.new(1, 1, 1), UDim2.fromOffset(6, 0), UDim2.fromOffset(88, 24))
+			local nm = UITheme.Text(card, (if m.Leader then "★ " else "") .. name, 10, Color3.new(1, 1, 1), UDim2.fromOffset(6, 0), UDim2.fromOffset(88, rowH))
 			nm.TextTruncate = Enum.TextTruncate.AtEnd
-			local hf, ht = bar(card, 4, m.Hp / 100, Color3.fromRGB(235, 80, 90), "", 98, 86, 7)
-			local ef, et = bar(card, 13, m.En / 100, theme.ResourceColor, "", 98, 86, 7)
+			local hf, ht = bar(card, if MOBILE then 6 else 4, m.Hp / 100, Color3.fromRGB(235, 80, 90), "", 98, 86, 7)
+			local ef, et = bar(card, if MOBILE then 15 else 13, m.En / 100, theme.ResourceColor, "", 98, 86, 7)
 			refs[name] = { HpFill = hf, HpText = ht, EnFill = ef, EnText = et }
 		else
 			local nm = UITheme.Text(card, (if m.Leader then "★ " else "") .. name, 11, Color3.new(1, 1, 1), UDim2.fromOffset(6, 2), UDim2.new(1, -30, 0, 14))
