@@ -7,6 +7,7 @@
       StyleFor(jugador, aDistancia)  -> estilo según arma equipada (ranura Arma); sin arma, por facción/rol
       Atributos que escribe: AnimStyle, AnimAt, AnimLen, AnimStrike, AnimAlt
     Armas (ItemCatalog.Items[id].Style): Sword->Slash, Dagger->Stab, Axe->Slam, Spear->Thrust, Bow->Bow, Staff->Cast, Gun->Shoot, Fist->Punch
+    Exporta BuildWeapon / BuildOffhand: HelperProps los usa para dibujar en los AYUDANTES exactamente la misma arma y pieza secundaria de cada clase.
 ]]
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -308,6 +309,13 @@ local function buildOffhand(f: Folder, char: Model, item: any, glow: Color3, ret
 		block(f, lArm, Vector3.new(0.4, 0.12, 0.06), glow, at * CFrame.new(0.08, 0.15, -0.14), Enum.Material.Neon)
 		block(f, lArm, Vector3.new(0.12, 0.45, 0.06), glow, at * CFrame.new(0.08, 0.15, -0.14), Enum.Material.Neon)
 	end
+end
+
+-- Para HelperProps (ayudantes): mismas armas/escudos/carcaj/orbe/libro que los jugadores, sobre un "personaje" de piezas sueltas con manos y torso
+AttackAnimator.BuildWeapon = buildWeapon
+AttackAnimator.BuildOffhand = buildOffhand
+function AttackAnimator.RarityColor(item: any): Color3
+	return if item and ItemCatalog.RarityColor[item.Rarity] then ItemCatalog.RarityColor[item.Rarity] else STEEL
 end
 
 local function itemOf(player: Player, slot: string): any

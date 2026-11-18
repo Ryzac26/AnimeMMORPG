@@ -346,16 +346,6 @@ HelperCatalog.RankColors = {
 	Color3.fromRGB(100, 215, 255), Color3.fromRGB(190, 130, 255), Color3.fromRGB(255, 110, 190), Color3.fromRGB(255, 90, 90),
 	Color3.fromRGB(255, 245, 200),
 } :: { Color3 }
--- Aspecto que se desbloquea al llegar a cada rango (lo dibuja HelperModel)
-HelperCatalog.RankPerks = {
-	[2] = "Pañuelo con los colores de tu facción",
-	[4] = "Hombreras de rango",
-	[6] = "Anillo de aura a sus pies",
-	[8] = "Emblema flotante tras su espalda",
-	[10] = "Aura de partículas",
-	[13] = "Aura prisma que cambia de color",
-} :: { [number]: string }
-
 RankOfLevel = function(level: number): number
 	local rank = 1
 	for i, r in ipairs(HelperCatalog.Ranks) do
@@ -453,29 +443,26 @@ function HelperCatalog.GiftEssence(rank: number, rarity: string): number
 	return math.floor(g.Essence * (1 + 0.25 * ((HelperCatalog.RarityIndex[rarity] or 1) - 1)) + 0.5)
 end
 
--- 6) PERSONALIZACIÓN: apodo (filtrado por el servidor) y color de aura (se desbloquean con el rango).
+-- 6) PERSONALIZACIÓN: apodo (filtrado por el servidor) y AURA POR RAREZA.
+--    Cada rareza tiene su aura (las mismas que usan los jugadores, a escala del ayudante; la receta está en AuraSpecs). El ayudante lleva la de su rareza
+--    y solo puede cambiar a la de una rareza ANTERIOR (nunca a una mayor). Aura = número 1..5 (1 = Común ... 5 = Mítico).
 HelperCatalog.NickMax = 14
-HelperCatalog.Auras = {
-	{ Name = "De facción", MinRank = 1 },
-	{ Name = "Oro", MinRank = 4, Color = Color3.fromRGB(255, 205, 80) },
-	{ Name = "Cian", MinRank = 5, Color = Color3.fromRGB(90, 210, 255) },
-	{ Name = "Esmeralda", MinRank = 6, Color = Color3.fromRGB(80, 225, 140) },
-	{ Name = "Rosa", MinRank = 7, Color = Color3.fromRGB(255, 130, 200) },
-	{ Name = "Violeta", MinRank = 9, Color = Color3.fromRGB(170, 110, 255) },
-	{ Name = "Carmesí", MinRank = 11, Color = Color3.fromRGB(255, 70, 90) },
-	{ Name = "Prisma", MinRank = 13, Prism = true },
-} :: { { Name: string, MinRank: number, Color: Color3?, Prism: boolean? } }
--- Color del aura (t = segundos, solo para el prisma)
-function HelperCatalog.AuraColor(aura: number, faction: string, t: number?): Color3
-	local a = HelperCatalog.Auras[aura] or HelperCatalog.Auras[1]
-	if a.Prism then
-		return Color3.fromHSV(((t or 0) * 0.12) % 1, 0.55, 1)
+HelperCatalog.RarityAuras = { "Brisa", "Brillo", "Llama", "Cosmos", "Serafin" } :: { string } -- ids de LevelMilestones.Auras, en orden de rareza
+-- Número de aura de la rareza (el máximo que puede llevar un ayudante de esa rareza)
+function HelperCatalog.AuraOf(rarity: string): number
+	return HelperCatalog.RarityIndex[rarity] or 1
+end
+-- Id de aura (LevelMilestones) de un número de aura
+function HelperCatalog.AuraId(aura: number): string
+	return HelperCatalog.RarityAuras[math.clamp(math.floor(aura), 1, #HelperCatalog.RarityAuras)]
+end
+-- Aura válida para un ayudante de esa rareza: entre 1 y la de su rareza (si viene algo raro, la de su rareza)
+function HelperCatalog.ClampAura(aura: any, rarity: string): number
+	local top = HelperCatalog.AuraOf(rarity)
+	if typeof(aura) ~= "number" or aura ~= aura then
+		return top
 	end
-	if a.Color then
-		return a.Color
-	end
-	local look = HelperCatalog.Look[faction]
-	return if look then look.Accent else Color3.new(1, 1, 1)
+	return math.clamp(math.floor(aura), 1, top)
 end
 
 

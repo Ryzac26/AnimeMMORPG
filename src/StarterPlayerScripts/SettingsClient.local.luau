@@ -32,10 +32,14 @@ local SETTINGS: { { Section: string, Items: { Setting } } } = {
 				Key = "PetsMode", Label = "Mostrar ayudantes", Hint = "Oculta los ayudantes de combate para ver menos cosas en pantalla.",
 				Options = { { "all", "Todos" }, { "mine", "Solo el mío" }, { "none", "Ninguno" } },
 			},
+			{
+				Key = "HelperAuras", Label = "Auras de ayudantes", Hint = "Muestra u oculta las auras de los ayudantes (si tu equipo va justo, ocultarlas ayuda).",
+				Options = { { "on", "Ver" }, { "off", "Ocultar" } },
+			},
 		},
 	},
 }
-local DEFAULTS: { [string]: string } = { PetsMode = "all" }
+local DEFAULTS: { [string]: string } = { PetsMode = "all", HelperAuras = "on" }
 
 local setRemote = ClientNet.Get("SetSetting")
 

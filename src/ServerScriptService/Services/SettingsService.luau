@@ -3,6 +3,7 @@
     SettingsService (ModuleScript) -> ServerScriptService.Services.SettingsService
     AJUSTES del jugador, guardados en el perfil (sección "Settings" de PlayerData) y publicados como atributos del Player:
       Setting_PetsMode  "all" (todas) · "mine" (solo la mía) · "none" (ninguna)   -> HelperFollowClient (ayudantes)
+      Setting_HelperAuras  "on" (ver las auras de los ayudantes) · "off" (ocultarlas)   -> AuraClient / HelperAuraHub
     También publica PetHit (contador): sube cuando el jugador golpea a un mob, para que su mascota salte (solo visual).
     Remote: "SetSetting" (clave, valor) del cliente; se valida contra la lista de abajo.
 ]]
@@ -17,6 +18,7 @@ local KeyBindCatalog = require(game:GetService("ReplicatedStorage").Modules.KeyB
 
 local DEFS: { [string]: { Default: string, Allowed: { string }? } } = {
 	PetsMode = { Default = "all", Allowed = { "all", "mine", "none" } },
+	HelperAuras = { Default = "on", Allowed = { "on", "off" } },
 }
 -- Atajos de teclado: "Key_<Id>" = nombre de tecla permitido (Allowed = nil -> se valida con KeyBindCatalog)
 for _, a in ipairs(KeyBindCatalog.Actions) do

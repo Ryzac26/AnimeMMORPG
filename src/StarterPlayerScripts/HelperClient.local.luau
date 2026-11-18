@@ -21,6 +21,7 @@ local player = Players.LocalPlayer
 local Modules = ReplicatedStorage:WaitForChild("Modules", 10)
 local HelperCatalog = require(Modules:WaitForChild("HelperCatalog", 10))
 local ItemCatalog = require(Modules:WaitForChild("ItemCatalog", 10))
+local Milestones = require(Modules:WaitForChild("LevelMilestones", 10))
 local UITheme = require(script.Parent:WaitForChild("UITheme", 10))
 local WindowDrag = require(script.Parent:WaitForChild("WindowDrag", 10))
 local NpcKit = require(script.Parent:WaitForChild("NpcKit", 10))
@@ -225,6 +226,17 @@ local function wrapped(l: TextLabel): TextLabel
 	return l
 end
 
+-- Armas del ayudante que llevas equipado en una ranura (atributo HelperProp<n>); si no está equipado se ve sin armas
+local function propsOf(st: any, id: string): string?
+	for i = 1, HelperCatalog.MaxSlots do
+		if slotId(st, i) == id then
+			local v = player:GetAttribute("HelperProp" .. i)
+			return if typeof(v) == "string" and v ~= "" then v else nil
+		end
+	end
+	return nil
+end
+
 -- Panel izquierdo común (Ayudante / Camino / Poder): cuerpo entero con su aspecto, nombre, rango, nivel, XP y estrellas
 local function drawLeft(w: Frame, theme: any, pal: { [string]: Color3 }, st: any, id: string)
 	local parsed = HelperCatalog.Parse(id) :: HelperCatalog.Parsed
@@ -236,7 +248,7 @@ local function drawLeft(w: Frame, theme: any, pal: { [string]: Color3 }, st: any
 	local asc = e.A or 0
 
 	local left = NpcKit.Panel(w, theme, UDim2.fromOffset(220, 410), UDim2.fromOffset(14, 184), "inset")
-	HelperPortrait.Build(left, parsed, UDim2.fromOffset(220, 236), UDim2.fromOffset(0, 0), { Full = true, Animate = true, Spin = true, Rank = rank, Aura = e.U, Asc = asc })
+	HelperPortrait.Build(left, parsed, UDim2.fromOffset(220, 236), UDim2.fromOffset(0, 0), { Full = true, Animate = true, Spin = true, Props = propsOf(st, id) })
 	local nick = if typeof(e.K) == "string" and e.K ~= "" then e.K else nil
 	label(left, nick or HelperCatalog.FullName(parsed), 15, col, 6, 238, 208, 20, Enum.TextXAlignment.Center).TextTruncate = Enum.TextTruncate.AtEnd
 	label(left, string.format("%s %s · %s · %s", ROLE_ICON[parsed.Role] or "", parsed.Role, HelperCatalog.FactionName[parsed.Faction] or parsed.Faction, HelperCatalog.RarityName[parsed.Rarity]), 11, pal.FMuted, 6, 258, 208, 16, Enum.TextXAlignment.Center)
@@ -475,7 +487,7 @@ local function drawCollection(w: Frame, theme: any, pal: { [string]: Color3 }, s
 	local e = st.Owned[id]
 	local col = HelperCatalog.RarityColor[parsed.Rarity]
 	local right = NpcKit.Panel(w, theme, UDim2.fromOffset(318, 352), UDim2.fromOffset(328, 184), "inset")
-	HelperPortrait.Build(right, parsed, UDim2.fromOffset(120, 150), UDim2.fromOffset(6, 6), { Full = true, Animate = e ~= nil, Dim = e == nil, Rank = if e then HelperCatalog.RankOf(e.L) else nil, Aura = if e then e.U else nil, Asc = if e then e.A else nil })
+	HelperPortrait.Build(right, parsed, UDim2.fromOffset(120, 150), UDim2.fromOffset(6, 6), { Full = true, Animate = e ~= nil, Dim = e == nil, Props = if e then propsOf(st, id) else nil })
 	label(right, if e then HelperCatalog.FullName(parsed) else "???", 15, if e then col else pal.FMuted, 130, 10, 184, 38).TextWrapped = true
 	label(right, string.format("%s %s\n%s", ROLE_ICON[parsed.Role] or "", parsed.Role, HelperCatalog.RarityName[parsed.Rarity]), 11, pal.FMuted, 130, 52, 184, 30).TextWrapped = true
 	if e then
@@ -561,20 +573,12 @@ local function drawPath(w: Frame, theme: any, pal: { [string]: Color3 }, st: any
 		local size = if current then 26 else 18
 		local nodeCol = HelperCatalog.RankColors[i]
 		local node = dot(track, size, cx - size / 2, lineY - size / 2, if reached then nodeCol else pal.Slot, if current then pal.Accent elseif reached then nodeCol:Lerp(Color3.new(1, 1, 1), 0.4) else pal.Edge, if current then 3 else 1)
-		if HelperCatalog.RankPerks[i] then
-			label(node, "★", if current then 12 else 10, if reached then Color3.fromRGB(30, 24, 16) else pal.FMuted, 0, 0, size, size, Enum.TextXAlignment.Center).TextYAlignment = Enum.TextYAlignment.Center
-		end
+		label(node, tostring(i), if current then 11 else 9, if reached then Color3.fromRGB(30, 24, 16) else pal.FMuted, 0, 0, size, size, Enum.TextXAlignment.Center).TextYAlignment = Enum.TextYAlignment.Center
 	end
 	local nextRank = HelperCatalog.Ranks[rank + 1]
 	label(track, if nextRank then string.format("Siguiente: %s (nivel %d) · te faltan %d nivel(es)", nextRank.Name, nextRank.Min, math.max(0, nextRank.Min - e.L)) else "¡Rango máximo alcanzado!", 11, pal.FText, 12, 76, 376, 16)
-	local perkText = "Ya tiene todos los aspectos de rango"
-	for j = rank + 1, HelperCatalog.MaxRank do
-		if HelperCatalog.RankPerks[j] then
-			perkText = string.format("★ Aspecto en %s: %s", HelperCatalog.Ranks[j].Name, HelperCatalog.RankPerks[j])
-			break
-		end
-	end
-	label(track, perkText, 11, pal.FMuted, 12, 94, 376, 16).TextTruncate = Enum.TextTruncate.AtEnd
+	local nextGiftRank = HelperCatalog.Gifts[rank + 1]
+	label(track, if nextGiftRank and nextRank then string.format("Cada rango sube sus bonos y trae un regalo (el próximo en %s)", nextRank.Name) else "Ya reclamó todos los regalos de rango", 11, pal.FMuted, 12, 94, 376, 16).TextTruncate = Enum.TextTruncate.AtEnd
 
 	-- 2) regalos de rango
 	local gp = NpcKit.Panel(w, theme, UDim2.fromOffset(400, 80), UDim2.fromOffset(246, 308), "card")
@@ -680,47 +684,42 @@ local function drawPath(w: Frame, theme: any, pal: { [string]: Color3 }, st: any
 		Store.Action("Nick", id, "")
 	end).TextSize = 12
 
-	label(pp, "Color del aura", 11, pal.FMuted, 12, 60, 200, 14)
-	for i, aura in ipairs(HelperCatalog.Auras) do
-		local unlocked = rank >= aura.MinRank
-		local on = (e.U or 1) == i
-		local sw = dot(pp, 28, 12 + (i - 1) * 40, 78, HelperCatalog.AuraColor(i, faction, 0), if on then pal.Accent else pal.Edge, if on then 3 else 1)
-		if aura.Prism then
-			local g = Instance.new("UIGradient")
-			g.Color = ColorSequence.new({
-				ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 120, 140)),
-				ColorSequenceKeypoint.new(0.33, Color3.fromRGB(255, 230, 120)),
-				ColorSequenceKeypoint.new(0.66, Color3.fromRGB(120, 230, 255)),
-				ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 140, 255)),
-			})
-			g.Rotation = 45
-			g.Parent = sw
-		end
-		if not unlocked then
-			sw.BackgroundTransparency = 0.65
-			label(sw, "🔒", 12, pal.FText, 0, 0, 28, 28, Enum.TextXAlignment.Center).TextYAlignment = Enum.TextYAlignment.Center
-		end
-		local hit = Instance.new("TextButton")
-		hit.Size = UDim2.fromScale(1, 1)
-		hit.BackgroundTransparency = 1
-		hit.Text = ""
-		hit.ZIndex = 12
-		hit.Parent = sw
-		hit.Activated:Connect(function()
-			if unlocked then
+	-- AURA: cada rareza tiene la suya (la del ayudante es la de su rareza) y solo se puede cambiar a la de una rareza anterior
+	local topAura = HelperCatalog.AuraOf(parsed.Rarity)
+	local curAura = math.clamp(e.U or topAura, 1, topAura)
+	label(pp, "Aura (la de su rareza; puedes bajar a una anterior)", 11, pal.FMuted, 12, 58, 376, 14)
+	local bw = 72
+	for i, auraId in ipairs(HelperCatalog.RarityAuras) do
+		local def = Milestones.AuraById[auraId]
+		local unlocked = i <= topAura
+		local on = i == curAura
+		local btn = Instance.new("TextButton")
+		btn.Position = UDim2.fromOffset(12 + (i - 1) * (bw + 6), 74)
+		btn.Size = UDim2.fromOffset(bw, 36)
+		btn.BackgroundColor3 = if on then pal.TabOn else pal.Slot
+		btn.BackgroundTransparency = if unlocked then 0 else 0.55
+		btn.BorderSizePixel = 0
+		btn.AutoButtonColor = unlocked and not on
+		btn.Text = ""
+		btn.Parent = pp
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+		local st2 = Instance.new("UIStroke")
+		st2.Color = if on then pal.Accent else pal.Edge
+		st2.Thickness = if on then 2 else 1
+		st2.Parent = btn
+		label(btn, if unlocked and def then def.Icon else "🔒", 16, pal.FText, 0, 1, 24, 34, Enum.TextXAlignment.Center).TextYAlignment = Enum.TextYAlignment.Center
+		local nm = label(btn, HelperCatalog.RarityName[HelperCatalog.Rarities[i]] or "", 10, if unlocked then pal.FText else pal.FMuted, 24, 3, bw - 26, 14)
+		nm.TextTruncate = Enum.TextTruncate.AtEnd
+		local sub = label(btn, if def then def.Name else auraId, 9, pal.FMuted, 24, 18, bw - 26, 14)
+		sub.TextTruncate = Enum.TextTruncate.AtEnd
+		btn.Activated:Connect(function()
+			if unlocked and not on then
 				Store.Action("Aura", id, i)
 			end
 		end)
 	end
-	local cur = HelperCatalog.Auras[e.U or 1] or HelperCatalog.Auras[1]
-	local nextAura: { Name: string, MinRank: number }? = nil
-	for _, a in ipairs(HelperCatalog.Auras) do
-		if a.MinRank > rank then
-			nextAura = a
-			break
-		end
-	end
-	label(pp, string.format("Aura: %s%s", cur.Name, if nextAura then string.format("  ·  próximo color: %s (rango %s)", nextAura.Name, HelperCatalog.Ranks[nextAura.MinRank].Name) else "  ·  ¡todos los colores desbloqueados!"), 10, pal.FText, 12, 110, 376, 14).TextTruncate = Enum.TextTruncate.AtEnd
+	local curDef = Milestones.AuraById[HelperCatalog.AuraId(curAura)]
+	label(pp, string.format("Aura actual: %s%s", if curDef then curDef.Name else "", if curAura < topAura then "  ·  (una anterior a la de su rareza)" else "  ·  (la de su rareza)"), 10, pal.FText, 12, 114, 376, 14).TextTruncate = Enum.TextTruncate.AtEnd
 end
 
 ---------------------------------------------------------------------
@@ -851,7 +850,7 @@ build = function()
 		local parsed = if id then HelperCatalog.Parse(id) else nil
 		local on = i == selectedSlot
 		if id and parsed and open then
-			HelperPortrait.Build(card, parsed, UDim2.fromOffset(56, 56), UDim2.fromOffset(4, 4), {})
+			HelperPortrait.Build(card, parsed, UDim2.fromOffset(56, 56), UDim2.fromOffset(4, 4), { Props = propsOf(st, id) })
 			local e = st.Owned[id]
 			label(card, HelperCatalog.NameOf(parsed), 14, HelperCatalog.RarityColor[parsed.Rarity], 64, 6, 134, 18).TextTruncate = Enum.TextTruncate.AtEnd
 			label(card, string.format("%s %s", ROLE_ICON[parsed.Role] or "", parsed.Role), 11, pal.FMuted, 64, 24, 134, 14)

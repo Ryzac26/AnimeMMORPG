@@ -2,12 +2,14 @@
 --[[
     HelperFollowClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > HelperFollowClient
     (REEMPLAZA a PetFollowClient.) AYUDANTES DE COMBATE con cuerpo: los ayudantes equipados (atributos Helper1..3 = "<id>#<nivel>#<estrellas>",
-    los publica HelperService, junto con HelperLook1..3 = "<rango>#<aura>#<ascensión>#<apodo>") aparecen como mini personajes (~55% de un jugador) que SIGUEN a su dueño. Todos ven los de los jugadores cercanos.
+    los publica HelperService, junto con HelperLook1..3 = "<rango>#<aura>#<ascensión>#<apodo>" y HelperProp1..3 = "<claveArma>|<clavePieza>") aparecen como
+    COPIAS DEL DUEÑO (~55% de su tamaño) con las armas de su clase y el aura de su rareza, y SIGUEN a su dueño. Todos ven los de los jugadores cercanos.
       - Formación: ranura 1 detrás a la derecha, ranura 2 detrás a la izquierda, ranura 3 más atrás.
       - Cuando el dueño entra a SU casa (atributos HelperHome1..3, los pone HouseService) van solos a la Cabaña de ayudantes y descansan allí.
       - Atacan con el dueño: al golpear él, mueven el arma; cuando se activa su poder (remote HelperFx) se lanzan al enemigo con un destello.
       - Celebran cuando el dueño sube de nivel o cuando ellos suben de rango, ascienden o cambian de rama (remote HelperCheer). Son solo visuales (el daño y los bonos los calcula el servidor; los ayudantes NO atacan a jugadores).
-      - Ajuste "Mostrar mascotas" (Setting_PetsMode): Todas · Solo la mía · Ninguna.
+      - Ajuste "Mostrar mascotas" (Setting_PetsMode): Todas · Solo la mía · Ninguna. Ajuste "Auras de ayudantes" (Setting_HelperAuras): lo aplica AuraClient.
+      - Las auras se anotan en HelperAuraHub (AuraClient las dibuja a escala del ayudante).
       - Prueba (solo Fundador, Ajustes): el atributo local HelperPreview (id) y HelperPreviewLevel reemplazan al ayudante de la ranura 1.
     No tiene ScreenGui, no va en RELOAD.
 ]]
@@ -22,6 +24,7 @@ local localPlayer = Players.LocalPlayer
 local Modules = ReplicatedStorage:WaitForChild("Modules")
 local HelperCatalog = require(Modules:WaitForChild("HelperCatalog"))
 local HelperModel = require(Modules:WaitForChild("HelperModel"))
+local AuraHub = require(Modules:WaitForChild("HelperAuraHub"))
 local ClientNet = require(script.Parent:WaitForChild("ClientNet"))
 
 local VIEW_RANGE = 150
@@ -38,6 +41,11 @@ type Active = {
 	Aura: number,
 	Asc: number,
 	Nick: string,
+	Props: string,
+	PropsSig: string,
+	Fallback: boolean, -- se pidió el cuerpo del dueño pero no se pudo copiar (se queda el de bloques, no se reintenta)
+	Acc: number,
+	Skip: number,
 	BurstStamp: number,
 	Char: Model,
 	Built: HelperModel.Built,
@@ -50,6 +58,7 @@ type Active = {
 	CheerUntil: number,
 }
 local helpers: { [string]: Active } = {}
+local waitingAvatar: { [string]: number } = {} -- desde cuándo espera que cargue el personaje del dueño (para copiarlo)
 local cheerStamp: { [string]: number } = {} -- cuándo celebró (HelperCheer); se aplica al modelo vigente en el siguiente cuadro
 
 local folder = Instance.new("Folder")
@@ -104,9 +113,24 @@ end
 local function remove(key: string)
 	local h = helpers[key]
 	if h then
+		AuraHub.Clear(key)
 		h.Built.Model:Destroy()
 		helpers[key] = nil
 	end
+end
+
+-- Anota (o corrige) el aura del ayudante para que AuraClient la dibuje a su escala
+local function registerAura(key: string, h: Active)
+	local parsed = HelperCatalog.Parse(h.Id)
+	local idx = if parsed then HelperCatalog.ClampAura(h.Aura, parsed.Rarity) else 1
+	AuraHub.Set(key, {
+		Root = h.Built.Root,
+		Model = h.Built.Model,
+		AuraId = HelperCatalog.AuraId(idx),
+		Scale = h.Built.AuraK,
+		Feet = h.Built.Feet,
+		Mine = h.Player == localPlayer,
+	})
 end
 
 ---------------------------------------------------------------------
@@ -245,55 +269,87 @@ local function reconcile()
 			end
 			local parsed, level, stars, id = parseAttr(rawAttr)
 			local rank, aura, asc, nick = parseLook(pl:GetAttribute("HelperLook" .. slot), level)
+			local propsRaw = pl:GetAttribute("HelperProp" .. slot)
+			local props = if typeof(propsRaw) == "string" then propsRaw else ""
 			if previewing then
-				rank, aura, asc, nick = HelperCatalog.RankOf(level), 1, 0, ""
+				rank, aura, asc, nick = HelperCatalog.RankOf(level), if parsed then HelperCatalog.AuraOf(parsed.Rarity) else 1, 0, ""
+				props = ""
 			end
+			if parsed then
+				aura = HelperCatalog.ClampAura(aura, parsed.Rarity)
+			end
+			local propsSig = HelperModel.PropsSignature(props)
 			local cur = helpers[key]
 			if not (visible and parsed and id and char) then
+				waitingAvatar[key] = nil
 				if cur then
 					remove(key)
 				end
 			else
-				-- se reconstruye si cambia el ayudante o su aspecto (rango, aura, ascensión); entonces conserva su sitio
+				-- se reconstruye si cambia el ayudante, su dueño (otro personaje), sus armas o si ya se puede copiar el cuerpo del dueño; entonces conserva su sitio
 				local sameBody = cur ~= nil and cur.Id == id and cur.Char == char
-				if not cur or not sameBody or cur.Rank ~= rank or cur.Aura ~= aura or cur.Asc ~= asc then
-					local keepPos = if cur and sameBody then cur.Pos else nil
-					local keepYaw = if cur and sameBody then cur.Yaw else nil
-					remove(key)
-					local built = HelperModel.Build(parsed, {
-						Rank = rank,
-						Aura = aura,
-						Asc = asc,
-						Tag = { Name = tagName(parsed, nick), Sub = tagSub(pl, level, stars, rank, asc), MaxDistance = 45 },
-					})
-					built.Model.Name = "Ayudante_" .. pl.Name .. "_" .. slot
-					local start = keepPos or ((if hrp then hrp.Position else Vector3.zero) + Vector3.new(0, 3, 0))
-					built.Root.CFrame = CFrame.new(start)
-					built.Model.Parent = folder
-					helpers[key] = {
-						Player = pl,
-						Slot = slot,
-						Id = id,
-						Level = level,
-						Stars = stars,
-						Rank = rank,
-						Aura = aura,
-						Asc = asc,
-						Nick = nick,
-						BurstStamp = 0,
-						Char = char,
-						Built = built,
-						Pos = start,
-						Yaw = keepYaw or CFrame.identity,
-						Vel = Vector3.zero,
-						AttackAt = -10,
-						FxUntil = 0,
-						FxPos = start,
-						CheerUntil = 0,
-					}
-				elseif cur.Level ~= level or cur.Stars ~= stars or cur.Nick ~= nick then
-					cur.Level, cur.Stars, cur.Nick = level, stars, nick
-					HelperModel.SetTag(cur.Built, tagName(parsed, nick), tagSub(pl, level, stars, rank, asc))
+				local avatarReady = HelperModel.AvatarReady(pl)
+				local needAvatar = cur ~= nil and not cur.Built.IsAvatar and avatarReady and not cur.Fallback
+				if not cur or not sameBody or cur.PropsSig ~= propsSig or needAvatar then
+					-- espera (hasta 6 s) a que cargue el personaje del dueño para no mostrar primero el cuerpo de respaldo
+					local since = waitingAvatar[key]
+					if not avatarReady and not cur and since == nil then
+						waitingAvatar[key] = os.clock()
+						since = waitingAvatar[key]
+					end
+					if avatarReady or cur ~= nil or (since ~= nil and os.clock() - since > 6) then
+						waitingAvatar[key] = nil
+						local keepPos = if cur and sameBody then cur.Pos else nil
+						local keepYaw = if cur and sameBody then cur.Yaw else nil
+						remove(key)
+						local built = HelperModel.Build(parsed, {
+							Owner = pl,
+							Props = props,
+							Tag = { Name = tagName(parsed, nick), Sub = tagSub(pl, level, stars, rank, asc), MaxDistance = 45 },
+						})
+						built.Model.Name = "Ayudante_" .. pl.Name .. "_" .. slot
+						local start = keepPos or ((if hrp then hrp.Position else Vector3.zero) + Vector3.new(0, 3, 0))
+						built.Root.CFrame = CFrame.new(start)
+						HelperModel.Pose(built) -- coloca las piezas antes de mostrarlo (si no, un cuadro aparece sobre el dueño)
+						built.Model.Parent = folder
+						local made: Active = {
+							Player = pl,
+							Slot = slot,
+							Id = id,
+							Level = level,
+							Stars = stars,
+							Rank = rank,
+							Aura = aura,
+							Asc = asc,
+							Nick = nick,
+							Props = props,
+							PropsSig = propsSig,
+							Fallback = avatarReady and not built.IsAvatar,
+							Acc = 0,
+							Skip = 0,
+							BurstStamp = 0,
+							Char = char,
+							Built = built,
+							Pos = start,
+							Yaw = keepYaw or CFrame.identity,
+							Vel = Vector3.zero,
+							AttackAt = -10,
+							FxUntil = 0,
+							FxPos = start,
+							CheerUntil = 0,
+						}
+						helpers[key] = made
+						registerAura(key, made)
+					end
+				else
+					if cur.Aura ~= aura then
+						cur.Aura = aura
+						registerAura(key, cur)
+					end
+					if cur.Level ~= level or cur.Stars ~= stars or cur.Nick ~= nick or cur.Rank ~= rank or cur.Asc ~= asc then
+						cur.Level, cur.Stars, cur.Nick, cur.Rank, cur.Asc = level, stars, nick, rank, asc
+						HelperModel.SetTag(cur.Built, tagName(parsed, nick), tagSub(pl, level, stars, rank, asc))
+					end
 				end
 			end
 		end
@@ -318,6 +374,20 @@ RunService.RenderStepped:Connect(function(dt)
 			continue
 		end
 		local b = h.Built
+		-- lejos de la cámara se actualiza 1 de cada 3 cuadros (cada cuerpo copiado son varias piezas que mover)
+		local cam = Workspace.CurrentCamera
+		local step = dt
+		if cam and (cam.CFrame.Position - b.Root.Position).Magnitude > 80 then
+			h.Acc += dt
+			h.Skip += 1
+			if h.Skip % 3 ~= 0 then
+				continue
+			end
+			step = h.Acc
+			h.Acc = 0
+		else
+			h.Acc = 0
+		end
 		local stamp = cheerStamp[key]
 		if stamp and t - stamp < 3 and stamp ~= h.BurstStamp then
 			h.BurstStamp = stamp
@@ -350,9 +420,9 @@ RunService.RenderStepped:Connect(function(dt)
 			cur = target
 		end
 		local rate = if fxActive then 16 elseif atHome then 3 else 6.5
-		local alpha = 1 - math.exp(-rate * dt)
+		local alpha = 1 - math.exp(-rate * step)
 		local newPos = cur:Lerp(target, alpha)
-		h.Vel = (newPos - cur) / math.max(dt, 1e-3)
+		h.Vel = (newPos - cur) / math.max(step, 1e-3)
 		h.Pos = newPos
 		-- orientación: hacia donde camina; quieto, mira a su dueño (o al enemigo)
 		local flat = Vector3.new(h.Vel.X, 0, h.Vel.Z)
@@ -368,7 +438,7 @@ RunService.RenderStepped:Connect(function(dt)
 			dir = Vector3.new(0, 0, -1)
 		end
 		local want = CFrame.lookAt(newPos, newPos + dir.Unit)
-		local baseCf = CFrame.new(newPos) * h.Yaw:Lerp(want.Rotation, 1 - math.exp(-10 * dt))
+		local baseCf = CFrame.new(newPos) * h.Yaw:Lerp(want.Rotation, 1 - math.exp(-10 * step))
 		h.Yaw = baseCf.Rotation
 		local cf = baseCf
 		-- salto de alegría al subir de nivel el dueño
@@ -381,8 +451,8 @@ RunService.RenderStepped:Connect(function(dt)
 		local speed = math.clamp(flat.Magnitude / 12, 0, 1)
 		local attack = -1.0
 		local since = t - h.AttackAt
-		if since >= 0 and since < 0.4 then
-			attack = since / 0.4
+		if since >= 0 and since < 0.5 then
+			attack = since / 0.5
 		end
 		HelperModel.Animate(b, t, speed, attack, cheer)
 	end

@@ -4,6 +4,9 @@
     MOTOR de auras: lee la "receta" (capas) de ReplicatedStorage.Modules.AuraSpecs y la dibuja alrededor de cada jugador
     (el atributo "Aura" lo publica LevelMilestoneService). Texturas: ReplicatedStorage.Modules.AuraTextures.
     Todo es local (cero costo de servidor). Solo se dibujan las MAX_ACTIVE auras más cercanas (la tuya siempre) dentro de VIEW_RANGE studs.
+    AYUDANTES: HelperFollowClient anota en HelperAuraHub los ayudantes con aura (la de su rareza) y aquí se dibujan con la MISMA receta a escala del
+    ayudante (Live.K). Solo las MAX_HELPER_ACTIVE más cercanas (las tuyas primero); sin pilar, contorno ni bloom; luz solo en los tuyos.
+    El ajuste "Auras de ayudantes" (Setting_HelperAuras = "off") las oculta todas.
     Alpha en capas ground/back/glow = TRANSPARENCIA (0 = sólido). En "emit" Alpha = { transparencia inicial, final }.
     NO está en la lista RELOAD de UIReloadClient (no es UI).
 ]]
@@ -17,10 +20,14 @@ local Modules = ReplicatedStorage:WaitForChild("Modules", 10)
 local Milestones: any = require(Modules:WaitForChild("LevelMilestones", 10))
 local Specs: { [string]: { any } } = require(Modules:WaitForChild("AuraSpecs", 10)) :: any
 local Textures: any = require(Modules:WaitForChild("AuraTextures", 10))
+local Hub = require(Modules:WaitForChild("HelperAuraHub", 10))
 
 local LP = Players.LocalPlayer
 local VIEW_RANGE = 140
 local MAX_ACTIVE = 8
+local HELPER_RANGE = 70 -- ayudantes: solo se dibuja el aura de los que están a menos de estos studs de la cámara
+local MAX_HELPER_ACTIVE = 6
+local HELPER_RATE = 0.6 -- los ayudantes sueltan menos partículas que un jugador
 local FLOOR = -3 -- el piso respecto al centro del HumanoidRootPart
 local WHITE = Color3.new(1, 1, 1)
 local BLACK = Color3.fromRGB(12, 10, 18)
@@ -38,8 +45,9 @@ type Live = {
 	Folder: Folder, Root: BasePart, Char: Model, AuraId: string, Upd: { Upd }, Emitters: { ParticleEmitter },
 	Extra: { Instance }, Hl: Highlight?, HlBase: number, Light: PointLight?, LightBase: number, Flicker: number,
 	Visible: boolean, Bloom: BloomEffect?, Dist: number, Floor: number, NextRay: number,
+	K: number, Helper: boolean, Mine: boolean,
 }
-local live: { [Player]: Live } = {}
+local live: { [any]: Live } = {} -- clave: Player (aura de jugador) o texto "<uid>:<ranura>" (aura de ayudante)
 local rng = Random.new()
 local camLook = Vector3.new(0, 0, -1)
 local floorNow = FLOOR -- piso real bajo el jugador que se está dibujando (raycast), respecto al centro del HumanoidRootPart
@@ -112,6 +120,21 @@ local function pair(v: any, d1: number, d2: number): NumberSequence
 	return NumberSequence.new(d1, d2)
 end
 
+local function scaleRange(r: NumberRange, k: number): NumberRange
+	return NumberRange.new(r.Min * k, r.Max * k)
+end
+
+local function scaleSeq(sq: NumberSequence, k: number): NumberSequence
+	if k == 1 then
+		return sq
+	end
+	local pts: { NumberSequenceKeypoint } = {}
+	for _, kp in ipairs(sq.Keypoints) do
+		table.insert(pts, NumberSequenceKeypoint.new(kp.Time, kp.Value * k, kp.Envelope * k))
+	end
+	return NumberSequence.new(pts)
+end
+
 -- ───────── piezas base ─────────
 local function fxPart(parent: Instance, size: Vector3): Part
 	local p = Instance.new("Part")
@@ -155,11 +178,11 @@ local function sprite(parent: Instance, adornee: BasePart, tex: string, size: nu
 	return g, im
 end
 
-type Ctx = { L: Live, A: Color3, B: Color3, Idx: number }
+type Ctx = { L: Live, A: Color3, B: Color3, Idx: number, K: number }
 
 -- ───────── capas ─────────
 local function layerGround(c: Ctx, s: any, back: boolean)
-	local size: number = s.Size or 6
+	local size: number = (s.Size or 6) * c.K
 	local p = if back then fxPart(c.L.Folder, Vector3.new(size, size, 0.05)) else fxPart(c.L.Folder, Vector3.new(size, 0.05, size))
 	local tr: number = s.Alpha or 0.4
 	local tex = Textures.Get(s.Tex)
@@ -172,7 +195,7 @@ local function layerGround(c: Ctx, s: any, back: boolean)
 		decal(p, Enum.NormalId.Bottom, tex, tr, col)
 	end
 	local spin: number = s.Spin or 0
-	local y: number = s.Y or (if back then 0.4 else 0.1)
+	local y: number = (s.Y or (if back then 0.4 else 0.1)) * c.K
 	local tilt: Vector3 = s.Tilt or Vector3.zero
 	local pulse: number = s.Pulse or 0
 	local ph = rng:NextNumber(0, 6)
@@ -181,7 +204,7 @@ local function layerGround(c: Ctx, s: any, back: boolean)
 	table.insert(c.L.Upd, function(t, _dt, base)
 		local rot = CFrame.Angles(tilt.X, tilt.Y, tilt.Z)
 		if back then
-			p.CFrame = base * CFrame.new(0, y, 1.1) * rot * CFrame.Angles(0, 0, t * spin)
+			p.CFrame = base * CFrame.new(0, y, 1.1 * c.K) * rot * CFrame.Angles(0, 0, t * spin)
 		else
 			p.CFrame = base * CFrame.new(0, floorNow + y + 0.08 + idx * 0.02, 0) * rot * CFrame.Angles(0, t * spin, 0)
 		end
@@ -197,16 +220,16 @@ local function layerGround(c: Ctx, s: any, back: boolean)
 end
 
 local function layerGlow(c: Ctx, s: any)
-	local size: number = s.Size or 8
+	local size: number = (s.Size or 8) * c.K
 	local anchor = fxPart(c.L.Folder, Vector3.one * 0.2)
 	local _, im = sprite(c.L.Folder, anchor, Textures.Get(s.Tex), size, solid(s.C, c.A, c.B, 0), s.Alpha or 0.7)
 	local g = im.Parent :: BillboardGui
 	local pulse: number = s.Pulse or 0
-	local y: number = s.Y or 0
+	local y: number = (s.Y or 0) * c.K
 	local rb = s.C == "rainbow"
 	local idx = c.Idx
 	table.insert(c.L.Upd, function(t, _dt, base)
-		anchor.Position = base.Position + Vector3.new(0, y, 0) + camLook * 2.2 -- detrás del cuerpo, sin cruzarse con él
+		anchor.Position = base.Position + Vector3.new(0, y, 0) + camLook * 2.2 * c.K -- detrás del cuerpo, sin cruzarse con él
 		local k = 1 + math.sin(t * 2.6 + idx) * pulse * 2
 		g.Size = UDim2.fromScale(size * k, size * k)
 		if rb then
@@ -221,10 +244,10 @@ local function host(c: Ctx, kind: string, hosts: { [string]: Part }): Part
 		return h
 	end
 	local size = if kind == "feet" then Vector3.new(2.6, 0.2, 2.6) elseif kind == "head" then Vector3.new(1.8, 0.4, 1.8) elseif kind == "around" then Vector3.new(5, 6, 5) else Vector3.new(2, 4, 1)
-	h = fxPart(c.L.Folder, size)
+	h = fxPart(c.L.Folder, size * c.K)
 	hosts[kind] = h
 	table.insert(c.L.Upd, function(_t, _dt, base)
-		local off = if kind == "feet" then floorNow + 0.2 elseif kind == "head" then 2.6 else 0
+		local off = if kind == "feet" then floorNow + 0.2 * c.K elseif kind == "head" then 2.6 * c.K else 0
 		(h :: Part).CFrame = base * CFrame.new(0, off, 0)
 	end)
 	return h :: Part
@@ -249,22 +272,22 @@ local function layerEmit(c: Ctx, s: any, hosts: { [string]: Part })
 	else
 		table.insert(parents, host(c, where, hosts))
 	end
-	local per = (s.Rate or 10) / (#texs * #parents)
+	local per = (s.Rate or 10) * (if c.L.Helper then HELPER_RATE else 1) / (#texs * #parents)
 	for _, pr in ipairs(parents) do
 		for _, name in ipairs(texs) do
 			local e = Instance.new("ParticleEmitter")
 			e.Texture = Textures.Get(name)
 			e.Rate = per
 			e.Lifetime = range(s.Life, 1)
-			e.Speed = range(s.Speed, 1)
+			e.Speed = scaleRange(range(s.Speed, 1), c.K)
 			e.SpreadAngle = Vector2.new(s.Spread or 180, s.Spread or 180)
 			e.Color = seqOf(s.C, c.A, c.B)
-			e.Size = pair(s.Size, 1, 0)
+			e.Size = scaleSeq(pair(s.Size, 1, 0), c.K)
 			e.Transparency = pair(s.Alpha, 0.1, 1)
 			e.LightEmission = s.Light or 1
 			e.LightInfluence = 0
 			e.Drag = 1
-			e.Acceleration = s.Accel or Vector3.zero
+			e.Acceleration = (s.Accel or Vector3.zero) * c.K
 			e.Rotation = NumberRange.new(0, 360)
 			local sp: number = s.Spin or 40
 			e.RotSpeed = NumberRange.new(-sp, sp)
@@ -289,9 +312,9 @@ end
 local function layerOrbit(c: Ctx, s: any)
 	local n: number = s.N or 5
 	local kind: string = s.Kind or "orb"
-	local radius: number = s.Radius or 4
+	local radius: number = (s.Radius or 4) * c.K
 	local speed: number = s.Speed or 1
-	local size: number = s.Size or 1
+	local size: number = (s.Size or 1) * c.K
 	local tilts: { Vector3 } = s.Tilts or { Vector3.zero }
 	local rb = s.C == "rainbow"
 	for i = 1, n do
@@ -340,7 +363,7 @@ local function layerOrbit(c: Ctx, s: any)
 		table.insert(c.L.Upd, function(t, dt, base)
 			ang += speed * dt
 			local v = rot * Vector3.new(math.cos(ang) * radius, 0, math.sin(ang) * radius)
-			local y = math.sin(t * 1.8 + bob) * 0.35
+			local y = math.sin(t * 1.8 + bob) * 0.35 * c.K
 			local pos = base.Position + Vector3.new(v.X, v.Y + y, v.Z)
 			if kind == "rock" then
 				part.CFrame = CFrame.new(pos) * CFrame.Angles(t * spin, t * spin * 0.7, bob)
@@ -382,8 +405,8 @@ local function layerArcs(c: Ctx, s: any)
 		bm.LightEmission = 1
 		bm.LightInfluence = 0
 		bm.Segments = 10
-		bm.Width0 = 0.5
-		bm.Width1 = 0.12
+		bm.Width0 = 0.5 * c.K
+		bm.Width1 = 0.12 * c.K
 		bm.Color = ColorSequence.new(WHITE, c.A)
 		bm.Transparency = NumberSequence.new(0.05, 0.4)
 		bm.Enabled = false
@@ -393,12 +416,13 @@ local function layerArcs(c: Ctx, s: any)
 			if t >= nxt then
 				nxt = t + rng:NextNumber(0.05, 0.14)
 				local ang = rng:NextNumber(0, math.pi * 2)
-				local r2 = rng:NextNumber(2.8, 4.6)
+				local k = c.K
+				local r2 = rng:NextNumber(2.8, 4.6) * k
 				local p = base.Position
-				src.Position = p + Vector3.new(rng:NextNumber(-0.6, 0.6), rng:NextNumber(-1.5, 2), rng:NextNumber(-0.6, 0.6))
-				dst.Position = p + Vector3.new(math.cos(ang) * r2, rng:NextNumber(-2.6, 3.4), math.sin(ang) * r2)
-				bm.CurveSize0 = rng:NextNumber(-1.8, 1.8)
-				bm.CurveSize1 = rng:NextNumber(-1.8, 1.8)
+				src.Position = p + Vector3.new(rng:NextNumber(-0.6, 0.6), rng:NextNumber(-1.5, 2), rng:NextNumber(-0.6, 0.6)) * k
+				dst.Position = p + Vector3.new(math.cos(ang) * r2, rng:NextNumber(-2.6, 3.4) * k, math.sin(ang) * r2)
+				bm.CurveSize0 = rng:NextNumber(-1.8, 1.8) * k
+				bm.CurveSize1 = rng:NextNumber(-1.8, 1.8) * k
 				bm.Enabled = rng:NextNumber() < 0.85
 			end
 		end)
@@ -408,7 +432,7 @@ end
 local function layerWings(c: Ctx, s: any)
 	local texs: { any } = s.Tex or { "Pluma-A" }
 	local count: number = s.Count or 6
-	local scale: number = s.Scale or 1
+	local scale: number = (s.Scale or 1) * c.K
 	for side = -1, 1, 2 do
 		for i = 0, count - 1 do
 			local f = i / math.max(count - 1, 1)
@@ -421,7 +445,7 @@ local function layerWings(c: Ctx, s: any)
 			local lean0 = 0.15 + f * 1.55
 			table.insert(c.L.Upd, function(t, _dt, base)
 				local flap = math.sin(t * 1.5 + f) * 0.07 + math.sin(t * 0.7) * 0.05
-				p.CFrame = base * CFrame.new(side * 0.6, 0.8, 0.9) * CFrame.Angles(0.35, 0, 0) * CFrame.Angles(0, 0, -side * (lean0 + flap)) * CFrame.new(0, len / 2, 0)
+				p.CFrame = base * CFrame.new(side * 0.6 * c.K, 0.8 * c.K, 0.9 * c.K) * CFrame.Angles(0.35, 0, 0) * CFrame.Angles(0, 0, -side * (lean0 + flap)) * CFrame.new(0, len / 2, 0)
 			end)
 		end
 	end
@@ -464,7 +488,7 @@ local function setVisible(l: Live, v: boolean)
 	end
 end
 
-local function clear(pl: Player)
+local function clear(pl: any)
 	local l = live[pl]
 	if not l then
 		return
@@ -482,16 +506,21 @@ local function clear(pl: Player)
 	l.Folder:Destroy()
 end
 
-local function build(pl: Player, root: BasePart, def: any): Live
-	local char = root.Parent :: Model
+-- pl = Player (aura de jugador) o clave de ayudante; helper = { Model, Scale, Feet, Mine } si es el aura de un ayudante
+local function build(pl: any, root: BasePart, def: any, helper: { Model: Model, Scale: number, Feet: number, Mine: boolean }?): Live
+	local isHelper = helper ~= nil
+	local char = if helper then helper.Model else root.Parent :: Model
+	local k = if helper then helper.Scale else 1
 	local folder = Instance.new("Folder")
-	folder.Name = "Aura_" .. pl.Name
+	folder.Name = "Aura_" .. (if typeof(pl) == "Instance" then pl.Name else tostring(pl))
 	folder.Parent = FX
 	local l: Live = {
 		Folder = folder, Root = root, Char = char, AuraId = def.Id, Upd = {}, Emitters = {}, Extra = {},
-		Hl = nil, HlBase = 0.8, Light = nil, LightBase = 1, Flicker = 0, Visible = true, Bloom = nil, Dist = 0, Floor = FLOOR, NextRay = 0,
+		Hl = nil, HlBase = 0.8, Light = nil, LightBase = 1, Flicker = 0, Visible = true, Bloom = nil, Dist = 0,
+		Floor = if helper then -helper.Feet else FLOOR, NextRay = 0,
+		K = k, Helper = isHelper, Mine = if helper then helper.Mine else pl == LP,
 	}
-	local c: Ctx = { L = l, A = def.A, B = def.B, Idx = 0 }
+	local c: Ctx = { L = l, A = def.A, B = def.B, Idx = 0, K = k }
 	local hosts: { [string]: Part } = {}
 	local spec = Specs[def.Style] or Specs[def.Id] or {}
 	-- sombra suave bajo los círculos del piso: da contraste en suelos claros (nieve, mármol, arena)
@@ -524,8 +553,10 @@ local function build(pl: Player, root: BasePart, def: any): Live
 			elseif t == "wings" then
 				layerWings(c, s)
 			elseif t == "pillar" then
-				layerPillar(c, s)
-			elseif t == "hl" then
+				if not isHelper then
+					layerPillar(c, s)
+				end
+			elseif t == "hl" and not isHelper then
 				local h = Instance.new("Highlight")
 				h.Adornee = char
 				h.FillColor = def.A
@@ -536,10 +567,10 @@ local function build(pl: Player, root: BasePart, def: any): Live
 				h.Parent = folder
 				l.Hl = h
 				l.HlBase = s.Fill or 0.85
-			elseif t == "light" then
+			elseif t == "light" and (not isHelper or l.Mine) then
 				local pt = Instance.new("PointLight")
 				pt.Color = def.A
-				pt.Range = s.Range or 10
+				pt.Range = (s.Range or 10) * k
 				pt.Brightness = s.Bright or 1
 				pt.Shadows = false
 				pt.Parent = root
@@ -547,7 +578,7 @@ local function build(pl: Player, root: BasePart, def: any): Live
 				l.LightBase = s.Bright or 1
 				l.Flicker = s.Flicker or 0
 				table.insert(l.Extra, pt)
-			elseif t == "bloom" and pl == LP then
+			elseif t == "bloom" and not isHelper and pl == LP then
 				local b = Instance.new("BloomEffect")
 				b.Name = "AuraBloom"
 				b.Intensity = 0.45
@@ -581,7 +612,48 @@ local function refresh(pl: Player)
 		clear(pl)
 	end
 	if def and root and root:IsA("BasePart") and not live[pl] then
-		live[pl] = build(pl, root, def)
+		live[pl] = build(pl, root, def, nil)
+	end
+end
+
+-- Auras de los ayudantes: solo las MAX_HELPER_ACTIVE más cercanas dentro de HELPER_RANGE (las de tus ayudantes primero)
+local function syncHelpers(cam: Camera?)
+	local want: { [string]: any } = {}
+	if Hub.Enabled() then
+		local list: { { Key: string, D: number } } = {}
+		for key, tg in pairs(Hub.Targets) do
+			if tg.Root.Parent then
+				local d = if tg.Mine then -1 else (if cam then (cam.CFrame.Position - tg.Root.Position).Magnitude else 0)
+				if d <= HELPER_RANGE then
+					table.insert(list, { Key = key, D = d })
+				end
+			end
+		end
+		table.sort(list, function(a, b)
+			return a.D < b.D
+		end)
+		for i = 1, math.min(#list, MAX_HELPER_ACTIVE) do
+			want[list[i].Key] = Hub.Targets[list[i].Key]
+		end
+	end
+	for key, l in pairs(live) do
+		if type(key) == "string" then
+			local tg = want[key]
+			if not tg or tg.AuraId ~= l.AuraId or tg.Root ~= l.Root or math.abs(tg.Scale - l.K) > 1e-3 then
+				clearExtra(l)
+				clear(key)
+			end
+		end
+	end
+	local built = 0
+	for key, tg in pairs(want) do
+		if not live[key] and built < 2 then -- máx. 2 por pasada (cada aura crea varias piezas)
+			local def = Milestones.AuraById[tg.AuraId]
+			if def then
+				built += 1
+				live[key] = build(key, tg.Root, def, { Model = tg.Model, Scale = tg.Scale, Feet = tg.Feet, Mine = tg.Mine })
+			end
+		end
 	end
 end
 
@@ -633,9 +705,14 @@ RunService.RenderStepped:Connect(function(dt)
 	-- LOD: solo las MAX_ACTIVE más cercanas (la tuya siempre)
 	if t >= nextRank then
 		nextRank = t + 0.4
+		syncHelpers(cam)
 		local list: { Live } = {}
 		for pl, l in pairs(live) do
 			if not l.Root.Parent then
+				continue
+			end
+			if l.Helper then
+				setVisible(l, true)
 				continue
 			end
 			l.Dist = if pl == LP then -1 else (if cam then (cam.CFrame.Position - l.Root.Position).Magnitude else 0)
@@ -657,7 +734,7 @@ RunService.RenderStepped:Connect(function(dt)
 		if not l.Visible then
 			continue
 		end
-		if t >= l.NextRay then
+		if not l.Helper and t >= l.NextRay then
 			l.NextRay = t + 0.15
 			rayParams.FilterDescendantsInstances = { l.Char, FX }
 			local hit = Workspace:Raycast(l.Root.Position, Vector3.new(0, -14, 0), rayParams)

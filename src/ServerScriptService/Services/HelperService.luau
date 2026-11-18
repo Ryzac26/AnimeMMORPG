@@ -7,13 +7,13 @@
       - Cupones: caen de monstruos/jefes/cofres (DropCoupon, con tope diario por rareza) y llegan a la CARTA (atributo HelperMail). Se reclaman ahí y se gastan en el Reclutador.
       - Reclutar (solo cerca del Reclutador): 1 o 10 tiradas con un cupón de una rareza; las probabilidades en % salen del cupón. Una copia repetida sube estrellas (máx. 5) y después da Esencia.
       - Progreso del ayudante: rangos por nivel, ramas de poder (acción "Branch"), ascensión con Esencia ("Ascend"), regalos por rango ("ClaimGift"),
-        apodo ("Nick", filtrado con TextService) y color de aura ("Aura"). Vínculo de facción: bono para ti según el ayudante equipado de mayor nivel.
+        apodo ("Nick", filtrado con TextService) y aura ("Aura": cada rareza tiene la suya y solo se puede cambiar a la de una rareza anterior). Vínculo de facción: bono para ti según el ayudante equipado de mayor nivel.
       - XP: cada ayudante equipado recibe el 10% de tu XP (extra, no te la quita) y nunca pasa de TU nivel (ShareXp, lo llama RewardService).
       - Equipo: 4 piezas (Arma, Casco, Armadura, Botas) del set del ROL del ayudante; salen de tu mochila. Bono extra de botín: RollBonusGear (LootService).
       - Efectos pasivos: se suman a tus estadísticas con GearService.SetTemp(player, stats, "Helpers") (Ataque, Defensa, Vida, Crítico, Curación, Energía). Dos ayudantes del mismo rol no se suman. En PvP GearService ya aplica el 50%.
       - Autoequipar piezas (acción "GearAuto"): mejor pieza de la mochila por hueco, solo si mejora la que lleva
       - Poderes de combate (solo PvE): PetPowerService usa HelperService.Active(player).
-      - Atributos del jugador (los lee HelperFollowClient/HelperClient): Helper1..3 = "<id>#<nivel>#<estrellas>" · HelperLook1..3 = "<rango>#<aura>#<ascensión>#<apodo>" · HelperMail = JSON de cupones en la carta · Pass_PetSlot (pase).
+      - Atributos del jugador (los lee HelperFollowClient/HelperClient): Helper1..3 = "<id>#<nivel>#<estrellas>" · HelperLook1..3 = "<rango>#<aura>#<ascensión>#<apodo>" · HelperProp1..3 = "<claveArma>|<clavePieza>" (plantillas de HelperProps) · HelperMail = JSON de cupones en la carta · Pass_PetSlot (pase).
       - Remotes: HelperState (servidor -> cliente: estado) · HelperResult (resultado de reclutar) · HelperAction (cliente -> servidor).
       - Canje de mascotas viejas: ExchangePets (en el Reclutador): cada mascota -> 1 cupón de su misma rareza.
 ]]
@@ -38,6 +38,7 @@ local Inventory = require(Services.InventoryService)
 local GearService = require(Services.GearService)
 local LevelService = require(Services.LevelService)
 local WalletService = require(Services.WalletService)
+local HelperProps = require(Services.HelperProps)
 
 local StateRemote = Net.Get("HelperState")
 local ResultRemote = Net.Get("HelperResult")
@@ -56,7 +57,7 @@ type Entry = {
 	Asc: number, -- ascensión 0..3
 	Branch: string?, -- "A" (Ritmo) | "B" (Potencia) | nil
 	Nick: string?, -- apodo (ya filtrado)
-	Aura: number, -- índice en HelperCatalog.Auras
+	Aura: number, -- aura que lleva (1..rareza del ayudante; por defecto la de su rareza, ver HelperCatalog.RarityAuras)
 	Gifts: number, -- mayor rango cuyo regalo ya reclamaste (1 = ninguno)
 }
 type Profile = {
@@ -131,8 +132,8 @@ local function newProfile(): Profile
 	return { Owned = {}, Slots = {}, Stock = {}, Mail = {}, Pity = {}, Day = today(), DayCount = {}, Gift = false, Pulls = 0, Essence = 0 }
 end
 
-local function newEntry(): Entry
-	return { Stars = 1, Level = 1, Xp = 0, Gear = {}, Asc = 0, Branch = nil, Nick = nil, Aura = 1, Gifts = 1 }
+local function newEntry(rarity: string?): Entry
+	return { Stars = 1, Level = 1, Xp = 0, Gear = {}, Asc = 0, Branch = nil, Nick = nil, Aura = HelperCatalog.AuraOf(rarity or "Comun"), Gifts = 1 }
 end
 
 -- oro de un monstruo normal de ese nivel (base de los regalos y del coste de cambiar de rama)
@@ -191,7 +192,7 @@ PlayerData.RegisterSerializer("Ayudantes", function(player: Player): any?
 		for slot, piece in pairs(e.Gear) do
 			gear[slot] = { I = piece.Id, P = piece.Plus }
 		end
-		owned[id] = { S = e.Stars, L = e.Level, X = e.Xp, G = gear, A = e.Asc, B = e.Branch, K = e.Nick, U = e.Aura, R = e.Gifts }
+		owned[id] = { S = e.Stars, L = e.Level, X = e.Xp, G = gear, A = e.Asc, B = e.Branch, K = e.Nick, V = e.Aura, R = e.Gifts }
 	end
 	local slots: { [string]: string } = {}
 	for i = 1, HelperCatalog.MaxSlots do
@@ -263,9 +264,23 @@ local function publishAttributes(player: Player, p: Profile)
 		if id and e and slotOpen(player, slot) then
 			player:SetAttribute("Helper" .. slot, string.format("%s#%d#%d", id, e.Level, e.Stars))
 			player:SetAttribute("HelperLook" .. slot, string.format("%d#%d#%d#%s", HelperCatalog.RankOf(e.Level), e.Aura, e.Asc, e.Nick or ""))
+			-- armas del ayudante (plantillas que dibuja HelperModel): arma principal y pieza secundaria de su clase
+			local parsed = HelperCatalog.Parse(id)
+			local propValue: string? = nil
+			if parsed then
+				local arma = e.Gear.Arma
+				local okKeys, mainKey, offKey = pcall(HelperProps.KeysFor, parsed.Faction, parsed.Role, parsed.Rarity, e.Level, if arma then bagItem(arma.Id) else nil)
+				if okKeys then
+					propValue = (mainKey or "") .. "|" .. (offKey or "")
+				else
+					warn("[HelperService] armas del ayudante:", mainKey)
+				end
+			end
+			player:SetAttribute("HelperProp" .. slot, propValue)
 		else
 			player:SetAttribute("Helper" .. slot, nil)
 			player:SetAttribute("HelperLook" .. slot, nil)
+			player:SetAttribute("HelperProp" .. slot, nil)
 		end
 	end
 	local any = false
@@ -385,7 +400,7 @@ end
 local function addHelper(player: Player, p: Profile, id: string, rarity: string): (boolean, number, number)
 	local e = p.Owned[id]
 	if not e then
-		p.Owned[id] = newEntry()
+		p.Owned[id] = newEntry(rarity)
 		return true, 1, 0
 	end
 	if e.Stars < HelperCatalog.MaxStars then
@@ -1048,16 +1063,16 @@ local function claimGift(player: Player, which: any)
 	changed(player)
 end
 
--- AURA: color del aura del ayudante (según el rango)
+-- AURA: cada rareza tiene su aura; el ayudante lleva la de su rareza y solo puede cambiar a la de una rareza ANTERIOR (nunca a una mayor)
 local function setAura(player: Player, id: any, idx: any)
 	local p = profiles[player]
-	local e = if p and typeof(id) == "string" then p.Owned[id] else nil
-	if not p or not e or typeof(idx) ~= "number" then
+	local parsed = if typeof(id) == "string" then HelperCatalog.Parse(id) else nil
+	local e = if p and parsed and typeof(id) == "string" then p.Owned[id] else nil
+	if not p or not e or not parsed or typeof(idx) ~= "number" or idx ~= idx then
 		return
 	end
 	idx = math.floor(idx)
-	local aura = HelperCatalog.Auras[idx]
-	if not aura or HelperCatalog.RankOf(e.Level) < aura.MinRank then
+	if idx < 1 or idx > HelperCatalog.AuraOf(parsed.Rarity) or idx == e.Aura then
 		return
 	end
 	e.Aura = idx
@@ -1223,7 +1238,8 @@ local function loadProfile(player: Player)
 		if type(sec.O) == "table" then
 			for id, raw in pairs(sec.O) do
 				if type(id) == "string" and HelperCatalog.Parse(id) and type(raw) == "table" then
-					local e = newEntry()
+					local parsedLoad = HelperCatalog.Parse(id)
+					local e = newEntry(if parsedLoad then parsedLoad.Rarity else nil)
 					e.Stars = math.clamp(math.floor(tonumber(raw.S) or 1), 1, HelperCatalog.MaxStars)
 					e.Level = math.clamp(math.floor(tonumber(raw.L) or 1), 1, HelperCatalog.MaxLevel)
 					e.Xp = math.max(0, tonumber(raw.X) or 0)
@@ -1235,9 +1251,9 @@ local function loadProfile(player: Player)
 						e.Nick = raw.K
 					end
 					e.Gifts = math.clamp(math.floor(tonumber(raw.R) or 1), 1, HelperCatalog.MaxRank)
-					local aura = math.floor(tonumber(raw.U) or 1)
-					if HelperCatalog.Auras[aura] and HelperCatalog.RankOf(e.Level) >= HelperCatalog.Auras[aura].MinRank then
-						e.Aura = aura
+					-- aura guardada (clave V; la U antigua era un color y se ignora): entre la primera y la de su rareza
+					if parsedLoad and raw.V ~= nil then
+						e.Aura = HelperCatalog.ClampAura(tonumber(raw.V), parsedLoad.Rarity)
 					end
 					if type(raw.G) == "table" then
 						for slotName, piece in pairs(raw.G) do
