@@ -6,7 +6,9 @@
       - Report(player, tipo, cantidad): otros sistemas avisan aquí (Kill/Metin/Boss se leen solos de RewardService; Donate: GuildService;
         Enhance: HerreroService; Online: este servicio).
       - Marcos de perfil: se desbloquean por misiones completadas; el elegido se publica en el atributo "ProfileFrame" (lo dibuja PortraitKit).
-      - Remotes: MissionOpen (servidor -> cliente) · MissionState · MissionAction ("State" | "Claim", id | "Accept", id o "ALL" | "Frame", idMarco | "").
+      - Una misión ACEPTADA se queda hasta que la completes (reclames) o la canceles: no se pierde al desconectarte ni cuando cambia el día / la semana
+        (las no aceptadas sí se renuevan). Salen en su lista con la marca "(de antes)".
+      - Remotes: MissionOpen (servidor -> cliente) · MissionState · MissionAction ("State" | "Claim", id | "Accept", id o "ALL" | "Cancel", id | "Frame", idMarco | "").
 ]]
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -53,14 +55,25 @@ local function levelOf(player: Player): number
 	return if typeof(lv) == "number" then lv else 1
 end
 
+-- al cambiar el periodo se renuevan las misiones, pero las ACEPTADAS que aún no reclamaste se quedan (con su progreso)
+local function carryOver(old: { [string]: Prog }): { [string]: Prog }
+	local out: { [string]: Prog } = {}
+	for id, p in pairs(old) do
+		if p.A and not p.C then
+			out[id] = p
+		end
+	end
+	return out
+end
+
 -- renueva las misiones del día / la semana si cambió el periodo
 local function roll(d: Data, level: number)
 	local di, wi = dayIndex(), weekIndex()
 	if d.Day ~= di then
-		d.Day, d.D = di, {}
+		d.Day, d.D = di, carryOver(d.D)
 	end
 	if d.Week ~= wi then
-		d.Week, d.W = wi, {}
+		d.Week, d.W = wi, carryOver(d.W)
 	end
 	for _, def in ipairs(MissionCatalog.Pick(MissionCatalog.DailyPool, MissionCatalog.DAILY_TIERS, di, level)) do
 		if not d.D[def.Id] then
@@ -90,10 +103,20 @@ local function push(player: Player)
 	roll(d, lv)
 	local function list(src: { [string]: Prog }, pool: { MissionCatalog.Def }, picks: { MissionCatalog.Def }): { any }
 		local out: { any } = {}
+		local isPick: { [string]: boolean } = {}
 		for _, def in ipairs(picks) do
+			isPick[def.Id] = true
 			local p = src[def.Id]
 			local goal = MissionCatalog.GoalFor(def, lv)
 			table.insert(out, { Id = def.Id, Text = MissionCatalog.TextFor(def, goal), Tier = def.Tier, Goal = goal, P = if p then math.min(p.P, goal) else 0, Claimed = p ~= nil and p.C, Accepted = p ~= nil and p.A, Gold = MissionCatalog.Gold(def, lv) })
+		end
+		-- aceptadas de un periodo anterior (o que tu nivel ya no sortea) que siguen pendientes
+		for _, def in ipairs(pool) do
+			local p = src[def.Id]
+			if p and p.A and not p.C and not isPick[def.Id] then
+				local goal = MissionCatalog.GoalFor(def, lv)
+				table.insert(out, { Id = def.Id, Text = MissionCatalog.TextFor(def, goal) .. "  (de antes)", Tier = def.Tier, Goal = goal, P = math.min(p.P, goal), Claimed = false, Accepted = true, Carry = true, Gold = MissionCatalog.Gold(def, lv) })
+			end
 		end
 		return out
 	end
@@ -207,6 +230,37 @@ local function accept(player: Player, id: any)
 	PlayerData.Save(player)
 end
 
+-- cancelar una misión aceptada (pierde el progreso); si ya no es de las de hoy/esta semana, desaparece
+local function cancel(player: Player, id: any)
+	local d = data[player]
+	if not d or typeof(id) ~= "string" then
+		return
+	end
+	local lv = levelOf(player)
+	roll(d, lv)
+	local function drop(src: { [string]: Prog }, pool: { MissionCatalog.Def }, tiers: { string }, index: number)
+		local p = src[id]
+		if not p or not p.A or p.C then
+			return
+		end
+		local today = false
+		for _, def in ipairs(MissionCatalog.Pick(pool, tiers, index, lv)) do
+			if def.Id == id then
+				today = true
+			end
+		end
+		if today then
+			src[id] = { P = 0, C = false, A = false }
+		else
+			src[id] = nil
+		end
+		dirty[player] = true
+	end
+	drop(d.D, MissionCatalog.DailyPool, MissionCatalog.DAILY_TIERS, d.Day)
+	drop(d.W, MissionCatalog.WeeklyPool, MissionCatalog.WEEKLY_TIERS, d.Week)
+	PlayerData.Save(player)
+end
+
 local function setFrame(player: Player, id: any)
 	local d = data[player]
 	if not d then
@@ -235,6 +289,8 @@ ActionRemote.OnServerEvent:Connect(function(player: Player, action: any, a: any)
 		claim(player, a)
 	elseif action == "Accept" then
 		accept(player, a)
+	elseif action == "Cancel" then
+		cancel(player, a)
 	elseif action == "Frame" then
 		setFrame(player, a)
 	end

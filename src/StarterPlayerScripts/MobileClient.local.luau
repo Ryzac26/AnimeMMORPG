@@ -1,6 +1,6 @@
 --!strict
 --[[
-    MobileClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > MobileClient        (v2.0 · parche 6.108)
+    MobileClient (LocalScript) -> StarterPlayer > StarterPlayerScripts > MobileClient        (v2.1 · parche 6.109)
     Interfaz de CELULAR / TABLET (solo si Platform.IsMobile(): pantalla táctil sin teclado). En la PC no hace nada.
     Para probarla en Studio: Workspace > atributo ForceMobileUI (booleano) = true  (o el emulador de dispositivos).
 
@@ -566,7 +566,7 @@ local TARGET_Y, TARGET_Y_BOSS = 68, 118 -- con barra de jefe visible (BossBarCli
 local targetPanel = Instance.new("Frame")
 targetPanel.AnchorPoint = Vector2.new(0.5, 0)
 targetPanel.Position = UDim2.new(0.5, 0, 0, TARGET_Y)
-targetPanel.Size = UDim2.fromOffset(220, 46)
+targetPanel.Size = UDim2.fromOffset(246, 46)
 targetPanel.BackgroundColor3 = theme.Dark
 targetPanel.BackgroundTransparency = 0.2
 targetPanel.Visible = false
@@ -577,8 +577,8 @@ local tName = UITheme.Text(targetPanel, "", 12, Color3.new(1, 1, 1), UDim2.fromO
 tName.TextTruncate = Enum.TextTruncate.AtEnd
 local _, setTarget = UITheme.Bar(targetPanel, UDim2.fromOffset(10, 24), UDim2.fromOffset(190, 14), Color3.fromRGB(220, 60, 60), nil, 10)
 local clearBtn = Instance.new("TextButton")
-clearBtn.Size = UDim2.fromOffset(30, 30)
-clearBtn.Position = UDim2.new(1, -34, 0, 0)
+clearBtn.Size = UDim2.fromOffset(42, 42) -- zona táctil cómoda para quitar el objetivo
+clearBtn.Position = UDim2.new(1, -44, 0, 2)
 clearBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 45)
 clearBtn.Text = "✕"
 clearBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -747,6 +747,11 @@ if ability then
 		end
 	end)
 end
+-- al reaparecer el servidor borra tus recargas pero no avisa: el HUD las limpia solo (si no, el botón seguía en recarga tras morir)
+player.CharacterAdded:Connect(function()
+	table.clear(cooldownEnd)
+	table.clear(cooldownLen)
+end)
 
 local function skillOf(i: number): any
 	if i == 1 then
@@ -813,7 +818,8 @@ local function useSlot(i: number)
 		showToast("Sin " .. theme.Resource)
 	end
 	-- el poder 7 es una cura propia: no marca enemigos solo por usarlo
-	local h: Model? = if i == 7 then (if aliveHum(target) then target else nil) else ensureTarget() -- apuntado automático si no hay objetivo
+	-- sin energía no marca enemigos nuevos (solo vibra y avisa); con energía, apuntado automático si no hay objetivo
+	local h: Model? = if i == 7 or low then (if aliveHum(target) then target else nil) else ensureTarget()
 	if i > 2 then
 		if UseAbilityRemote then
 			UseAbilityRemote:FireServer(i, h) -- el servidor valida y responde con AbilityCooldown
@@ -824,10 +830,7 @@ local function useSlot(i: number)
 	if not skill then
 		return
 	end
-	if not low then
-		cooldownEnd[i] = os.clock() + skill.Cooldown
-		cooldownLen[i] = skill.Cooldown
-	end
+	-- la recarga de 1-2 la confirma el servidor (AbilityCooldown): si rechaza el golpe (aturdido, sin energía) el botón no se bloquea en falso
 	if DealDamageEvent then
 		DealDamageEvent:FireServer(tostring(i), h)
 	end
@@ -1070,11 +1073,7 @@ local bFarm, _, farmLabel = dockButton(65, 66, "⚔️", "FARM · SEMI")
 bFarm.Activated:Connect(farmToggle)
 local bAuto, _, _ = dockButton(139, 46, "🎯", "AUTO")
 bAuto.Activated:Connect(function()
-	local had = aliveHum(target) ~= nil
-	ensureTarget() -- sin objetivo: marca el más cercano y el auto-ataque ya arranca solo
-	if had and AutoAttackRemote then
-		AutoAttackRemote:FireServer("Toggle") -- con objetivo: pausa / reanuda (como la tecla Q)
-	end
+	ensureTarget() -- marca el más cercano si no hay objetivo; el auto-ataque arranca solo (el servidor ya no tiene pausa: se detiene con ✕)
 end)
 local bNext = dockButton(193, 46, "🔄", "OBJ")
 bNext.Activated:Connect(function()

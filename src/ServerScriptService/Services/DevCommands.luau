@@ -30,8 +30,10 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local AdminList = require(ReplicatedStorage.Modules.AdminList)
 
 -- INTERRUPTORES del Fundador (panel en su pantalla): "Owner" = sus propios comandos, "Admin" = los de los administradores.
--- Con uno en OFF ese grupo juega normal (sus comandos se ignoran). Se guardan y valen para todos los servidores.
+-- Con uno en OFF ese grupo juega normal (sus comandos se ignoran). Se guardan y valen para TODOS los servidores: al cambiarlos se avisa a los demás
+-- servidores (MessagingService) y además cada servidor relee el estado guardado cada 30 s (así un admin que está en otro servidor recibe el cambio sin esperar).
 local switches: { [string]: boolean } = { Owner = true, Admin = true }
+local switchStamp = 0 -- os.time() del último cambio aplicado (los cambios más viejos que este se ignoran)
 
 -- ¿Puede usar comandos? Admins de AdminList con su interruptor en ON (o cualquiera dentro de Studio, que es tu propia prueba)
 local function allowed(player: Player): boolean
@@ -55,8 +57,15 @@ local AntiExploit = require(Services.AntiExploitService)
 local Net = require(Services.Net)
 
 local lastBossCmd = 0
+local offNotice: { [Player]: number } = {}
 local function handle(player: Player, msg: string)
 	if not allowed(player) then
+		-- un administrador con su interruptor en OFF ve por qué no pasa nada (como máximo 1 aviso cada 8 s)
+		local ad = AdminList.Get(player)
+		if ad and os.clock() - (offNotice[player] or -100) > 8 then
+			offNotice[player] = os.clock()
+			Net.Get("Notify"):FireClient(player, if ad.Kind == "Owner" then "Tus comandos están en OFF en tu Panel del Fundador." else "Tus comandos de administrador están DESACTIVADOS (los maneja el Fundador).")
+		end
 		return
 	end
 	print(string.format("[Admin] %s: %s", player.Name, msg))
@@ -189,25 +198,15 @@ end)
 
 do
 	local DataStoreService = game:GetService("DataStoreService")
+	local MessagingService = game:GetService("MessagingService")
 	local store: DataStore? = nil
 	pcall(function()
 		store = DataStoreService:GetDataStore("AdminSwitch_v1")
 	end)
-	if store then
-		pcall(function()
-			local d: any = (store :: DataStore):GetAsync("state")
-			if typeof(d) == "table" then
-				if d.Owner == false then
-					switches.Owner = false
-				end
-				if d.Admin == false then
-					switches.Admin = false
-				end
-			end
-		end)
-	end
 	local switchRemote = Net.Get("AdminSwitch")
 	local notifyRemote = Net.Get("Notify")
+	local TOPIC = "AdminSwitch_v1"
+
 	local function refresh(notice: boolean)
 		for _, pl in ipairs(Players:GetPlayers()) do
 			local entry = AdminList.Get(pl)
@@ -225,6 +224,50 @@ do
 			end
 		end
 	end
+
+	-- aplica un estado (propio o de otro servidor) si es más nuevo que el que ya tenemos
+	local function apply(d: any, notice: boolean)
+		if typeof(d) ~= "table" then
+			return
+		end
+		local stamp = if typeof(d.T) == "number" then d.T else 0
+		if stamp < switchStamp or (stamp == switchStamp and stamp ~= 0) then
+			return
+		end
+		local owner, admin = d.Owner ~= false, d.Admin ~= false
+		switchStamp = math.max(switchStamp, stamp)
+		if owner ~= switches.Owner or admin ~= switches.Admin then
+			switches.Owner, switches.Admin = owner, admin
+			refresh(notice)
+		end
+	end
+
+	local function readStored(notice: boolean)
+		if not store then
+			return
+		end
+		local ok, d = pcall(function()
+			return (store :: DataStore):GetAsync("state")
+		end)
+		if ok then
+			apply(d, notice)
+		end
+	end
+	readStored(false)
+
+	-- cambios hechos desde otro servidor (llegan al instante) y relectura periódica por si el aviso se pierde
+	pcall(function()
+		MessagingService:SubscribeAsync(TOPIC, function(message: any)
+			apply(message.Data, true)
+		end)
+	end)
+	task.spawn(function()
+		while true do
+			task.wait(30)
+			readStored(true)
+		end
+	end)
+
 	switchRemote.OnServerEvent:Connect(function(pl: Player, which: any)
 		local entry = AdminList.Get(pl)
 		if not entry or entry.Kind ~= "Owner" then
@@ -232,14 +275,18 @@ do
 		end
 		if which == "Owner" or which == "Admin" then
 			switches[which] = not switches[which]
-			if store then
-				local snapshot = { Owner = switches.Owner, Admin = switches.Admin }
-				task.spawn(function()
+			switchStamp = math.max(os.time(), switchStamp + 1)
+			local snapshot = { Owner = switches.Owner, Admin = switches.Admin, T = switchStamp }
+			task.spawn(function()
+				if store then
 					pcall(function()
 						(store :: DataStore):SetAsync("state", snapshot)
 					end)
+				end
+				pcall(function()
+					MessagingService:PublishAsync(TOPIC, snapshot)
 				end)
-			end
+			end)
 			refresh(true)
 		elseif which == "Sync" then
 			switchRemote:FireClient(pl, switches.Owner, switches.Admin)
@@ -247,6 +294,9 @@ do
 	end)
 	Players.PlayerAdded:Connect(function()
 		task.delay(2, refresh, false)
+	end)
+	Players.PlayerRemoving:Connect(function(pl)
+		offNotice[pl] = nil
 	end)
 	task.delay(2, refresh, false)
 end

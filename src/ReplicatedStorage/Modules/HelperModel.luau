@@ -21,6 +21,7 @@
 ]]
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
 
 local HelperCatalog = require(script.Parent:WaitForChild("HelperCatalog"))
 
@@ -133,19 +134,66 @@ local DROP_CLASSES = {
 type Template = { Model: Model, IsR15: boolean, HrpY: number }
 local templates: { [Model]: Template } = setmetatable({}, { __mode = "k" }) :: any
 
+-- ¿Ya cargó la ropa y los accesorios del personaje? Para TU personaje HasAppearanceLoaded avisa bien; para el de OTROS jugadores, en el cliente, suele
+-- quedarse en false para siempre (por eso sus ayudantes salían con el cuerpo de bloques): ahí se espera a que el personaje deje de cambiar un momento.
+local SETTLE_TIME = 1.2 -- el personaje debe llevar este tiempo sin cambiar de ropa/accesorios
+local SETTLE_MAX = 6 -- y en todo caso se acepta pasado este tiempo
+local settle: { [Model]: { N: number, T: number, First: number } } = setmetatable({}, { __mode = "k" }) :: any
+
+-- "huella" del aspecto: cuerpo, ropa y accesorios (lo demás que le pongan al personaje —cartelitos, efectos— no cuenta)
+local function lookCount(char: Model): number
+	local n = 0
+	for _, c in ipairs(char:GetChildren()) do
+		if c:IsA("BasePart") or c:IsA("Accessory") or c:IsA("Shirt") or c:IsA("Pants") or c:IsA("ShirtGraphic") or c:IsA("CharacterMesh") or c:IsA("BodyColors") then
+			n += 1
+		end
+	end
+	return n
+end
+
+local function appearanceLoaded(owner: Player, char: Model, hum: Humanoid): boolean
+	if templates[char] then
+		return true
+	end
+	local ok, loaded = pcall(function()
+		return owner:HasAppearanceLoaded()
+	end)
+	if not ok or loaded then
+		return true
+	end
+	if owner == Players.LocalPlayer then
+		return false
+	end
+	-- cuerpo completo presente
+	local last = if hum.RigType == Enum.HumanoidRigType.R15 then "LeftFoot" else "Left Leg"
+	if not char:FindFirstChild(last) then
+		return false
+	end
+	local n = lookCount(char)
+	local now = os.clock()
+	local st = settle[char]
+	if not st then
+		settle[char] = { N = n, T = now, First = now }
+		return false
+	end
+	if st.N ~= n then
+		st.N, st.T = n, now
+		return false
+	end
+	return now - st.T >= SETTLE_TIME or now - st.First >= SETTLE_MAX
+end
+
 local function avatarSource(owner: Player): Model?
 	local char = owner.Character
 	if not char or not char.Parent then
 		return nil
 	end
 	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not (hrp and hrp:IsA("BasePart") and char:FindFirstChild("Head") and char:FindFirstChildOfClass("Humanoid")) then
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not (hrp and hrp:IsA("BasePart") and char:FindFirstChild("Head") and hum) then
 		return nil
 	end
-	local ok, loaded = pcall(function()
-		return owner:HasAppearanceLoaded()
-	end)
-	if ok and not loaded then
+	if not appearanceLoaded(owner, char, hum) then
 		return nil
 	end
 	return char
@@ -752,6 +800,8 @@ local function buildBlock(parsed: HelperCatalog.Parsed, opts: BuildOpts?, s: num
 	return built
 end
 
+local warnedOwner: { [Player]: boolean } = setmetatable({}, { __mode = "k" }) :: any
+
 function HelperModel.Build(parsed: HelperCatalog.Parsed, opts: BuildOpts?): Built
 	local s = (if opts and opts.Scale then opts.Scale else HelperModel.BaseScale) * (RARITY_SCALE[parsed.Rarity] or 1)
 	local ok, built = pcall(buildAvatar, parsed, opts, s)
@@ -760,6 +810,9 @@ function HelperModel.Build(parsed: HelperCatalog.Parsed, opts: BuildOpts?): Buil
 	end
 	if not ok then
 		warn("[HelperModel] no se pudo copiar el cuerpo del dueño, se usa el de bloques: " .. tostring(built))
+	elseif opts and opts.Owner and avatarSource(opts.Owner) ~= nil and not warnedOwner[opts.Owner] then
+		warnedOwner[opts.Owner] = true
+		warn("[HelperModel] el personaje de " .. opts.Owner.Name .. " no se pudo copiar (cuerpo incompleto o de otro tipo); se usa el de bloques y se reintenta")
 	end
 	return buildBlock(parsed, opts, s)
 end

@@ -43,7 +43,9 @@ type Active = {
 	Nick: string,
 	Props: string,
 	PropsSig: string,
-	Fallback: boolean, -- se pidió el cuerpo del dueño pero no se pudo copiar (se queda el de bloques, no se reintenta)
+	Fallback: boolean, -- se pidió el cuerpo del dueño pero no se pudo copiar (se queda el de bloques y se reintenta unas pocas veces)
+	Tries: number, -- reintentos hechos para copiar el cuerpo del dueño
+	RetryAt: number, -- cuándo reintentar
 	Acc: number,
 	Skip: number,
 	BurstStamp: number,
@@ -289,7 +291,7 @@ local function reconcile()
 				-- se reconstruye si cambia el ayudante, su dueño (otro personaje), sus armas o si ya se puede copiar el cuerpo del dueño; entonces conserva su sitio
 				local sameBody = cur ~= nil and cur.Id == id and cur.Char == char
 				local avatarReady = HelperModel.AvatarReady(pl)
-				local needAvatar = cur ~= nil and not cur.Built.IsAvatar and avatarReady and not cur.Fallback
+				local needAvatar = cur ~= nil and not cur.Built.IsAvatar and avatarReady and (not cur.Fallback or (cur.Tries < 3 and os.clock() >= cur.RetryAt))
 				if not cur or not sameBody or cur.PropsSig ~= propsSig or needAvatar then
 					-- espera (hasta 6 s) a que cargue el personaje del dueño para no mostrar primero el cuerpo de respaldo
 					local since = waitingAvatar[key]
@@ -299,6 +301,7 @@ local function reconcile()
 					end
 					if avatarReady or cur ~= nil or (since ~= nil and os.clock() - since > 6) then
 						waitingAvatar[key] = nil
+						local prevTries = if cur and sameBody and cur.Fallback then cur.Tries + 1 else 0
 						local keepPos = if cur and sameBody then cur.Pos else nil
 						local keepYaw = if cur and sameBody then cur.Yaw else nil
 						remove(key)
@@ -325,6 +328,8 @@ local function reconcile()
 							Props = props,
 							PropsSig = propsSig,
 							Fallback = avatarReady and not built.IsAvatar,
+							Tries = prevTries,
+							RetryAt = os.clock() + 8,
 							Acc = 0,
 							Skip = 0,
 							BurstStamp = 0,

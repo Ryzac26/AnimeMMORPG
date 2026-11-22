@@ -11,6 +11,8 @@
       GRIP_FRAC   qué parte del largo queda detrás de la mano (empuñadura)
       TIP_SIGN    +1 si la punta está en el lado + del eje largo de la malla, -1 si está al revés (paquete Genshin)
       LP_TIP      lo mismo para el paquete Low Poly (si TODAS esas armas se ven "al revés", cambia SOLO este número por -1)
+      TIP_FIX     arma POR ARMA: si UNA espada/daga concreta se ve al revés (la punta en la mano y el mango arriba), escribe su nombre con -1 (ver más abajo).
+                  El nombre de cada arma sale en el Output al equiparla ("[WeaponSkins] Sword 'nombre' ...") y en el atributo "Skin" de la pieza.
 ]]
 local AssetService = game:GetService("AssetService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -30,6 +32,9 @@ WeaponSkins.PITCH = { Axe = -28 }
 -- Sube el arma (studs) a lo largo del brazo, para que mazos/hachas no rocen el piso.
 WeaponSkins.LIFT = { Axe = -0.2 }
 local LP_TIP = 1
+-- Armas con la punta al revés (nombre de la lista de abajo -> -1). Ejemplo:  WeaponSkins.TIP_FIX = { ["aquila"] = -1, ["aquila 2"] = -1 }
+-- Sirve igual para jugadores y para ayudantes (los dos usan estas mismas armas).
+WeaponSkins.TIP_FIX = {} :: { [string]: number }
 local LP_TEX = 2913129928 -- textura única del paquete Low Poly
 
 -- { nombre interno, id de malla, id de textura }  (ordenadas de menos a más poderosa)
@@ -195,7 +200,7 @@ function WeaponSkins.Pick(style: string, weapon: any): { Name: string, Mesh: num
 	local slot = (math.clamp(tier, 1, tiers) - 1) * rars + (rIdx - 1) -- 0 .. tiers*rars-1
 	local idx = math.clamp(math.floor(slot * #pool / (tiers * rars)) + 1, 1, #pool)
 	local e = pool[idx]
-	return { Name = e.Name, Mesh = e.Mesh, Tex = e.Tex, Style = style, Len = e.Len, Tip = e.Tip }
+	return { Name = e.Name, Mesh = e.Mesh, Tex = e.Tex, Style = style, Len = e.Len, Tip = WeaponSkins.TIP_FIX[e.Name] or e.Tip }
 end
 
 -- Caché de mallas (se crean una vez y se clonan). false = no carga.
@@ -203,6 +208,7 @@ local meshCache: { [number]: any } = {}
 local loading: { [number]: boolean } = {}
 local waiters: { [number]: { () -> () } } = {}
 local warned = false
+local announced: { [string]: boolean } = {} -- armas ya anotadas en el Output (una vez por arma)
 
 local function load(meshId: number)
 	if meshCache[meshId] ~= nil or loading[meshId] then
@@ -301,6 +307,11 @@ function WeaponSkins.Attach(parent: Instance, hand: BasePart, skin: any, grip: V
 	piece.Size = native * k
 	piece.TextureID = "rbxassetid://" .. skin.Tex
 	piece.Name = "WeaponPart"
+	piece:SetAttribute("Skin", skin.Name)
+	if not announced[skin.Name] then
+		announced[skin.Name] = true
+		print(string.format("[WeaponSkins] %s '%s' (malla %d, punta %s)", tostring(style), skin.Name, skin.Mesh, if (skin.Tip or 1) < 0 then "-" else "+"))
+	end
 	piece.Anchored = false
 	piece.CanCollide = false
 	piece.CanQuery = false

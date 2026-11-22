@@ -155,6 +155,31 @@ local function build()
 						actionRemote:FireServer("Claim", m.Id)
 					end
 				end)
+				-- cancelar una misión aceptada (dos toques: el segundo confirma)
+				if m.Accepted and not m.Claimed then
+					local confirm = false
+					local cancelBtn: TextButton? = nil
+					cancelBtn = NpcKit.Button(row, theme, "Cancelar", UDim2.fromOffset(66, 22), UDim2.fromOffset(536, 8), "danger", function()
+						local btn = cancelBtn
+						if not confirm then
+							confirm = true
+							if btn then
+								btn.Text = "¿Seguro?"
+							end
+							task.delay(3, function()
+								if btn and btn.Parent then
+									confirm = false
+									btn.Text = "Cancelar"
+								end
+							end)
+							return
+						end
+						actionRemote:FireServer("Cancel", m.Id)
+					end)
+					if cancelBtn then
+						cancelBtn.TextSize = 11
+					end
+				end
 				y += 68
 			end
 			y += 6
